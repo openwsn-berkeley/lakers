@@ -5,10 +5,13 @@ const PRIVATE_KEY_LEN: usize = 32;
 const PUBLIC_KEY_LEN: usize = PRIVATE_KEY_LEN;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - EPHEMERAL_KEY_LEN - 1 - 2;
+const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - PUBLIC_KEY_LEN - 1 - 2;
+const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 
-pub fn encode_message_1 <'a> ( buf: &'a mut [u8; MESSAGE_1_LEN],
-								method: u8,
+// maximum supported length of connection identifier for R
+const MAX_C_R_LEN: usize = 0;
+
+pub fn encode_message_1 <'a> ( method: u8,
 								suites : u8,
 								g_x : [u8; PUBLIC_KEY_LEN],
 								c_i : u8,
@@ -29,8 +32,7 @@ pub fn encode_message_1 <'a> ( buf: &'a mut [u8; MESSAGE_1_LEN],
 pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 							   g_y_buf: &'a mut [u8; PUBLIC_KEY_LEN],
 							   ciphertext_2_buf: &'a mut [u8; CIPHERTEXT_2_LEN],
-							   c_r: &'a mut u8 )
-							   -> Result<u8, i8> {
+							   c_r: &'a mut u8 ) {
 		assert!(rcvd_message_2.len() == MESSAGE_2_LEN);
 
 		*c_r = rcvd_message_2[MESSAGE_2_LEN-1];
@@ -43,7 +45,6 @@ pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 			ciphertext_2_buf[i] = rcvd_message_2[i + 2 + PUBLIC_KEY_LEN];
 		}
 
-		Ok(0)
 }
 
 fn main() {
@@ -104,11 +105,11 @@ mod tests {
 	#[test]
 	fn test_encode_message_1() {
 		let mut message_1_buf = [0xff as u8; MESSAGE_1_LEN];
-		let _ret = encode_message_1(&mut message_1_buf,
-									METHOD_TV,
-									SUITES_TV,
-									G_X_TV,
-									CONNECTION_ID_TV);
+		encode_message_1(METHOD_TV,
+							SUITES_TV,
+							G_X_TV,
+							C_I_TV,
+							&mut message_1_buf);
 		assert!(MESSAGE_1_TV == message_1_buf);
 	}
 
@@ -117,7 +118,10 @@ mod tests {
 		let mut g_y_buf = [0x00 as u8; PUBLIC_KEY_LEN];
 		let mut ciphertext_2_buf = [0x00 as u8; CIPHERTEXT_2_LEN];
 		let mut c_r = 0xff as u8;
-		let _res = parse_message_2(&MESSAGE_2_TV, &mut g_y_buf, &mut ciphertext_2_buf, &mut c_r);
+		parse_message_2(&MESSAGE_2_TV,
+						&mut g_y_buf,
+						&mut ciphertext_2_buf,
+						&mut c_r);
 
 		assert!(G_Y_TV == g_y_buf);
 		assert!(CIPHERTEXT_2_TV == ciphertext_2_buf);
