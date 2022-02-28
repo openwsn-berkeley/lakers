@@ -44,6 +44,14 @@ pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 	for i in 0 .. CIPHERTEXT_2_LEN {
 			ciphertext_2_buf[i] = rcvd_message_2[i + 2 + PUBLIC_KEY_LEN];
 		}
+}
+
+pub fn decrypt_ciphertext_2 <'a> (x: [u8; PRIVATE_KEY_LEN],
+									g_x: [u8; PUBLIC_KEY_LEN],
+									g_y: [u8; PUBLIC_KEY_LEN],
+									g_r: [u8; PUBLIC_KEY_LEN],
+									c_r: [u8; MAX_C_R_LEN],
+									plaintext_2: &'a mut [u8; PLAINTEXT_2_LEN]){
 
 }
 
@@ -58,7 +66,8 @@ mod tests {
 	// test vectors (TV)
 	const METHOD_TV: u8 = 3;
 	const SUITES_TV: u8 = 0;
-	const CONNECTION_ID_TV: u8 = 12;
+	const C_I_TV: u8 = 12;
+	const C_R_TV: [u8; 0] = [];
 	const MESSAGE_1_TV : [u8; MESSAGE_1_LEN] =
 						[ 0x03, 0x00, 0x58, 0x20, 0x3a, 0xa9, 0xeb, 0x32,
 						  0x01, 0xb3, 0x36, 0x7b, 0x8c, 0x8b, 0xe3, 0x8d,
@@ -73,6 +82,10 @@ mod tests {
 						  0x48, 0x01, 0x8b, 0x41, 0x90, 0xf7, 0xd1, 0x61,
 						  0x82, 0x4e, 0x0f, 0xf0, 0x4c, 0x29, 0x4f, 0x4a,
 						  0xc6, 0x02, 0xcf, 0x78, 0x40 ];
+
+	const PLAINTEXT_2_TV : [u8; PLAINTEXT_2_LEN] =
+						[ 0x05, 0x48, 0x8e, 0x27, 0xcb, 0xd4, 0x94, 0xf7,
+						  0x52, 0x83 ];
 
 	const CIPHERTEXT_2_TV : [u8; CIPHERTEXT_2_LEN] =
 						[ 0x0f, 0xf0, 0x4c, 0x29, 0x4f, 0x4a, 0xc6, 0x02,
@@ -128,7 +141,18 @@ mod tests {
 	}
 
 	#[test]
-	fn test_decrypt_message_2() {
+	fn test_decrypt_ciphertext_2() {
+
+	let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
+	decrypt_ciphertext_2(X_TV,
+							G_X_TV,
+							G_Y_TV,
+							G_R_TV,
+							C_R_TV,
+							&mut plaintext_2_buf);
+
+	assert!(PLAINTEXT_2_TV == plaintext_2_buf);
 
 	}
 }
+
