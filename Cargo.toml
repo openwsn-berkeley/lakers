@@ -6,3 +6,6 @@ authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC implementation"
 
+[dependencies]
+hacspec-p256 = { path = "../../../Software/hacspec/examples/p256" }
+

@@ -46,13 +46,31 @@ pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 		}
 }
 
-pub fn decrypt_ciphertext_2 <'a> (x: [u8; PRIVATE_KEY_LEN],
+pub fn decrypt_ciphertext_2 <'a> (x: &str,
 									g_x: [u8; PUBLIC_KEY_LEN],
-									g_y: [u8; PUBLIC_KEY_LEN],
+									g_y: &str,
 									g_r: [u8; PUBLIC_KEY_LEN],
 									c_r: [u8; MAX_C_R_LEN],
 									plaintext_2: &'a mut [u8; PLAINTEXT_2_LEN]){
+	panic!("not implemented yet!");
+}
 
+pub fn p256_ecdh (private_key: &str, public_key: &str) {
+	use hacspec_p256::*;
+	
+	let scalar = P256Scalar::from_hex(private_key);
+	let point = (
+		P256FieldElement::from_hex(public_key),
+		P256FieldElement::from_literal(0u128)
+	);
+
+	// we only care about the x coordinate
+    let shared_secret = match p256_point_mul(scalar, point) {
+        Ok(p) => p.0,
+        Err(_) => panic!("Error hacspec p256_point_mul"),
+    };
+
+	println!("shared_secret = {}", shared_secret);
 }
 
 fn main() {
@@ -115,6 +133,12 @@ mod tests {
 						  0x17, 0x4d, 0x07, 0x01, 0xa0, 0x9e, 0xcd, 0x6a,
 						  0x15, 0xce, 0xe2, 0xc6, 0xce, 0x21, 0xaa, 0x50 ];
 
+	const X_STR : &str =
+"b026b168429b213d6b421df6abd0641cd66dca2ee7fd5977104bb238182e5ea6";
+
+	const G_Y_STR : &str = 
+"e1739096c5c9582c1298918166d69548c78f7497b258c0856aa2019893a39425";
+
 	#[test]
 	fn test_encode_message_1() {
 		let mut message_1_buf = [0xff as u8; MESSAGE_1_LEN];
@@ -143,15 +167,20 @@ mod tests {
 	#[test]
 	fn test_decrypt_ciphertext_2() {
 
-	let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
-	decrypt_ciphertext_2(X_TV,
+		let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
+		decrypt_ciphertext_2(X_STR,
 							G_X_TV,
-							G_Y_TV,
+							G_Y_STR,
 							G_R_TV,
 							C_R_TV,
 							&mut plaintext_2_buf);
 
-	assert!(PLAINTEXT_2_TV == plaintext_2_buf);
+		assert!(PLAINTEXT_2_TV == plaintext_2_buf);
+
+	}
+
+	#[test]
+	fn test_p256_ecdh() {
 
 	}
 }
