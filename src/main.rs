@@ -45,31 +45,40 @@ pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 		}
 }
 
-pub fn decrypt_ciphertext_2 <'a> (x: &str,
+pub fn decrypt_ciphertext_2 <'a> (x: [u8; P256_ELEM_LEN],
 									g_x: [u8; P256_ELEM_LEN],
-									g_y: &str,
+									g_y: [u8; P256_ELEM_LEN],
 									g_r: [u8; P256_ELEM_LEN],
 									c_r: [u8; MAX_C_R_LEN],
 									plaintext_2: &'a mut [u8; PLAINTEXT_2_LEN]){
+	let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
+	p256_ecdh(x, g_y, &mut g_xy);
 	panic!("not implemented yet!");
 }
 
-pub fn p256_ecdh (private_key: &str, public_key: &str) {
+pub fn p256_ecdh <'a> (private_key: [u8; P256_ELEM_LEN],
+					   public_key: [u8; P256_ELEM_LEN],
+					   secret: &'a mut [u8; P256_ELEM_LEN]) {
 	use hacspec_p256::*;
 	
-	let scalar = P256Scalar::from_hex(private_key);
+	let scalar = P256Scalar::from_be_bytes(&private_key);
 	let point = (
-		P256FieldElement::from_hex(public_key),
-		P256FieldElement::from_literal(0u128)
+		P256FieldElement::from_be_bytes(&public_key),
+		p256_calculate_w(P256FieldElement::from_be_bytes(&public_key))
 	);
 
+	assert!(p256_validate_public_key(point));
+
 	// we only care about the x coordinate
-    let shared_secret = match p256_point_mul(scalar, point) {
+    let secret_felem = match p256_point_mul(scalar, point) {
         Ok(p) => p.0,
-        Err(_) => panic!("Error hacspec p256_point_mul"),
+	    Err(_) => panic!("Error hacspec p256_point_mul"),
     };
 
-	println!("shared_secret = {}", shared_secret);
+	let secret_bytes = secret_felem.to_be_bytes();
+	for i in 0..P256_ELEM_LEN {
+		secret[i] = secret_bytes[i];
+	}
 }
 
 fn main() {
@@ -132,11 +141,23 @@ mod tests {
 						  0x17, 0x4d, 0x07, 0x01, 0xa0, 0x9e, 0xcd, 0x6a,
 						  0x15, 0xce, 0xe2, 0xc6, 0xce, 0x21, 0xaa, 0x50 ];
 
-	const X_STR : &str =
-"b026b168429b213d6b421df6abd0641cd66dca2ee7fd5977104bb238182e5ea6";
+	const X_1_TV : [u8; P256_ELEM_LEN] =
+						[ 0x0a, 0x0d, 0x62, 0x2a, 0x47, 0xe4, 0x8f, 0x6b,
+						  0xc1, 0x03, 0x8a, 0xce, 0x43, 0x8c, 0x6f, 0x52,
+						  0x8a, 0xa0, 0x0a, 0xd2, 0xbd, 0x1d, 0xa5, 0xf1,
+						  0x3e, 0xe4, 0x6b, 0xf5, 0xf6, 0x33, 0xd7, 0x1a ];
 
-	const G_Y_STR : &str = 
-"e1739096c5c9582c1298918166d69548c78f7497b258c0856aa2019893a39425";
+	const G_Y_1_TV : [u8; P256_ELEM_LEN] =
+						[ 0x29, 0x3a, 0xa3, 0x49, 0xb9, 0x34, 0xab, 0x2c,
+						  0x83, 0x9c, 0xf5, 0x4b, 0x8a, 0x73, 0x7d, 0xf2,
+						  0x30, 0x4e, 0xf9, 0xb2, 0x0f, 0xa4, 0x94, 0xe3,
+						  0x1a, 0xd6, 0x2b, 0x31, 0x5d, 0xd6, 0xa5, 0x3c ];
+
+	const G_XY_1_TV : [u8; P256_ELEM_LEN] =
+						[ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+						  0x00, 0x00, 0x00, 0x02, 0x09, 0x9f, 0x55, 0xd5,
+						  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+						  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff ];
 
 	#[test]
 	fn test_encode_message_1() {
@@ -167,9 +188,9 @@ mod tests {
 	fn test_decrypt_ciphertext_2() {
 
 		let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
-		decrypt_ciphertext_2(X_STR,
+		decrypt_ciphertext_2(X_TV,
 							G_X_TV,
-							G_Y_STR,
+							G_Y_TV,
 							G_R_TV,
 							C_R_TV,
 							&mut plaintext_2_buf);
@@ -180,7 +201,9 @@ mod tests {
 
 	#[test]
 	fn test_p256_ecdh() {
-
+		let mut secret = [0x00 as u8; P256_ELEM_LEN];
+		p256_ecdh(X_1_TV, G_Y_1_TV, &mut secret);
+		assert!(G_XY_1_TV == secret);
 	}
 }
 
