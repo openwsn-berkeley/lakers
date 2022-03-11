@@ -10,11 +10,10 @@ const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 // maximum supported length of connection identifier for R
 const MAX_C_R_LEN: usize = 0;
 
-pub fn encode_message_1 <'a> ( method: u8,
 								suites : u8,
 								g_x : [u8; P256_ELEM_LEN],
 								c_i : u8,
-								buf: &'a mut [u8; MESSAGE_1_LEN]) {
+								buf: &mut [u8; MESSAGE_1_LEN]) {
 	assert!(MESSAGE_1_LEN > 1 + 1 + P256_ELEM_LEN + 1); // length check
 	assert!(method < 24 && suites < 24 && c_i < 24); // CBOR encoding checks
 
@@ -28,10 +27,10 @@ pub fn encode_message_1 <'a> ( method: u8,
 	buf[4+P256_ELEM_LEN] = c_i;	// CBOR uint less than 24 is encoded verbatim
 }
 
-pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
-							   g_y_buf: &'a mut [u8; P256_ELEM_LEN],
-							   ciphertext_2_buf: &'a mut [u8; CIPHERTEXT_2_LEN],
-							   c_r: &'a mut u8 ) {
+pub fn parse_message_2       ( rcvd_message_2: &[u8; MESSAGE_2_LEN],
+							   g_y_buf: &mut [u8; P256_ELEM_LEN],
+							   ciphertext_2_buf: &mut [u8; CIPHERTEXT_2_LEN],
+							   c_r: &mut u8 ) {
 		assert!(rcvd_message_2.len() == MESSAGE_2_LEN);
 
 		*c_r = rcvd_message_2[MESSAGE_2_LEN-1];
@@ -45,20 +44,20 @@ pub fn parse_message_2 <'a> ( rcvd_message_2: &'a [u8; MESSAGE_2_LEN],
 		}
 }
 
-pub fn decrypt_ciphertext_2 <'a> (x: [u8; P256_ELEM_LEN],
+pub fn decrypt_ciphertext_2        (x: [u8; P256_ELEM_LEN],
 									g_x: [u8; P256_ELEM_LEN],
 									g_y: [u8; P256_ELEM_LEN],
 									g_r: [u8; P256_ELEM_LEN],
 									c_r: [u8; MAX_C_R_LEN],
-									plaintext_2: &'a mut [u8; PLAINTEXT_2_LEN]){
+									plaintext_2: &mut [u8; PLAINTEXT_2_LEN]){
 	let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
 	p256_ecdh(x, g_y, &mut g_xy);
 	panic!("not implemented yet!");
 }
 
-pub fn p256_ecdh <'a> (private_key: [u8; P256_ELEM_LEN],
+pub fn p256_ecdh      (private_key: [u8; P256_ELEM_LEN],
 					   public_key: [u8; P256_ELEM_LEN],
-					   secret: &'a mut [u8; P256_ELEM_LEN]) {
+					   secret: &mut [u8; P256_ELEM_LEN]) {
 	use hacspec_p256::*;
 	
 	let scalar = P256Scalar::from_be_bytes(&private_key);
