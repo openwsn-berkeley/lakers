@@ -2,6 +2,7 @@ const MESSAGE_1_LEN: usize = 37;
 const MESSAGE_2_LEN: usize = 45;
 
 const P256_ELEM_LEN: usize = 32;
+const SHA256_DIGEST_LEN: usize = 32;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
 const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
@@ -53,6 +54,20 @@ pub fn decrypt_ciphertext_2        (x: [u8; P256_ELEM_LEN],
 	let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
 	p256_ecdh(x, g_y, &mut g_xy);
 	panic!("not implemented yet!");
+}
+
+pub fn sha256_digest	(message: &[u8],
+						 output: &mut [u8; SHA256_DIGEST_LEN]) {
+
+	use hacspec_lib::prelude::*;
+	use hacspec_sha256::{hash};
+
+	let message_secret: Seq<U8> = Seq::<U8>::from_public_slice(message);
+	let digest = hash(&message_secret);
+
+	for i in 00..SHA256_DIGEST_LEN {
+		output[i] = digest[i].declassify();
+	}
 }
 
 pub fn p256_ecdh      (private_key: [u8; P256_ELEM_LEN],
@@ -107,6 +122,12 @@ mod tests {
 						  0x48, 0x01, 0x8b, 0x41, 0x90, 0xf7, 0xd1, 0x61,
 						  0x82, 0x4e, 0x0f, 0xf0, 0x4c, 0x29, 0x4f, 0x4a,
 						  0xc6, 0x02, 0xcf, 0x78, 0x40 ];
+
+	const H_MESSAGE_1_TV : [u8; SHA256_DIGEST_LEN] =
+						[ 0x9b, 0xdd, 0xb0, 0xcd, 0x55, 0x48, 0x7f, 0x82,
+						  0xa8, 0x6f, 0xb7, 0x2a, 0x8b, 0xb3, 0x58, 0x52,
+						  0x68, 0x91, 0xa0, 0xa6, 0xc9, 0x08, 0x61, 0x24,
+						  0x12, 0xf5, 0xaf, 0x29, 0x9d, 0xaf, 0x01, 0x96 ];
 
 	const PLAINTEXT_2_TV : [u8; PLAINTEXT_2_LEN] =
 						[ 0x05, 0x48, 0x8e, 0x27, 0xcb, 0xd4, 0x94, 0xf7,
@@ -214,6 +235,15 @@ mod tests {
 
 		assert!(PLAINTEXT_2_TV == plaintext_2_buf);
 
+	}
+
+	#[test]
+	fn test_sha256_digest() {
+
+		let mut digest = [0x00 as u8; SHA256_DIGEST_LEN];
+
+		sha256_digest(&MESSAGE_1_TV, &mut digest);
+		assert_eq!(digest, H_MESSAGE_1_TV);
 	}
 
 	#[test]
