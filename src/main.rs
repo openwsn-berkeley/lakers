@@ -1,5 +1,6 @@
 const MESSAGE_1_LEN: usize = 37;
 const MESSAGE_2_LEN: usize = 45;
+const MAX_MESSAGE_LEN: usize = MESSAGE_2_LEN;
 
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
@@ -10,7 +11,12 @@ const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 
 // maximum supported length of connection identifier for R
 const MAX_C_R_LEN: usize = 0;
+const MAX_CONTEXT_LEN: usize = 1;
+const MAX_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
 
+const CBOR_BYTE_STRING: u8 = 0x58;
+const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
+const CBOR_SHORT_BYTE_STRING: u8 = 0x40;
 								suites : u8,
 								g_x : [u8; P256_ELEM_LEN],
 								c_i : u8,
@@ -20,7 +26,7 @@ const MAX_C_R_LEN: usize = 0;
 
 	buf[0] = method; 	// CBOR unsigned int less than 24 is encoded verbatim
 	buf[1] = suites; 	// CBOR unsigned int less than 24 is encoded verbatim
-	buf[2] = 0x58;		// CBOR byte string magic number
+	buf[2] = CBOR_BYTE_STRING;		// CBOR byte string magic number
 	buf[3] = P256_ELEM_LEN as u8; // length of the byte string
 	for i in 0..P256_ELEM_LEN { // copy byte string
 		buf[4+i] = g_x[i];
@@ -93,6 +99,46 @@ pub fn p256_ecdh      (private_key: [u8; P256_ELEM_LEN],
 	for i in 0..P256_ELEM_LEN {
 		secret[i] = secret_bytes[i];
 	}
+}
+
+pub fn edhoc_kdf(prk: [u8; P256_ELEM_LEN],
+				 transcript_hash: [u8; SHA256_DIGEST_LEN],
+				 label: [u8; MAX_LABEL_LEN],
+				 label_len: usize,
+				 context: [u8; MAX_CONTEXT_LEN],
+				 context_len: usize,
+				 length: u8) {
+
+	const MAX_INFO_LEN : usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
+						 1 + MAX_LABEL_LEN +     // label <24 bytes as tstr
+						 1 + MAX_CONTEXT_LEN +   // context <24 bytes as bstr
+						 1;						 // length as u8
+
+	let mut info = [0x00 as u8; MAX_INFO_LEN];
+
+	// construct info with inline cbor encoding
+
+	info[0] = CBOR_BYTE_STRING;
+	info[1] = SHA256_DIGEST_LEN as u8;
+	for i in 2..SHA256_DIGEST_LEN + 2 {
+		info[i] = transcript_hash[i-2];
+	}
+
+	info[SHA256_DIGEST_LEN + 2] = label_len as u8 | CBOR_SHORT_TEXT_STRING;
+	for i in SHA256_DIGEST_LEN+3..SHA256_DIGEST_LEN+3+label_len {
+		info[i] = label[i - SHA256_DIGEST_LEN - 3];
+	}
+
+	info[SHA256_DIGEST_LEN + 3 + label_len] = context_len as u8 |
+CBOR_SHORT_BYTE_STRING;
+	for i in SHA256_DIGEST_LEN + 4 + label_len..SHA256_DIGEST_LEN + 4 + label_len + context_len {
+		info[i] = context[i - SHA256_DIGEST_LEN - 4 - label_len];
+	}
+
+	info[SHA256_DIGEST_LEN + 4 + label_len + context_len] = length as u8;
+
+	panic!("not implemented");
+
 }
 
 fn main() {
@@ -254,6 +300,37 @@ mod tests {
 
 		p256_ecdh(X_2_TV, G_Y_2_TV, &mut secret);
 		assert!(G_XY_2_TV == secret);
+	}
+
+	#[test]
+	fn test_edhoc_kdf() {
+		const PRK_2E_TV : [u8; P256_ELEM_LEN] = [ 0x00; P256_ELEM_LEN ];
+
+		const TH_2_TV : [u8; SHA256_DIGEST_LEN] =
+							[ 0x71, 0xA6, 0xC7, 0xC5, 0xBA, 0x9A, 0xD4, 0x7F,
+							  0xE7, 0x2D, 0xA4, 0xDC, 0x35, 0x9B, 0xF6, 0xB2,
+							  0x76, 0xD3, 0x51, 0x59, 0x68, 0x71, 0x1B, 0x9A,
+							  0x91, 0x1C, 0x71, 0xFC, 0x09, 0x6A, 0xEE, 0x0E ];
+		const LABEL_TV : [u8; MAX_LABEL_LEN] =
+							[ 'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8,
+							  'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
+							  'M' as u8, '_' as u8, '2' as u8];
+
+		const LEN_TV : u8 = 10;
+
+		const INFO_TV : [u8; 48] =
+
+							[ 0x58, 0x20, 0x71, 0xa6, 0xc7, 0xc5, 0xba, 0x9a,
+							  0xd4, 0x7f, 0xe7, 0x2d, 0xa4, 0xdc, 0x35, 0x9b,
+							  0xf6, 0xb2, 0x76, 0xd3, 0x51, 0x59, 0x68, 0x71,
+							  0x1b, 0x9a, 0x91, 0x1c, 0x71, 0xfc, 0x09, 0x6a,
+							  0xee, 0x0e, 0x6b, 0x4b, 0x45, 0x59, 0x53, 0x54,
+							  0x52, 0x45, 0x41, 0x4d, 0x5f, 0x32, 0x40, 0x0a ];
+
+		let mut output = [0x00 as u8;50];
+
+		edhoc_kdf(PRK_2E_TV, TH_2_TV, LABEL_TV, 11, [0x00], 0,  LEN_TV );
+
 	}
 }
 
