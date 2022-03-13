@@ -4,6 +4,10 @@ const MESSAGE_1_LEN: usize = 37;
 const MESSAGE_2_LEN: usize = 45;
 const MAX_MESSAGE_LEN: usize = MESSAGE_2_LEN;
 
+const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
+const EDHOC_SUPPORTED_SUITES: u8 = 2;
+const EDHOC_CID: u8 = 12;
+
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
 
@@ -162,7 +166,17 @@ pub fn edhoc_kdf(
 }
 
 fn main() {
-    //	println!{"Hello, world!"};
+    let x : [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    let g_x : [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    let mut message_1 : [u8; MESSAGE_1_LEN] = [0x00; MESSAGE_1_LEN];
+    let mut digest_message_1 : [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
+    // TODO load hardcoded static DH key
+    // TODO generate private and public key
+    encode_message_1(EDHOC_METHOD, EDHOC_SUPPORTED_SUITES, g_x, EDHOC_CID, &mut message_1);
+    sha256_digest(&message_1, &mut digest_message_1);
+    // TODO send message_1 over the wire
+
+
 }
 
 #[cfg(test)]
