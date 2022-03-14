@@ -131,8 +131,12 @@ pub fn edhoc_kdf(
     label_len: usize,
     context: [u8; MAX_CONTEXT_LEN],
     context_len: usize,
-    length: u8,
+    length: usize,
+    output: &mut [u8],
 ) {
+    use hacspec_hkdf::*;
+    use hacspec_lib::prelude::*;
+
     const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
 						 1 + MAX_LABEL_LEN +     // label <24 bytes as tstr
 						 1 + MAX_CONTEXT_LEN +   // context <24 bytes as bstr
@@ -141,42 +145,59 @@ pub fn edhoc_kdf(
     let mut info = [0x00 as u8; MAX_INFO_LEN];
 
     // construct info with inline cbor encoding
-
     info[0] = CBOR_BYTE_STRING;
     info[1] = SHA256_DIGEST_LEN as u8;
     for i in 2..SHA256_DIGEST_LEN + 2 {
         info[i] = transcript_hash[i - 2];
     }
-
     info[SHA256_DIGEST_LEN + 2] = label_len as u8 | CBOR_SHORT_TEXT_STRING;
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label_len {
         info[i] = label[i - SHA256_DIGEST_LEN - 3];
     }
-
     info[SHA256_DIGEST_LEN + 3 + label_len] = context_len as u8 | CBOR_SHORT_BYTE_STRING;
     for i in SHA256_DIGEST_LEN + 4 + label_len..SHA256_DIGEST_LEN + 4 + label_len + context_len {
         info[i] = context[i - SHA256_DIGEST_LEN - 4 - label_len];
     }
-
     info[SHA256_DIGEST_LEN + 4 + label_len + context_len] = length as u8;
+
+    let info_len = SHA256_DIGEST_LEN + 5 + label_len + context_len;
+
+    // call kdf-expand
+    // TODO convert prk to byte seq
+    // TODO convert info to byte seq
+    let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
+    let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
+    let info_byteseq = Seq::from_slice_range(&info_byteseq, 0..info_len);
+
+    let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
+        Ok(okm) => okm,
+        Err(_) => panic!("edhoc_kdf: error expand"),
+    };
+
+    for i in 0..length {
+        output[i] = okm_byteseq[i].declassify();
+    }
 
     //	println!("info = {:0x?}", info);
     //	println!("info_len = {}", SHA256_DIGEST_LEN + 5 + label_len + context_len);
-    panic!("not implemented");
 }
 
 fn main() {
-    let x : [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    let g_x : [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    let mut message_1 : [u8; MESSAGE_1_LEN] = [0x00; MESSAGE_1_LEN];
-    let mut digest_message_1 : [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
+    let x: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    let g_x: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    let mut message_1: [u8; MESSAGE_1_LEN] = [0x00; MESSAGE_1_LEN];
+    let mut digest_message_1: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
     // TODO load hardcoded static DH key
     // TODO generate private and public key
-    encode_message_1(EDHOC_METHOD, EDHOC_SUPPORTED_SUITES, g_x, EDHOC_CID, &mut message_1);
+    encode_message_1(
+        EDHOC_METHOD,
+        EDHOC_SUPPORTED_SUITES,
+        g_x,
+        EDHOC_CID,
+        &mut message_1,
+    );
     sha256_digest(&message_1, &mut digest_message_1);
     // TODO send message_1 over the wire
-
-
 }
 
 #[cfg(test)]
@@ -318,7 +339,11 @@ mod tests {
 
     #[test]
     fn test_edhoc_kdf() {
-        const PRK_2E_TV: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+        const PRK_2E_TV: [u8; P256_ELEM_LEN] = [
+            0xd1, 0xd0, 0x11, 0xa5, 0x9a, 0x6d, 0x10, 0x57, 0x5e, 0xb2, 0x20, 0xc7, 0x65, 0x2e,
+            0x6f, 0x98, 0xc4, 0x17, 0xa5, 0x65, 0xe4, 0xe4, 0x5c, 0xf5, 0xb5, 0x01, 0x06, 0x95,
+            0x04, 0x3b, 0x0e, 0xb7,
+        ];
 
         const TH_2_TV: [u8; SHA256_DIGEST_LEN] = [
             0x71, 0xA6, 0xC7, 0xC5, 0xBA, 0x9A, 0xD4, 0x7F, 0xE7, 0x2D, 0xA4, 0xDC, 0x35, 0x9B,
@@ -330,7 +355,7 @@ mod tests {
             'M' as u8, '_' as u8, '2' as u8,
         ];
 
-        const LEN_TV: u8 = 10;
+        const LEN_TV: usize = 10;
 
         const INFO_TV: [u8; 48] = [
             0x58, 0x20, 0x71, 0xa6, 0xc7, 0xc5, 0xba, 0x9a, 0xd4, 0x7f, 0xe7, 0x2d, 0xa4, 0xdc,
@@ -339,8 +364,22 @@ mod tests {
             0x41, 0x4d, 0x5f, 0x32, 0x40, 0x0a,
         ];
 
-        let mut output = [0x00 as u8; 50];
+        const KEYSTREAM_2_TV: [u8; 10] =
+            [0x0a, 0xb8, 0xc2, 0x0e, 0x84, 0x9e, 0x52, 0xf5, 0x9d, 0xfb];
 
-        edhoc_kdf(PRK_2E_TV, TH_2_TV, LABEL_TV, 11, [0x00], 0, LEN_TV);
+        let mut output = [0x00 as u8; 10];
+
+        edhoc_kdf(
+            PRK_2E_TV,
+            TH_2_TV,
+            LABEL_TV,
+            11,
+            [0x00],
+            0,
+            LEN_TV,
+            &mut output,
+        );
+
+        assert_eq!(KEYSTREAM_2_TV, output);
     }
 }
