@@ -10,6 +10,7 @@ const EDHOC_CID: u8 = 12;
 
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
+const MAC_LENGTH_2: usize = 8;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
 const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
@@ -23,6 +24,15 @@ const MAX_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
 const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
 const CBOR_SHORT_BYTE_STRING: u8 = 0x40;
+
+const ID_CRED_R: [u8; 3] = [0xa1, 0x04, 0x05];
+const G_R_OFFSET: usize = 27; // offset within CRED_R to find G_R
+const CRED_R: [u8; 59] = [
+    0xa2, 0x02, 0x6b, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x65, 0x64, 0x75, 0x08, 0xa1,
+    0x01, 0xa4, 0x01, 0x01, 0x02, 0x05, 0x20, 0x04, 0x21, 0x58, 0x20, 0xe6, 0x6f, 0x35, 0x59, 0x90,
+    0x22, 0x3c, 0x3f, 0x6c, 0xaf, 0xf8, 0x62, 0xe4, 0x07, 0xed, 0xd1, 0x17, 0x4d, 0x07, 0x01, 0xa0,
+    0x9e, 0xcd, 0x6a, 0x15, 0xce, 0xe2, 0xc6, 0xce, 0x21, 0xaa, 0x50,
+];
 
 pub fn encode_message_1(
     method: u8,
@@ -67,24 +77,73 @@ pub fn parse_message_2(
 
 pub fn decrypt_ciphertext_2(
     x: [u8; P256_ELEM_LEN],
-    g_x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     g_r: [u8; P256_ELEM_LEN],
     c_r: [u8; MAX_C_R_LEN],
+    ciphertext_2: [u8; CIPHERTEXT_2_LEN],
     h_message_1: [u8; SHA256_DIGEST_LEN],
     plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
 ) {
     let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
     let mut th_2 = [0x00 as u8; SHA256_DIGEST_LEN];
 
-    p256_ecdh(x, g_y, &mut g_xy);
-    // TODO compute TH_2
-    let mut th_2 = [0x00; SHA256_DIGEST_LEN];
+    // compute the shared secret
+    p256_ecdh(&x, &g_y, &mut g_xy);
+    // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
+    let mut prk_2e: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    hkdf_extract(&[], g_xy, &mut prk_2e);
+    // compute the transcript hash th_2
     compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
+    // compute g_rx from static R's public key and private ephemeral key
+    let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
+    p256_ecdh(&x, &CRED_R[G_R_OFFSET..], &mut g_rx);
+    // compute prk_3e2m = Extract( PRK_2e, G_RX )=
+    let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    hkdf_extract(&prk_2e, g_rx, &mut prk_3e2m);
 
-    // TODO compute MAC_2
+    // compute MAC_2
+    let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
+    let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
+    let mut context: [u8; ID_CRED_R.len() + 1 + CRED_R.len() + 2] =
+        [0x00; ID_CRED_R.len() + 1 + CRED_R.len() + 2];
+    // encode context in line
+    context[0] = ID_CRED_R.len() as u8 | CBOR_SHORT_BYTE_STRING;
+    for i in 1..ID_CRED_R.len() + 1 {
+        context[i] = ID_CRED_R[i - 1];
+    }
+    context[ID_CRED_R.len() + 1] = CBOR_BYTE_STRING;
+    context[ID_CRED_R.len() + 2] = CRED_R.len() as u8;
+    for i in ID_CRED_R.len() + 3..ID_CRED_R.len() + 3 + CRED_R.len() {
+        context[i] = CRED_R[i - ID_CRED_R.len() - 3];
+    }
+    edhoc_kdf(
+        prk_3e2m,
+        h_message_1,
+        &label_mac_2,
+        &context,
+        MAC_LENGTH_2,
+        &mut mac_2,
+    );
 
-    panic!("not implemented yet!");
+    // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
+    let mut keystream_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
+    let label_keystream_2 = [
+        'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8, 'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
+        'M' as u8, '_' as u8, '2' as u8,
+    ];
+    edhoc_kdf(
+        prk_2e,
+        th_2,
+        &label_keystream_2,
+        &[],
+        CIPHERTEXT_2_LEN,
+        &mut keystream_2,
+    );
+
+    // decrypt ciphertext_2
+    for i in 0..CIPHERTEXT_2_LEN {
+        plaintext_2[i] = ciphertext_2[i] ^ keystream_2[i];
+    }
 }
 
 fn compute_th_2(
@@ -111,8 +170,6 @@ fn compute_th_2(
         message[i] = c_r[i - SHA256_DIGEST_LEN - P256_ELEM_LEN - 5];
     }
 
-    let len = SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len();
-
     sha256_digest(&message, output);
 }
 
@@ -128,11 +185,7 @@ pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
     }
 }
 
-pub fn p256_ecdh(
-    private_key: [u8; P256_ELEM_LEN],
-    public_key: [u8; P256_ELEM_LEN],
-    secret: &mut [u8; P256_ELEM_LEN],
-) {
+pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
     use hacspec_p256::*;
 
     let scalar = P256Scalar::from_be_bytes(&private_key);
@@ -155,13 +208,25 @@ pub fn p256_ecdh(
     }
 }
 
+fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_LEN]) {
+    use hacspec_hkdf::*;
+    use hacspec_lib::prelude::*;
+
+    let ikm_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ikm);
+    let salt_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&salt);
+
+    let okm_byteseq = extract(&salt_byteseq, &ikm_byteseq);
+
+    for i in 0..okm_byteseq.len() {
+        okm[i] = okm_byteseq[i].declassify();
+    }
+}
+
 pub fn edhoc_kdf(
     prk: [u8; P256_ELEM_LEN],
     transcript_hash: [u8; SHA256_DIGEST_LEN],
-    label: [u8; MAX_LABEL_LEN],
-    label_len: usize,
-    context: [u8; MAX_CONTEXT_LEN],
-    context_len: usize,
+    label: &[u8],
+    context: &[u8],
     length: usize,
     output: &mut [u8],
 ) {
@@ -181,17 +246,19 @@ pub fn edhoc_kdf(
     for i in 2..SHA256_DIGEST_LEN + 2 {
         info[i] = transcript_hash[i - 2];
     }
-    info[SHA256_DIGEST_LEN + 2] = label_len as u8 | CBOR_SHORT_TEXT_STRING;
-    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label_len {
+    info[SHA256_DIGEST_LEN + 2] = label.len() as u8 | CBOR_SHORT_TEXT_STRING;
+    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label.len() {
         info[i] = label[i - SHA256_DIGEST_LEN - 3];
     }
-    info[SHA256_DIGEST_LEN + 3 + label_len] = context_len as u8 | CBOR_SHORT_BYTE_STRING;
-    for i in SHA256_DIGEST_LEN + 4 + label_len..SHA256_DIGEST_LEN + 4 + label_len + context_len {
-        info[i] = context[i - SHA256_DIGEST_LEN - 4 - label_len];
+    info[SHA256_DIGEST_LEN + 3 + label.len()] = context.len() as u8 | CBOR_SHORT_BYTE_STRING;
+    for i in
+        SHA256_DIGEST_LEN + 4 + label.len()..SHA256_DIGEST_LEN + 4 + label.len() + context.len()
+    {
+        info[i] = context[i - SHA256_DIGEST_LEN - 4 - label.len()];
     }
-    info[SHA256_DIGEST_LEN + 4 + label_len + context_len] = length as u8;
+    info[SHA256_DIGEST_LEN + 4 + label.len() + context.len()] = length as u8;
 
-    let info_len = SHA256_DIGEST_LEN + 5 + label_len + context_len;
+    let info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
 
     // call kdf-expand
     // TODO convert prk to byte seq
@@ -353,10 +420,10 @@ mod tests {
         let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
         decrypt_ciphertext_2(
             X_TV,
-            G_X_TV,
             G_Y_TV,
             G_R_TV,
             C_R_TV,
+            CIPHERTEXT_2_TV,
             H_MESSAGE_1_TV,
             &mut plaintext_2_buf,
         );
@@ -382,10 +449,10 @@ mod tests {
     #[test]
     fn test_p256_ecdh() {
         let mut secret = [0x00 as u8; P256_ELEM_LEN];
-        p256_ecdh(X_1_TV, G_Y_1_TV, &mut secret);
+        p256_ecdh(&X_1_TV, &G_Y_1_TV, &mut secret);
         assert!(G_XY_1_TV == secret);
 
-        p256_ecdh(X_2_TV, G_Y_2_TV, &mut secret);
+        p256_ecdh(&X_2_TV, &G_Y_2_TV, &mut secret);
         assert!(G_XY_2_TV == secret);
     }
 
@@ -421,16 +488,7 @@ mod tests {
 
         let mut output = [0x00 as u8; 10];
 
-        edhoc_kdf(
-            PRK_2E_TV,
-            TH_2_TV,
-            LABEL_TV,
-            11,
-            [0x00],
-            0,
-            LEN_TV,
-            &mut output,
-        );
+        edhoc_kdf(PRK_2E_TV, TH_2_TV, &LABEL_TV, &[], LEN_TV, &mut output);
 
         assert_eq!(KEYSTREAM_2_TV, output);
     }
