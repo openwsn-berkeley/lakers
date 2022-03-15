@@ -71,6 +71,7 @@ pub fn decrypt_ciphertext_2(
     g_y: [u8; P256_ELEM_LEN],
     g_r: [u8; P256_ELEM_LEN],
     c_r: [u8; MAX_C_R_LEN],
+    h_message_1: [u8; SHA256_DIGEST_LEN],
     plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
 ) {
     let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
@@ -78,11 +79,41 @@ pub fn decrypt_ciphertext_2(
 
     p256_ecdh(x, g_y, &mut g_xy);
     // TODO compute TH_2
-    //	compute_th();
+    let mut th_2 = [0x00; SHA256_DIGEST_LEN];
+    compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
 
     // TODO compute MAC_2
 
     panic!("not implemented yet!");
+}
+
+fn compute_th_2(
+    h_message_1: [u8; SHA256_DIGEST_LEN],
+    g_y: [u8; P256_ELEM_LEN],
+    c_r: &[u8],
+    output: &mut [u8; SHA256_DIGEST_LEN],
+) {
+    let mut message = [0x00; SHA256_DIGEST_LEN + 2 + P256_ELEM_LEN + 2 + MAX_C_R_LEN + 1];
+    message[0] = CBOR_BYTE_STRING;
+    message[1] = SHA256_DIGEST_LEN as u8;
+    for i in 2..SHA256_DIGEST_LEN + 2 {
+        message[i] = h_message_1[i - 2];
+    }
+    message[SHA256_DIGEST_LEN + 2] = CBOR_BYTE_STRING;
+    message[SHA256_DIGEST_LEN + 3] = P256_ELEM_LEN as u8;
+    for i in SHA256_DIGEST_LEN + 4..SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN {
+        message[i] = g_y[i - SHA256_DIGEST_LEN - 4];
+    }
+    message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = CBOR_SHORT_BYTE_STRING | (c_r.len() as u8);
+    for i in
+        SHA256_DIGEST_LEN + P256_ELEM_LEN + 5..SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len()
+    {
+        message[i] = c_r[i - SHA256_DIGEST_LEN - P256_ELEM_LEN - 5];
+    }
+
+    let len = SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len();
+
+    sha256_digest(&message, output);
 }
 
 pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
@@ -293,6 +324,12 @@ mod tests {
         0x42, 0x85,
     ];
 
+    const TH_2_TV: [u8; SHA256_DIGEST_LEN] = [
+        0x71, 0xa6, 0xc7, 0xc5, 0xba, 0x9a, 0xd4, 0x7f, 0xe7, 0x2d, 0xa4, 0xdc, 0x35, 0x9b, 0xf6,
+        0xb2, 0x76, 0xd3, 0x51, 0x59, 0x68, 0x71, 0x1b, 0x9a, 0x91, 0x1c, 0x71, 0xfc, 0x09, 0x6a,
+        0xee, 0x0e,
+    ];
+
     #[test]
     fn test_encode_message_1() {
         let mut message_1_buf = [0xff as u8; MESSAGE_1_LEN];
@@ -314,9 +351,17 @@ mod tests {
     #[test]
     fn test_decrypt_ciphertext_2() {
         let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
-        decrypt_ciphertext_2(X_TV, G_X_TV, G_Y_TV, G_R_TV, C_R_TV, &mut plaintext_2_buf);
+        decrypt_ciphertext_2(
+            X_TV,
+            G_X_TV,
+            G_Y_TV,
+            G_R_TV,
+            C_R_TV,
+            H_MESSAGE_1_TV,
+            &mut plaintext_2_buf,
+        );
 
-        assert!(PLAINTEXT_2_TV == plaintext_2_buf);
+        assert_eq!(PLAINTEXT_2_TV, plaintext_2_buf);
     }
 
     #[test]
@@ -325,6 +370,13 @@ mod tests {
 
         sha256_digest(&MESSAGE_1_TV, &mut digest);
         assert_eq!(digest, H_MESSAGE_1_TV);
+    }
+
+    #[test]
+    fn test_compute_th_2() {
+        let mut th_2 = [0x00; SHA256_DIGEST_LEN];
+        compute_th_2(H_MESSAGE_1_TV, G_Y_TV, &C_R_TV, &mut th_2);
+        assert_eq!(th_2, TH_2_TV);
     }
 
     #[test]
