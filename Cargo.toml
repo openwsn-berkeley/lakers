@@ -7,6 +7,7 @@ license = "BSD"
 description = "EDHOC implementation"
 
 [dependencies]
+hex-literal = { version = "0.3.4" }
 hacspec-lib = { path = "../../../Software/hacspec/lib" }
 hacspec-p256 = { path = "../../../Software/hacspec/examples/p256" }
 hacspec-hkdf = { path = "../../../Software/hacspec/examples/hkdf" }

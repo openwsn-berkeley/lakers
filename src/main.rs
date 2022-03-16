@@ -1,11 +1,10 @@
 //#![no_std]
 
-const MESSAGE_1_LEN: usize = 37;
 const MESSAGE_2_LEN: usize = 45;
 
 const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
-const EDHOC_SUPPORTED_SUITES: u8 = 2;
-const EDHOC_CID: u8 = 12;
+const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
+const EDHOC_CID: i8 = 12;
 
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
@@ -16,9 +15,9 @@ const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
 const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 
 // maximum supported length of connection identifier for R
-const MAX_C_R_LEN: usize = 0;
 const MAX_CONTEXT_LEN: usize = 1;
 const MAX_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
+const MAX_BUFFER_LEN: usize = 100;
 
 const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
@@ -35,24 +34,29 @@ const CRED_R: [u8; 59] = [
 
 pub fn encode_message_1(
     method: u8,
-    suites: u8,
+    suites: &[u8],
     g_x: [u8; P256_ELEM_LEN],
-    c_i: u8,
-    buf: &mut [u8; MESSAGE_1_LEN],
+    c_i: i8,
+    output: &mut [u8],
+    output_len: &mut usize,
 ) {
-    //								h_message_1: &mut [u8; SHA256_DIGEST_LEN]) {
-    assert!(MESSAGE_1_LEN > 1 + 1 + P256_ELEM_LEN + 1); // length check
-    assert!(method < 24 && suites < 24 && c_i < 24); // CBOR encoding checks
-
-    buf[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
-    buf[1] = suites; // CBOR unsigned int less than 24 is encoded verbatim
-    buf[2] = CBOR_BYTE_STRING; // CBOR byte string magic number
-    buf[3] = P256_ELEM_LEN as u8; // length of the byte string
-    for i in 0..P256_ELEM_LEN {
-        // copy byte string
-        buf[4 + i] = g_x[i];
+    output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+    output[1] = 0x80 | suites.len() as u8;
+    for i in 2..suites.len() + 2 {
+        output[i] = suites[i - 2];
     }
-    buf[4 + P256_ELEM_LEN] = c_i; // CBOR uint less than 24 is encoded verbatim
+    output[suites.len() + 2] = CBOR_BYTE_STRING; // CBOR byte string magic number
+    output[suites.len() + 3] = P256_ELEM_LEN as u8; // length of the byte string
+    for i in suites.len() + 4..suites.len() + 4 + P256_ELEM_LEN {
+        // copy byte string
+        output[i] = g_x[i - suites.len() - 4];
+    }
+    if c_i >= 0 {
+        output[suites.len() + 4 + P256_ELEM_LEN] = c_i as u8; // CBOR uint less than 24 is encoded verbatim
+    } else {
+        output[suites.len() + 4 + P256_ELEM_LEN] = 0x20 | (-1 + (c_i * (-1))) as u8;
+    }
+    *output_len = suites.len() + 5 + P256_ELEM_LEN;
 }
 
 pub fn parse_message_2(
@@ -77,7 +81,7 @@ pub fn parse_message_2(
 pub fn decrypt_ciphertext_2(
     x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
-    c_r: [u8; MAX_C_R_LEN],
+    c_r: &[i8],
     ciphertext_2: [u8; CIPHERTEXT_2_LEN],
     h_message_1: [u8; SHA256_DIGEST_LEN],
     plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
@@ -147,10 +151,11 @@ pub fn decrypt_ciphertext_2(
 fn compute_th_2(
     h_message_1: [u8; SHA256_DIGEST_LEN],
     g_y: [u8; P256_ELEM_LEN],
-    c_r: &[u8],
+    c_r: &[i8],
     output: &mut [u8; SHA256_DIGEST_LEN],
 ) {
-    let mut message = [0x00; SHA256_DIGEST_LEN + 2 + P256_ELEM_LEN + 2 + MAX_C_R_LEN + 1];
+    let mut message = [0x00; MAX_BUFFER_LEN];
+    let mut len = 0;
     message[0] = CBOR_BYTE_STRING;
     message[1] = SHA256_DIGEST_LEN as u8;
     for i in 2..SHA256_DIGEST_LEN + 2 {
@@ -161,14 +166,24 @@ fn compute_th_2(
     for i in SHA256_DIGEST_LEN + 4..SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN {
         message[i] = g_y[i - SHA256_DIGEST_LEN - 4];
     }
-    message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = CBOR_SHORT_BYTE_STRING | (c_r.len() as u8);
-    for i in
-        SHA256_DIGEST_LEN + P256_ELEM_LEN + 5..SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len()
-    {
-        message[i] = c_r[i - SHA256_DIGEST_LEN - P256_ELEM_LEN - 5];
+    if c_r.len() > 1 {
+        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = CBOR_SHORT_BYTE_STRING | (c_r.len() as u8);
+        for i in
+            SHA256_DIGEST_LEN + P256_ELEM_LEN + 5..SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len()
+        {
+            message[i] = c_r[i - SHA256_DIGEST_LEN - P256_ELEM_LEN - 5] as u8;
+        }
+        len = SHA256_DIGEST_LEN + P256_ELEM_LEN + 6 + c_r.len();
+    } else {
+        if c_r[0] >= 0 {
+            message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = c_r[0] as u8;
+        } else {
+            message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = 0x20 | (-1 + (c_r[0] * (-1))) as u8;
+        }
+        len = SHA256_DIGEST_LEN + 5 + P256_ELEM_LEN;
     }
 
-    sha256_digest(&message, output);
+    sha256_digest(&message[0..len], output);
 }
 
 pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
@@ -280,16 +295,18 @@ pub fn edhoc_kdf(
 
 fn main() {
     let g_x: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    let mut message_1: [u8; MESSAGE_1_LEN] = [0x00; MESSAGE_1_LEN];
+    let mut message_1: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+    let mut message_1_len: usize = 0;
     let mut digest_message_1: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
     // TODO load hardcoded static DH key
     // TODO generate private and public key
     encode_message_1(
         EDHOC_METHOD,
-        EDHOC_SUPPORTED_SUITES,
+        &EDHOC_SUPPORTED_SUITES,
         g_x,
         EDHOC_CID,
         &mut message_1,
+        &mut message_1_len,
     );
     sha256_digest(&message_1, &mut digest_message_1);
     // TODO send message_1 over the wire
@@ -298,101 +315,64 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
 
     // test vectors (TV)
-    const METHOD_TV: u8 = 3;
-    const SUITES_TV: u8 = 0;
-    const C_I_TV: u8 = 12;
-    const C_R_TV: [u8; 0] = [];
-    const MESSAGE_1_TV: [u8; MESSAGE_1_LEN] = [
-        0x03, 0x00, 0x58, 0x20, 0x3a, 0xa9, 0xeb, 0x32, 0x01, 0xb3, 0x36, 0x7b, 0x8c, 0x8b, 0xe3,
-        0x8d, 0x91, 0xe5, 0x7a, 0x2b, 0x43, 0x3e, 0x67, 0x88, 0x8c, 0x86, 0xd2, 0xac, 0x00, 0x6a,
-        0x52, 0x08, 0x42, 0xed, 0x50, 0x37, 0x0c,
-    ];
-
-    const MESSAGE_2_TV: [u8; MESSAGE_2_LEN] = [
-        0x58, 0x2a, 0x25, 0x54, 0x91, 0xb0, 0x5a, 0x39, 0x89, 0xff, 0x2d, 0x3f, 0xfe, 0xa6, 0x20,
-        0x98, 0xaa, 0xb5, 0x7c, 0x16, 0x0f, 0x29, 0x4e, 0xd9, 0x48, 0x01, 0x8b, 0x41, 0x90, 0xf7,
-        0xd1, 0x61, 0x82, 0x4e, 0x0f, 0xf0, 0x4c, 0x29, 0x4f, 0x4a, 0xc6, 0x02, 0xcf, 0x78, 0x40,
-    ];
-
-    const H_MESSAGE_1_TV: [u8; SHA256_DIGEST_LEN] = [
-        0x9b, 0xdd, 0xb0, 0xcd, 0x55, 0x48, 0x7f, 0x82, 0xa8, 0x6f, 0xb7, 0x2a, 0x8b, 0xb3, 0x58,
-        0x52, 0x68, 0x91, 0xa0, 0xa6, 0xc9, 0x08, 0x61, 0x24, 0x12, 0xf5, 0xaf, 0x29, 0x9d, 0xaf,
-        0x01, 0x96,
-    ];
-
-    const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] =
-        [0x05, 0x48, 0x8e, 0x27, 0xcb, 0xd4, 0x94, 0xf7, 0x52, 0x83];
-
-    const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] =
-        [0x0f, 0xf0, 0x4c, 0x29, 0x4f, 0x4a, 0xc6, 0x02, 0xcf, 0x78];
-
-    const X_TV: [u8; P256_ELEM_LEN] = [
-        0xb3, 0x11, 0x19, 0x98, 0xcb, 0x3f, 0x66, 0x86, 0x63, 0xed, 0x42, 0x51, 0xc7, 0x8b, 0xe6,
-        0xe9, 0x5a, 0x4d, 0xa1, 0x27, 0xe4, 0xf6, 0xfe, 0xe2, 0x75, 0xe8, 0x55, 0xd8, 0xd9, 0xdf,
-        0xd8, 0xed,
-    ];
-
-    const G_X_TV: [u8; P256_ELEM_LEN] = [
-        0x3a, 0xa9, 0xeb, 0x32, 0x01, 0xb3, 0x36, 0x7b, 0x8c, 0x8b, 0xe3, 0x8d, 0x91, 0xe5, 0x7a,
-        0x2b, 0x43, 0x3e, 0x67, 0x88, 0x8c, 0x86, 0xd2, 0xac, 0x00, 0x6a, 0x52, 0x08, 0x42, 0xed,
-        0x50, 0x37,
-    ];
-
-    const G_Y_TV: [u8; P256_ELEM_LEN] = [
-        0x25, 0x54, 0x91, 0xb0, 0x5a, 0x39, 0x89, 0xff, 0x2d, 0x3f, 0xfe, 0xa6, 0x20, 0x98, 0xaa,
-        0xb5, 0x7c, 0x16, 0x0f, 0x29, 0x4e, 0xd9, 0x48, 0x01, 0x8b, 0x41, 0x90, 0xf7, 0xd1, 0x61,
-        0x82, 0x4e,
-    ];
-
-    const X_1_TV: [u8; P256_ELEM_LEN] = [
-        0x0a, 0x0d, 0x62, 0x2a, 0x47, 0xe4, 0x8f, 0x6b, 0xc1, 0x03, 0x8a, 0xce, 0x43, 0x8c, 0x6f,
-        0x52, 0x8a, 0xa0, 0x0a, 0xd2, 0xbd, 0x1d, 0xa5, 0xf1, 0x3e, 0xe4, 0x6b, 0xf5, 0xf6, 0x33,
-        0xd7, 0x1a,
-    ];
-
-    const G_Y_1_TV: [u8; P256_ELEM_LEN] = [
-        0x29, 0x3a, 0xa3, 0x49, 0xb9, 0x34, 0xab, 0x2c, 0x83, 0x9c, 0xf5, 0x4b, 0x8a, 0x73, 0x7d,
-        0xf2, 0x30, 0x4e, 0xf9, 0xb2, 0x0f, 0xa4, 0x94, 0xe3, 0x1a, 0xd6, 0x2b, 0x31, 0x5d, 0xd6,
-        0xa5, 0x3c,
-    ];
-
-    const G_XY_1_TV: [u8; P256_ELEM_LEN] = [
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x09, 0x9f, 0x55,
-        0xd5, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff,
-    ];
-
-    const X_2_TV: [u8; P256_ELEM_LEN] = [
-        0x06, 0x12, 0x46, 0x5c, 0x89, 0xa0, 0x23, 0xab, 0x17, 0x85, 0x5b, 0x0a, 0x6b, 0xce, 0xbf,
-        0xd3, 0xfe, 0xbb, 0x53, 0xae, 0xf8, 0x41, 0x38, 0x64, 0x7b, 0x53, 0x52, 0xe0, 0x2c, 0x10,
-        0xc3, 0x46,
-    ];
-
-    const G_Y_2_TV: [u8; P256_ELEM_LEN] = [
-        0x62, 0xd5, 0xbd, 0x33, 0x72, 0xaf, 0x75, 0xfe, 0x85, 0xa0, 0x40, 0x71, 0x5d, 0x0f, 0x50,
-        0x24, 0x28, 0xe0, 0x70, 0x46, 0x86, 0x8b, 0x0b, 0xfd, 0xfa, 0x61, 0xd7, 0x31, 0xaf, 0xe4,
-        0x4f, 0x26,
-    ];
-
-    const G_XY_2_TV: [u8; P256_ELEM_LEN] = [
-        0x53, 0x02, 0x0d, 0x90, 0x8b, 0x02, 0x19, 0x32, 0x8b, 0x65, 0x8b, 0x52, 0x5f, 0x26, 0x78,
-        0x0e, 0x3a, 0xe1, 0x2b, 0xcd, 0x95, 0x2b, 0xb2, 0x5a, 0x93, 0xbc, 0x08, 0x95, 0xe1, 0x71,
-        0x42, 0x85,
-    ];
-
-    const TH_2_TV: [u8; SHA256_DIGEST_LEN] = [
-        0x71, 0xa6, 0xc7, 0xc5, 0xba, 0x9a, 0xd4, 0x7f, 0xe7, 0x2d, 0xa4, 0xdc, 0x35, 0x9b, 0xf6,
-        0xb2, 0x76, 0xd3, 0x51, 0x59, 0x68, 0x71, 0x1b, 0x9a, 0x91, 0x1c, 0x71, 0xfc, 0x09, 0x6a,
-        0xee, 0x0e,
-    ];
+    const METHOD_TV: u8 = 0x03;
+    const SUITES_I_TV: [u8; 2] = hex!("0602");
+    const X_TV: [u8; P256_ELEM_LEN] =
+        hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+    const G_X_TV: [u8; P256_ELEM_LEN] =
+        hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
+    const C_I_TV: i8 = -24;
+    const EAD_1_TV: [u8; 0] = [];
+    const MESSAGE_1_TV: [u8; 39] =
+        hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    const Y_TV: [u8; P256_ELEM_LEN] =
+        hex!("e2f4126777205e853b437d6eaca1e1f753cdcc3e2c69fa884b0a1a640977e418");
+    const G_Y_TV: [u8; P256_ELEM_LEN] =
+        hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
+    const G_XY_TV: [u8; P256_ELEM_LEN] =
+        hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
+    const SALT_TV: [u8; 0] = []; // TODO test vectors give 32 zeros. check whether it influences the results
+    const PRK_2E_TV: [u8; P256_ELEM_LEN] =
+        hex!("fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396");
+    const R_TV: [u8; P256_ELEM_LEN] =
+        hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
+    const G_R_TV : [u8; 2*P256_ELEM_LEN+1] = hex!("04bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f04519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072"); // FIXME 65 byte uncompressed format
+    const G_RX_TV: [u8; P256_ELEM_LEN] =
+        hex!("f2b6eea02220b95eee5a0bc701f074e00a843ea02422f60825fb269b3e161423");
+    const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
+        hex!("af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3");
+    const C_R_TV: [i8; 1] = [-8];
+    const H_MESSAGE_1_TV: [u8; SHA256_DIGEST_LEN] =
+        hex!("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
+    const TH_2_TV: [u8; SHA256_DIGEST_LEN] =
+        hex!("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+    const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
+    const CRED_R_TV : [u8; 92] = hex!("a2026b6578616d706c652e65647508a101a401010232200121584104bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f04519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("5030aac4c84b1f5f");
+    const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32485030aac4c84b1f5f");
+    const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
+    const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49ce907a5dff98980430");
+    const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549ce907a5dff9898043027");
 
     #[test]
     fn test_encode_message_1() {
-        let mut message_1_buf = [0xff as u8; MESSAGE_1_LEN];
-        encode_message_1(METHOD_TV, SUITES_TV, G_X_TV, C_I_TV, &mut message_1_buf);
-        assert!(MESSAGE_1_TV == message_1_buf);
+        let mut message_1_buf = [0xff as u8; MAX_BUFFER_LEN];
+        let mut message_1_len = 0;
+        encode_message_1(
+            METHOD_TV,
+            &SUITES_I_TV,
+            G_X_TV,
+            C_I_TV,
+            &mut message_1_buf,
+            &mut message_1_len,
+        );
+        assert_eq!(message_1_len, MESSAGE_1_TV.len());
+        for i in 0..message_1_len {
+            assert_eq!(message_1_buf[i], MESSAGE_1_TV[i]);
+        }
     }
 
     #[test]
@@ -412,7 +392,7 @@ mod tests {
         decrypt_ciphertext_2(
             X_TV,
             G_Y_TV,
-            C_R_TV,
+            &C_R_TV,
             CIPHERTEXT_2_TV,
             H_MESSAGE_1_TV,
             &mut plaintext_2_buf,
@@ -439,11 +419,8 @@ mod tests {
     #[test]
     fn test_p256_ecdh() {
         let mut secret = [0x00 as u8; P256_ELEM_LEN];
-        p256_ecdh(&X_1_TV, &G_Y_1_TV, &mut secret);
-        assert!(G_XY_1_TV == secret);
-
-        p256_ecdh(&X_2_TV, &G_Y_2_TV, &mut secret);
-        assert!(G_XY_2_TV == secret);
+        p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
+        assert!(G_XY_TV == secret);
     }
 
     #[test]
