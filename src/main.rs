@@ -23,15 +23,6 @@ const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
 const CBOR_SHORT_BYTE_STRING: u8 = 0x40;
 
-const ID_CRED_R: [u8; 3] = [0xa1, 0x04, 0x05];
-const G_R_OFFSET: usize = 27; // offset within CRED_R to find G_R
-const CRED_R: [u8; 59] = [
-    0xa2, 0x02, 0x6b, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x65, 0x64, 0x75, 0x08, 0xa1,
-    0x01, 0xa4, 0x01, 0x01, 0x02, 0x05, 0x20, 0x04, 0x21, 0x58, 0x20, 0xe6, 0x6f, 0x35, 0x59, 0x90,
-    0x22, 0x3c, 0x3f, 0x6c, 0xaf, 0xf8, 0x62, 0xe4, 0x07, 0xed, 0xd1, 0x17, 0x4d, 0x07, 0x01, 0xa0,
-    0x9e, 0xcd, 0x6a, 0x15, 0xce, 0xe2, 0xc6, 0xce, 0x21, 0xaa, 0x50,
-];
-
 pub fn encode_message_1(
     method: u8,
     suites: &[u8],
@@ -82,6 +73,9 @@ pub fn decrypt_ciphertext_2(
     x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
+    id_cred_r: &[u8],
+    cred_r: &[u8],
+    g_r_offset: usize,
     ciphertext_2: [u8; CIPHERTEXT_2_LEN],
     h_message_1: [u8; SHA256_DIGEST_LEN],
     plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
@@ -98,7 +92,7 @@ pub fn decrypt_ciphertext_2(
     compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
-    p256_ecdh(&x, &CRED_R[G_R_OFFSET..], &mut g_rx);
+    p256_ecdh(&x, &cred_r[g_r_offset..g_r_offset+P256_ELEM_LEN], &mut g_rx);
     // compute prk_3e2m = Extract( PRK_2e, G_RX )=
     let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
     hkdf_extract(&prk_2e, g_rx, &mut prk_3e2m);
@@ -108,16 +102,16 @@ pub fn decrypt_ciphertext_2(
     let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
     let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
     // encode context in line
-    context[0] = ID_CRED_R.len() as u8 | CBOR_SHORT_BYTE_STRING;
-    for i in 1..ID_CRED_R.len() + 1 {
-        context[i] = ID_CRED_R[i - 1];
+    context[0] = id_cred_r.len() as u8 | CBOR_SHORT_BYTE_STRING;
+    for i in 1..id_cred_r.len() + 1 {
+        context[i] = id_cred_r[i - 1];
     }
-    context[ID_CRED_R.len() + 1] = CBOR_BYTE_STRING;
-    context[ID_CRED_R.len() + 2] = CRED_R.len() as u8;
-    for i in ID_CRED_R.len() + 3..ID_CRED_R.len() + 3 + CRED_R.len() {
-        context[i] = CRED_R[i - ID_CRED_R.len() - 3];
+    context[id_cred_r.len() + 1] = CBOR_BYTE_STRING;
+    context[id_cred_r.len() + 2] = cred_r.len() as u8;
+    for i in id_cred_r.len() + 3..id_cred_r.len() + 3 + cred_r.len() {
+        context[i] = cred_r[i - id_cred_r.len() - 3];
     }
-    let context_len = ID_CRED_R.len() + 4 + CRED_R.len();
+    let context_len = id_cred_r.len() + 4 + cred_r.len();
     edhoc_kdf(
         prk_3e2m,
         h_message_1,
@@ -274,8 +268,6 @@ pub fn edhoc_kdf(
     let info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
 
     // call kdf-expand
-    // TODO convert prk to byte seq
-    // TODO convert info to byte seq
     let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
     let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
     let info_byteseq = Seq::from_slice_range(&info_byteseq, 0..info_len);
@@ -339,7 +331,7 @@ mod tests {
         hex!("fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396");
     const R_TV: [u8; P256_ELEM_LEN] =
         hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const G_R_TV : [u8; 2*P256_ELEM_LEN+1] = hex!("04bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f04519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072"); // FIXME 65 byte uncompressed format
+    const G_R_TV : [u8; P256_ELEM_LEN] = hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
     const G_RX_TV: [u8; P256_ELEM_LEN] =
         hex!("f2b6eea02220b95eee5a0bc701f074e00a843ea02422f60825fb269b3e161423");
     const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
@@ -350,7 +342,7 @@ mod tests {
     const TH_2_TV: [u8; SHA256_DIGEST_LEN] =
         hex!("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
     const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
-    const CRED_R_TV : [u8; 92] = hex!("a2026b6578616d706c652e65647508a101a401010232200121584104bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f04519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
     const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("5030aac4c84b1f5f");
     const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32485030aac4c84b1f5f");
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
@@ -393,6 +385,9 @@ mod tests {
             X_TV,
             G_Y_TV,
             &C_R_TV,
+            &ID_CRED_R_TV,
+            &CRED_R_TV,
+            27, // offset of G_R within CRED_R
             CIPHERTEXT_2_TV,
             H_MESSAGE_1_TV,
             &mut plaintext_2_buf,
