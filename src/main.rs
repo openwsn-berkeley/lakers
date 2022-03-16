@@ -106,8 +106,7 @@ pub fn decrypt_ciphertext_2(
     // compute MAC_2
     let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
     let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
-    let mut context: [u8; ID_CRED_R.len() + 1 + CRED_R.len() + 2] =
-        [0x00; ID_CRED_R.len() + 1 + CRED_R.len() + 2];
+    let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
     // encode context in line
     context[0] = ID_CRED_R.len() as u8 | CBOR_SHORT_BYTE_STRING;
     for i in 1..ID_CRED_R.len() + 1 {
@@ -118,11 +117,12 @@ pub fn decrypt_ciphertext_2(
     for i in ID_CRED_R.len() + 3..ID_CRED_R.len() + 3 + CRED_R.len() {
         context[i] = CRED_R[i - ID_CRED_R.len() - 3];
     }
+    let context_len = ID_CRED_R.len() + 4 + CRED_R.len();
     edhoc_kdf(
         prk_3e2m,
         h_message_1,
         &label_mac_2,
-        &context,
+        &context[0..context_len],
         MAC_LENGTH_2,
         &mut mac_2,
     );
