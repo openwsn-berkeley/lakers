@@ -92,7 +92,11 @@ pub fn decrypt_ciphertext_2(
     compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
-    p256_ecdh(&x, &cred_r[g_r_offset..g_r_offset+P256_ELEM_LEN], &mut g_rx);
+    p256_ecdh(
+        &x,
+        &cred_r[g_r_offset..g_r_offset + P256_ELEM_LEN],
+        &mut g_rx,
+    );
     // compute prk_3e2m = Extract( PRK_2e, G_RX )=
     let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
     hkdf_extract(&prk_2e, g_rx, &mut prk_3e2m);
@@ -283,9 +287,6 @@ pub fn edhoc_kdf(
     for i in 0..length {
         output[i] = okm_byteseq[i].declassify();
     }
-
-    //	println!("info = {:0x?}", info);
-    //	println!("info_len = {}", SHA256_DIGEST_LEN + 5 + label_len + context_len);
 }
 
 fn main() {
@@ -334,7 +335,8 @@ mod tests {
         hex!("fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396");
     const R_TV: [u8; P256_ELEM_LEN] =
         hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const G_R_TV : [u8; P256_ELEM_LEN] = hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
+    const G_R_TV: [u8; P256_ELEM_LEN] =
+        hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
     const G_RX_TV: [u8; P256_ELEM_LEN] =
         hex!("f2b6eea02220b95eee5a0bc701f074e00a843ea02422f60825fb269b3e161423");
     const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
@@ -423,31 +425,14 @@ mod tests {
 
     #[test]
     fn test_edhoc_kdf() {
-        const PRK_2E_TV: [u8; P256_ELEM_LEN] = [
-            0xd1, 0xd0, 0x11, 0xa5, 0x9a, 0x6d, 0x10, 0x57, 0x5e, 0xb2, 0x20, 0xc7, 0x65, 0x2e,
-            0x6f, 0x98, 0xc4, 0x17, 0xa5, 0x65, 0xe4, 0xe4, 0x5c, 0xf5, 0xb5, 0x01, 0x06, 0x95,
-            0x04, 0x3b, 0x0e, 0xb7,
-        ];
-
-        const TH_2_TV: [u8; SHA256_DIGEST_LEN] = [
-            0x71, 0xA6, 0xC7, 0xC5, 0xBA, 0x9A, 0xD4, 0x7F, 0xE7, 0x2D, 0xA4, 0xDC, 0x35, 0x9B,
-            0xF6, 0xB2, 0x76, 0xD3, 0x51, 0x59, 0x68, 0x71, 0x1B, 0x9A, 0x91, 0x1C, 0x71, 0xFC,
-            0x09, 0x6A, 0xEE, 0x0E,
-        ];
-        const LABEL_TV: [u8; MAX_LABEL_LEN] = [
+        const LABEL_TV: [u8; 11] = [
             'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8, 'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
             'M' as u8, '_' as u8, '2' as u8,
         ];
-
         const LEN_TV: usize = 10;
 
-        const KEYSTREAM_2_TV: [u8; 10] =
-            [0x0a, 0xb8, 0xc2, 0x0e, 0x84, 0x9e, 0x52, 0xf5, 0x9d, 0xfb];
-
         let mut output = [0x00 as u8; 10];
-
         edhoc_kdf(PRK_2E_TV, TH_2_TV, &LABEL_TV, &[], LEN_TV, &mut output);
-
         assert_eq!(KEYSTREAM_2_TV, output);
     }
 }
