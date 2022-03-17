@@ -15,9 +15,9 @@ const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
 const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 
 // maximum supported length of connection identifier for R
-const MAX_CONTEXT_LEN: usize = 1;
-const MAX_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
-const MAX_BUFFER_LEN: usize = 100;
+const MAX_KDF_CONTEXT_LEN: usize = 120;
+const MAX_KDF_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
+const MAX_BUFFER_LEN: usize = 150;
 
 const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
@@ -240,9 +240,12 @@ pub fn edhoc_kdf(
     use hacspec_hkdf::*;
     use hacspec_lib::prelude::*;
 
+    assert!(context.len() <= MAX_KDF_CONTEXT_LEN);
+    assert!(label.len() <= MAX_KDF_LABEL_LEN);
+
     const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
-						 1 + MAX_LABEL_LEN +     // label <24 bytes as tstr
-						 1 + MAX_CONTEXT_LEN +   // context <24 bytes as bstr
+						 1 + MAX_KDF_LABEL_LEN +     // label <24 bytes as tstr
+						 1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						 1; // length as u8
 
     let mut info = [0x00 as u8; MAX_INFO_LEN];
