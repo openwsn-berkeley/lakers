@@ -69,61 +69,46 @@ pub fn parse_message_2(
     }
 }
 
-pub fn decrypt_ciphertext_2(
+fn compute_prk_2e(
     x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
-    c_r: &[i8],
-    id_cred_r: &[u8],
-    cred_r: &[u8],
-    g_r_offset: usize,
-    ciphertext_2: [u8; CIPHERTEXT_2_LEN],
-    h_message_1: [u8; SHA256_DIGEST_LEN],
-    plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
+    prk_2e: &mut [u8; P256_ELEM_LEN],
 ) {
     let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
-    let mut th_2 = [0x00 as u8; SHA256_DIGEST_LEN];
-
     // compute the shared secret
     p256_ecdh(&x, &g_y, &mut g_xy);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let mut prk_2e: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    hkdf_extract(&[], g_xy, &mut prk_2e);
-    // compute the transcript hash th_2
-    compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
+    hkdf_extract(&[], g_xy, prk_2e);
+}
+
+fn compute_prk_3e2m(
+    prk_2e: [u8; P256_ELEM_LEN],
+    x: [u8; P256_ELEM_LEN],
+    g_r: [u8; P256_ELEM_LEN],
+    prk_3e2m: &mut [u8; P256_ELEM_LEN],
+) {
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
     p256_ecdh(
         &x,
-        &cred_r[g_r_offset..g_r_offset + P256_ELEM_LEN],
+        &g_r,
         &mut g_rx,
     );
-    // compute prk_3e2m = Extract( PRK_2e, G_RX )=
-    let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    hkdf_extract(&prk_2e, g_rx, &mut prk_3e2m);
+    hkdf_extract(&prk_2e, g_rx, prk_3e2m);
+}
 
-    // compute MAC_2
-    let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
-    let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
-    let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-    // encode context in line
-    context[0] = id_cred_r.len() as u8 | CBOR_SHORT_BYTE_STRING;
-    for i in 1..id_cred_r.len() + 1 {
-        context[i] = id_cred_r[i - 1];
-    }
-    context[id_cred_r.len() + 1] = CBOR_BYTE_STRING;
-    context[id_cred_r.len() + 2] = cred_r.len() as u8;
-    for i in id_cred_r.len() + 3..id_cred_r.len() + 3 + cred_r.len() {
-        context[i] = cred_r[i - id_cred_r.len() - 3];
-    }
-    let context_len = id_cred_r.len() + 4 + cred_r.len();
-    edhoc_kdf(
-        prk_3e2m,
-        h_message_1,
-        &label_mac_2,
-        &context[0..context_len],
-        MAC_LENGTH_2,
-        &mut mac_2,
-    );
+pub fn decrypt_ciphertext_2(
+    prk_2e: [u8; P256_ELEM_LEN],
+    g_y: [u8; P256_ELEM_LEN],
+    c_r: &[i8],
+    ciphertext_2: [u8; CIPHERTEXT_2_LEN],
+    h_message_1: [u8; SHA256_DIGEST_LEN],
+    plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
+) {
+    let mut th_2 = [0x00 as u8; SHA256_DIGEST_LEN];
+
+    // compute the transcript hash th_2
+    compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
     let mut keystream_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
@@ -144,6 +129,56 @@ pub fn decrypt_ciphertext_2(
     for i in 0..CIPHERTEXT_2_LEN {
         plaintext_2[i] = ciphertext_2[i] ^ keystream_2[i];
     }
+}
+
+
+fn compute_and_verify_mac_2(
+    prk_3e2m: [u8; P256_ELEM_LEN],
+    x: [u8; P256_ELEM_LEN],
+    id_cred_r: &[u8],
+    cred_r: &[u8],
+    th_2: [u8; SHA256_DIGEST_LEN],
+    rcvd_mac_2: [u8; MAC_LENGTH_2],
+) -> bool {
+    // compute MAC_2
+    let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
+    let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
+    let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+
+    // encode context in line
+    context[0] = id_cred_r.len() as u8 | CBOR_SHORT_BYTE_STRING;
+    for i in 1..id_cred_r.len() + 1 {
+        context[i] = id_cred_r[i - 1];
+    }
+    context[id_cred_r.len() + 1] = CBOR_BYTE_STRING;
+    context[id_cred_r.len() + 2] = cred_r.len() as u8;
+    for i in id_cred_r.len() + 3..id_cred_r.len() + 3 + cred_r.len() {
+        context[i] = cred_r[i - id_cred_r.len() - 3];
+    }
+    let context_len = id_cred_r.len() + 4 + cred_r.len();
+
+    println!("context = {:x?}", &context[0..context_len]);
+
+    // compute mac_2
+    edhoc_kdf(
+        prk_3e2m,
+        th_2,
+        &label_mac_2,
+        &context[0..context_len],
+        MAC_LENGTH_2,
+        &mut mac_2,
+    );
+
+    println!("rcvd_mac_2 = {:?}", rcvd_mac_2);
+    println!("mac_2 = {:?}", mac_2);
+
+    let mut verified: bool = true;
+    for i in 0..MAC_LENGTH_2 {
+        if mac_2[i] != rcvd_mac_2[i] {
+            verified = false;
+        }
+    }
+    verified
 }
 
 fn decode_plaintext_2(
@@ -291,6 +326,8 @@ pub fn edhoc_kdf(
 
     let info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
 
+    println!("edhoc_kdf: expand: info = {:x?}", &info[0..info_len]);
+
     // call kdf-expand
     let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
     let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
@@ -405,12 +442,9 @@ mod tests {
     fn test_decrypt_ciphertext_2() {
         let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
         decrypt_ciphertext_2(
-            X_TV,
+            PRK_2E_TV,
             G_Y_TV,
             &C_R_TV,
-            &ID_CRED_R_TV,
-            &CRED_R_TV,
-            27, // offset of G_R within CRED_R
             CIPHERTEXT_2_TV,
             H_MESSAGE_1_TV,
             &mut plaintext_2_buf,
@@ -463,5 +497,31 @@ mod tests {
         assert_eq!(id_cred_r, ID_CRED_R_TV[2]);
         assert_eq!(mac_2, MAC_2_TV);
         assert_eq!(ead_2, EAD_2_TV);
+    }
+
+    #[test]
+    fn test_compute_prk_2e() {
+        let mut prk_2e: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+        compute_prk_2e(X_TV, G_Y_TV, &mut prk_2e);
+        assert_eq!(prk_2e, PRK_2E_TV);
+    }
+
+    #[test]
+    fn test_compute_and_verify_mac_2() {
+        assert!(compute_and_verify_mac_2(
+            PRK_3E2M_TV,
+            X_TV,
+            &ID_CRED_R_TV,
+            &CRED_R_TV,
+            TH_2_TV,
+            MAC_2_TV
+        ));
+    }
+
+    #[test]
+    fn test_compute_prk_3e2m() {
+        let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+        compute_prk_3e2m(PRK_2E_TV, X_TV, G_R_TV, &mut prk_3e2m);
+        assert_eq!(prk_3e2m, PRK_3E2M_TV);
     }
 }
