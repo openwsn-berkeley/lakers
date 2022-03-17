@@ -146,6 +146,23 @@ pub fn decrypt_ciphertext_2(
     }
 }
 
+fn decode_plaintext_2(
+    plaintext_2: &[u8],
+    id_cred_r: &mut u8,
+    mac_2: &mut [u8; MAC_LENGTH_2],
+    ead_2: &mut [u8],
+) {
+    *id_cred_r = plaintext_2[0];
+    // skip cbor byte string byte as we know how long the string is
+    for i in 2..MAC_LENGTH_2 + 2 {
+        mac_2[i - 2] = plaintext_2[i];
+    }
+    // zero out ead_2
+    for i in 0..ead_2.len() {
+        ead_2[i] = 0x00;
+    }
+}
+
 fn compute_th_2(
     h_message_1: [u8; SHA256_DIGEST_LEN],
     g_y: [u8; P256_ELEM_LEN],
@@ -353,6 +370,7 @@ mod tests {
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
     const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49ce907a5dff98980430");
     const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549ce907a5dff9898043027");
+    const EAD_2_TV: [u8; 0] = hex!("");
 
     #[test]
     fn test_encode_message_1() {
@@ -434,5 +452,16 @@ mod tests {
         let mut output = [0x00 as u8; 10];
         edhoc_kdf(PRK_2E_TV, TH_2_TV, &LABEL_TV, &[], LEN_TV, &mut output);
         assert_eq!(KEYSTREAM_2_TV, output);
+    }
+
+    #[test]
+    fn test_decode_plaintext_2() {
+        let mut id_cred_r: u8 = 0;
+        let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
+        let mut ead_2: [u8; 0] = [];
+        decode_plaintext_2(&PLAINTEXT_2_TV, &mut id_cred_r, &mut mac_2, &mut ead_2);
+        assert_eq!(id_cred_r, ID_CRED_R_TV[2]);
+        assert_eq!(mac_2, MAC_2_TV);
+        assert_eq!(ead_2, EAD_2_TV);
     }
 }
