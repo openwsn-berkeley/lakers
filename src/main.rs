@@ -9,6 +9,7 @@ const EDHOC_CID: i8 = 12;
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
 const MAC_LENGTH_2: usize = 8;
+const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
 const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
@@ -138,17 +139,9 @@ fn compute_and_verify_mac_2(
     let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
     let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
     let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+    let mut context_len: usize = 0;
 
-    // encode context in line
-    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
-    for i in 0..id_cred_r.len() {
-        context[i] = id_cred_r[i];
-    }
-    for i in id_cred_r.len()..id_cred_r.len() + cred_r.len() {
-        context[i] = cred_r[i - id_cred_r.len()];
-    }
-
-    let context_len = id_cred_r.len() + cred_r.len();
+    encode_kdf_context(id_cred_r, cred_r, &mut context, &mut context_len);
 
     // compute mac_2
     edhoc_kdf(
@@ -167,6 +160,48 @@ fn compute_and_verify_mac_2(
         }
     }
     verified
+}
+
+fn compute_mac_3(
+    prk_4x3m: [u8; P256_ELEM_LEN],
+    th_3: [u8; SHA256_DIGEST_LEN],
+    id_cred_i: &[u8],
+    cred_i: &[u8],
+    output: &mut [u8; MAC_LENGTH_3],
+) {
+    const LABEL_MAC_3: [u8; 5] = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '3' as u8];
+
+    // MAC_3 = EDHOC-KDF( PRK_4x3m, TH_3, "MAC_3", << ID_CRED_I, CRED_I, ? EAD_3 >>, mac_length_3 )
+
+    let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+    let mut context_len: usize = 0;
+
+    encode_kdf_context(id_cred_i, cred_i, &mut context, &mut context_len);
+
+    // compute mac_3
+    edhoc_kdf(
+        prk_4x3m,
+        th_3,
+        &LABEL_MAC_3,
+        &context[0..context_len],
+        MAC_LENGTH_3,
+        output,
+    );
+}
+
+fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len: &mut usize) {
+    // output must hold id_cred.len() + cred.len()
+
+    // encode context in line
+    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
+    for i in 0..id_cred.len() {
+        output[i] = id_cred[i];
+    }
+    for i in id_cred.len()..id_cred.len() + cred.len() {
+        output[i] = cred[i - id_cred.len()];
+    }
+
+    *output_len = (id_cred.len() + cred.len()) as usize;
 }
 
 fn decode_plaintext_2(
@@ -426,6 +461,11 @@ mod tests {
     const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
     const TH_3_TV: [u8; SHA256_DIGEST_LEN] =
         hex!("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
+    const PRK_4X3M_TV: [u8; P256_ELEM_LEN] =
+        hex!("4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477");
+    const ID_CRED_I_TV: [u8; 3] = hex!("a1042b");
+    const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
+    const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
 
     #[test]
     fn test_encode_message_1() {
@@ -552,6 +592,13 @@ mod tests {
             TH_2_TV,
             MAC_2_TV
         ));
+    }
+
+    #[test]
+    fn test_compute_mac_3() {
+        let mut mac_3: [u8; MAC_LENGTH_3] = [0x00; MAC_LENGTH_3];
+        compute_mac_3(PRK_4X3M_TV, TH_3_TV, &ID_CRED_I_TV, &CRED_I_TV, &mut mac_3);
+        assert_eq!(mac_3, MAC_3_TV)
     }
 
     #[test]
