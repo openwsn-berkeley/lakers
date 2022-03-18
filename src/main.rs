@@ -224,6 +224,29 @@ fn compute_th_2(
     sha256_digest(&message[0..len], output);
 }
 
+fn compute_th_3(
+    th_2: [u8; SHA256_DIGEST_LEN],
+    ciphertext_2: &[u8],
+    output: &mut [u8; SHA256_DIGEST_LEN],
+) {
+    let mut message = [0x00; MAX_BUFFER_LEN];
+
+    message[0] = CBOR_BYTE_STRING;
+    message[1] = SHA256_DIGEST_LEN as u8;
+    for i in 2..SHA256_DIGEST_LEN + 2 {
+        message[i] = th_2[i - 2];
+    }
+    message[SHA256_DIGEST_LEN + 2] = CBOR_SHORT_BYTE_STRING | (ciphertext_2.len() as u8);
+    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext_2.len() {
+        message[i] = ciphertext_2[i - SHA256_DIGEST_LEN - 3];
+    }
+
+    sha256_digest(
+        &message[0..SHA256_DIGEST_LEN + 3 + ciphertext_2.len()],
+        output,
+    );
+}
+
 fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
     use hacspec_lib::prelude::*;
     use hacspec_sha256::hash;
@@ -401,6 +424,8 @@ mod tests {
     const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927");
     const EAD_2_TV: [u8; 0] = hex!("");
     const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
+    const TH_3_TV: [u8; SHA256_DIGEST_LEN] =
+        hex!("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
 
     #[test]
     fn test_encode_message_1() {
@@ -459,6 +484,13 @@ mod tests {
         let mut th_2 = [0x00; SHA256_DIGEST_LEN];
         compute_th_2(H_MESSAGE_1_TV, G_Y_TV, &C_R_TV, &mut th_2);
         assert_eq!(th_2, TH_2_TV);
+    }
+
+    #[test]
+    fn test_compute_th_3() {
+        let mut th_3 = [0x00; SHA256_DIGEST_LEN];
+        compute_th_3(TH_2_TV, &CIPHERTEXT_2_TV, &mut th_3);
+        assert_eq!(th_3, TH_3_TV);
     }
 
     #[test]
