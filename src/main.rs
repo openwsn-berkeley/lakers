@@ -8,12 +8,17 @@ const EDHOC_CID: i8 = 12;
 
 const P256_ELEM_LEN: usize = 32;
 const SHA256_DIGEST_LEN: usize = 32;
+const AES_CCM_KEY_LEN: usize = 16;
+const AES_CCM_IV_LEN: usize = 13;
+const AES_CCM_TAG_LEN: usize = 8;
 const MAC_LENGTH_2: usize = 8;
 const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
 const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
 const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
+const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
+const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
 // maximum supported length of connection identifier for R
 const MAX_KDF_CONTEXT_LEN: usize = 120;
@@ -23,6 +28,7 @@ const MAX_BUFFER_LEN: usize = 150;
 const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
 const CBOR_SHORT_BYTE_STRING: u8 = 0x40;
+const CBOR_SHORT_ARRAY: u8 = 0x80;
 
 pub fn encode_message_1(
     method: u8,
@@ -189,9 +195,89 @@ fn compute_mac_3(
     );
 }
 
-fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len: &mut usize) {
-    // output must hold id_cred.len() + cred.len()
+fn compute_ciphertext_3(
+    prk_3e2m: [u8; P256_ELEM_LEN],
+    th_3: [u8; SHA256_DIGEST_LEN],
+    id_cred_i: &[u8],
+    mac_3: [u8; MAC_LENGTH_3],
+    output: &mut [u8; CIPHERTEXT_3_LEN],
+) {
+    const LABEL_K_3: [u8; 3] = ['K' as u8, '_' as u8, '3' as u8];
+    const LABEL_IV_3: [u8; 4] = ['I' as u8, 'V' as u8, '_' as u8, '3' as u8];
+    const ENCRYPT0: [u8; 8] = [
+        'E' as u8, 'n' as u8, 'c' as u8, 'r' as u8, 'y' as u8, 'p' as u8, 't' as u8, '0' as u8,
+    ];
+    const ENC_STRUCTURE_LEN: usize = ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN; // dependent on the encoding below
 
+    let mut k_3: [u8; AES_CCM_KEY_LEN] = [0x00; AES_CCM_KEY_LEN];
+    let mut iv_3: [u8; AES_CCM_IV_LEN] = [0x00; AES_CCM_IV_LEN];
+    let mut plaintext_3: [u8; PLAINTEXT_3_LEN] = [0x00; PLAINTEXT_3_LEN];
+    let mut enc_structure: [u8; ENC_STRUCTURE_LEN] = [0x00; ENC_STRUCTURE_LEN];
+
+    // K_3 = EDHOC-KDF( PRK_3e2m, TH_3, "K_3", h'', key_length )
+    edhoc_kdf(prk_3e2m, th_3, &LABEL_K_3, &[], AES_CCM_KEY_LEN, &mut k_3);
+    // IV_3 = EDHOC-KDF( PRK_3e2m, TH_3, "IV_3", h'', iv_length )
+    edhoc_kdf(prk_3e2m, th_3, &LABEL_IV_3, &[], AES_CCM_IV_LEN, &mut iv_3);
+    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
+    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3[1] = CBOR_SHORT_BYTE_STRING | MAC_LENGTH_3 as u8;
+    for i in 2..MAC_LENGTH_3 + 2 {
+        plaintext_3[i] = mac_3[i - 2];
+    }
+    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
+    enc_structure[0] = CBOR_SHORT_ARRAY | 3; // 3 is the fixed number of elements in the array
+    enc_structure[1] = CBOR_SHORT_TEXT_STRING | ENCRYPT0.len() as u8;
+    for i in 2..ENCRYPT0.len() + 2 {
+        enc_structure[i] = ENCRYPT0[i - 2];
+    }
+    enc_structure[ENCRYPT0.len() + 2] = CBOR_SHORT_BYTE_STRING | 0x00; // 0 for zero-length byte string
+    enc_structure[ENCRYPT0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
+    enc_structure[ENCRYPT0.len() + 4] = SHA256_DIGEST_LEN as u8;
+    for i in ENCRYPT0.len() + 5..ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN {
+        enc_structure[i] = th_3[i - ENCRYPT0.len() - 5];
+    }
+    aes_ccm_encrypt(
+        k_3,
+        iv_3,
+        AES_CCM_TAG_LEN,
+        &enc_structure,
+        &plaintext_3,
+        output,
+    );
+}
+
+fn aes_ccm_encrypt(
+    key: [u8; AES_CCM_KEY_LEN],
+    iv: [u8; AES_CCM_IV_LEN],
+    tag_len: usize,
+    ad: &[u8],
+    plaintext: &[u8],
+    ciphertext: &mut [u8],
+) {
+    use hacspec_aes::*;
+    use hacspec_aes_ccm::*;
+    use hacspec_lib::prelude::*;
+
+    let key_secret = Key128::from_public_slice(&key);
+    let iv_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&iv);
+    let ad_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ad);
+    let plaintext_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&plaintext);
+
+    let ciphertext_byteseq = encrypt_ccm(
+        ad_byteseq,
+        iv_byteseq,
+        plaintext_byteseq,
+        key_secret,
+        tag_len,
+    );
+
+    for i in 0..ciphertext_byteseq.len() {
+        ciphertext[i] = ciphertext_byteseq[i].declassify();
+    }
+}
+
+// output must hold id_cred.len() + cred.len()
+fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len: &mut usize) {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded
     for i in 0..id_cred.len() {
@@ -200,7 +286,6 @@ fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len
     for i in id_cred.len()..id_cred.len() + cred.len() {
         output[i] = cred[i - id_cred.len()];
     }
-
     *output_len = (id_cred.len() + cred.len()) as usize;
 }
 
@@ -466,6 +551,7 @@ mod tests {
     const ID_CRED_I_TV: [u8; 3] = hex!("a1042b");
     const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
+    const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
 
     #[test]
     fn test_encode_message_1() {
@@ -606,5 +692,18 @@ mod tests {
         let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
         compute_prk_3e2m(PRK_2E_TV, X_TV, G_R_TV, &mut prk_3e2m);
         assert_eq!(prk_3e2m, PRK_3E2M_TV);
+    }
+
+    #[test]
+    fn test_compute_ciphertext_3() {
+        let mut ciphertext_3: [u8; CIPHERTEXT_3_LEN] = [0x00; CIPHERTEXT_3_LEN];
+        compute_ciphertext_3(
+            PRK_3E2M_TV,
+            TH_3_TV,
+            &ID_CRED_I_TV,
+            MAC_3_TV,
+            &mut ciphertext_3,
+        );
+        assert_eq!(ciphertext_3, CIPHERTEXT_3_TV);
     }
 }
