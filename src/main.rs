@@ -89,11 +89,7 @@ fn compute_prk_3e2m(
 ) {
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
-    p256_ecdh(
-        &x,
-        &g_r,
-        &mut g_rx,
-    );
+    p256_ecdh(&x, &g_r, &mut g_rx);
     hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
@@ -131,10 +127,8 @@ pub fn decrypt_ciphertext_2(
     }
 }
 
-
 fn compute_and_verify_mac_2(
     prk_3e2m: [u8; P256_ELEM_LEN],
-    x: [u8; P256_ELEM_LEN],
     id_cred_r: &[u8],
     cred_r: &[u8],
     th_2: [u8; SHA256_DIGEST_LEN],
@@ -146,18 +140,15 @@ fn compute_and_verify_mac_2(
     let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
 
     // encode context in line
-    context[0] = id_cred_r.len() as u8 | CBOR_SHORT_BYTE_STRING;
-    for i in 1..id_cred_r.len() + 1 {
-        context[i] = id_cred_r[i - 1];
+    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
+    for i in 0..id_cred_r.len() {
+        context[i] = id_cred_r[i];
     }
-    context[id_cred_r.len() + 1] = CBOR_BYTE_STRING;
-    context[id_cred_r.len() + 2] = cred_r.len() as u8;
-    for i in id_cred_r.len() + 3..id_cred_r.len() + 3 + cred_r.len() {
-        context[i] = cred_r[i - id_cred_r.len() - 3];
+    for i in id_cred_r.len()..id_cred_r.len() + cred_r.len() {
+        context[i] = cred_r[i - id_cred_r.len()];
     }
-    let context_len = id_cred_r.len() + 4 + cred_r.len();
 
-    println!("context = {:x?}", &context[0..context_len]);
+    let context_len = id_cred_r.len() + cred_r.len();
 
     // compute mac_2
     edhoc_kdf(
@@ -168,9 +159,6 @@ fn compute_and_verify_mac_2(
         MAC_LENGTH_2,
         &mut mac_2,
     );
-
-    println!("rcvd_mac_2 = {:?}", rcvd_mac_2);
-    println!("mac_2 = {:?}", mac_2);
 
     let mut verified: bool = true;
     for i in 0..MAC_LENGTH_2 {
@@ -205,7 +193,7 @@ fn compute_th_2(
     output: &mut [u8; SHA256_DIGEST_LEN],
 ) {
     let mut message = [0x00; MAX_BUFFER_LEN];
-    let mut len = 0;
+    let len;
     message[0] = CBOR_BYTE_STRING;
     message[1] = SHA256_DIGEST_LEN as u8;
     for i in 2..SHA256_DIGEST_LEN + 2 {
@@ -305,6 +293,7 @@ pub fn edhoc_kdf(
 						 1; // length as u8
 
     let mut info = [0x00 as u8; MAX_INFO_LEN];
+    let mut info_len;
 
     // construct info with inline cbor encoding
     info[0] = CBOR_BYTE_STRING;
@@ -316,17 +305,28 @@ pub fn edhoc_kdf(
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label.len() {
         info[i] = label[i - SHA256_DIGEST_LEN - 3];
     }
-    info[SHA256_DIGEST_LEN + 3 + label.len()] = context.len() as u8 | CBOR_SHORT_BYTE_STRING;
-    for i in
-        SHA256_DIGEST_LEN + 4 + label.len()..SHA256_DIGEST_LEN + 4 + label.len() + context.len()
-    {
-        info[i] = context[i - SHA256_DIGEST_LEN - 4 - label.len()];
+
+    if context.len() < 24 {
+        info[SHA256_DIGEST_LEN + 3 + label.len()] = context.len() as u8 | CBOR_SHORT_BYTE_STRING;
+        for i in
+            SHA256_DIGEST_LEN + 4 + label.len()..SHA256_DIGEST_LEN + 4 + label.len() + context.len()
+        {
+            info[i] = context[i - SHA256_DIGEST_LEN - 4 - label.len()];
+        }
+        info_len = SHA256_DIGEST_LEN + 4 + label.len() + context.len();
+    } else {
+        info[SHA256_DIGEST_LEN + 3 + label.len()] = CBOR_BYTE_STRING;
+        info[SHA256_DIGEST_LEN + 4 + label.len()] = context.len() as u8;
+        for i in
+            SHA256_DIGEST_LEN + 5 + label.len()..SHA256_DIGEST_LEN + 5 + label.len() + context.len()
+        {
+            info[i] = context[i - SHA256_DIGEST_LEN - 5 - label.len()];
+        }
+        info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
     }
-    info[SHA256_DIGEST_LEN + 4 + label.len() + context.len()] = length as u8;
 
-    let info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
-
-    println!("edhoc_kdf: expand: info = {:x?}", &info[0..info_len]);
+    info[info_len] = length as u8;
+    info_len = info_len + 1;
 
     // call kdf-expand
     let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
@@ -375,24 +375,16 @@ mod tests {
     const G_X_TV: [u8; P256_ELEM_LEN] =
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
     const C_I_TV: i8 = -24;
-    const EAD_1_TV: [u8; 0] = [];
     const MESSAGE_1_TV: [u8; 39] =
         hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
-    const Y_TV: [u8; P256_ELEM_LEN] =
-        hex!("e2f4126777205e853b437d6eaca1e1f753cdcc3e2c69fa884b0a1a640977e418");
     const G_Y_TV: [u8; P256_ELEM_LEN] =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const G_XY_TV: [u8; P256_ELEM_LEN] =
         hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
-    const SALT_TV: [u8; 0] = []; // TODO test vectors give 32 zeros. check whether it influences the results
     const PRK_2E_TV: [u8; P256_ELEM_LEN] =
         hex!("fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396");
-    const R_TV: [u8; P256_ELEM_LEN] =
-        hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
     const G_R_TV: [u8; P256_ELEM_LEN] =
         hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const G_RX_TV: [u8; P256_ELEM_LEN] =
-        hex!("f2b6eea02220b95eee5a0bc701f074e00a843ea02422f60825fb269b3e161423");
     const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
         hex!("af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3");
     const C_R_TV: [i8; 1] = [-8];
@@ -402,12 +394,13 @@ mod tests {
         hex!("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
     const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
     const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("5030aac4c84b1f5f");
-    const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32485030aac4c84b1f5f");
+    const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("3324d5a4afcd4326");
+    const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
-    const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49ce907a5dff98980430");
-    const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549ce907a5dff9898043027");
+    const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49cef36e229fff1e5849");
+    const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927");
     const EAD_2_TV: [u8; 0] = hex!("");
+    const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 
     #[test]
     fn test_encode_message_1() {
@@ -486,6 +479,18 @@ mod tests {
         let mut output = [0x00 as u8; 10];
         edhoc_kdf(PRK_2E_TV, TH_2_TV, &LABEL_TV, &[], LEN_TV, &mut output);
         assert_eq!(KEYSTREAM_2_TV, output);
+
+        const LABEL_MAC_2_TV: [u8; 5] = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
+        let mut output_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
+        edhoc_kdf(
+            PRK_3E2M_TV,
+            TH_2_TV,
+            &LABEL_MAC_2_TV,
+            &CONTEXT_INFO_MAC_2,
+            MAC_LENGTH_2,
+            &mut output_2,
+        );
+        assert_eq!(MAC_2_TV, output_2);
     }
 
     #[test]
@@ -510,7 +515,6 @@ mod tests {
     fn test_compute_and_verify_mac_2() {
         assert!(compute_and_verify_mac_2(
             PRK_3E2M_TV,
-            X_TV,
             &ID_CRED_R_TV,
             &CRED_R_TV,
             TH_2_TV,
