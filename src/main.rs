@@ -36,8 +36,7 @@ pub fn encode_message_1(
     g_x: [u8; P256_ELEM_LEN],
     c_i: i8,
     output: &mut [u8],
-    output_len: &mut usize,
-) {
+) -> usize {
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
     output[1] = 0x80 | suites.len() as u8;
     for i in 2..suites.len() + 2 {
@@ -54,7 +53,7 @@ pub fn encode_message_1(
     } else {
         output[suites.len() + 4 + P256_ELEM_LEN] = 0x20 | (-1 + (c_i * (-1))) as u8;
     }
-    *output_len = suites.len() + 5 + P256_ELEM_LEN;
+    (suites.len() + 5 + P256_ELEM_LEN) as usize
 }
 
 pub fn parse_message_2(
@@ -74,6 +73,14 @@ pub fn parse_message_2(
     for i in 0..CIPHERTEXT_2_LEN {
         ciphertext_2_buf[i] = rcvd_message_2[i + 2 + P256_ELEM_LEN];
     }
+}
+
+pub fn encode_message_3(ciphertext_3: [u8; CIPHERTEXT_3_LEN], output: &mut [u8]) -> usize {
+    output[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
+    for i in 1..CIPHERTEXT_3_LEN + 1 {
+        output[i] = ciphertext_3[i - 1];
+    }
+    (CIPHERTEXT_3_LEN + 1) as usize
 }
 
 fn compute_prk_2e(
@@ -489,19 +496,17 @@ fn edhoc_kdf(
 fn main() {
     let g_x: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
     let mut message_1: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-    let mut message_1_len: usize = 0;
     let mut digest_message_1: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
     // TODO load hardcoded static DH key
     // TODO generate private and public key
-    encode_message_1(
+    let message_1_len = encode_message_1(
         EDHOC_METHOD,
         &EDHOC_SUPPORTED_SUITES,
         g_x,
         EDHOC_CID,
         &mut message_1,
-        &mut message_1_len,
     );
-    sha256_digest(&message_1, &mut digest_message_1);
+    sha256_digest(&message_1[0..message_1_len], &mut digest_message_1);
     // TODO send message_1 over the wire
 }
 
@@ -552,19 +557,13 @@ mod tests {
     const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
     const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
+    const MESSAGE_3_TV: [u8; 19] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
 
     #[test]
     fn test_encode_message_1() {
         let mut message_1_buf = [0xff as u8; MAX_BUFFER_LEN];
-        let mut message_1_len = 0;
-        encode_message_1(
-            METHOD_TV,
-            &SUITES_I_TV,
-            G_X_TV,
-            C_I_TV,
-            &mut message_1_buf,
-            &mut message_1_len,
-        );
+        let message_1_len =
+            encode_message_1(METHOD_TV, &SUITES_I_TV, G_X_TV, C_I_TV, &mut message_1_buf);
         assert_eq!(message_1_len, MESSAGE_1_TV.len());
         for i in 0..message_1_len {
             assert_eq!(message_1_buf[i], MESSAGE_1_TV[i]);
@@ -580,6 +579,16 @@ mod tests {
 
         assert!(G_Y_TV == g_y_buf);
         assert!(CIPHERTEXT_2_TV == ciphertext_2_buf);
+    }
+
+    #[test]
+    fn test_encode_message_3() {
+        let mut message_3: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+        let message_3_len = encode_message_3(CIPHERTEXT_3_TV, &mut message_3);
+        assert_eq!(message_3_len, MESSAGE_3_TV.len());
+        for i in 0..MESSAGE_3_TV.len() {
+            assert_eq!(message_3[i], MESSAGE_3_TV[i]);
+        }
     }
 
     #[test]
