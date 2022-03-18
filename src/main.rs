@@ -423,6 +423,24 @@ fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_
     }
 }
 
+fn hkdf_expand(prk: [u8; P256_ELEM_LEN], info: &[u8], length: usize, output: &mut [u8]) {
+    use hacspec_hkdf::*;
+    use hacspec_lib::prelude::*;
+
+    // call kdf-expand from hacspec
+    let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
+    let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
+
+    let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
+        Ok(okm) => okm,
+        Err(_) => panic!("edhoc_kdf: error expand"),
+    };
+
+    for i in 0..length {
+        output[i] = okm_byteseq[i].declassify();
+    }
+}
+
 fn edhoc_kdf(
     prk: [u8; P256_ELEM_LEN],
     transcript_hash: [u8; SHA256_DIGEST_LEN],
@@ -431,9 +449,6 @@ fn edhoc_kdf(
     length: usize,
     output: &mut [u8],
 ) {
-    use hacspec_hkdf::*;
-    use hacspec_lib::prelude::*;
-
     assert!(context.len() <= MAX_KDF_CONTEXT_LEN);
     assert!(label.len() <= MAX_KDF_LABEL_LEN);
 
@@ -474,23 +489,9 @@ fn edhoc_kdf(
         }
         info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
     }
-
     info[info_len] = length as u8;
     info_len = info_len + 1;
-
-    // call kdf-expand
-    let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
-    let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
-    let info_byteseq = Seq::from_slice_range(&info_byteseq, 0..info_len);
-
-    let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
-        Ok(okm) => okm,
-        Err(_) => panic!("edhoc_kdf: error expand"),
-    };
-
-    for i in 0..length {
-        output[i] = okm_byteseq[i].declassify();
-    }
+    hkdf_expand(prk, &info[0..info_len], length, output);
 }
 
 fn main() {
