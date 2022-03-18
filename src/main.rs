@@ -90,9 +90,9 @@ fn compute_prk_2e(
 ) {
     let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
     // compute the shared secret
-    p256_ecdh(&x, &g_y, &mut g_xy);
+    crypto::p256_ecdh(&x, &g_y, &mut g_xy);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    hkdf_extract(&[], g_xy, prk_2e);
+    crypto::hkdf_extract(&[], g_xy, prk_2e);
 }
 
 fn compute_prk_3e2m(
@@ -103,8 +103,8 @@ fn compute_prk_3e2m(
 ) {
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
-    p256_ecdh(&x, &g_r, &mut g_rx);
-    hkdf_extract(&prk_2e, g_rx, prk_3e2m);
+    crypto::p256_ecdh(&x, &g_r, &mut g_rx);
+    crypto::hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
 fn decrypt_ciphertext_2(
@@ -243,7 +243,7 @@ fn compute_ciphertext_3(
     for i in ENCRYPT0.len() + 5..ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN {
         enc_structure[i] = th_3[i - ENCRYPT0.len() - 5];
     }
-    aes_ccm_encrypt(
+    crypto::aes_ccm_encrypt(
         k_3,
         iv_3,
         AES_CCM_TAG_LEN,
@@ -251,36 +251,6 @@ fn compute_ciphertext_3(
         &plaintext_3,
         output,
     );
-}
-
-fn aes_ccm_encrypt(
-    key: [u8; AES_CCM_KEY_LEN],
-    iv: [u8; AES_CCM_IV_LEN],
-    tag_len: usize,
-    ad: &[u8],
-    plaintext: &[u8],
-    ciphertext: &mut [u8],
-) {
-    use hacspec_aes::*;
-    use hacspec_aes_ccm::*;
-    use hacspec_lib::prelude::*;
-
-    let key_secret = Key128::from_public_slice(&key);
-    let iv_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&iv);
-    let ad_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ad);
-    let plaintext_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&plaintext);
-
-    let ciphertext_byteseq = encrypt_ccm(
-        ad_byteseq,
-        iv_byteseq,
-        plaintext_byteseq,
-        key_secret,
-        tag_len,
-    );
-
-    for i in 0..ciphertext_byteseq.len() {
-        ciphertext[i] = ciphertext_byteseq[i].declassify();
-    }
 }
 
 // output must hold id_cred.len() + cred.len()
@@ -348,7 +318,7 @@ fn compute_th_2(
         len = SHA256_DIGEST_LEN + 5 + P256_ELEM_LEN;
     }
 
-    sha256_digest(&message[0..len], output);
+    crypto::sha256_digest(&message[0..len], output);
 }
 
 fn compute_th_3(
@@ -368,77 +338,10 @@ fn compute_th_3(
         message[i] = ciphertext_2[i - SHA256_DIGEST_LEN - 3];
     }
 
-    sha256_digest(
+    crypto::sha256_digest(
         &message[0..SHA256_DIGEST_LEN + 3 + ciphertext_2.len()],
         output,
     );
-}
-
-fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
-    use hacspec_lib::prelude::*;
-    use hacspec_sha256::hash;
-
-    let message_secret: Seq<U8> = Seq::<U8>::from_public_slice(message);
-    let digest = hash(&message_secret);
-
-    for i in 00..SHA256_DIGEST_LEN {
-        output[i] = digest[i].declassify();
-    }
-}
-
-fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
-    use hacspec_p256::*;
-
-    let scalar = P256Scalar::from_be_bytes(&private_key);
-    let point = (
-        P256FieldElement::from_be_bytes(&public_key),
-        p256_calculate_w(P256FieldElement::from_be_bytes(&public_key)),
-    );
-
-    assert!(p256_validate_public_key(point));
-
-    // we only care about the x coordinate
-    let secret_felem = match p256_point_mul(scalar, point) {
-        Ok(p) => p.0,
-        Err(_) => panic!("Error hacspec p256_point_mul"),
-    };
-
-    let secret_bytes = secret_felem.to_be_bytes();
-    for i in 0..P256_ELEM_LEN {
-        secret[i] = secret_bytes[i];
-    }
-}
-
-fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_LEN]) {
-    use hacspec_hkdf::*;
-    use hacspec_lib::prelude::*;
-
-    let ikm_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ikm);
-    let salt_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&salt);
-
-    let okm_byteseq = extract(&salt_byteseq, &ikm_byteseq);
-
-    for i in 0..okm_byteseq.len() {
-        okm[i] = okm_byteseq[i].declassify();
-    }
-}
-
-fn hkdf_expand(prk: [u8; P256_ELEM_LEN], info: &[u8], length: usize, output: &mut [u8]) {
-    use hacspec_hkdf::*;
-    use hacspec_lib::prelude::*;
-
-    // call kdf-expand from hacspec
-    let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
-    let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
-
-    let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
-        Ok(okm) => okm,
-        Err(_) => panic!("edhoc_kdf: error expand"),
-    };
-
-    for i in 0..length {
-        output[i] = okm_byteseq[i].declassify();
-    }
 }
 
 fn edhoc_kdf(
@@ -491,7 +394,7 @@ fn edhoc_kdf(
     }
     info[info_len] = length as u8;
     info_len = info_len + 1;
-    hkdf_expand(prk, &info[0..info_len], length, output);
+    crypto::hkdf_expand(prk, &info[0..info_len], length, output);
 }
 
 fn main() {
@@ -507,8 +410,109 @@ fn main() {
         EDHOC_CID,
         &mut message_1,
     );
-    sha256_digest(&message_1[0..message_1_len], &mut digest_message_1);
+    crypto::sha256_digest(&message_1[0..message_1_len], &mut digest_message_1);
     // TODO send message_1 over the wire
+}
+
+mod crypto {
+    use super::*;
+
+    pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
+        use hacspec_p256::*;
+
+        let scalar = P256Scalar::from_be_bytes(&private_key);
+        let point = (
+            P256FieldElement::from_be_bytes(&public_key),
+            p256_calculate_w(P256FieldElement::from_be_bytes(&public_key)),
+        );
+
+        assert!(p256_validate_public_key(point));
+
+        // we only care about the x coordinate
+        let secret_felem = match p256_point_mul(scalar, point) {
+            Ok(p) => p.0,
+            Err(_) => panic!("Error hacspec p256_point_mul"),
+        };
+
+        let secret_bytes = secret_felem.to_be_bytes();
+        for i in 0..P256_ELEM_LEN {
+            secret[i] = secret_bytes[i];
+        }
+    }
+
+    pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
+        use hacspec_lib::prelude::*;
+        use hacspec_sha256::hash;
+
+        let message_secret: Seq<U8> = Seq::<U8>::from_public_slice(message);
+        let digest = hash(&message_secret);
+
+        for i in 00..SHA256_DIGEST_LEN {
+            output[i] = digest[i].declassify();
+        }
+    }
+
+    pub fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_LEN]) {
+        use hacspec_hkdf::*;
+        use hacspec_lib::prelude::*;
+
+        let ikm_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ikm);
+        let salt_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&salt);
+
+        let okm_byteseq = extract(&salt_byteseq, &ikm_byteseq);
+
+        for i in 0..okm_byteseq.len() {
+            okm[i] = okm_byteseq[i].declassify();
+        }
+    }
+
+    pub fn hkdf_expand(prk: [u8; P256_ELEM_LEN], info: &[u8], length: usize, output: &mut [u8]) {
+        use hacspec_hkdf::*;
+        use hacspec_lib::prelude::*;
+
+        // call kdf-expand from hacspec
+        let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
+        let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
+
+        let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
+            Ok(okm) => okm,
+            Err(_) => panic!("edhoc_kdf: error expand"),
+        };
+
+        for i in 0..length {
+            output[i] = okm_byteseq[i].declassify();
+        }
+    }
+
+    pub fn aes_ccm_encrypt(
+        key: [u8; AES_CCM_KEY_LEN],
+        iv: [u8; AES_CCM_IV_LEN],
+        tag_len: usize,
+        ad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+    ) {
+        use hacspec_aes::*;
+        use hacspec_aes_ccm::*;
+        use hacspec_lib::prelude::*;
+
+        let key_secret = Key128::from_public_slice(&key);
+        let iv_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&iv);
+        let ad_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ad);
+        let plaintext_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&plaintext);
+
+        let ciphertext_byteseq = encrypt_ccm(
+            ad_byteseq,
+            iv_byteseq,
+            plaintext_byteseq,
+            key_secret,
+            tag_len,
+        );
+
+        for i in 0..ciphertext_byteseq.len() {
+            ciphertext[i] = ciphertext_byteseq[i].declassify();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -611,7 +615,7 @@ mod tests {
     fn test_sha256_digest() {
         let mut digest = [0x00 as u8; SHA256_DIGEST_LEN];
 
-        sha256_digest(&MESSAGE_1_TV, &mut digest);
+        crypto::sha256_digest(&MESSAGE_1_TV, &mut digest);
         assert_eq!(digest, H_MESSAGE_1_TV);
     }
 
@@ -632,7 +636,7 @@ mod tests {
     #[test]
     fn test_p256_ecdh() {
         let mut secret = [0x00 as u8; P256_ELEM_LEN];
-        p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
+        crypto::p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
         assert!(G_XY_TV == secret);
     }
 
