@@ -93,7 +93,7 @@ fn compute_prk_3e2m(
     hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
-pub fn decrypt_ciphertext_2(
+fn decrypt_ciphertext_2(
     prk_2e: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
@@ -224,7 +224,7 @@ fn compute_th_2(
     sha256_digest(&message[0..len], output);
 }
 
-pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
+fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
     use hacspec_lib::prelude::*;
     use hacspec_sha256::hash;
 
@@ -236,7 +236,7 @@ pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
     }
 }
 
-pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
+fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
     use hacspec_p256::*;
 
     let scalar = P256Scalar::from_be_bytes(&private_key);
@@ -273,7 +273,7 @@ fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_
     }
 }
 
-pub fn edhoc_kdf(
+fn edhoc_kdf(
     prk: [u8; P256_ELEM_LEN],
     transcript_hash: [u8; SHA256_DIGEST_LEN],
     label: &[u8],
