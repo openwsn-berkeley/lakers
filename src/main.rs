@@ -26,9 +26,9 @@ const MAX_KDF_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
 const MAX_BUFFER_LEN: usize = 150;
 
 const CBOR_BYTE_STRING: u8 = 0x58;
-const CBOR_SHORT_TEXT_STRING: u8 = 0x60;
-const CBOR_SHORT_BYTE_STRING: u8 = 0x40;
-const CBOR_SHORT_ARRAY: u8 = 0x80;
+const CBOR_MAJOR_TEXT_STRING: u8 = 0x60;
+const CBOR_MAJOR_BYTE_STRING: u8 = 0x40;
+const CBOR_MAJOR_ARRAY: u8 = 0x80;
 
 pub fn encode_message_1(
     method: u8,
@@ -220,17 +220,17 @@ fn compute_ciphertext_3(
     edhoc_kdf(prk_3e2m, th_3, &LABEL_IV_3, &[], AES_CCM_IV_LEN, &mut iv_3);
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
     plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3[1] = CBOR_SHORT_BYTE_STRING | MAC_LENGTH_3 as u8;
+    plaintext_3[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
     for i in 2..MAC_LENGTH_3 + 2 {
         plaintext_3[i] = mac_3[i - 2];
     }
     // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
-    enc_structure[0] = CBOR_SHORT_ARRAY | 3; // 3 is the fixed number of elements in the array
-    enc_structure[1] = CBOR_SHORT_TEXT_STRING | ENCRYPT0.len() as u8;
+    enc_structure[0] = CBOR_MAJOR_ARRAY | 3; // 3 is the fixed number of elements in the array
+    enc_structure[1] = CBOR_MAJOR_TEXT_STRING | ENCRYPT0.len() as u8;
     for i in 2..ENCRYPT0.len() + 2 {
         enc_structure[i] = ENCRYPT0[i - 2];
     }
-    enc_structure[ENCRYPT0.len() + 2] = CBOR_SHORT_BYTE_STRING | 0x00; // 0 for zero-length byte string
+    enc_structure[ENCRYPT0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00; // 0 for zero-length byte string
     enc_structure[ENCRYPT0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
     enc_structure[ENCRYPT0.len() + 4] = SHA256_DIGEST_LEN as u8;
     for i in ENCRYPT0.len() + 5..ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN {
@@ -325,7 +325,7 @@ fn compute_th_2(
         message[i] = g_y[i - SHA256_DIGEST_LEN - 4];
     }
     if c_r.len() > 1 {
-        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = CBOR_SHORT_BYTE_STRING | (c_r.len() as u8);
+        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = CBOR_MAJOR_BYTE_STRING | (c_r.len() as u8);
         for i in
             SHA256_DIGEST_LEN + P256_ELEM_LEN + 5..SHA256_DIGEST_LEN + P256_ELEM_LEN + 5 + c_r.len()
         {
@@ -356,7 +356,7 @@ fn compute_th_3(
     for i in 2..SHA256_DIGEST_LEN + 2 {
         message[i] = th_2[i - 2];
     }
-    message[SHA256_DIGEST_LEN + 2] = CBOR_SHORT_BYTE_STRING | (ciphertext_2.len() as u8);
+    message[SHA256_DIGEST_LEN + 2] = CBOR_MAJOR_BYTE_STRING | (ciphertext_2.len() as u8);
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext_2.len() {
         message[i] = ciphertext_2[i - SHA256_DIGEST_LEN - 3];
     }
@@ -444,13 +444,13 @@ fn edhoc_kdf(
     for i in 2..SHA256_DIGEST_LEN + 2 {
         info[i] = transcript_hash[i - 2];
     }
-    info[SHA256_DIGEST_LEN + 2] = label.len() as u8 | CBOR_SHORT_TEXT_STRING;
+    info[SHA256_DIGEST_LEN + 2] = label.len() as u8 | CBOR_MAJOR_TEXT_STRING;
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label.len() {
         info[i] = label[i - SHA256_DIGEST_LEN - 3];
     }
 
     if context.len() < 24 {
-        info[SHA256_DIGEST_LEN + 3 + label.len()] = context.len() as u8 | CBOR_SHORT_BYTE_STRING;
+        info[SHA256_DIGEST_LEN + 3 + label.len()] = context.len() as u8 | CBOR_MAJOR_BYTE_STRING;
         for i in
             SHA256_DIGEST_LEN + 4 + label.len()..SHA256_DIGEST_LEN + 4 + label.len() + context.len()
         {
