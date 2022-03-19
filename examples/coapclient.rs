@@ -93,9 +93,7 @@ fn main() {
     compute_mac_3(prk_4x3m, th_3, &ID_CRED_I, &CRED_I, &mut mac_3);
 
     let mut ciphertext_3: [u8; CIPHERTEXT_3_LEN] = [0x00; CIPHERTEXT_3_LEN];
-    compute_ciphertext_3(prk_3e2m, th_3, &ID_CRED_I, mac_3, &mut ciphertext_3);
-
-    let message_3_len = encode_message_3(ciphertext_3, &mut message_buffer);
+    compute_bstr_ciphertext_3(prk_3e2m, th_3, &ID_CRED_I, mac_3, &mut message_buffer[0..19]);
 
     let mut th_4: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
     compute_th_3_th_4(th_3, &ciphertext_3, &mut th_4);
@@ -105,7 +103,7 @@ fn main() {
 
     // FIXME code duplication senidng message 3 over coap
     // Send Message 1 over CoAP and convert the response to byte
-    let mut data = message_buffer[0..message_3_len].to_vec();
+    let mut data = message_buffer[0..MESSAGE_3_LEN].to_vec();
     data.insert(0, c_r);
 
     let response = CoAPClient::post(url, data).unwrap();
