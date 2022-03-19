@@ -38,32 +38,42 @@ pub fn encode_message_1(
     output: &mut [u8],
 ) -> usize {
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
-    output[1] = 0x80 | suites.len() as u8;
-    for i in 2..suites.len() + 2 {
-        output[i] = suites[i - 2];
+
+    let index : usize;
+
+    if suites.len() == 1 {
+        output[1] = suites[0];
+        index = 2;
+    } else {
+        output[1] = 0x80 | suites.len() as u8;
+        for i in 2..suites.len() + 2 {
+            output[i] = suites[i - 2];
+        }
+        index = suites.len() + 2;
     }
-    output[suites.len() + 2] = CBOR_BYTE_STRING; // CBOR byte string magic number
-    output[suites.len() + 3] = P256_ELEM_LEN as u8; // length of the byte string
-    for i in suites.len() + 4..suites.len() + 4 + P256_ELEM_LEN {
+    output[index] = CBOR_BYTE_STRING; // CBOR byte string magic number
+    output[index + 1] = P256_ELEM_LEN as u8; // length of the byte string
+    for i in index + 2..index + 2 + P256_ELEM_LEN {
         // copy byte string
-        output[i] = g_x[i - suites.len() - 4];
+        output[i] = g_x[i - index - 2];
     }
     if c_i >= 0 {
-        output[suites.len() + 4 + P256_ELEM_LEN] = c_i as u8; // CBOR uint less than 24 is encoded verbatim
+        output[index + 2 + P256_ELEM_LEN] = c_i as u8; // CBOR uint less than 24 is encoded verbatim
     } else {
-        output[suites.len() + 4 + P256_ELEM_LEN] = 0x20 | (-1 + (c_i * (-1))) as u8;
+        output[index + 2 + P256_ELEM_LEN] = 0x20 | (-1 + (c_i * (-1))) as u8;
     }
-    (suites.len() + 5 + P256_ELEM_LEN) as usize
+    (index + 3 + P256_ELEM_LEN) as usize
 }
 
 pub fn parse_message_2(
-    rcvd_message_2: &[u8; MESSAGE_2_LEN],
+    rcvd_message_2: &[u8],
     g_y_buf: &mut [u8; P256_ELEM_LEN],
     ciphertext_2_buf: &mut [u8; CIPHERTEXT_2_LEN],
     c_r: &mut u8,
 ) {
     assert!(rcvd_message_2.len() == MESSAGE_2_LEN);
 
+    // FIXME decode negative integers as well
     *c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
 
     for i in 0..P256_ELEM_LEN {
