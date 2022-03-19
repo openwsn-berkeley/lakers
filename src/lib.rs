@@ -134,9 +134,6 @@ pub fn prepare_message_3<'a>(
 
     // FIXME hack: skipping first byte of message_3 to get to ciphertext
     compute_th_3_th_4(state.th_3, &message_3[1..], &mut state.th_4);
-    // export th_4 and prk_4x3m
-    println!("th_4 = {:02x?}", state.th_4);
-    println!("prk_4x3m = {:02x?}", state.prk_4x3m);
     &message_3[..]
 }
 
