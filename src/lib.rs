@@ -104,7 +104,6 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
     if id_cred_r != ID_CRED_R[2] {
         panic!("Unknown authentication peer!");
     }
-
     // verify mac_2
     compute_prk_3e2m(state.prk_2e, state.x, G_R, &mut state.prk_3e2m);
     compute_th_2(state.h_message_1, g_y, &[c_r as i8], &mut state.th_2);
@@ -113,10 +112,8 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
     // step is actually from processing of message_3
     // but we do it here to avoid storing ciphertext in State
     compute_th_3_th_4(state.th_2, &ciphertext_2, &mut state.th_3);
-
     // message 3 processing
     compute_prk_4x3m(state.prk_3e2m, I, g_y, &mut state.prk_4x3m);
-
     c_r
 }
 
