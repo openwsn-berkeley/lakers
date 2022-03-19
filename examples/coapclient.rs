@@ -26,22 +26,12 @@ fn main() {
 
     let c_r = process_message_2(&mut state, &message_buffer[0..message_2_len]);
 
-    let message_3_len = prepare_message_3(&mut state, &ID_CRED_I, &CRED_I, &mut message_buffer);
+    let message_3 = prepare_message_3(&mut state, &ID_CRED_I, &CRED_I, &mut message_buffer);
 
-    // FIXME code duplication senidng message 3 over coap
-    // Send Message 1 over CoAP and convert the response to byte
-    let mut data = message_buffer[0..message_3_len].to_vec();
+    // Send Message 1 over CoAP and convert the response to a byte array
+    let mut data = message_3.to_vec();
     data.insert(0, c_r);
 
-    let response = CoAPClient::post(url, data).unwrap();
-    println!("response_vec = {:02x?}", response.message.payload);
-    // convert response to byte array
-    for i in 0..response.message.payload.len() {
-        message_buffer[i] = response.message.payload[i] as u8;
-    }
-    let message_4_len = response.message.payload.len();
-    println!(
-        "Received message_4: {:02x?}",
-        &message_buffer[0..message_4_len]
-    );
+    let _response = CoAPClient::post(url, data).unwrap();
+    // we don't care about the response to message_3 for now
 }
