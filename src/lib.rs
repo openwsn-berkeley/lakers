@@ -55,7 +55,7 @@ pub struct State {
 }
 
 pub fn edhoc_exporter(
-    state: State,
+    state: &mut State,
     label: &[u8],
     context: &[u8],
     length: usize,
