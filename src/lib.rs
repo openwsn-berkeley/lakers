@@ -39,7 +39,7 @@ pub fn encode_message_1(
 ) -> usize {
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
 
-    let index : usize;
+    let index: usize;
 
     if suites.len() == 1 {
         output[1] = suites[0];
@@ -343,9 +343,9 @@ fn compute_th_2(
     crypto::sha256_digest(&message[0..len], output);
 }
 
-fn compute_th_3(
-    th_2: [u8; SHA256_DIGEST_LEN],
-    ciphertext_2: &[u8],
+fn compute_th_3_th_4(
+    th: [u8; SHA256_DIGEST_LEN],
+    ciphertext: &[u8],
     output: &mut [u8; SHA256_DIGEST_LEN],
 ) {
     let mut message = [0x00; MAX_BUFFER_LEN];
@@ -353,15 +353,15 @@ fn compute_th_3(
     message[0] = CBOR_BYTE_STRING;
     message[1] = SHA256_DIGEST_LEN as u8;
     for i in 2..SHA256_DIGEST_LEN + 2 {
-        message[i] = th_2[i - 2];
+        message[i] = th[i - 2];
     }
-    message[SHA256_DIGEST_LEN + 2] = CBOR_MAJOR_BYTE_STRING | (ciphertext_2.len() as u8);
-    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext_2.len() {
-        message[i] = ciphertext_2[i - SHA256_DIGEST_LEN - 3];
+    message[SHA256_DIGEST_LEN + 2] = CBOR_MAJOR_BYTE_STRING | (ciphertext.len() as u8);
+    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext.len() {
+        message[i] = ciphertext[i - SHA256_DIGEST_LEN - 3];
     }
 
     crypto::sha256_digest(
-        &message[0..SHA256_DIGEST_LEN + 3 + ciphertext_2.len()],
+        &message[0..SHA256_DIGEST_LEN + 3 + ciphertext.len()],
         output,
     );
 }
@@ -574,7 +574,8 @@ mod tests {
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
     const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49cef36e229fff1e5849");
     const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927");
-    const I_TV: [u8; P256_ELEM_LEN] = hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+    const I_TV: [u8; P256_ELEM_LEN] =
+        hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const EAD_2_TV: [u8; 0] = hex!("");
     const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
     const TH_3_TV: [u8; SHA256_DIGEST_LEN] =
@@ -586,6 +587,8 @@ mod tests {
     const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
     const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
     const MESSAGE_3_TV: [u8; 19] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
+    const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
+        hex!("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
 
     #[test]
     fn test_encode_message_1() {
@@ -650,10 +653,14 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_th_3() {
+    fn test_compute_th_3_th_4() {
         let mut th_3 = [0x00; SHA256_DIGEST_LEN];
-        compute_th_3(TH_2_TV, &CIPHERTEXT_2_TV, &mut th_3);
+        compute_th_3_th_4(TH_2_TV, &CIPHERTEXT_2_TV, &mut th_3);
         assert_eq!(th_3, TH_3_TV);
+
+        let mut th_4 = [0x00; SHA256_DIGEST_LEN];
+        compute_th_3_th_4(TH_3_TV, &CIPHERTEXT_3_TV, &mut th_4);
+        assert_eq!(th_4, TH_4_TV);
     }
 
     #[test]
