@@ -117,6 +117,18 @@ fn compute_prk_3e2m(
     crypto::hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
+fn compute_prk_4x3m(
+    prk_3e2m: [u8; P256_ELEM_LEN],
+    i: [u8; P256_ELEM_LEN],
+    g_y: [u8; P256_ELEM_LEN],
+    prk_4x3m: &mut [u8; P256_ELEM_LEN],
+) {
+    // compute g_rx from static R's public key and private ephemeral key
+    let mut g_iy = [0x00 as u8; P256_ELEM_LEN];
+    crypto::p256_ecdh(&i, &g_y, &mut g_iy);
+    crypto::hkdf_extract(&prk_3e2m, g_iy, prk_4x3m);
+}
+
 fn decrypt_ciphertext_2(
     prk_2e: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
@@ -562,6 +574,7 @@ mod tests {
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
     const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49cef36e229fff1e5849");
     const MESSAGE_2_TV : [u8; MESSAGE_2_LEN] = hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927");
+    const I_TV: [u8; P256_ELEM_LEN] = hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const EAD_2_TV: [u8; 0] = hex!("");
     const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
     const TH_3_TV: [u8; SHA256_DIGEST_LEN] =
@@ -718,6 +731,12 @@ mod tests {
         assert_eq!(prk_3e2m, PRK_3E2M_TV);
     }
 
+    #[test]
+    fn test_compute_prk_4x3m() {
+        let mut prk_4x3m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+        compute_prk_4x3m(PRK_3E2M_TV, I_TV, G_Y_TV, &mut prk_4x3m);
+        assert_eq!(prk_4x3m, PRK_4X3M_TV);
+    }
     #[test]
     fn test_compute_ciphertext_3() {
         let mut ciphertext_3: [u8; CIPHERTEXT_3_LEN] = [0x00; CIPHERTEXT_3_LEN];
