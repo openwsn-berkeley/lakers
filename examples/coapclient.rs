@@ -34,4 +34,9 @@ fn main() {
 
     let _response = CoAPClient::post(url, data).unwrap();
     // we don't care about the response to message_3 for now
+
+    let mut secret : [u8; 16] = [0x00; 16];
+    let mut salt : [u8; 8] = [0x00; 8];
+    edhoc_exporter(&mut state, "OSCORE_Secret".as_bytes(), &[], 16, &mut secret);
+    edhoc_exporter(&mut state, "OSCOREE_Salt".as_bytes(), &[], 8, &mut salt);
 }
