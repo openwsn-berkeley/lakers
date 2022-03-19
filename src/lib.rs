@@ -2,28 +2,28 @@
 
 const MESSAGE_2_LEN: usize = 45;
 
-const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
-const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
+pub const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
+pub const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
 const EDHOC_CID: i8 = 12;
 
-const P256_ELEM_LEN: usize = 32;
-const SHA256_DIGEST_LEN: usize = 32;
+pub const P256_ELEM_LEN: usize = 32;
+pub const SHA256_DIGEST_LEN: usize = 32;
 const AES_CCM_KEY_LEN: usize = 16;
 const AES_CCM_IV_LEN: usize = 13;
 const AES_CCM_TAG_LEN: usize = 8;
-const MAC_LENGTH_2: usize = 8;
-const MAC_LENGTH_3: usize = MAC_LENGTH_2;
+pub const MAC_LENGTH_2: usize = 8;
+pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 
 // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
-const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
+pub const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
+pub const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
 const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
-const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
+pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
 // maximum supported length of connection identifier for R
 const MAX_KDF_CONTEXT_LEN: usize = 120;
 const MAX_KDF_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
-const MAX_BUFFER_LEN: usize = 150;
+pub const MAX_BUFFER_LEN: usize = 150;
 
 const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_MAJOR_TEXT_STRING: u8 = 0x60;
@@ -93,7 +93,7 @@ pub fn encode_message_3(ciphertext_3: [u8; CIPHERTEXT_3_LEN], output: &mut [u8])
     (CIPHERTEXT_3_LEN + 1) as usize
 }
 
-fn compute_prk_2e(
+pub fn compute_prk_2e(
     x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     prk_2e: &mut [u8; P256_ELEM_LEN],
@@ -105,7 +105,7 @@ fn compute_prk_2e(
     crypto::hkdf_extract(&[], g_xy, prk_2e);
 }
 
-fn compute_prk_3e2m(
+pub fn compute_prk_3e2m(
     prk_2e: [u8; P256_ELEM_LEN],
     x: [u8; P256_ELEM_LEN],
     g_r: [u8; P256_ELEM_LEN],
@@ -117,7 +117,7 @@ fn compute_prk_3e2m(
     crypto::hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
-fn compute_prk_4x3m(
+pub fn compute_prk_4x3m(
     prk_3e2m: [u8; P256_ELEM_LEN],
     i: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
@@ -129,7 +129,7 @@ fn compute_prk_4x3m(
     crypto::hkdf_extract(&prk_3e2m, g_iy, prk_4x3m);
 }
 
-fn decrypt_ciphertext_2(
+pub fn decrypt_ciphertext_2(
     prk_2e: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
@@ -163,7 +163,24 @@ fn decrypt_ciphertext_2(
     }
 }
 
-fn compute_and_verify_mac_2(
+pub fn decode_plaintext_2(
+    plaintext_2: &[u8],
+    id_cred_r: &mut u8,
+    mac_2: &mut [u8; MAC_LENGTH_2],
+    ead_2: &mut [u8],
+) {
+    *id_cred_r = plaintext_2[0];
+    // skip cbor byte string byte as we know how long the string is
+    for i in 2..MAC_LENGTH_2 + 2 {
+        mac_2[i - 2] = plaintext_2[i];
+    }
+    // zero out ead_2
+    for i in 0..ead_2.len() {
+        ead_2[i] = 0x00;
+    }
+}
+
+pub fn compute_and_verify_mac_2(
     prk_3e2m: [u8; P256_ELEM_LEN],
     id_cred_r: &[u8],
     cred_r: &[u8],
@@ -197,7 +214,7 @@ fn compute_and_verify_mac_2(
     verified
 }
 
-fn compute_mac_3(
+pub fn compute_mac_3(
     prk_4x3m: [u8; P256_ELEM_LEN],
     th_3: [u8; SHA256_DIGEST_LEN],
     id_cred_i: &[u8],
@@ -224,7 +241,7 @@ fn compute_mac_3(
     );
 }
 
-fn compute_ciphertext_3(
+pub fn compute_ciphertext_3(
     prk_3e2m: [u8; P256_ELEM_LEN],
     th_3: [u8; SHA256_DIGEST_LEN],
     id_cred_i: &[u8],
@@ -288,24 +305,7 @@ fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len
     *output_len = (id_cred.len() + cred.len()) as usize;
 }
 
-fn decode_plaintext_2(
-    plaintext_2: &[u8],
-    id_cred_r: &mut u8,
-    mac_2: &mut [u8; MAC_LENGTH_2],
-    ead_2: &mut [u8],
-) {
-    *id_cred_r = plaintext_2[0];
-    // skip cbor byte string byte as we know how long the string is
-    for i in 2..MAC_LENGTH_2 + 2 {
-        mac_2[i - 2] = plaintext_2[i];
-    }
-    // zero out ead_2
-    for i in 0..ead_2.len() {
-        ead_2[i] = 0x00;
-    }
-}
-
-fn compute_th_2(
+pub fn compute_th_2(
     h_message_1: [u8; SHA256_DIGEST_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
@@ -343,7 +343,7 @@ fn compute_th_2(
     crypto::sha256_digest(&message[0..len], output);
 }
 
-fn compute_th_3_th_4(
+pub fn compute_th_3_th_4(
     th: [u8; SHA256_DIGEST_LEN],
     ciphertext: &[u8],
     output: &mut [u8; SHA256_DIGEST_LEN],
@@ -436,7 +436,7 @@ fn main() {
     // TODO send message_1 over the wire
 }
 
-mod crypto {
+pub mod crypto {
     use super::*;
 
     pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
