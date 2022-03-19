@@ -97,6 +97,12 @@ fn main() {
 
     let message_3_len = encode_message_3(ciphertext_3, &mut message_buffer);
 
+    let mut th_4: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
+    compute_th_3_th_4(th_3, &ciphertext_3, &mut th_4);
+    // export th_4 and prk_4x3m
+    println!("th_4 = {:02x?}", th_4);
+    println!("prk_4x3m = {:02x?}", prk_4x3m);
+
     // FIXME code duplication senidng message 3 over coap
     // Send Message 1 over CoAP and convert the response to byte
     let mut data = message_buffer[0..message_3_len].to_vec();
@@ -114,5 +120,4 @@ fn main() {
         &message_buffer[0..message_4_len]
     );
 
-    println!("prk_4x3m = {:02x?}", prk_4x3m);
 }
