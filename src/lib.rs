@@ -121,12 +121,12 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
 }
 
 // message_3 must hold MESSAGE_3_LEN
-pub fn prepare_message_3(
+pub fn prepare_message_3<'a>(
     state: &mut State,
     id_cred_i: &[u8],
     cred_i: &[u8],
-    message_3: &mut [u8],
-) -> usize {
+    message_3: &'a mut [u8],
+) -> &'a [u8] {
     let mut mac_3: [u8; MAC_LENGTH_3] = [0x00; MAC_LENGTH_3];
     compute_mac_3(state.prk_4x3m, state.th_3, &id_cred_i, &cred_i, &mut mac_3);
 
@@ -137,8 +137,7 @@ pub fn prepare_message_3(
     // export th_4 and prk_4x3m
     println!("th_4 = {:02x?}", state.th_4);
     println!("prk_4x3m = {:02x?}", state.prk_4x3m);
-
-    MESSAGE_3_LEN
+    &message_3[..]
 }
 
 fn encode_message_1(
