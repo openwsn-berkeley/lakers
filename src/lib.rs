@@ -1,6 +1,7 @@
 //#![no_std]
 
 const MESSAGE_2_LEN: usize = 45;
+pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 
 pub const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
 pub const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
@@ -83,14 +84,6 @@ pub fn parse_message_2(
     for i in 0..CIPHERTEXT_2_LEN {
         ciphertext_2_buf[i] = rcvd_message_2[i + 2 + P256_ELEM_LEN];
     }
-}
-
-pub fn encode_message_3(ciphertext_3: [u8; CIPHERTEXT_3_LEN], output: &mut [u8]) -> usize {
-    output[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
-    for i in 1..CIPHERTEXT_3_LEN + 1 {
-        output[i] = ciphertext_3[i - 1];
-    }
-    (CIPHERTEXT_3_LEN + 1) as usize
 }
 
 pub fn compute_prk_2e(
@@ -241,12 +234,14 @@ pub fn compute_mac_3(
     );
 }
 
-pub fn compute_ciphertext_3(
+// calculates ciphertext_3 wrapped in a cbor byte string
+// output must hold MESSAGE_3_LEN
+pub fn compute_bstr_ciphertext_3(
     prk_3e2m: [u8; P256_ELEM_LEN],
     th_3: [u8; SHA256_DIGEST_LEN],
     id_cred_i: &[u8],
     mac_3: [u8; MAC_LENGTH_3],
-    output: &mut [u8; CIPHERTEXT_3_LEN],
+    output: &mut [u8],
 ) {
     const LABEL_K_3: [u8; 3] = ['K' as u8, '_' as u8, '3' as u8];
     const LABEL_IV_3: [u8; 4] = ['I' as u8, 'V' as u8, '_' as u8, '3' as u8];
@@ -282,13 +277,15 @@ pub fn compute_ciphertext_3(
     for i in ENCRYPT0.len() + 5..ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN {
         enc_structure[i] = th_3[i - ENCRYPT0.len() - 5];
     }
+
+    output[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
     crypto::aes_ccm_encrypt(
         k_3,
         iv_3,
         AES_CCM_TAG_LEN,
         &enc_structure,
         &plaintext_3,
-        output,
+        &mut output[1..MESSAGE_3_LEN],
     );
 }
 
@@ -586,7 +583,7 @@ mod tests {
     const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
     const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
-    const MESSAGE_3_TV: [u8; 19] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
+    const MESSAGE_3_TV: [u8; MESSAGE_3_LEN] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
     const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
         hex!("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
 
@@ -610,16 +607,6 @@ mod tests {
 
         assert!(G_Y_TV == g_y_buf);
         assert!(CIPHERTEXT_2_TV == ciphertext_2_buf);
-    }
-
-    #[test]
-    fn test_encode_message_3() {
-        let mut message_3: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-        let message_3_len = encode_message_3(CIPHERTEXT_3_TV, &mut message_3);
-        assert_eq!(message_3_len, MESSAGE_3_TV.len());
-        for i in 0..MESSAGE_3_TV.len() {
-            assert_eq!(message_3[i], MESSAGE_3_TV[i]);
-        }
     }
 
     #[test]
@@ -745,15 +732,15 @@ mod tests {
         assert_eq!(prk_4x3m, PRK_4X3M_TV);
     }
     #[test]
-    fn test_compute_ciphertext_3() {
-        let mut ciphertext_3: [u8; CIPHERTEXT_3_LEN] = [0x00; CIPHERTEXT_3_LEN];
-        compute_ciphertext_3(
+    fn test_compute_bstr_ciphertext_3() {
+        let mut bstr_ciphertext_3: [u8; MESSAGE_3_LEN] = [0x00; MESSAGE_3_LEN];
+        compute_bstr_ciphertext_3(
             PRK_3E2M_TV,
             TH_3_TV,
             &ID_CRED_I_TV,
             MAC_3_TV,
-            &mut ciphertext_3,
+            &mut bstr_ciphertext_3,
         );
-        assert_eq!(ciphertext_3, CIPHERTEXT_3_TV);
+        assert_eq!(bstr_ciphertext_3, MESSAGE_3_TV);
     }
 }
