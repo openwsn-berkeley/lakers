@@ -1,11 +1,22 @@
 //#![no_std]
 
+const I: [u8; P256_ELEM_LEN] =
+    hex_literal::hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+const ID_CRED_R: [u8; 3] = hex_literal::hex!("A10405");
+const CRED_R : [u8; 83] = hex_literal::hex!("A2026008A101A50102020520012158206F9702A66602D78F5E81BAC1E0AF01F8B52810C502E87EBB7C926C07426FD02F225820C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800");
+const G_R: [u8; P256_ELEM_LEN] =
+    hex_literal::hex!("6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f");
+const C_I: i8 = -24;
+const G_X: [u8; 32] =
+    hex_literal::hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
+const X: [u8; 32] =
+    hex_literal::hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+
 const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 
 pub const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
 pub const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
-const EDHOC_CID: i8 = 12;
 
 pub const P256_ELEM_LEN: usize = 32;
 pub const SHA256_DIGEST_LEN: usize = 32;
@@ -30,6 +41,105 @@ const CBOR_BYTE_STRING: u8 = 0x58;
 const CBOR_MAJOR_TEXT_STRING: u8 = 0x60;
 const CBOR_MAJOR_BYTE_STRING: u8 = 0x40;
 const CBOR_MAJOR_ARRAY: u8 = 0x80;
+
+#[derive(Default)]
+pub struct State {
+    x: [u8; P256_ELEM_LEN],
+    prk_2e: [u8; P256_ELEM_LEN],
+    prk_3e2m: [u8; P256_ELEM_LEN],
+    prk_4x3m: [u8; P256_ELEM_LEN],
+    h_message_1: [u8; SHA256_DIGEST_LEN],
+    th_2: [u8; SHA256_DIGEST_LEN],
+    th_3: [u8; SHA256_DIGEST_LEN],
+    th_4: [u8; SHA256_DIGEST_LEN],
+}
+
+pub fn edhoc_exporter(
+    state: State,
+    label: &[u8],
+    context: &[u8],
+    length: usize,
+    output: &mut [u8],
+) {
+    edhoc_kdf(state.prk_4x3m, state.th_4, label, context, length, output);
+}
+
+// must hold MESSAGE_1_LEN
+pub fn prepare_message_1<'a>(state: &mut State, buffer: &'a mut [u8]) -> &'a [u8] {
+    // TODO generate ephemeral key
+    state.x = X;
+    let message_1_len = encode_message_1(EDHOC_METHOD, &EDHOC_SUPPORTED_SUITES, G_X, C_I, buffer);
+    crypto::sha256_digest(&buffer[0..message_1_len], &mut state.h_message_1);
+
+    &buffer[0..message_1_len]
+}
+
+// message_3 must hold MESSAGE_3_LEN
+// returns c_r
+pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
+    let mut g_y: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
+    let mut ciphertext_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
+    let mut c_r: u8 = 0x00;
+
+    parse_message_2(message_2, &mut g_y, &mut ciphertext_2, &mut c_r);
+
+    // compute prk_2e
+    let mut plaintext_2: [u8; PLAINTEXT_2_LEN] = [0x00; PLAINTEXT_2_LEN];
+    compute_prk_2e(state.x, g_y, &mut state.prk_2e);
+    decrypt_ciphertext_2(
+        state.prk_2e,
+        g_y,
+        &[c_r as i8],
+        ciphertext_2,
+        state.h_message_1,
+        &mut plaintext_2,
+    );
+
+    // decode plaintext_2
+    let mut id_cred_r: u8 = 0x00;
+    let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
+    let mut ead_2: [u8; 0] = [];
+    decode_plaintext_2(&plaintext_2, &mut id_cred_r, &mut mac_2, &mut ead_2);
+
+    if id_cred_r != ID_CRED_R[2] {
+        panic!("Unknown authentication peer!");
+    }
+
+    // verify mac_2
+    compute_prk_3e2m(state.prk_2e, state.x, G_R, &mut state.prk_3e2m);
+    compute_th_2(state.h_message_1, g_y, &[c_r as i8], &mut state.th_2);
+    compute_and_verify_mac_2(state.prk_3e2m, &ID_CRED_R, &CRED_R, state.th_2, mac_2);
+
+    // step is actually from processing of message_3
+    // but we do it here to avoid storing ciphertext in State
+    compute_th_3_th_4(state.th_2, &ciphertext_2, &mut state.th_3);
+
+    // message 3 processing
+    compute_prk_4x3m(state.prk_3e2m, I, g_y, &mut state.prk_4x3m);
+
+    c_r
+}
+
+// message_3 must hold MESSAGE_3_LEN
+pub fn prepare_message_3(
+    state: &mut State,
+    id_cred_i: &[u8],
+    cred_i: &[u8],
+    message_3: &mut [u8],
+) -> usize {
+    let mut mac_3: [u8; MAC_LENGTH_3] = [0x00; MAC_LENGTH_3];
+    compute_mac_3(state.prk_4x3m, state.th_3, &id_cred_i, &cred_i, &mut mac_3);
+
+    compute_bstr_ciphertext_3(state.prk_3e2m, state.th_3, &id_cred_i, mac_3, message_3);
+
+    // FIXME hack: skipping first byte of message_3 to get to ciphertext
+    compute_th_3_th_4(state.th_3, &message_3[1..], &mut state.th_4);
+    // export th_4 and prk_4x3m
+    println!("th_4 = {:02x?}", state.th_4);
+    println!("prk_4x3m = {:02x?}", state.prk_4x3m);
+
+    MESSAGE_3_LEN
+}
 
 pub fn encode_message_1(
     method: u8,
@@ -137,6 +247,7 @@ pub fn decrypt_ciphertext_2(
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
     let mut keystream_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
+    // FIXME consider using "KEYSTREAM_2".as_bytes()
     let label_keystream_2 = [
         'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8, 'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
         'M' as u8, '_' as u8, '2' as u8,
@@ -414,23 +525,6 @@ fn edhoc_kdf(
     info[info_len] = length as u8;
     info_len = info_len + 1;
     crypto::hkdf_expand(prk, &info[0..info_len], length, output);
-}
-
-fn main() {
-    let g_x: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-    let mut message_1: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-    let mut digest_message_1: [u8; SHA256_DIGEST_LEN] = [0x00; SHA256_DIGEST_LEN];
-    // TODO load hardcoded static DH key
-    // TODO generate private and public key
-    let message_1_len = encode_message_1(
-        EDHOC_METHOD,
-        &EDHOC_SUPPORTED_SUITES,
-        g_x,
-        EDHOC_CID,
-        &mut message_1,
-    );
-    crypto::sha256_digest(&message_1[0..message_1_len], &mut digest_message_1);
-    // TODO send message_1 over the wire
 }
 
 pub mod crypto {
