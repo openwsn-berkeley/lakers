@@ -38,5 +38,5 @@ fn main() {
     let mut secret : [u8; 16] = [0x00; 16];
     let mut salt : [u8; 8] = [0x00; 8];
     edhoc_exporter(&mut state, "OSCORE_Secret".as_bytes(), &[], 16, &mut secret);
-    edhoc_exporter(&mut state, "OSCOREE_Salt".as_bytes(), &[], 8, &mut salt);
+    edhoc_exporter(&mut state, "OSCORE_Salt".as_bytes(), &[], 8, &mut salt);
 }
