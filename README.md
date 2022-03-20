@@ -1,6 +1,6 @@
 # edhoc-rs
 
-A microcontroller-optimized implementation of EDHOC in Rust (no_std).
+A microcontroller-optimized implementation of EDHOC in Rust (`no_std`).
 
 Supports:
 * Initiator

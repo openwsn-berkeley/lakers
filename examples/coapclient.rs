@@ -1,6 +1,6 @@
 use coap::CoAPClient;
 use edhoc::*;
-use hex_literal::hex;
+use hexlit::hex;
 const ID_CRED_I: [u8; 3] = hex!("a1042b");
 const CRED_I: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
 
@@ -8,10 +8,13 @@ fn main() {
     let url = "coap://31.133.128.122:5683/.well-known/edhoc";
     println!("Client request: {}", url);
 
-    let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+    let mut message_buffer: [u8; edhoc::consts::MAX_BUFFER_LEN] =
+        [0x00; edhoc::consts::MAX_BUFFER_LEN];
     let mut state: State = Default::default();
 
-    let message_1 = prepare_message_1(&mut state, &mut message_buffer);
+    let mut acc = NativeAccelerator {};
+
+    let message_1 = prepare_message_1(&mut acc, &mut state, &mut message_buffer);
     // Send Message 1 over CoAP and convert the response to byte
     let mut data = message_1.to_vec();
     data.insert(0, 0xf5 as u8);
@@ -24,9 +27,15 @@ fn main() {
     }
     let message_2_len = response.message.payload.len();
 
-    let c_r = process_message_2(&mut state, &message_buffer[0..message_2_len]);
+    let c_r = process_message_2(&mut acc, &mut state, &message_buffer[0..message_2_len]);
 
-    let message_3 = prepare_message_3(&mut state, &ID_CRED_I, &CRED_I, &mut message_buffer);
+    let message_3 = prepare_message_3(
+        &mut acc,
+        &mut state,
+        &ID_CRED_I,
+        &CRED_I,
+        &mut message_buffer,
+    );
 
     // Send Message 1 over CoAP and convert the response to a byte array
     let mut data = message_3.to_vec();
@@ -35,8 +44,22 @@ fn main() {
     let _response = CoAPClient::post(url, data).unwrap();
     // we don't care about the response to message_3 for now
 
-    let mut secret : [u8; 16] = [0x00; 16];
-    let mut salt : [u8; 8] = [0x00; 8];
-    edhoc_exporter(&mut state, "OSCORE_Secret".as_bytes(), &[], 16, &mut secret);
-    edhoc_exporter(&mut state, "OSCORE_Salt".as_bytes(), &[], 8, &mut salt);
+    let mut secret: [u8; 16] = [0x00; 16];
+    let mut salt: [u8; 8] = [0x00; 8];
+    edhoc_exporter(
+        &mut acc,
+        &mut state,
+        "OSCORE_Secret".as_bytes(),
+        &[],
+        16,
+        &mut secret,
+    );
+    edhoc_exporter(
+        &mut acc,
+        &mut state,
+        "OSCORE_Salt".as_bytes(),
+        &[],
+        8,
+        &mut salt,
+    );
 }
