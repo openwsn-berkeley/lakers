@@ -1,16 +1,16 @@
-//#![no_std]
+#![cfg_attr(feature = "cc2538", no_std)]
 
-const I: [u8; P256_ELEM_LEN] =
-    hex_literal::hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-const ID_CRED_R: [u8; 3] = hex_literal::hex!("A10405");
-const CRED_R : [u8; 83] = hex_literal::hex!("A2026008A101A50102020520012158206F9702A66602D78F5E81BAC1E0AF01F8B52810C502E87EBB7C926C07426FD02F225820C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800");
+#[cfg(feature = "cc2538")]
+use cc2538_hal as hal;
+
+const I: [u8; P256_ELEM_LEN] = b"fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
+const ID_CRED_R: [u8; 3] = b"A10405";
+const CRED_R : [u8; 83] = b"A2026008A101A50102020520012158206F9702A66602D78F5E81BAC1E0AF01F8B52810C502E87EBB7C926C07426FD02F225820C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800";
 const G_R: [u8; P256_ELEM_LEN] =
-    hex_literal::hex!("6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f");
+    b"6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f";
 const C_I: i8 = -24;
-const G_X: [u8; 32] =
-    hex_literal::hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-const X: [u8; 32] =
-    hex_literal::hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+const G_X: [u8; 32] = b"8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
+const X: [u8; 32] = b"368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525";
 
 const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
@@ -521,6 +521,7 @@ fn edhoc_kdf(
     crypto::hkdf_expand(prk, &info[0..info_len], length, output);
 }
 
+#[cfg(feature = "native")]
 mod crypto {
     use super::*;
 
@@ -619,6 +620,38 @@ mod crypto {
         for i in 0..ciphertext_byteseq.len() {
             ciphertext[i] = ciphertext_byteseq[i].declassify();
         }
+    }
+}
+
+#[cfg(feature = "cc2538")]
+mod crypto {
+    use super::*;
+
+    pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
+        todo!();
+    }
+
+    pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
+        todo!();
+    }
+
+    pub fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_LEN]) {
+        todo!();
+    }
+
+    pub fn hkdf_expand(prk: [u8; P256_ELEM_LEN], info: &[u8], length: usize, output: &mut [u8]) {
+        todo!()
+    }
+
+    pub fn aes_ccm_encrypt(
+        key: [u8; AES_CCM_KEY_LEN],
+        iv: [u8; AES_CCM_IV_LEN],
+        tag_len: usize,
+        ad: &[u8],
+        plaintext: &[u8],
+        ciphertext: &mut [u8],
+    ) {
+        todo!();
     }
 }
 
