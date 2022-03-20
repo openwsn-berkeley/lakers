@@ -7,12 +7,21 @@ license = "BSD"
 description = "EDHOC implementation"
 
 [dependencies]
-coap = "0.11.3"
-hex-literal = { version = "0.3.4" }
-hacspec-lib = { path = "../hacspec/lib" }
-hacspec-p256 = { path = "../hacspec/examples/p256" }
-hacspec-hkdf = { path = "../hacspec/examples/hkdf" }
-hacspec-sha256 = { path = "../hacspec/examples/sha256" }
-hacspec-aes = { path = "../hacspec/examples/aes" }
-hacspec-aes-ccm = { path = "../hacspec/examples/aes-ccm" }
 
+# Crates used when the native backend is selected
+coap = { version = "0.11.3", optional = true }
+hex-literal = { version = "0.3.4", optional = true}
+hacspec-lib = { path = "../hacspec/lib", optional = true }
+hacspec-p256 = { path = "../hacspec/examples/p256", optional = true }
+hacspec-hkdf = { path = "../hacspec/examples/hkdf", optional = true }
+hacspec-sha256 = { path = "../hacspec/examples/sha256", optional = true }
+hacspec-aes = { path = "../hacspec/examples/aes", optional = true }
+hacspec-aes-ccm = { path = "../hacspec/examples/aes-ccm", optional = true }
+
+# Crates uses when the cc2538 backend is selected
+cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto" }
+
+[features]
+default = ["native"]
+native = ["coap", "hex-literal", "hacspec-lib", "hacspec-p256", "hacspec-hkdf", "hacspec-sha256", "hacspec-aes", "hacspec-aes-ccm"]
+cc2538 = []
