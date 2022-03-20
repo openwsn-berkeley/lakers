@@ -34,7 +34,7 @@ const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
 // maximum supported length of connection identifier for R
 const MAX_KDF_CONTEXT_LEN: usize = 120;
-const MAX_KDF_LABEL_LEN: usize = 11; // for "KEYSTREAM_2"
+const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
 pub const MAX_BUFFER_LEN: usize = 150;
 
 const CBOR_BYTE_STRING: u8 = 0x58;
@@ -101,6 +101,7 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
     let mut ead_2: [u8; 0] = [];
     decode_plaintext_2(&plaintext_2, &mut id_cred_r, &mut mac_2, &mut ead_2);
 
+    // FIXME pass this to the application instead of verifying it here
     if id_cred_r != ID_CRED_R[2] {
         panic!("Unknown authentication peer!");
     }
@@ -130,8 +131,8 @@ pub fn prepare_message_3<'a>(
     compute_bstr_ciphertext_3(state.prk_3e2m, state.th_3, &id_cred_i, mac_3, message_3);
 
     // FIXME hack: skipping first byte of message_3 to get to ciphertext
-    compute_th_3_th_4(state.th_3, &message_3[1..], &mut state.th_4);
-    &message_3[..]
+    compute_th_3_th_4(state.th_3, &message_3[1..MESSAGE_3_LEN], &mut state.th_4);
+    &message_3[0..MESSAGE_3_LEN]
 }
 
 fn encode_message_1(
