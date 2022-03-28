@@ -1,0 +1,22 @@
+[package]
+name = "cc2538-edhoc"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
+license = "BSD"
+description = "EDHOC implementation"
+
+[dependencies]
+hexlit = "0.5.3"
+
+cc2538-pac = { version = "0.1.0", features = ["rt"] }
+cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto" }
+cortex-m = { version = "0.7.4", features = ["inline-asm"] }
+cortex-m-rt = { version = "0.7", features = ["device"] }
+panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
+rtt-target = { version = "0.3.1", features = ["cortex-m"] }
+
+[dependencies.edhoc]
+path = "../../"
+default-features = false
+features = ["cc2538"]

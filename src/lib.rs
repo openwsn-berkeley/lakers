@@ -1,46 +1,13 @@
-//#![no_std]
+#![cfg_attr(not(feature = "native"), no_std)]
 
-const I: [u8; P256_ELEM_LEN] =
-    hex_literal::hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-const ID_CRED_R: [u8; 3] = hex_literal::hex!("A10405");
-const CRED_R : [u8; 83] = hex_literal::hex!("A2026008A101A50102020520012158206F9702A66602D78F5E81BAC1E0AF01F8B52810C502E87EBB7C926C07426FD02F225820C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800");
-const G_R: [u8; P256_ELEM_LEN] =
-    hex_literal::hex!("6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f");
-const C_I: i8 = -24;
-const G_X: [u8; 32] =
-    hex_literal::hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-const X: [u8; 32] =
-    hex_literal::hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+mod accelerator;
+pub mod consts;
 
-const MESSAGE_2_LEN: usize = 45;
-pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
+use consts::*;
+pub use accelerator::Accelerator;
 
-const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method
-const EDHOC_SUPPORTED_SUITES: [u8; 1] = [2];
-
-const P256_ELEM_LEN: usize = 32;
-const SHA256_DIGEST_LEN: usize = 32;
-const AES_CCM_KEY_LEN: usize = 16;
-const AES_CCM_IV_LEN: usize = 13;
-const AES_CCM_TAG_LEN: usize = 8;
-const MAC_LENGTH_2: usize = 8;
-const MAC_LENGTH_3: usize = MAC_LENGTH_2;
-
-// ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
-const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
-const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
-const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
-
-// maximum supported length of connection identifier for R
-const MAX_KDF_CONTEXT_LEN: usize = 120;
-const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = 150;
-
-const CBOR_BYTE_STRING: u8 = 0x58;
-const CBOR_MAJOR_TEXT_STRING: u8 = 0x60;
-const CBOR_MAJOR_BYTE_STRING: u8 = 0x40;
-const CBOR_MAJOR_ARRAY: u8 = 0x80;
+#[cfg(feature = "native")]
+pub use accelerator::NativeAccelerator;
 
 #[derive(Default)]
 pub struct State {
@@ -54,29 +21,43 @@ pub struct State {
     th_4: [u8; SHA256_DIGEST_LEN],
 }
 
-pub fn edhoc_exporter(
+pub fn edhoc_exporter<A: Accelerator>(
+    acc: &mut A,
     state: &mut State,
     label: &[u8],
     context: &[u8],
     length: usize,
     output: &mut [u8],
 ) {
-    edhoc_kdf(state.prk_4x3m, state.th_4, label, context, length, output);
+    edhoc_kdf(
+        acc,
+        state.prk_4x3m,
+        state.th_4,
+        label,
+        context,
+        length,
+        output,
+    );
 }
 
 // must hold MESSAGE_1_LEN
-pub fn prepare_message_1<'a>(state: &mut State, buffer: &'a mut [u8]) -> &'a [u8] {
+pub fn prepare_message_1<'a, A: Accelerator>(
+    acc: &mut A, // Change to the specific crypto engine.
+    state: &mut State,
+    buffer: &'a mut [u8],
+) -> &'a [u8] {
     // TODO generate ephemeral key
     state.x = X;
     let message_1_len = encode_message_1(EDHOC_METHOD, &EDHOC_SUPPORTED_SUITES, G_X, C_I, buffer);
-    crypto::sha256_digest(&buffer[0..message_1_len], &mut state.h_message_1);
+
+    acc.sha256_digest(&buffer[0..message_1_len], &mut state.h_message_1);
 
     &buffer[0..message_1_len]
 }
 
 // message_3 must hold MESSAGE_3_LEN
 // returns c_r
-pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
+pub fn process_message_2<A: Accelerator>(acc: &mut A, state: &mut State, message_2: &[u8]) -> u8 {
     let mut g_y: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
     let mut ciphertext_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
     let mut c_r: u8 = 0x00;
@@ -85,8 +66,9 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
 
     // compute prk_2e
     let mut plaintext_2: [u8; PLAINTEXT_2_LEN] = [0x00; PLAINTEXT_2_LEN];
-    compute_prk_2e(state.x, g_y, &mut state.prk_2e);
+    compute_prk_2e(acc, state.x, g_y, &mut state.prk_2e);
     decrypt_ciphertext_2(
+        acc,
         state.prk_2e,
         g_y,
         &[c_r as i8],
@@ -106,32 +88,52 @@ pub fn process_message_2(state: &mut State, message_2: &[u8]) -> u8 {
         panic!("Unknown authentication peer!");
     }
     // verify mac_2
-    compute_prk_3e2m(state.prk_2e, state.x, G_R, &mut state.prk_3e2m);
-    compute_th_2(state.h_message_1, g_y, &[c_r as i8], &mut state.th_2);
-    compute_and_verify_mac_2(state.prk_3e2m, &ID_CRED_R, &CRED_R, state.th_2, mac_2);
+    compute_prk_3e2m(acc, state.prk_2e, state.x, G_R, &mut state.prk_3e2m);
+    compute_th_2(acc, state.h_message_1, g_y, &[c_r as i8], &mut state.th_2);
+    compute_and_verify_mac_2(
+        acc,
+        state.prk_3e2m,
+        &ID_CRED_R[..],
+        &CRED_R[..],
+        state.th_2,
+        mac_2,
+    );
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing ciphertext in State
-    compute_th_3_th_4(state.th_2, &ciphertext_2, &mut state.th_3);
+    compute_th_3_th_4(acc, state.th_2, &ciphertext_2, &mut state.th_3);
     // message 3 processing
-    compute_prk_4x3m(state.prk_3e2m, I, g_y, &mut state.prk_4x3m);
+    compute_prk_4x3m(acc, state.prk_3e2m, I, g_y, &mut state.prk_4x3m);
     c_r
 }
 
 // message_3 must hold MESSAGE_3_LEN
-pub fn prepare_message_3<'a>(
+pub fn prepare_message_3<'a, A: Accelerator>(
+    acc: &mut A,
     state: &mut State,
     id_cred_i: &[u8],
     cred_i: &[u8],
     message_3: &'a mut [u8],
 ) -> &'a [u8] {
     let mut mac_3: [u8; MAC_LENGTH_3] = [0x00; MAC_LENGTH_3];
-    compute_mac_3(state.prk_4x3m, state.th_3, &id_cred_i, &cred_i, &mut mac_3);
+    compute_mac_3(
+        acc,
+        state.prk_4x3m,
+        state.th_3,
+        id_cred_i,
+        cred_i,
+        &mut mac_3,
+    );
 
-    compute_bstr_ciphertext_3(state.prk_3e2m, state.th_3, &id_cred_i, mac_3, message_3);
+    compute_bstr_ciphertext_3(acc, state.prk_3e2m, state.th_3, id_cred_i, mac_3, message_3);
 
     // FIXME hack: skipping first byte of message_3 to get to ciphertext
-    compute_th_3_th_4(state.th_3, &message_3[1..MESSAGE_3_LEN], &mut state.th_4);
+    compute_th_3_th_4(
+        acc,
+        state.th_3,
+        &message_3[1..MESSAGE_3_LEN],
+        &mut state.th_4,
+    );
     &message_3[0..MESSAGE_3_LEN]
 }
 
@@ -151,9 +153,7 @@ fn encode_message_1(
         index = 2;
     } else {
         output[1] = 0x80 | suites.len() as u8;
-        for i in 2..suites.len() + 2 {
-            output[i] = suites[i - 2];
-        }
+        output[2..(suites.len() + 2)].copy_from_slice(&suites[..(suites.len() + 2 - 2)]);
         index = suites.len() + 2;
     }
     output[index] = CBOR_BYTE_STRING; // CBOR byte string magic number
@@ -165,7 +165,7 @@ fn encode_message_1(
     if c_i >= 0 {
         output[index + 2 + P256_ELEM_LEN] = c_i as u8; // CBOR uint less than 24 is encoded verbatim
     } else {
-        output[index + 2 + P256_ELEM_LEN] = 0x20 | (-1 + (c_i * (-1))) as u8;
+        output[index + 2 + P256_ELEM_LEN] = 0x20 | (-1 + -c_i) as u8;
     }
     (index + 3 + P256_ELEM_LEN) as usize
 }
@@ -181,52 +181,54 @@ pub fn parse_message_2(
     // FIXME decode negative integers as well
     *c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
 
-    for i in 0..P256_ELEM_LEN {
-        g_y_buf[i] = rcvd_message_2[i + 2];
-    }
+    g_y_buf[..P256_ELEM_LEN].copy_from_slice(&rcvd_message_2[2..(P256_ELEM_LEN + 2)]);
 
     for i in 0..CIPHERTEXT_2_LEN {
         ciphertext_2_buf[i] = rcvd_message_2[i + 2 + P256_ELEM_LEN];
     }
 }
 
-fn compute_prk_2e(
+fn compute_prk_2e<A: Accelerator>(
+    acc: &mut A,
     x: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     prk_2e: &mut [u8; P256_ELEM_LEN],
 ) {
-    let mut g_xy = [0x00 as u8; P256_ELEM_LEN];
+    let mut g_xy = [0x00_u8; P256_ELEM_LEN];
     // compute the shared secret
-    crypto::p256_ecdh(&x, &g_y, &mut g_xy);
+    acc.p256_ecdh(&x, &g_y, &mut g_xy);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    crypto::hkdf_extract(&[], g_xy, prk_2e);
+    acc.hkdf_extract(&[], g_xy, prk_2e);
 }
 
-fn compute_prk_3e2m(
+fn compute_prk_3e2m<A: Accelerator>(
+    acc: &mut A,
     prk_2e: [u8; P256_ELEM_LEN],
     x: [u8; P256_ELEM_LEN],
     g_r: [u8; P256_ELEM_LEN],
     prk_3e2m: &mut [u8; P256_ELEM_LEN],
 ) {
     // compute g_rx from static R's public key and private ephemeral key
-    let mut g_rx = [0x00 as u8; P256_ELEM_LEN];
-    crypto::p256_ecdh(&x, &g_r, &mut g_rx);
-    crypto::hkdf_extract(&prk_2e, g_rx, prk_3e2m);
+    let mut g_rx = [0x00_u8; P256_ELEM_LEN];
+    acc.p256_ecdh(&x, &g_r, &mut g_rx);
+    acc.hkdf_extract(&prk_2e, g_rx, prk_3e2m);
 }
 
-fn compute_prk_4x3m(
+fn compute_prk_4x3m<A: Accelerator>(
+    acc: &mut A,
     prk_3e2m: [u8; P256_ELEM_LEN],
     i: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     prk_4x3m: &mut [u8; P256_ELEM_LEN],
 ) {
     // compute g_rx from static R's public key and private ephemeral key
-    let mut g_iy = [0x00 as u8; P256_ELEM_LEN];
-    crypto::p256_ecdh(&i, &g_y, &mut g_iy);
-    crypto::hkdf_extract(&prk_3e2m, g_iy, prk_4x3m);
+    let mut g_iy = [0x00_u8; P256_ELEM_LEN];
+    acc.p256_ecdh(&i, &g_y, &mut g_iy);
+    acc.hkdf_extract(&prk_3e2m, g_iy, prk_4x3m);
 }
 
-fn decrypt_ciphertext_2(
+fn decrypt_ciphertext_2<A: Accelerator>(
+    acc: &mut A,
     prk_2e: [u8; P256_ELEM_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
@@ -234,19 +236,19 @@ fn decrypt_ciphertext_2(
     h_message_1: [u8; SHA256_DIGEST_LEN],
     plaintext_2: &mut [u8; PLAINTEXT_2_LEN],
 ) {
-    let mut th_2 = [0x00 as u8; SHA256_DIGEST_LEN];
+    let mut th_2 = [0x00_u8; SHA256_DIGEST_LEN];
 
     // compute the transcript hash th_2
-    compute_th_2(h_message_1, g_y, &c_r, &mut th_2);
+    compute_th_2(acc, h_message_1, g_y, &c_r, &mut th_2);
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
     let mut keystream_2: [u8; CIPHERTEXT_2_LEN] = [0x00; CIPHERTEXT_2_LEN];
     // FIXME consider using "KEYSTREAM_2".as_bytes()
     let label_keystream_2 = [
-        'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8, 'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
-        'M' as u8, '_' as u8, '2' as u8,
+        b'K', b'E', b'Y', b'S', b'T', b'R', b'E', b'A', b'M', b'_', b'2',
     ];
     edhoc_kdf(
+        acc,
         prk_2e,
         th_2,
         &label_keystream_2,
@@ -269,16 +271,15 @@ fn decode_plaintext_2(
 ) {
     *id_cred_r = plaintext_2[0];
     // skip cbor byte string byte as we know how long the string is
-    for i in 2..MAC_LENGTH_2 + 2 {
-        mac_2[i - 2] = plaintext_2[i];
-    }
+    mac_2[..(MAC_LENGTH_2 + 2 - 2)].copy_from_slice(&plaintext_2[2..(MAC_LENGTH_2 + 2)]);
     // zero out ead_2
-    for i in 0..ead_2.len() {
-        ead_2[i] = 0x00;
+    for b in &mut ead_2[..] {
+        *b = 0x00;
     }
 }
 
-fn compute_and_verify_mac_2(
+fn compute_and_verify_mac_2<A: Accelerator>(
+    acc: &mut A,
     prk_3e2m: [u8; P256_ELEM_LEN],
     id_cred_r: &[u8],
     cred_r: &[u8],
@@ -287,7 +288,7 @@ fn compute_and_verify_mac_2(
 ) -> bool {
     // compute MAC_2
     let mut mac_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
-    let label_mac_2 = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
+    let label_mac_2 = [b'M', b'A', b'C', b'_', b'2'];
     let mut context: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
     let mut context_len: usize = 0;
 
@@ -295,6 +296,7 @@ fn compute_and_verify_mac_2(
 
     // compute mac_2
     edhoc_kdf(
+        acc,
         prk_3e2m,
         th_2,
         &label_mac_2,
@@ -312,14 +314,15 @@ fn compute_and_verify_mac_2(
     verified
 }
 
-fn compute_mac_3(
+fn compute_mac_3<A: Accelerator>(
+    acc: &mut A,
     prk_4x3m: [u8; P256_ELEM_LEN],
     th_3: [u8; SHA256_DIGEST_LEN],
     id_cred_i: &[u8],
     cred_i: &[u8],
     output: &mut [u8; MAC_LENGTH_3],
 ) {
-    const LABEL_MAC_3: [u8; 5] = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '3' as u8];
+    const LABEL_MAC_3: [u8; 5] = [b'M', b'A', b'C', b'_', b'3'];
 
     // MAC_3 = EDHOC-KDF( PRK_4x3m, TH_3, "MAC_3", << ID_CRED_I, CRED_I, ? EAD_3 >>, mac_length_3 )
 
@@ -330,6 +333,7 @@ fn compute_mac_3(
 
     // compute mac_3
     edhoc_kdf(
+        acc,
         prk_4x3m,
         th_3,
         &LABEL_MAC_3,
@@ -341,18 +345,17 @@ fn compute_mac_3(
 
 // calculates ciphertext_3 wrapped in a cbor byte string
 // output must hold MESSAGE_3_LEN
-fn compute_bstr_ciphertext_3(
+fn compute_bstr_ciphertext_3<A: Accelerator>(
+    acc: &mut A,
     prk_3e2m: [u8; P256_ELEM_LEN],
     th_3: [u8; SHA256_DIGEST_LEN],
     id_cred_i: &[u8],
     mac_3: [u8; MAC_LENGTH_3],
     output: &mut [u8],
 ) {
-    const LABEL_K_3: [u8; 3] = ['K' as u8, '_' as u8, '3' as u8];
-    const LABEL_IV_3: [u8; 4] = ['I' as u8, 'V' as u8, '_' as u8, '3' as u8];
-    const ENCRYPT0: [u8; 8] = [
-        'E' as u8, 'n' as u8, 'c' as u8, 'r' as u8, 'y' as u8, 'p' as u8, 't' as u8, '0' as u8,
-    ];
+    const LABEL_K_3: [u8; 3] = [b'K', b'_', b'3'];
+    const LABEL_IV_3: [u8; 4] = [b'I', b'V', b'_', b'3'];
+    const ENCRYPT0: [u8; 8] = [b'E', b'n', b'c', b'r', b'y', b'p', b't', b'0'];
     const ENC_STRUCTURE_LEN: usize = ENCRYPT0.len() + 5 + SHA256_DIGEST_LEN; // dependent on the encoding below
 
     let mut k_3: [u8; AES_CCM_KEY_LEN] = [0x00; AES_CCM_KEY_LEN];
@@ -361,21 +364,33 @@ fn compute_bstr_ciphertext_3(
     let mut enc_structure: [u8; ENC_STRUCTURE_LEN] = [0x00; ENC_STRUCTURE_LEN];
 
     // K_3 = EDHOC-KDF( PRK_3e2m, TH_3, "K_3", h'', key_length )
-    edhoc_kdf(prk_3e2m, th_3, &LABEL_K_3, &[], AES_CCM_KEY_LEN, &mut k_3);
+    edhoc_kdf(
+        acc,
+        prk_3e2m,
+        th_3,
+        &LABEL_K_3,
+        &[],
+        AES_CCM_KEY_LEN,
+        &mut k_3,
+    );
     // IV_3 = EDHOC-KDF( PRK_3e2m, TH_3, "IV_3", h'', iv_length )
-    edhoc_kdf(prk_3e2m, th_3, &LABEL_IV_3, &[], AES_CCM_IV_LEN, &mut iv_3);
+    edhoc_kdf(
+        acc,
+        prk_3e2m,
+        th_3,
+        &LABEL_IV_3,
+        &[],
+        AES_CCM_IV_LEN,
+        &mut iv_3,
+    );
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
     plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
     plaintext_3[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
-    for i in 2..MAC_LENGTH_3 + 2 {
-        plaintext_3[i] = mac_3[i - 2];
-    }
+    plaintext_3[2..(MAC_LENGTH_3 + 2)].copy_from_slice(&mac_3[..(MAC_LENGTH_3 + 2 - 2)]);
     // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
     enc_structure[0] = CBOR_MAJOR_ARRAY | 3; // 3 is the fixed number of elements in the array
     enc_structure[1] = CBOR_MAJOR_TEXT_STRING | ENCRYPT0.len() as u8;
-    for i in 2..ENCRYPT0.len() + 2 {
-        enc_structure[i] = ENCRYPT0[i - 2];
-    }
+    enc_structure[2..(ENCRYPT0.len() + 2)].copy_from_slice(&ENCRYPT0[..(ENCRYPT0.len() + 2 - 2)]);
     enc_structure[ENCRYPT0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00; // 0 for zero-length byte string
     enc_structure[ENCRYPT0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
     enc_structure[ENCRYPT0.len() + 4] = SHA256_DIGEST_LEN as u8;
@@ -384,7 +399,7 @@ fn compute_bstr_ciphertext_3(
     }
 
     output[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
-    crypto::aes_ccm_encrypt(
+    acc.aes_ccm_encrypt(
         k_3,
         iv_3,
         AES_CCM_TAG_LEN,
@@ -398,16 +413,16 @@ fn compute_bstr_ciphertext_3(
 fn encode_kdf_context(id_cred: &[u8], cred: &[u8], output: &mut [u8], output_len: &mut usize) {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded
-    for i in 0..id_cred.len() {
-        output[i] = id_cred[i];
-    }
+    output[..id_cred.len()].copy_from_slice(id_cred);
     for i in id_cred.len()..id_cred.len() + cred.len() {
         output[i] = cred[i - id_cred.len()];
     }
+
     *output_len = (id_cred.len() + cred.len()) as usize;
 }
 
-fn compute_th_2(
+fn compute_th_2<A: Accelerator>(
+    acc: &mut A,
     h_message_1: [u8; SHA256_DIGEST_LEN],
     g_y: [u8; P256_ELEM_LEN],
     c_r: &[i8],
@@ -417,9 +432,8 @@ fn compute_th_2(
     let len;
     message[0] = CBOR_BYTE_STRING;
     message[1] = SHA256_DIGEST_LEN as u8;
-    for i in 2..SHA256_DIGEST_LEN + 2 {
-        message[i] = h_message_1[i - 2];
-    }
+    message[2..(SHA256_DIGEST_LEN + 2)]
+        .copy_from_slice(&h_message_1[..(SHA256_DIGEST_LEN + 2 - 2)]);
     message[SHA256_DIGEST_LEN + 2] = CBOR_BYTE_STRING;
     message[SHA256_DIGEST_LEN + 3] = P256_ELEM_LEN as u8;
     for i in SHA256_DIGEST_LEN + 4..SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN {
@@ -437,15 +451,16 @@ fn compute_th_2(
         if c_r[0] >= 0 {
             message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = c_r[0] as u8;
         } else {
-            message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = 0x20 | (-1 + (c_r[0] * (-1))) as u8;
+            message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = 0x20 | (-1 + -c_r[0]) as u8;
         }
         len = SHA256_DIGEST_LEN + 5 + P256_ELEM_LEN;
     }
 
-    crypto::sha256_digest(&message[0..len], output);
+    acc.sha256_digest(&message[0..len], output);
 }
 
-fn compute_th_3_th_4(
+fn compute_th_3_th_4<A: Accelerator>(
+    acc: &mut A,
     th: [u8; SHA256_DIGEST_LEN],
     ciphertext: &[u8],
     output: &mut [u8; SHA256_DIGEST_LEN],
@@ -454,21 +469,20 @@ fn compute_th_3_th_4(
 
     message[0] = CBOR_BYTE_STRING;
     message[1] = SHA256_DIGEST_LEN as u8;
-    for i in 2..SHA256_DIGEST_LEN + 2 {
-        message[i] = th[i - 2];
-    }
+    message[2..(SHA256_DIGEST_LEN + 2)].copy_from_slice(&th[..(SHA256_DIGEST_LEN + 2 - 2)]);
     message[SHA256_DIGEST_LEN + 2] = CBOR_MAJOR_BYTE_STRING | (ciphertext.len() as u8);
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext.len() {
         message[i] = ciphertext[i - SHA256_DIGEST_LEN - 3];
     }
 
-    crypto::sha256_digest(
+    acc.sha256_digest(
         &message[0..SHA256_DIGEST_LEN + 3 + ciphertext.len()],
         output,
     );
 }
 
-fn edhoc_kdf(
+fn edhoc_kdf<A: Accelerator>(
+    acc: &mut A,
     prk: [u8; P256_ELEM_LEN],
     transcript_hash: [u8; SHA256_DIGEST_LEN],
     label: &[u8],
@@ -484,15 +498,14 @@ fn edhoc_kdf(
 						 1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						 1; // length as u8
 
-    let mut info = [0x00 as u8; MAX_INFO_LEN];
+    let mut info = [0x00_u8; MAX_INFO_LEN];
     let mut info_len;
 
     // construct info with inline cbor encoding
     info[0] = CBOR_BYTE_STRING;
     info[1] = SHA256_DIGEST_LEN as u8;
-    for i in 2..SHA256_DIGEST_LEN + 2 {
-        info[i] = transcript_hash[i - 2];
-    }
+    info[2..(SHA256_DIGEST_LEN + 2)]
+        .copy_from_slice(&transcript_hash[..(SHA256_DIGEST_LEN + 2 - 2)]);
     info[SHA256_DIGEST_LEN + 2] = label.len() as u8 | CBOR_MAJOR_TEXT_STRING;
     for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + label.len() {
         info[i] = label[i - SHA256_DIGEST_LEN - 3];
@@ -517,115 +530,18 @@ fn edhoc_kdf(
         info_len = SHA256_DIGEST_LEN + 5 + label.len() + context.len();
     }
     info[info_len] = length as u8;
-    info_len = info_len + 1;
-    crypto::hkdf_expand(prk, &info[0..info_len], length, output);
+    info_len += 1;
+    acc.hkdf_expand(prk, &info[0..info_len], length, output);
 }
 
-mod crypto {
-    use super::*;
-
-    pub fn p256_ecdh(private_key: &[u8], public_key: &[u8], secret: &mut [u8; P256_ELEM_LEN]) {
-        use hacspec_p256::*;
-
-        let scalar = P256Scalar::from_be_bytes(&private_key);
-        let point = (
-            P256FieldElement::from_be_bytes(&public_key),
-            p256_calculate_w(P256FieldElement::from_be_bytes(&public_key)),
-        );
-
-        assert!(p256_validate_public_key(point));
-
-        // we only care about the x coordinate
-        let secret_felem = match p256_point_mul(scalar, point) {
-            Ok(p) => p.0,
-            Err(_) => panic!("Error hacspec p256_point_mul"),
-        };
-
-        let secret_bytes = secret_felem.to_be_bytes();
-        for i in 0..P256_ELEM_LEN {
-            secret[i] = secret_bytes[i];
-        }
-    }
-
-    pub fn sha256_digest(message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
-        use hacspec_lib::prelude::*;
-        use hacspec_sha256::hash;
-
-        let message_secret: Seq<U8> = Seq::<U8>::from_public_slice(message);
-        let digest = hash(&message_secret);
-
-        for i in 00..SHA256_DIGEST_LEN {
-            output[i] = digest[i].declassify();
-        }
-    }
-
-    pub fn hkdf_extract(salt: &[u8], ikm: [u8; P256_ELEM_LEN], okm: &mut [u8; P256_ELEM_LEN]) {
-        use hacspec_hkdf::*;
-        use hacspec_lib::prelude::*;
-
-        let ikm_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ikm);
-        let salt_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&salt);
-
-        let okm_byteseq = extract(&salt_byteseq, &ikm_byteseq);
-
-        for i in 0..okm_byteseq.len() {
-            okm[i] = okm_byteseq[i].declassify();
-        }
-    }
-
-    pub fn hkdf_expand(prk: [u8; P256_ELEM_LEN], info: &[u8], length: usize, output: &mut [u8]) {
-        use hacspec_hkdf::*;
-        use hacspec_lib::prelude::*;
-
-        // call kdf-expand from hacspec
-        let prk_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&prk);
-        let info_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&info);
-
-        let okm_byteseq = match expand(&prk_byteseq, &info_byteseq, length) {
-            Ok(okm) => okm,
-            Err(_) => panic!("edhoc_kdf: error expand"),
-        };
-
-        for i in 0..length {
-            output[i] = okm_byteseq[i].declassify();
-        }
-    }
-
-    pub fn aes_ccm_encrypt(
-        key: [u8; AES_CCM_KEY_LEN],
-        iv: [u8; AES_CCM_IV_LEN],
-        tag_len: usize,
-        ad: &[u8],
-        plaintext: &[u8],
-        ciphertext: &mut [u8],
-    ) {
-        use hacspec_aes::*;
-        use hacspec_aes_ccm::*;
-        use hacspec_lib::prelude::*;
-
-        let key_secret = Key128::from_public_slice(&key);
-        let iv_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&iv);
-        let ad_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&ad);
-        let plaintext_byteseq: Seq<U8> = Seq::<U8>::from_public_slice(&plaintext);
-
-        let ciphertext_byteseq = encrypt_ccm(
-            ad_byteseq,
-            iv_byteseq,
-            plaintext_byteseq,
-            key_secret,
-            tag_len,
-        );
-
-        for i in 0..ciphertext_byteseq.len() {
-            ciphertext[i] = ciphertext_byteseq[i].declassify();
-        }
-    }
-}
-
-#[cfg(test)]
+#[cfg(all(feature = "native", test))]
 mod tests {
     use super::*;
-    use hex_literal::hex;
+    use hexlit::hex;
+
+    fn accelerator() -> impl Accelerator {
+        crate::accelerator::NativeAccelerator::new()
+    }
 
     // test vectors (TV)
     const METHOD_TV: u8 = 0x03;
@@ -699,8 +615,10 @@ mod tests {
 
     #[test]
     fn test_decrypt_ciphertext_2() {
+        let mut acc = accelerator();
         let mut plaintext_2_buf = [0x00 as u8; PLAINTEXT_2_LEN];
         decrypt_ciphertext_2(
+            &mut acc,
             PRK_2E_TV,
             G_Y_TV,
             &C_R_TV,
@@ -714,39 +632,44 @@ mod tests {
 
     #[test]
     fn test_sha256_digest() {
+        let mut acc = accelerator();
         let mut digest = [0x00 as u8; SHA256_DIGEST_LEN];
 
-        crypto::sha256_digest(&MESSAGE_1_TV, &mut digest);
+        acc.sha256_digest(&MESSAGE_1_TV, &mut digest);
         assert_eq!(digest, H_MESSAGE_1_TV);
     }
 
     #[test]
     fn test_compute_th_2() {
+        let mut acc = accelerator();
         let mut th_2 = [0x00; SHA256_DIGEST_LEN];
-        compute_th_2(H_MESSAGE_1_TV, G_Y_TV, &C_R_TV, &mut th_2);
+        compute_th_2(&mut acc, H_MESSAGE_1_TV, G_Y_TV, &C_R_TV, &mut th_2);
         assert_eq!(th_2, TH_2_TV);
     }
 
     #[test]
     fn test_compute_th_3_th_4() {
+        let mut acc = accelerator();
         let mut th_3 = [0x00; SHA256_DIGEST_LEN];
-        compute_th_3_th_4(TH_2_TV, &CIPHERTEXT_2_TV, &mut th_3);
+        compute_th_3_th_4(&mut acc, TH_2_TV, &CIPHERTEXT_2_TV, &mut th_3);
         assert_eq!(th_3, TH_3_TV);
 
         let mut th_4 = [0x00; SHA256_DIGEST_LEN];
-        compute_th_3_th_4(TH_3_TV, &CIPHERTEXT_3_TV, &mut th_4);
+        compute_th_3_th_4(&mut acc, TH_3_TV, &CIPHERTEXT_3_TV, &mut th_4);
         assert_eq!(th_4, TH_4_TV);
     }
 
     #[test]
     fn test_p256_ecdh() {
+        let mut acc = accelerator();
         let mut secret = [0x00 as u8; P256_ELEM_LEN];
-        crypto::p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
+        acc.p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
         assert!(G_XY_TV == secret);
     }
 
     #[test]
     fn test_edhoc_kdf() {
+        let mut acc = accelerator();
         const LABEL_TV: [u8; 11] = [
             'K' as u8, 'E' as u8, 'Y' as u8, 'S' as u8, 'T' as u8, 'R' as u8, 'E' as u8, 'A' as u8,
             'M' as u8, '_' as u8, '2' as u8,
@@ -754,12 +677,21 @@ mod tests {
         const LEN_TV: usize = 10;
 
         let mut output = [0x00 as u8; 10];
-        edhoc_kdf(PRK_2E_TV, TH_2_TV, &LABEL_TV, &[], LEN_TV, &mut output);
+        edhoc_kdf(
+            &mut acc,
+            PRK_2E_TV,
+            TH_2_TV,
+            &LABEL_TV,
+            &[],
+            LEN_TV,
+            &mut output,
+        );
         assert_eq!(KEYSTREAM_2_TV, output);
 
         const LABEL_MAC_2_TV: [u8; 5] = ['M' as u8, 'A' as u8, 'C' as u8, '_' as u8, '2' as u8];
         let mut output_2: [u8; MAC_LENGTH_2] = [0x00; MAC_LENGTH_2];
         edhoc_kdf(
+            &mut acc,
             PRK_3E2M_TV,
             TH_2_TV,
             &LABEL_MAC_2_TV,
@@ -783,14 +715,17 @@ mod tests {
 
     #[test]
     fn test_compute_prk_2e() {
+        let mut acc = accelerator();
         let mut prk_2e: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-        compute_prk_2e(X_TV, G_Y_TV, &mut prk_2e);
+        compute_prk_2e(&mut acc, X_TV, G_Y_TV, &mut prk_2e);
         assert_eq!(prk_2e, PRK_2E_TV);
     }
 
     #[test]
     fn test_compute_and_verify_mac_2() {
+        let mut acc = accelerator();
         assert!(compute_and_verify_mac_2(
+            &mut acc,
             PRK_3E2M_TV,
             &ID_CRED_R_TV,
             &CRED_R_TV,
@@ -801,28 +736,40 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
+        let mut acc = accelerator();
         let mut mac_3: [u8; MAC_LENGTH_3] = [0x00; MAC_LENGTH_3];
-        compute_mac_3(PRK_4X3M_TV, TH_3_TV, &ID_CRED_I_TV, &CRED_I_TV, &mut mac_3);
-        assert_eq!(mac_3, MAC_3_TV)
+        compute_mac_3(
+            &mut acc,
+            PRK_4X3M_TV,
+            TH_3_TV,
+            &ID_CRED_I_TV,
+            &CRED_I_TV,
+            &mut mac_3,
+        );
+        assert_eq!(mac_3, MAC_3_TV, "{:#?} {:#?}", mac_3, MAC_3_TV);
     }
 
     #[test]
     fn test_compute_prk_3e2m() {
+        let mut acc = accelerator();
         let mut prk_3e2m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-        compute_prk_3e2m(PRK_2E_TV, X_TV, G_R_TV, &mut prk_3e2m);
+        compute_prk_3e2m(&mut acc, PRK_2E_TV, X_TV, G_R_TV, &mut prk_3e2m);
         assert_eq!(prk_3e2m, PRK_3E2M_TV);
     }
 
     #[test]
     fn test_compute_prk_4x3m() {
+        let mut acc = accelerator();
         let mut prk_4x3m: [u8; P256_ELEM_LEN] = [0x00; P256_ELEM_LEN];
-        compute_prk_4x3m(PRK_3E2M_TV, I_TV, G_Y_TV, &mut prk_4x3m);
+        compute_prk_4x3m(&mut acc, PRK_3E2M_TV, I_TV, G_Y_TV, &mut prk_4x3m);
         assert_eq!(prk_4x3m, PRK_4X3M_TV);
     }
     #[test]
     fn test_compute_bstr_ciphertext_3() {
+        let mut acc = accelerator();
         let mut bstr_ciphertext_3: [u8; MESSAGE_3_LEN] = [0x00; MESSAGE_3_LEN];
         compute_bstr_ciphertext_3(
+            &mut acc,
             PRK_3E2M_TV,
             TH_3_TV,
             &ID_CRED_I_TV,
