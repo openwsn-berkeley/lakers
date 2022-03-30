@@ -73,7 +73,7 @@ fn inner_main() -> Result<(), &'static str> {
 }
 
 fn test_sha256_digest<A: Accelerator>(acc: &mut A) {
-    let mut digest = [0x00 as u8; SHA256_DIGEST_LEN];
+    let mut digest = [0x00_u8; SHA256_DIGEST_LEN];
 
     acc.sha256_digest(&MESSAGE_1_TV, &mut digest);
     assert_eq!(digest, H_MESSAGE_1_TV);
@@ -82,5 +82,5 @@ fn test_sha256_digest<A: Accelerator>(acc: &mut A) {
 fn test_p256_ecdh<A: Accelerator>(acc: &mut A) {
     let mut secret = [0x00 as u8; P256_ELEM_LEN];
     acc.p256_ecdh(&X_TV, &G_Y_TV, &mut secret);
-    assert!(G_XY_TV == secret);
+    assert_eq!(G_XY_TV, secret);
 }
