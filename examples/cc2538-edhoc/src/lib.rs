@@ -5,6 +5,8 @@ use edhoc::Accelerator;
 
 use cc2538_hal::crypto::Crypto;
 use cc2538_hal::crypto::ecc::EccCurveInfo;
+use cc2538_hal::crypto::aes_engine::ccm::AesCcmInfo;
+use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};
 
 use rtt_target::{rprintln, rtt_init_print};
 
@@ -111,6 +113,25 @@ impl<'c> Accelerator for Cc2538Accelerator<'c> {
         plaintext: &[u8],
         ciphertext: &mut [u8],
     ) {
-        todo!()
+        let aes_key = AesKey::Key128(key);
+        let aes_keys = AesKeys::create(&[aes_key], AesKeySize::Key128, 0);
+        self.crypto.load_key(&aes_keys);
+
+        let ccm_info = AesCcmInfo::new(0, 2, AES_CCM_TAG_LEN as u8).with_added_auth_data(ad);
+
+        let mut tag : [u8; 16] = [0x00; 16];
+
+        self.crypto.ccm_encrypt(
+            &ccm_info,
+            &iv,
+            plaintext,
+            ciphertext,
+            &mut tag[..],
+        );
+
+        // truncate the tag
+        for i in 0..AES_CCM_TAG_LEN {
+            ciphertext[plaintext.len() + i] = tag[i];
+        }
     }
 }
