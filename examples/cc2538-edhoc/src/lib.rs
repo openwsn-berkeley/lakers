@@ -5,6 +5,7 @@ use edhoc::Accelerator;
 
 use cc2538_hal::crypto::Crypto;
 use cc2538_hal::crypto::ecc::EccCurveInfo;
+use cc2538_hal::crypto::ecc::EcPoint;
 use cc2538_hal::crypto::aes_engine::ccm::AesCcmInfo;
 use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};
 
@@ -34,51 +35,65 @@ impl<'c> Accelerator for Cc2538Accelerator<'c> {
         public_key: &[u8],
         secret: &mut [u8; P256_ELEM_LEN],
     ) {
-        let b: [u32; P256_ELEM_LEN/4] = [
-            0x5ac635d8, 0xaa3a93e7, 0xb3ebbd55, 0x769886bc, 0x651d06b0, 0xcc53b0f6, 0x3bce3c3e, 0x27d2604b,];
+        let curve = EccCurveInfo::nist_p_256();
 
         // (p+1)/4 calculated offline
         let exp: [u32; P256_ELEM_LEN/4] = [
-            0x3fffffff, 0xc0000000, 0x40000000, 0x00000000, 0x00000000, 0x40000000, 0x00000000, 0x00000000,];
+            0x00000000, 0x00000000, 0x40000000, 0x00000000, 0x00000000, 0x40000000, 0xc0000000, 0x3fffffff];
 
-        let p: [u32; P256_ELEM_LEN/4] = [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF, ];
+        let mut private_key_u32_le : [u32; P256_ELEM_LEN / 4] = [0x00; P256_ELEM_LEN / 4];
+        for i in 0..private_key_u32_le.len() {
+            private_key_u32_le[i] = as_u32_be(&[
+                                            private_key[private_key.len() - 4*i - 4],
+                                            private_key[private_key.len() - 4*i - 3],
+                                            private_key[private_key.len() - 4*i - 2],
+                                            private_key[private_key.len() - 4*i - 1]]);
+        }
 
-        let mut private_key_u32: [u32; P256_ELEM_LEN / 4] = [0x00; P256_ELEM_LEN / 4];
-        for i in 0..private_key_u32.len() {
-            private_key_u32[i] = as_u32_be(&[
-                private_key[i * 4],
-                private_key[i * 4 + 1],
-                private_key[i * 4 + 2],
-                private_key[i * 4 + 3],
-            ]);
+        let mut public_key_u32_le : [u32; P256_ELEM_LEN / 4] = [0x00; P256_ELEM_LEN / 4];
+        for i in 0..public_key_u32_le.len() {
+            public_key_u32_le[i] = as_u32_be(&[
+                                            public_key[public_key.len() - 4*i - 4],
+                                            public_key[public_key.len() - 4*i - 3],
+                                            public_key[public_key.len() - 4*i - 2],
+                                            public_key[public_key.len() - 4*i - 1]]);
         }
 
         // w = (x^3 + a*x + b)^((p+1)/4) (mod p). [RFC6090, Appendix C]
         //
-        let mut x_3 = [0u32; 16];
+        let mut x_3 = [0u32; 8];
+        self.crypto.exp(&[0x3], &curve.prime, &public_key_u32_le, &mut x_3);
 
-        self.crypto.exp(&[3], &p, &private_key_u32, &mut x_3);
+        let mut three_x = [0u32; 32];
+        self.crypto.mul(&[3], &public_key_u32_le, &mut three_x);
 
-        let mut three_x = [0u32; 16];
-        self.crypto.mul(&[3], &private_key_u32, &mut three_x);
+        let mut temp1 = [0u32; 32];
+        self.crypto.add(&x_3, &curve.b_coef, &mut temp1); // x^3 + b
 
-        let mut temp1 = [0u32; 16];
-        self.crypto.sub(&x_3, &three_x, &mut temp1); // x^3 - 3x
-
-        // let z = x * x * x - 3u128 * x + b;
-        let mut z = [0u32, 16];
-        self.crypto.add(&b, &[1], &mut z);
-
-        let mut z_mod_p = [0u32; P256_ELEM_LEN/4];
-        self.crypto.modulo(&z, &p, &mut z_mod_p);
+        // let z = (x^3 - 3x) + b;
+        let mut z = [0u32; 32];
+        self.crypto.sub(&temp1, &three_x, &mut z); // temp1 - three_x
 
         // w is z to power of exp
-        let mut w = [0u32; P256_ELEM_LEN/4];
-        self.crypto.exp(&exp, &p, &z, &mut w);
+        let mut w = [0u32; 32];
+        self.crypto.exp(&exp, &curve.prime, &z, &mut w);
 
-        // TODO continue the implementation of ECDH
-        todo!();
+        let point = EcPoint {
+            x: &public_key_u32_le,
+            y: &w,
+        };
 
+        let mut result = [0u32; 32];
+
+        self.crypto.ecc_mul(&curve, &private_key_u32_le, &point, &mut result).unwrap();
+
+        // take only the x coordinate
+        for i in 0..P256_ELEM_LEN/4 {
+            let temp = result[i].to_be_bytes();
+            for j in 0..temp.len() {
+                secret[P256_ELEM_LEN - 4*i - 4 + j] = temp[j];
+            }
+        }
     }
 
     fn sha256_digest(&mut self, message: &[u8], output: &mut [u8; SHA256_DIGEST_LEN]) {
