@@ -128,25 +128,35 @@ impl<'c> Accelerator for Cc2538Accelerator<'c> {
         plaintext: &[u8],
         ciphertext: &mut [u8],
     ) {
-        let aes_key = AesKey::Key128(key);
-        let aes_keys = AesKeys::create(&[aes_key], AesKeySize::Key128, 0);
-        self.crypto.load_key(&aes_keys);
+        // adata needs to be in RAM, which is not the case when executing test vectors
+        // code below is a hack
+        assert!(ad.len() < 100);
+        let mut adata : [u8; 100] = [0; 100];
+        let _ = &adata[..ad.len()].copy_from_slice(&ad[..]);
+        let ad = &adata[..ad.len()];
 
-        let ccm_info = AesCcmInfo::new(0, 2, AES_CCM_TAG_LEN as u8).with_added_auth_data(ad);
+        let aes_key = AesKey::Key128(key);
+        let aes_keys_128 = AesKeys::create(
+            &[aes_key],
+            AesKeySize::Key128,
+            0,
+        );
+        self.crypto.load_key(&aes_keys_128);
+
+        let ccm_info = AesCcmInfo::new(0, 2, 8).with_added_auth_data(&ad);
+
+        let (mut ct, mut tag_truncated) = ciphertext.split_at_mut(plaintext.len());
 
         let mut tag : [u8; 16] = [0x00; 16];
 
         self.crypto.ccm_encrypt(
             &ccm_info,
             &iv,
-            plaintext,
-            ciphertext,
-            &mut tag[..],
-        );
+            &plaintext,
+            &mut ct,
+            &mut tag,
+            );
 
-        // truncate the tag
-        for i in 0..AES_CCM_TAG_LEN {
-            ciphertext[plaintext.len() + i] = tag[i];
-        }
+        tag_truncated.copy_from_slice(&tag[0..tag_truncated.len()]);
     }
 }
