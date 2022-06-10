@@ -51,3 +51,9 @@ pub const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10b
 pub const MESSAGE_3_TV: [u8; MESSAGE_3_LEN] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
 pub const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
     hex!("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
+pub const P_3_TV: [u8; CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN] = hex!("2b484cd53d74f0a6ed8b");
+pub const A_3_TV: [u8; 45] = hex!(
+    "8368456e637279707430405820426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624"
+);
+pub const IV_3_TV: [u8; AES_CCM_IV_LEN] = hex!("01df75c476b5d5546381024a89");
+pub const K_3_TV: [u8; AES_CCM_KEY_LEN] = hex!("4f7cb24c06de9760d773fb74dd685729");
