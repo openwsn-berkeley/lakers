@@ -41,6 +41,11 @@ impl<'c> Accelerator for Cc2538Accelerator<'c> {
         let exp: [u32; P256_ELEM_LEN/4] = [
             0x00000000, 0x00000000, 0x40000000, 0x00000000, 0x00000000, 0x40000000, 0xc0000000, 0x3fffffff];
 
+        // Point multiplication of CC2538 internally uses the Montgommery ladder algorithm
+        // which depends on the x coordinate only. Therefore, we can set y to a dummy
+        // value and disregard the y coordinate of the point multiplication operation
+        let y: [u32; P256_ELEM_LEN/4] = [0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+
         let mut private_key_u32_le : [u32; P256_ELEM_LEN / 4] = [0x00; P256_ELEM_LEN / 4];
         for i in 0..private_key_u32_le.len() {
             private_key_u32_le[i] = as_u32_be(&[
@@ -59,28 +64,9 @@ impl<'c> Accelerator for Cc2538Accelerator<'c> {
                                             public_key[public_key.len() - 4*i - 1]]);
         }
 
-        // w = (x^3 + a*x + b)^((p+1)/4) (mod p). [RFC6090, Appendix C]
-        //
-        let mut x_3 = [0u32; 8];
-        self.crypto.exp(&[0x3], &curve.prime, &public_key_u32_le, &mut x_3);
-
-        let mut three_x = [0u32; 32];
-        self.crypto.mul(&[3], &public_key_u32_le, &mut three_x);
-
-        let mut temp1 = [0u32; 32];
-        self.crypto.add(&x_3, &curve.b_coef, &mut temp1); // x^3 + b
-
-        // let z = (x^3 - 3x) + b;
-        let mut z = [0u32; 32];
-        self.crypto.sub(&temp1, &three_x, &mut z); // temp1 - three_x
-
-        // w is z to power of exp
-        let mut w = [0u32; 32];
-        self.crypto.exp(&exp, &curve.prime, &z, &mut w);
-
         let point = EcPoint {
             x: &public_key_u32_le,
-            y: &w,
+            y: &y,
         };
 
         let mut result = [0u32; 32];
