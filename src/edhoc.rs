@@ -4,34 +4,34 @@ pub mod consts;
 use consts::*;
 
 pub fn encode_message_1(
-    method: u8,
-    suites: &[u8],
-    g_x: [u8; P256_ELEM_LEN],
+    method: U8,
+    suites: &ByteSeq,
+    g_x: &BytesP256ElemLen,
     c_i: i8,
-    output: &mut [u8],
-) -> usize {
+    output: &ByteSeq,
+) -> ByteSeq {
+    let mut output = output.clone();
+
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
 
-    let index: usize;
+    let mut index: usize = 0;
 
     if suites.len() == 1 {
         output[1] = suites[0];
         index = 2;
     } else {
-        output[1] = 0x80 | suites.len() as u8;
-        output[2..(suites.len() + 2)].copy_from_slice(&suites[..(suites.len() + 2 - 2)]);
+        output[1] = U8(0x80u8 | suites.len() as u8);
+        output = output.update(2, suites);
         index = suites.len() + 2;
     }
-    output[index] = CBOR_BYTE_STRING; // CBOR byte string magic number
-    output[index + 1] = P256_ELEM_LEN as u8; // length of the byte string
-    for i in index + 2..index + 2 + P256_ELEM_LEN {
-        // copy byte string
-        output[i] = g_x[i - index - 2];
-    }
-    if c_i >= 0 {
-        output[index + 2 + P256_ELEM_LEN] = c_i as u8; // CBOR uint less than 24 is encoded verbatim
+    output[index] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
+    output[index + 1] = U8(P256_ELEM_LEN as u8); // length of the byte string
+    output = output.update(index + 2, g_x);
+    if c_i >= 0i8 {
+        output[index + 2 + P256_ELEM_LEN] = U8(c_i as u8); // CBOR uint less than 24 is encoded verbatim
     } else {
-        output[index + 2 + P256_ELEM_LEN] = 0x20 | (-1 + -c_i) as u8;
+        output[index + 2 + P256_ELEM_LEN] = U8(0x20u8 | (-1i8 + -c_i) as u8);
     }
-    (index + 3 + P256_ELEM_LEN) as usize
+
+    output.truncate(index + 3 + P256_ELEM_LEN)
 }
