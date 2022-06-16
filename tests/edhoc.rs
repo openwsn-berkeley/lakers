@@ -1,18 +1,12 @@
-use hacspec_edhoc::*;
 use hacspec_edhoc::consts::*;
+use hacspec_edhoc::*;
+use hacspec_lib::*;
 
 use hexlit::hex;
 
 // test vectors (TV)
-const METHOD_TV: u8 = 0x03;
-const SUITES_I_TV: [u8; 2] = hex!("0602");
 const X_TV: [u8; P256_ELEM_LEN] =
     hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
-const G_X_TV: [u8; P256_ELEM_LEN] =
-    hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-const C_I_TV: i8 = -24;
-const MESSAGE_1_TV: [u8; 39] =
-    hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
 const G_Y_TV: [u8; P256_ELEM_LEN] =
     hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
 const G_XY_TV: [u8; P256_ELEM_LEN] =
@@ -55,11 +49,17 @@ const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
 
 #[test]
 fn test_encode_message_1() {
-    let mut message_1_buf = [0xff as u8; MAX_BUFFER_LEN];
-    let message_1_len =
-        encode_message_1(METHOD_TV, &SUITES_I_TV, G_X_TV, C_I_TV, &mut message_1_buf);
-    assert_eq!(message_1_len, MESSAGE_1_TV.len());
-    for i in 0..message_1_len {
-        assert_eq!(message_1_buf[i], MESSAGE_1_TV[i]);
-    }
+    let METHOD_TV = U8(0x03);
+    let SUITES_I_TV = ByteSeq::from_hex("0602");
+    let G_X_TV = BytesP256ElemLen::from_hex(
+        "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6",
+    );
+    let C_I_TV: i8 = -24i8;
+    let MESSAGE_1_TV = ByteSeq::from_hex(
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637",
+    );
+
+    let message_1_buf = ByteSeq::new(MAX_BUFFER_LEN);
+    let message_1_buf = encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV, &message_1_buf);
+    assert_eq!(message_1_buf, MESSAGE_1_TV);
 }
