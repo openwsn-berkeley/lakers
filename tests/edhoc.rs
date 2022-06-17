@@ -1,13 +1,12 @@
-use hacspec_edhoc::*;
 use hacspec_edhoc::consts::*;
+use hacspec_edhoc::*;
 use hacspec_lib::*;
 
 use hexlit::hex;
 
 // test vectors (TV)
-const X_TV : [u8; P256_ELEM_LEN] = hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
-const G_Y_TV: [u8; P256_ELEM_LEN] =
-    hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
+const X_TV: [u8; P256_ELEM_LEN] =
+    hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 const G_XY_TV: [u8; P256_ELEM_LEN] =
     hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
 const PRK_2E_TV: [u8; P256_ELEM_LEN] =
@@ -26,10 +25,6 @@ const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322
 const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("3324d5a4afcd4326");
 const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
 const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
-const CIPHERTEXT_2_TV: [u8; CIPHERTEXT_2_LEN] = hex!("49cef36e229fff1e5849");
-const MESSAGE_2_TV: [u8; MESSAGE_2_LEN] = hex!(
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927"
-);
 const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
 const EAD_2_TV: [u8; 0] = hex!("");
@@ -50,10 +45,31 @@ const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
 fn test_encode_message_1() {
     let METHOD_TV = U8(0x03);
     let SUITES_I_TV = ByteSeq::from_hex("0602");
-    let G_X_TV = BytesP256ElemLen::from_hex("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-    let C_I_TV : i8 = -24i8;
-    let MESSAGE_1_TV = ByteSeq::from_hex("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    let G_X_TV = BytesP256ElemLen::from_hex(
+        "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6",
+    );
+    let C_I_TV: i8 = -24i8;
+    let MESSAGE_1_TV = ByteSeq::from_hex(
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637",
+    );
 
     let message_1 = encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV);
     assert_eq!(message_1, MESSAGE_1_TV);
+}
+
+#[test]
+fn test_parse_message_2() {
+    let MESSAGE_2_TV = ByteSeq::from_hex("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d549cef36e229fff1e584927");
+    let G_Y_TV = BytesP256ElemLen::from_hex(
+        "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
+    );
+    let CIPHERTEXT_2_TV = ByteSeq::from_hex("49cef36e229fff1e5849");
+
+    let (g_y, ciphertext_2, c_r) = parse_message_2(&MESSAGE_2_TV);
+
+    assert_eq!(ByteSeq::from_seq(&G_Y_TV), ByteSeq::from_seq(&g_y));
+    assert_eq!(
+        ByteSeq::from_seq(&CIPHERTEXT_2_TV),
+        ByteSeq::from_seq(&ciphertext_2)
+    );
 }

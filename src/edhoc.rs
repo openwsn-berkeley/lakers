@@ -30,3 +30,12 @@ pub fn encode_message_1(method: U8, suites: &ByteSeq, g_x: &BytesP256ElemLen, c_
     }
     output.truncate(index + 3 + P256_ELEM_LEN)
 }
+
+pub fn parse_message_2(rcvd_message_2: &ByteSeq) -> (BytesP256ElemLen, ByteSeq, U8) {
+    // FIXME decode negative integers as well
+    let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
+    let g_y = BytesP256ElemLen::from_seq(&rcvd_message_2.slice(2, P256_ELEM_LEN));
+    let ciphertext_2 = rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
+
+    (g_y, ciphertext_2, c_r)
+}
