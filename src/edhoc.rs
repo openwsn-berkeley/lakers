@@ -1,16 +1,12 @@
+#![no_std]
+
 use hacspec_lib::*;
 pub mod consts;
 
 use consts::*;
 
-pub fn encode_message_1(
-    method: U8,
-    suites: &ByteSeq,
-    g_x: &BytesP256ElemLen,
-    c_i: i8,
-    output: &ByteSeq,
-) -> ByteSeq {
-    let mut output = output.clone();
+pub fn encode_message_1(method: U8, suites: &ByteSeq, g_x: &BytesP256ElemLen, c_i: i8) -> ByteSeq {
+    let mut output = ByteSeq::new(MAX_BUFFER_LEN);
 
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
 
@@ -32,6 +28,5 @@ pub fn encode_message_1(
     } else {
         output[index + 2 + P256_ELEM_LEN] = U8(0x20u8 | (-1i8 + -c_i) as u8);
     }
-
     output.truncate(index + 3 + P256_ELEM_LEN)
 }
