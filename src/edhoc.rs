@@ -1,6 +1,7 @@
 #![no_std]
 
 use hacspec_lib::*;
+use hacspec_sha256::*;
 pub mod consts;
 
 use consts::*;
@@ -51,4 +52,34 @@ pub fn parse_message_2(
     );
 
     (g_y, ciphertext_2, c_r)
+}
+
+pub fn compute_th_2(
+    h_message_1: &BytesHashLen,
+    g_y: &BytesP256ElemLen,
+    c_r: &BytesCidR,
+    mut th_2: BytesHashLen,
+) -> BytesHashLen {
+    let mut message = BytesMaxBuffer::new();
+    let mut len = 0;
+    message[0] = U8(CBOR_BYTE_STRING);
+    message[1] = U8(SHA256_DIGEST_LEN as u8);
+    message = message.update(2, h_message_1);
+    message[SHA256_DIGEST_LEN + 2] = U8(CBOR_BYTE_STRING);
+    message[SHA256_DIGEST_LEN + 3] = U8(P256_ELEM_LEN as u8);
+    message = message.update(SHA256_DIGEST_LEN + 4, g_y);
+
+    let c_r: U8 = c_r[0];
+    let c_r_declassified = c_r.declassify() as i8;
+    if c_r_declassified >= 0i8 {
+        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = c_r;
+    } else {
+        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] =
+            U8(0x20u8 | (-1i8 - c_r_declassified) as u8);
+    }
+    len = SHA256_DIGEST_LEN + 5 + P256_ELEM_LEN;
+
+    th_2 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message, 0, len)));
+
+    th_2
 }
