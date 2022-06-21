@@ -1,10 +1,14 @@
 use hacspec_lib::*;
 
-bytes!(Bytes1, 1);
-bytes!(Bytes3, 3);
-bytes!(Bytes32, 32);
-bytes!(BytesP256ElemLen, 32);
-bytes!(Bytes83, 83);
+array!(Bytes1, 1, U8);
+array!(BytesSupportedSuites, 2, U8);
+array!(Bytes3, 3, U8);
+array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
+array!(Bytes32, 32, U8);
+array!(BytesP256ElemLen, 32, U8);
+array!(BytesMessage2, MESSAGE_2_LEN, U8);
+array!(Bytes83, 83, U8);
+array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
 
 pub const I: Bytes32 = Bytes32(secret_bytes!([
     0xfbu8, 0x13u8, 0xadu8, 0xebu8, 0x65u8, 0x18u8, 0xceu8, 0xe5u8, 0xf8u8, 0x84u8, 0x17u8, 0x66u8,

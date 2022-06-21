@@ -5,9 +5,13 @@ pub mod consts;
 
 use consts::*;
 
-pub fn encode_message_1(method: U8, suites: &ByteSeq, g_x: &BytesP256ElemLen, c_i: i8) -> ByteSeq {
-    let mut output = ByteSeq::new(MAX_BUFFER_LEN);
-
+pub fn encode_message_1(
+    method: U8,
+    suites: &BytesSupportedSuites,
+    g_x: &BytesP256ElemLen,
+    c_i: i8,
+    mut output: BytesMaxBuffer,
+) -> (BytesMaxBuffer, usize) {
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
 
     let mut index: usize = 0;
@@ -28,14 +32,23 @@ pub fn encode_message_1(method: U8, suites: &ByteSeq, g_x: &BytesP256ElemLen, c_
     } else {
         output[index + 2 + P256_ELEM_LEN] = U8(0x20u8 | (-1i8 + -c_i) as u8);
     }
-    output.truncate(index + 3 + P256_ELEM_LEN)
+
+    (output, index + 3 + P256_ELEM_LEN)
 }
 
-pub fn parse_message_2(rcvd_message_2: &ByteSeq) -> (BytesP256ElemLen, ByteSeq, U8) {
+pub fn parse_message_2(
+    rcvd_message_2: &BytesMessage2,
+    mut g_y: BytesP256ElemLen,
+    mut ciphertext_2: BytesCiphertext2,
+    mut c_r: U8,
+) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
     // FIXME decode negative integers as well
-    let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
-    let g_y = BytesP256ElemLen::from_seq(&rcvd_message_2.slice(2, P256_ELEM_LEN));
-    let ciphertext_2 = rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
+    c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
+    g_y = g_y.update(0, &rcvd_message_2.slice(2, P256_ELEM_LEN));
+    ciphertext_2 = ciphertext_2.update(
+        0,
+        &rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN),
+    );
 
     (g_y, ciphertext_2, c_r)
 }
