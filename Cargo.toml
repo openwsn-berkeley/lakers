@@ -1,13 +1,14 @@
 [package]
 name = "hacspec-edhoc"
 version = "0.1.0"
-edition = "2021"
+edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hacspec-lib = { path = "../../../Software/hacspec/lib" }
 hexlit = "0.5.3"
+hacspec-lib = { path = "../../../Software/hacspec/lib" }
+hacspec-sha256 = { path = "../../../Software/hacspec/examples/sha256" }
 
 [lib]
 path = "src/edhoc.rs"

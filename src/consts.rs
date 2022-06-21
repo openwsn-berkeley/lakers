@@ -1,10 +1,12 @@
 use hacspec_lib::*;
 
 array!(Bytes1, 1, U8);
+array!(BytesCidR, 1, U8);
 array!(BytesSupportedSuites, 2, U8);
 array!(Bytes3, 3, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
 array!(Bytes32, 32, U8);
+array!(BytesHashLen, 32, U8);
 array!(BytesP256ElemLen, 32, U8);
 array!(BytesMessage2, MESSAGE_2_LEN, U8);
 array!(Bytes83, 83, U8);

@@ -16,11 +16,7 @@ const G_R_TV: [u8; P256_ELEM_LEN] =
     hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
     hex!("af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3");
-const C_R_TV: [i8; 1] = [-8];
-const H_MESSAGE_1_TV: [u8; SHA256_DIGEST_LEN] =
-    hex!("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
-const TH_2_TV: [u8; SHA256_DIGEST_LEN] =
-    hex!("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+
 const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
 const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("3324d5a4afcd4326");
@@ -79,4 +75,21 @@ fn test_parse_message_2() {
 
     assert_bytes_eq!(g_y, G_Y_TV);
     assert_bytes_eq!(ciphertext_2, CIPHERTEXT_2_TV);
+}
+
+#[test]
+fn test_compute_th_2() {
+    let H_MESSAGE_1_TV =
+        BytesHashLen::from_hex("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
+    let G_Y_TV = BytesP256ElemLen::from_hex(
+        "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
+    );
+    let C_R_TV = BytesCidR::from_hex("27");
+
+    let TH_2_TV =
+        BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+
+    let th_2 = BytesHashLen::new();
+    let th_2 = compute_th_2(&H_MESSAGE_1_TV, &G_Y_TV, &C_R_TV, th_2);
+    assert_bytes_eq!(th_2, TH_2_TV);
 }
