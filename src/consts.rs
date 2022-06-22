@@ -4,6 +4,8 @@ array!(Bytes1, 1, U8);
 array!(BytesCidR, 1, U8);
 array!(BytesSupportedSuites, 2, U8);
 array!(Bytes3, 3, U8);
+array!(BytesPlaintext2, PLAINTEXT_2_LEN, U8);
+array!(BytesMac2, MAC_LENGTH_2, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
 array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
 array!(Bytes32, 32, U8);
@@ -12,6 +14,9 @@ array!(BytesP256ElemLen, 32, U8);
 array!(BytesMessage2, MESSAGE_2_LEN, U8);
 array!(Bytes83, 83, U8);
 array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
+array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
+array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
+array!(BytesMaxLabelBuffer, MAX_KDF_LABEL_LEN, U8);
 
 pub const I: Bytes32 = Bytes32(secret_bytes!([
     0xfbu8, 0x13u8, 0xadu8, 0xebu8, 0x65u8, 0x18u8, 0xceu8, 0xe5u8, 0xf8u8, 0x84u8, 0x17u8, 0x66u8,
@@ -71,3 +76,7 @@ pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
 pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
 pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
+pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
+				            1 + MAX_KDF_LABEL_LEN +     // label <24 bytes as tstr
+						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
+						    1; // length as u8

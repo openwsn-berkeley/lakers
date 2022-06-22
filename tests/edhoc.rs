@@ -10,22 +10,15 @@ const X_TV: [u8; P256_ELEM_LEN] =
     hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 const G_XY_TV: [u8; P256_ELEM_LEN] =
     hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
-const PRK_2E_TV: [u8; P256_ELEM_LEN] =
-    hex!("fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396");
+
 const G_R_TV: [u8; P256_ELEM_LEN] =
     hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-const PRK_3E2M_TV: [u8; P256_ELEM_LEN] =
-    hex!("af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3");
-
 const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
 const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-const MAC_2_TV: [u8; MAC_LENGTH_2] = hex!("3324d5a4afcd4326");
 const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
-const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("7b86c04af73b50d31b6f");
 const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
 const EAD_2_TV: [u8; 0] = hex!("");
-const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 const PRK_4X3M_TV: [u8; P256_ELEM_LEN] =
     hex!("4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477");
 const ID_CRED_I_TV: [u8; 3] = hex!("a1042b");
@@ -113,4 +106,63 @@ fn test_compute_th_3_th_4() {
     let th_4 = BytesHashLen::new();
     let th_4 = compute_th_3_th_4(&TH_3_TV, &CIPHERTEXT_3_TV, CIPHERTEXT_3_LEN, th_4);
     assert_bytes_eq!(th_4, TH_4_TV);
+}
+
+#[test]
+fn test_edhoc_kdf() {
+    let TH_2_TV =
+        BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+
+    let PRK_2E_TV = BytesP256ElemLen::from_hex(
+        "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396",
+    );
+
+    let KEYSTREAM_2_TV = BytesPlaintext2::from_hex("7b86c04af73b50d31b6f");
+
+    let mut LABEL_TV = BytesMaxLabelBuffer::new();
+    LABEL_TV = LABEL_TV.update(0, &ByteSeq::from_public_slice("KEYSTREAM_2".as_bytes()));
+
+    const LEN_TV: usize = 10;
+
+    let CONTEXT = BytesMaxContextBuffer::new();
+
+    let mut output = BytesMaxBuffer::new();
+    output = edhoc_kdf(
+        &PRK_2E_TV, &TH_2_TV, &LABEL_TV, 11, &CONTEXT, 0, LEN_TV, output,
+    );
+
+    for i in 0..KEYSTREAM_2_TV.len() {
+        assert_eq!(KEYSTREAM_2_TV[i].declassify(), output[i].declassify());
+    }
+
+    let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
+        "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
+    );
+
+    let mut LABEL_MAC_2_TV = BytesMaxLabelBuffer::new();
+    LABEL_MAC_2_TV = LABEL_MAC_2_TV.update(0, &ByteSeq::from_public_slice("MAC_2".as_bytes()));
+    let LABEL_MAC_2_TV_LEN = 5;
+
+    let mut CONTEXT_INFO_MAC_2 = BytesMaxContextBuffer::new();
+    CONTEXT_INFO_MAC_2 = CONTEXT_INFO_MAC_2.update(0, &ByteSeq::from_hex("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072"));
+    let CONTEXT_INFO_MAC_2_LEN = 97;
+
+    let MAC_2_TV = BytesMac2::from_hex("3324d5a4afcd4326");
+
+    let mut output_2 = BytesMaxBuffer::new();
+
+    output_2 = edhoc_kdf(
+        &PRK_3E2M_TV,
+        &TH_2_TV,
+        &LABEL_MAC_2_TV,
+        LABEL_MAC_2_TV_LEN,
+        &CONTEXT_INFO_MAC_2,
+        CONTEXT_INFO_MAC_2_LEN,
+        MAC_LENGTH_2,
+        output_2,
+    );
+
+    for i in 0..MAC_2_TV.len() {
+        assert_eq!(MAC_2_TV[i].declassify(), output_2[i].declassify());
+    }
 }

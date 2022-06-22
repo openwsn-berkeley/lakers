@@ -9,6 +9,7 @@ edition = "2018"
 hexlit = "0.5.3"
 hacspec-lib = { path = "../../../Software/hacspec/lib" }
 hacspec-sha256 = { path = "../../../Software/hacspec/examples/sha256" }
+hacspec-hkdf = { path = "../../../Software/hacspec/examples/hkdf" }
 
 [lib]
 path = "src/edhoc.rs"
