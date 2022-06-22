@@ -26,17 +26,12 @@ const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
 const EAD_2_TV: [u8; 0] = hex!("");
 const CONTEXT_INFO_MAC_2: [u8; 97] = hex!("A10432A2026B6578616D706C652E65647508A101A5010202322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
-const TH_3_TV: [u8; SHA256_DIGEST_LEN] =
-    hex!("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
 const PRK_4X3M_TV: [u8; P256_ELEM_LEN] =
     hex!("4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477");
 const ID_CRED_I_TV: [u8; 3] = hex!("a1042b");
 const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
 const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
-const CIPHERTEXT_3_TV: [u8; CIPHERTEXT_3_LEN] = hex!("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
 const MESSAGE_3_TV: [u8; MESSAGE_3_LEN] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
-const TH_4_TV: [u8; SHA256_DIGEST_LEN] =
-    hex!("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
 
 #[test]
 fn test_encode_message_1() {
@@ -92,4 +87,30 @@ fn test_compute_th_2() {
     let th_2 = BytesHashLen::new();
     let th_2 = compute_th_2(&H_MESSAGE_1_TV, &G_Y_TV, &C_R_TV, th_2);
     assert_bytes_eq!(th_2, TH_2_TV);
+}
+
+#[test]
+fn test_compute_th_3_th_4() {
+    let TH_2_TV =
+        BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+
+    let TH_3_TV =
+        BytesHashLen::from_hex("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
+    let mut CIPHERTEXT_2_TV = BytesMaxBuffer::new();
+    CIPHERTEXT_2_TV =
+        CIPHERTEXT_2_TV.update(0, &BytesCiphertext2::from_hex("49cef36e229fff1e5849"));
+    let mut CIPHERTEXT_3_TV = BytesMaxBuffer::new();
+    CIPHERTEXT_3_TV = CIPHERTEXT_3_TV.update(
+        0,
+        &BytesCiphertext3::from_hex("885c63fd0b17f2c3f8f10bc8bf3f470ec8a1"),
+    );
+    let TH_4_TV =
+        BytesHashLen::from_hex("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
+    let th_3 = BytesHashLen::new();
+    let th_3 = compute_th_3_th_4(&TH_2_TV, &CIPHERTEXT_2_TV, CIPHERTEXT_2_LEN, th_3);
+    assert_bytes_eq!(th_3, TH_3_TV);
+
+    let th_4 = BytesHashLen::new();
+    let th_4 = compute_th_3_th_4(&TH_3_TV, &CIPHERTEXT_3_TV, CIPHERTEXT_3_LEN, th_4);
+    assert_bytes_eq!(th_4, TH_4_TV);
 }

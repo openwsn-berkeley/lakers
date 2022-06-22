@@ -83,3 +83,28 @@ pub fn compute_th_2(
 
     th_2
 }
+
+pub fn compute_th_3_th_4(
+    th: &BytesHashLen,
+    ciphertext: &BytesMaxBuffer,
+    ciphertext_len: usize,
+    mut output: BytesHashLen,
+) -> BytesHashLen {
+    let mut message = BytesMaxBuffer::new();
+
+    message[0] = U8(CBOR_BYTE_STRING);
+    message[1] = U8(SHA256_DIGEST_LEN as u8);
+    message = message.update(2, th);
+    message[SHA256_DIGEST_LEN + 2] = U8(CBOR_MAJOR_BYTE_STRING | (ciphertext_len as u8));
+    for i in SHA256_DIGEST_LEN + 3..SHA256_DIGEST_LEN + 3 + ciphertext_len {
+        message[i] = ciphertext[i - SHA256_DIGEST_LEN - 3];
+    }
+
+    output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
+        &message,
+        0,
+        SHA256_DIGEST_LEN + 3 + ciphertext_len,
+    )));
+
+    output
+}
