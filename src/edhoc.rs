@@ -1,5 +1,6 @@
 #![no_std]
 
+use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_sha256::*;
 pub mod consts;
@@ -105,6 +106,58 @@ pub fn compute_th_3_th_4(
         0,
         SHA256_DIGEST_LEN + 3 + ciphertext_len,
     )));
+
+    output
+}
+
+pub fn edhoc_kdf(
+    prk: &BytesP256ElemLen,
+    transcript_hash: &BytesHashLen,
+    label: &BytesMaxLabelBuffer,
+    label_len: usize,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+    length: usize,
+    mut output: BytesMaxBuffer,
+) -> BytesMaxBuffer {
+    let mut info = BytesMaxInfoBuffer::new();
+    let mut info_len = 0;
+
+    // construct info with inline cbor encoding
+    info[0] = U8(CBOR_BYTE_STRING);
+    info[1] = U8(SHA256_DIGEST_LEN as u8);
+    info = info.update(2, transcript_hash);
+    info[SHA256_DIGEST_LEN + 2] = U8(label_len as u8 | CBOR_MAJOR_TEXT_STRING);
+    info = info.update(SHA256_DIGEST_LEN + 3, label);
+
+    if context_len < 24 {
+        info[SHA256_DIGEST_LEN + 3 + label_len] = U8(context_len as u8 | CBOR_MAJOR_BYTE_STRING);
+        for i in SHA256_DIGEST_LEN + 4 + label_len..SHA256_DIGEST_LEN + 4 + label_len + context_len
+        {
+            info[i] = context[i - SHA256_DIGEST_LEN - 4 - label_len];
+        }
+        info_len = SHA256_DIGEST_LEN + 4 + label_len + context_len;
+    } else {
+        info[SHA256_DIGEST_LEN + 3 + label_len] = U8(CBOR_BYTE_STRING);
+        info[SHA256_DIGEST_LEN + 4 + label_len] = U8(context_len as u8);
+        for i in SHA256_DIGEST_LEN + 5 + label_len..SHA256_DIGEST_LEN + 5 + label_len + context_len
+        {
+            info[i] = context[i - SHA256_DIGEST_LEN - 5 - label_len];
+        }
+        info_len = SHA256_DIGEST_LEN + 5 + label_len + context_len;
+    }
+    info[info_len] = U8(length as u8);
+    info_len = info_len + 1;
+
+    output = output.update(
+        0,
+        &expand(
+            &ByteSeq::from_slice(prk, 0, prk.len()),
+            &ByteSeq::from_slice(&info, 0, info_len),
+            length,
+        )
+        .unwrap(),
+    );
 
     output
 }
