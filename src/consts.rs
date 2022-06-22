@@ -5,6 +5,7 @@ array!(BytesCidR, 1, U8);
 array!(BytesSupportedSuites, 2, U8);
 array!(Bytes3, 3, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
+array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
 array!(Bytes32, 32, U8);
 array!(BytesHashLen, 32, U8);
 array!(BytesP256ElemLen, 32, U8);
