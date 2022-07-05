@@ -2,10 +2,18 @@ use hacspec_lib::*;
 
 array!(Bytes1, 1, U8);
 array!(BytesCidR, 1, U8);
+array!(BytesIdCredI, 3, U8);
 array!(BytesSupportedSuites, 2, U8);
 array!(Bytes3, 3, U8);
+array!(Bytes4, 4, U8);
+array!(Bytes8, 8, U8);
+array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
+array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
 array!(BytesPlaintext2, PLAINTEXT_2_LEN, U8);
+array!(BytesPlaintext3, PLAINTEXT_3_LEN, U8);
 array!(BytesMac2, MAC_LENGTH_2, U8);
+array!(BytesMac3, MAC_LENGTH_3, U8);
+array!(BytesMessage3, MESSAGE_3_LEN, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
 array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
 array!(Bytes32, 32, U8);
@@ -17,6 +25,7 @@ array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
 array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
 array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
 array!(BytesMaxLabelBuffer, MAX_KDF_LABEL_LEN, U8);
+array!(BytesEncStructureLen, ENC_STRUCTURE_LEN, U8);
 
 pub const I: Bytes32 = Bytes32(secret_bytes!([
     0xfbu8, 0x13u8, 0xadu8, 0xebu8, 0x65u8, 0x18u8, 0xceu8, 0xe5u8, 0xf8u8, 0x84u8, 0x17u8, 0x66u8,
@@ -80,3 +89,5 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 				            1 + MAX_KDF_LABEL_LEN +     // label <24 bytes as tstr
 						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						    1; // length as u8
+
+pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0

@@ -1,5 +1,7 @@
 #![no_std]
 
+use hacspec_aes::*;
+use hacspec_aes_ccm::*;
 use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_sha256::*;
@@ -157,6 +159,95 @@ pub fn edhoc_kdf(
             length,
         )
         .unwrap(),
+    );
+
+    output
+}
+
+// calculates ciphertext_3 wrapped in a cbor byte string
+// output must hold MESSAGE_3_LEN
+pub fn compute_bstr_ciphertext_3(
+    prk_3e2m: &BytesP256ElemLen,
+    th_3: &BytesHashLen,
+    id_cred_i: &BytesIdCredI,
+    mac_3: &BytesMac3,
+    mut output: BytesMessage3,
+) -> BytesMessage3 {
+    let mut LABEL_K_3 = BytesMaxLabelBuffer::new();
+    LABEL_K_3[0] = U8(b'K');
+    LABEL_K_3[1] = U8(b'_');
+    LABEL_K_3[2] = U8(b'3');
+
+    let mut LABEL_IV_3 = BytesMaxLabelBuffer::new();
+    LABEL_IV_3[0] = U8(b'I');
+    LABEL_IV_3[1] = U8(b'V');
+    LABEL_IV_3[2] = U8(b'_');
+    LABEL_IV_3[3] = U8(b'3');
+
+    let mut ENCRYPT0 = Bytes8::new();
+    ENCRYPT0[0] = U8(b'E');
+    ENCRYPT0[1] = U8(b'n');
+    ENCRYPT0[2] = U8(b'c');
+    ENCRYPT0[3] = U8(b'r');
+    ENCRYPT0[4] = U8(b'y');
+    ENCRYPT0[5] = U8(b'p');
+    ENCRYPT0[6] = U8(b't');
+    ENCRYPT0[7] = U8(b'0');
+
+    let mut k_3 = BytesMaxBuffer::new();
+    let mut iv_3 = BytesMaxBuffer::new();
+    let mut plaintext_3 = BytesPlaintext3::new();
+    let mut enc_structure = BytesEncStructureLen::new();
+
+    // K_3 = EDHOC-KDF( PRK_3e2m, TH_3, "K_3", h'', key_length )
+    k_3 = edhoc_kdf(
+        prk_3e2m,
+        th_3,
+        &LABEL_K_3,
+        3,
+        &BytesMaxContextBuffer::new(),
+        0,
+        AES_CCM_KEY_LEN,
+        k_3,
+    );
+    // IV_3 = EDHOC-KDF( PRK_3e2m, TH_3, "IV_3", h'', iv_length )
+    iv_3 = edhoc_kdf(
+        prk_3e2m,
+        th_3,
+        &LABEL_IV_3,
+        4,
+        &BytesMaxContextBuffer::new(),
+        0,
+        AES_CCM_IV_LEN,
+        iv_3,
+    );
+    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
+    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
+
+    plaintext_3 = plaintext_3.update(2, mac_3);
+    //    plaintext_3[2..(MAC_LENGTH_3 + 2)].copy_from_slice(&mac_3[..(MAC_LENGTH_3 + 2 - 2)]);
+    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
+    enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3); // 3 is the fixed number of elements in the array
+    enc_structure[1] = U8(CBOR_MAJOR_TEXT_STRING | ENCRYPT0.len() as u8);
+    //    enc_structure[2..(ENCRYPT0.len() + 2)].copy_from_slice(&ENCRYPT0[..(ENCRYPT0.len() + 2 - 2)]);
+    enc_structure = enc_structure.update(2, &ENCRYPT0);
+    enc_structure[ENCRYPT0.len() + 2] = U8(CBOR_MAJOR_BYTE_STRING | 0x00); // 0 for zero-length byte string
+    enc_structure[ENCRYPT0.len() + 3] = U8(CBOR_BYTE_STRING); // byte string greater than 24
+    enc_structure[ENCRYPT0.len() + 4] = U8(SHA256_DIGEST_LEN as u8);
+    enc_structure = enc_structure.update(ENCRYPT0.len() + 5, th_3);
+
+    output[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
+
+    output = output.update(
+        1,
+        &encrypt_ccm(
+            ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
+            ByteSeq::from_slice(&iv_3, 0, AES_CCM_IV_LEN),
+            ByteSeq::from_slice(&plaintext_3, 0, PLAINTEXT_3_LEN),
+            Key128::from_slice(&k_3, 0, AES_CCM_KEY_LEN),
+            AES_CCM_TAG_LEN,
+        ),
     );
 
     output
