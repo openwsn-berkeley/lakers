@@ -21,10 +21,7 @@ const I_TV: [u8; P256_ELEM_LEN] =
 const EAD_2_TV: [u8; 0] = hex!("");
 const PRK_4X3M_TV: [u8; P256_ELEM_LEN] =
     hex!("4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477");
-const ID_CRED_I_TV: [u8; 3] = hex!("a1042b");
 const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
-const MAC_3_TV: [u8; MAC_LENGTH_3] = hex!("4cd53d74f0a6ed8b");
-const MESSAGE_3_TV: [u8; MESSAGE_3_LEN] = hex!("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
 
 #[test]
 fn test_encode_message_1() {
@@ -165,4 +162,29 @@ fn test_edhoc_kdf() {
     for i in 0..MAC_2_TV.len() {
         assert_eq!(MAC_2_TV[i].declassify(), output_2[i].declassify());
     }
+}
+
+#[test]
+fn test_compute_bstr_ciphertext_3() {
+    let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
+        "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
+    );
+    let TH_3_TV =
+        BytesHashLen::from_hex("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
+    let ID_CRED_I_TV = BytesIdCredI::from_hex("a1042b");
+
+    let MAC_3_TV = BytesMac3::from_hex("4cd53d74f0a6ed8b");
+
+    let MESSAGE_3_TV = BytesMessage3::from_hex("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
+    let mut bstr_ciphertext_3 = BytesMessage3::new();
+
+    bstr_ciphertext_3 = compute_bstr_ciphertext_3(
+        &PRK_3E2M_TV,
+        &TH_3_TV,
+        &ID_CRED_I_TV,
+        &MAC_3_TV,
+        bstr_ciphertext_3,
+    );
+
+    assert_bytes_eq!(bstr_ciphertext_3, MESSAGE_3_TV);
 }
