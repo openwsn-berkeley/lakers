@@ -169,7 +169,7 @@ pub fn edhoc_kdf(
 pub fn compute_bstr_ciphertext_3(
     prk_3e2m: &BytesP256ElemLen,
     th_3: &BytesHashLen,
-    id_cred_i: &BytesIdCredI,
+    id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
     mut output: BytesMessage3,
 ) -> BytesMessage3 {
@@ -250,5 +250,63 @@ pub fn compute_bstr_ciphertext_3(
         ),
     );
 
+    output
+}
+
+// output must hold id_cred.len() + cred.len()
+fn encode_kdf_context(
+    id_cred: &BytesIdCred,
+    cred: &BytesMaxBuffer,
+    cred_len: usize,
+    mut output: BytesMaxContextBuffer,
+    mut output_len: usize,
+) -> (BytesMaxContextBuffer, usize) {
+    // encode context in line
+    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
+    output = output.update(0, id_cred);
+    output = output.update_slice(id_cred.len(), cred, 0, cred_len);
+
+    output_len = (id_cred.len() + cred_len) as usize;
+
+    (output, output_len)
+}
+
+pub fn compute_mac_3(
+    prk_4x3m: &BytesP256ElemLen,
+    th_3: &BytesHashLen,
+    id_cred_i: &BytesIdCred,
+    cred_i: &BytesMaxBuffer,
+    cred_i_len: usize,
+    mut output: BytesMac3,
+) -> BytesMac3 {
+    let mut LABEL_MAC_3 = BytesMaxLabelBuffer::new();
+    LABEL_MAC_3[0] = U8(b'M');
+    LABEL_MAC_3[1] = U8(b'A');
+    LABEL_MAC_3[2] = U8(b'C');
+    LABEL_MAC_3[3] = U8(b'_');
+    LABEL_MAC_3[4] = U8(b'3');
+
+    // MAC_3 = EDHOC-KDF( PRK_4x3m, TH_3, "MAC_3", << ID_CRED_I, CRED_I, ? EAD_3 >>, mac_length_3 )
+
+    let mut context = BytesMaxContextBuffer::new();
+    let mut context_len: usize = 0;
+
+    let (context, context_len) =
+        encode_kdf_context(id_cred_i, cred_i, cred_i_len, context, context_len);
+
+    // compute mac_3
+    let mut output_buf = BytesMaxBuffer::new();
+    output_buf = edhoc_kdf(
+        prk_4x3m,
+        th_3,
+        &LABEL_MAC_3,
+        5,
+        &context,
+        context_len,
+        MAC_LENGTH_3,
+        output_buf,
+    );
+
+    output = output.update_slice(0, &output_buf, 0, MAC_LENGTH_3);
     output
 }

@@ -19,9 +19,6 @@ const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
 const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
 const EAD_2_TV: [u8; 0] = hex!("");
-const PRK_4X3M_TV: [u8; P256_ELEM_LEN] =
-    hex!("4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477");
-const CRED_I_TV: [u8; 106] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
 
 #[test]
 fn test_encode_message_1() {
@@ -171,7 +168,7 @@ fn test_compute_bstr_ciphertext_3() {
     );
     let TH_3_TV =
         BytesHashLen::from_hex("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
-    let ID_CRED_I_TV = BytesIdCredI::from_hex("a1042b");
+    let ID_CRED_I_TV = BytesIdCred::from_hex("a1042b");
 
     let MAC_3_TV = BytesMac3::from_hex("4cd53d74f0a6ed8b");
 
@@ -187,4 +184,30 @@ fn test_compute_bstr_ciphertext_3() {
     );
 
     assert_bytes_eq!(bstr_ciphertext_3, MESSAGE_3_TV);
+}
+
+#[test]
+fn test_compute_mac_3() {
+    let mut mac_3 = BytesMac3::new();
+
+    let PRK_4X3M_TV = BytesP256ElemLen::from_hex(
+        "4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477",
+    );
+    let TH_3_TV =
+        BytesHashLen::from_hex("426f8f65c17f6210392e9a16d51fe07160a25ac6fda440cfb13ec196231f3624");
+    let ID_CRED_I_TV = BytesIdCred::from_hex("a1042b");
+    let mut CRED_I_TV = BytesMaxBuffer::new();
+    CRED_I_TV = CRED_I_TV.update(0, &ByteSeq::from_hex("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a50102022b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"));
+
+    let MAC_3_TV = BytesMac3::from_hex("4cd53d74f0a6ed8b");
+
+    mac_3 = compute_mac_3(
+        &PRK_4X3M_TV,
+        &TH_3_TV,
+        &ID_CRED_I_TV,
+        &CRED_I_TV,
+        106,
+        mac_3,
+    );
+    assert_bytes_eq!(mac_3, MAC_3_TV);
 }
