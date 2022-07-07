@@ -12,6 +12,7 @@ hacspec-sha256 = { path = "../../../Software/hacspec/examples/sha256" }
 hacspec-hkdf = { path = "../../../Software/hacspec/examples/hkdf" }
 hacspec-aes = { path = "../../../Software/hacspec/examples/aes" }
 hacspec-aes-ccm = { path = "../../../Software/hacspec/examples/aes-ccm" }
+hacspec-p256 = { path = "../../../Software/hacspec/examples/p256" }
 
 [lib]
 path = "src/edhoc.rs"

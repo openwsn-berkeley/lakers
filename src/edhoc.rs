@@ -4,6 +4,7 @@ use hacspec_aes::*;
 use hacspec_aes_ccm::*;
 use hacspec_hkdf::*;
 use hacspec_lib::*;
+use hacspec_p256::*;
 use hacspec_sha256::*;
 pub mod consts;
 
@@ -418,4 +419,21 @@ pub fn decrypt_ciphertext_2(
     }
 
     plaintext_2
+}
+fn p256_ecdh(
+    private_key: &BytesP256ElemLen,
+    public_key: &BytesP256ElemLen,
+    mut secret: BytesP256ElemLen,
+) -> BytesP256ElemLen {
+    let scalar = P256Scalar::from_byte_seq_be(private_key);
+    let point = (
+        P256FieldElement::from_byte_seq_be(public_key),
+        p256_calculate_w(P256FieldElement::from_byte_seq_be(public_key)),
+    );
+
+    // we only care about the x coordinate
+    let secret_felem = p256_point_mul(scalar, point).unwrap().0;
+
+    secret = BytesP256ElemLen::from_seq(&secret_felem.to_byte_seq_be());
+    secret
 }
