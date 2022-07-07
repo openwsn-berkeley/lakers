@@ -174,25 +174,25 @@ pub fn compute_bstr_ciphertext_3(
     mut output: BytesMessage3,
 ) -> BytesMessage3 {
     let mut LABEL_K_3 = BytesMaxLabelBuffer::new();
-    LABEL_K_3[0] = U8(b'K');
-    LABEL_K_3[1] = U8(b'_');
-    LABEL_K_3[2] = U8(b'3');
+    LABEL_K_3[0] = U8(0x4bu8); // 'K'
+    LABEL_K_3[1] = U8(0x5fu8); // '_'
+    LABEL_K_3[2] = U8(0x33u8); // '3'
 
     let mut LABEL_IV_3 = BytesMaxLabelBuffer::new();
-    LABEL_IV_3[0] = U8(b'I');
-    LABEL_IV_3[1] = U8(b'V');
-    LABEL_IV_3[2] = U8(b'_');
-    LABEL_IV_3[3] = U8(b'3');
+    LABEL_IV_3[0] = U8(0x49u8); // 'I'
+    LABEL_IV_3[1] = U8(0x56u8); // 'V'
+    LABEL_IV_3[2] = U8(0x5fu8); // '_'
+    LABEL_IV_3[3] = U8(0x33u8); // '3'
 
     let mut ENCRYPT0 = Bytes8::new();
-    ENCRYPT0[0] = U8(b'E');
-    ENCRYPT0[1] = U8(b'n');
-    ENCRYPT0[2] = U8(b'c');
-    ENCRYPT0[3] = U8(b'r');
-    ENCRYPT0[4] = U8(b'y');
-    ENCRYPT0[5] = U8(b'p');
-    ENCRYPT0[6] = U8(b't');
-    ENCRYPT0[7] = U8(b'0');
+    ENCRYPT0[0] = U8(0x45u8); // 'E'
+    ENCRYPT0[1] = U8(0x6eu8); // 'n'
+    ENCRYPT0[2] = U8(0x63u8); // 'c'
+    ENCRYPT0[3] = U8(0x72u8); // 'r'
+    ENCRYPT0[4] = U8(0x79u8); // 'y'
+    ENCRYPT0[5] = U8(0x70u8); // 'p'
+    ENCRYPT0[6] = U8(0x74u8); // 't'
+    ENCRYPT0[7] = U8(0x30u8); // '0'
 
     let mut k_3 = BytesMaxBuffer::new();
     let mut iv_3 = BytesMaxBuffer::new();
@@ -228,11 +228,11 @@ pub fn compute_bstr_ciphertext_3(
     plaintext_3 = plaintext_3.update(2, mac_3);
     //    plaintext_3[2..(MAC_LENGTH_3 + 2)].copy_from_slice(&mac_3[..(MAC_LENGTH_3 + 2 - 2)]);
     // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
-    enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3); // 3 is the fixed number of elements in the array
+    enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3 as u8); // 3 is the fixed number of elements in the array
     enc_structure[1] = U8(CBOR_MAJOR_TEXT_STRING | ENCRYPT0.len() as u8);
     //    enc_structure[2..(ENCRYPT0.len() + 2)].copy_from_slice(&ENCRYPT0[..(ENCRYPT0.len() + 2 - 2)]);
     enc_structure = enc_structure.update(2, &ENCRYPT0);
-    enc_structure[ENCRYPT0.len() + 2] = U8(CBOR_MAJOR_BYTE_STRING | 0x00); // 0 for zero-length byte string
+    enc_structure[ENCRYPT0.len() + 2] = U8(CBOR_MAJOR_BYTE_STRING | 0x00 as u8); // 0 for zero-length byte string
     enc_structure[ENCRYPT0.len() + 3] = U8(CBOR_BYTE_STRING); // byte string greater than 24
     enc_structure[ENCRYPT0.len() + 4] = U8(SHA256_DIGEST_LEN as u8);
     enc_structure = enc_structure.update(ENCRYPT0.len() + 5, th_3);
@@ -280,11 +280,11 @@ pub fn compute_mac_3(
     mut output: BytesMac3,
 ) -> BytesMac3 {
     let mut LABEL_MAC_3 = BytesMaxLabelBuffer::new();
-    LABEL_MAC_3[0] = U8(b'M');
-    LABEL_MAC_3[1] = U8(b'A');
-    LABEL_MAC_3[2] = U8(b'C');
-    LABEL_MAC_3[3] = U8(b'_');
-    LABEL_MAC_3[4] = U8(b'3');
+    LABEL_MAC_3[0] = U8(0x4du8); // 'M'
+    LABEL_MAC_3[1] = U8(0x41u8); // 'A'
+    LABEL_MAC_3[2] = U8(0x43u8); // 'C'
+    LABEL_MAC_3[3] = U8(0x5fu8); // '_'
+    LABEL_MAC_3[4] = U8(0x33u8); // '3'
 
     // MAC_3 = EDHOC-KDF( PRK_4x3m, TH_3, "MAC_3", << ID_CRED_I, CRED_I, ? EAD_3 >>, mac_length_3 )
 
