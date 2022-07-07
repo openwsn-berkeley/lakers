@@ -13,8 +13,7 @@ const G_XY_TV: [u8; P256_ELEM_LEN] =
 
 const G_R_TV: [u8; P256_ELEM_LEN] =
     hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-const ID_CRED_R_TV: [u8; 3] = hex!("a10432");
-const CRED_R_TV : [u8; 94] = hex!("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+
 const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
 const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
@@ -210,4 +209,29 @@ fn test_compute_mac_3() {
         mac_3,
     );
     assert_bytes_eq!(mac_3, MAC_3_TV);
+}
+
+#[test]
+fn test_compute_and_verify_mac_2() {
+    let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
+        "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
+    );
+    let ID_CRED_R_TV = BytesIdCred::from_hex("a10432");
+
+    let mut CRED_R_TV = BytesMaxBuffer::new();
+    CRED_R_TV = CRED_R_TV.update(0, &ByteSeq::from_hex("a2026b6578616d706c652e65647508a101a5010202322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072"));
+
+    let TH_2_TV =
+        BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
+
+    let MAC_2_TV = BytesMac2::from_hex("3324d5a4afcd4326");
+
+    assert!(compute_and_verify_mac_2(
+        &PRK_3E2M_TV,
+        &ID_CRED_R_TV,
+        &CRED_R_TV,
+        94,
+        &TH_2_TV,
+        &MAC_2_TV
+    ));
 }

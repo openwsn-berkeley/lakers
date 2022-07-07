@@ -310,3 +310,50 @@ pub fn compute_mac_3(
     output = output.update_slice(0, &output_buf, 0, MAC_LENGTH_3);
     output
 }
+
+pub fn compute_and_verify_mac_2(
+    prk_3e2m: &BytesP256ElemLen,
+    id_cred_r: &BytesIdCred,
+    cred_r: &BytesMaxBuffer,
+    cred_r_len: usize,
+    th_2: &BytesHashLen,
+    rcvd_mac_2: &BytesMac2,
+) -> bool {
+    // compute MAC_2
+    let mut mac_2 = BytesMaxBuffer::new();
+    let mut label_mac_2 = BytesMaxLabelBuffer::new();
+    label_mac_2[0] = U8(0x4du8); // 'M'
+    label_mac_2[1] = U8(0x41u8); // 'A'
+    label_mac_2[2] = U8(0x43u8); // 'C'
+    label_mac_2[3] = U8(0x5fu8); // '_'
+    label_mac_2[4] = U8(0x32u8); // '2'
+
+    let mut context = BytesMaxContextBuffer::new();
+    let mut context_len: usize = 0;
+
+    let (context, context_len) =
+        encode_kdf_context(id_cred_r, cred_r, cred_r_len, context, context_len);
+
+    // compute mac_2
+    mac_2 = edhoc_kdf(
+        prk_3e2m,
+        th_2,
+        &label_mac_2,
+        5,
+        &context,
+        context_len,
+        MAC_LENGTH_2,
+        mac_2,
+    );
+
+    let mut verified: bool = true;
+    for i in 0..MAC_LENGTH_2 {
+        if mac_2[i].declassify() == rcvd_mac_2[i].declassify() {
+            verified = true;
+        } else {
+            verified = false;
+        }
+    }
+
+    verified
+}
