@@ -420,6 +420,24 @@ pub fn decrypt_ciphertext_2(
 
     plaintext_2
 }
+
+pub fn compute_prk_4x3m(
+    prk_3e2m: &BytesP256ElemLen,
+    i: &BytesP256ElemLen,
+    g_y: &BytesP256ElemLen,
+    mut prk_4x3m: BytesP256ElemLen,
+) -> BytesP256ElemLen {
+    // compute g_rx from static R's public key and private ephemeral key
+    let mut g_iy = BytesP256ElemLen::new();
+    g_iy = p256_ecdh(&i, &g_y, g_iy);
+    prk_4x3m = BytesP256ElemLen::from_seq(&extract(
+        &ByteSeq::from_slice(prk_3e2m, 0, prk_3e2m.len()),
+        &ByteSeq::from_slice(&g_iy, 0, g_iy.len()),
+    ));
+
+    prk_4x3m
+}
+
 fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
