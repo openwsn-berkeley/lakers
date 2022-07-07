@@ -357,3 +357,17 @@ pub fn compute_and_verify_mac_2(
 
     verified
 }
+
+pub fn decode_plaintext_2(
+    plaintext_2: &BytesPlaintext2,
+    mut id_cred_r: U8,
+    mut mac_2: BytesMac2,
+    mut ead_2: BytesEad2,
+) -> (U8, BytesMac2, BytesEad2) {
+    id_cred_r = plaintext_2[0];
+    // skip cbor byte string byte as we know how long the string is
+    mac_2 = mac_2.update_slice(0, plaintext_2, 2, MAC_LENGTH_2);
+    // TODO zero out ead_2
+
+    (id_cred_r, mac_2, ead_2)
+}

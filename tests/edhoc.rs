@@ -14,10 +14,8 @@ const G_XY_TV: [u8; P256_ELEM_LEN] =
 const G_R_TV: [u8; P256_ELEM_LEN] =
     hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
-const PLAINTEXT_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("32483324d5a4afcd4326");
 const I_TV: [u8; P256_ELEM_LEN] =
     hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-const EAD_2_TV: [u8; 0] = hex!("");
 
 #[test]
 fn test_encode_message_1() {
@@ -234,4 +232,21 @@ fn test_compute_and_verify_mac_2() {
         &TH_2_TV,
         &MAC_2_TV
     ));
+}
+
+#[test]
+fn test_decode_plaintext_2() {
+    let PLAINTEXT_2_TV = BytesPlaintext2::from_hex("32483324d5a4afcd4326");
+    let ID_CRED_R_TV = BytesIdCred::from_hex("a10432");
+    let MAC_2_TV = BytesMac2::from_hex("3324d5a4afcd4326");
+    let EAD_2_TV = BytesEad2::new();
+
+    let mut id_cred_r = U8(0);
+    let mut mac_2 = BytesMac2::new();
+    let mut ead_2 = BytesEad2::new();
+
+    let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&PLAINTEXT_2_TV, id_cred_r, mac_2, ead_2);
+    assert_eq!(U8::declassify(id_cred_r), U8::declassify(ID_CRED_R_TV[2]));
+    assert_bytes_eq!(mac_2, MAC_2_TV);
+    assert_bytes_eq!(ead_2, EAD_2_TV);
 }
