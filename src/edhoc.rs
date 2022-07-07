@@ -371,3 +371,51 @@ pub fn decode_plaintext_2(
 
     (id_cred_r, mac_2, ead_2)
 }
+
+pub fn decrypt_ciphertext_2(
+    prk_2e: &BytesP256ElemLen,
+    g_y: &BytesP256ElemLen,
+    c_r: &BytesCidR,
+    ciphertext_2: &BytesCiphertext2,
+    h_message_1: &BytesHashLen,
+    mut plaintext_2: BytesPlaintext2,
+) -> BytesPlaintext2 {
+    let mut th_2 = BytesHashLen::new();
+
+    // compute the transcript hash th_2
+    th_2 = compute_th_2(h_message_1, g_y, c_r, th_2);
+
+    // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
+    let mut keystream_2 = BytesMaxBuffer::new();
+
+    let mut label_keystream_2 = BytesMaxLabelBuffer::new();
+    label_keystream_2[0] = U8(0x4bu8); // 'K'
+    label_keystream_2[1] = U8(0x45u8); // 'E'
+    label_keystream_2[2] = U8(0x59u8); // 'Y'
+    label_keystream_2[3] = U8(0x53u8); // 'S'
+    label_keystream_2[4] = U8(0x54u8); // 'T'
+    label_keystream_2[5] = U8(0x52u8); // 'R'
+    label_keystream_2[6] = U8(0x45u8); // 'E'
+    label_keystream_2[7] = U8(0x41u8); // 'A'
+    label_keystream_2[8] = U8(0x4du8); // 'M'
+    label_keystream_2[9] = U8(0x5fu8); // '_'
+    label_keystream_2[10] = U8(0x32u8); // '2'
+
+    keystream_2 = edhoc_kdf(
+        prk_2e,
+        &th_2,
+        &label_keystream_2,
+        11,
+        &BytesMaxContextBuffer::new(),
+        0,
+        CIPHERTEXT_2_LEN,
+        keystream_2,
+    );
+
+    // decrypt ciphertext_2
+    for i in 0..CIPHERTEXT_2_LEN {
+        plaintext_2[i] = ciphertext_2[i] ^ keystream_2[i];
+    }
+
+    plaintext_2
+}

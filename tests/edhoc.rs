@@ -250,3 +250,32 @@ fn test_decode_plaintext_2() {
     assert_bytes_eq!(mac_2, MAC_2_TV);
     assert_bytes_eq!(ead_2, EAD_2_TV);
 }
+
+#[test]
+fn test_decrypt_ciphertext_2() {
+    let PRK_2E_TV = BytesP256ElemLen::from_hex(
+        "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396",
+    );
+    let G_Y_TV = BytesP256ElemLen::from_hex(
+        "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
+    );
+
+    let C_R_TV = BytesCidR::from_hex("27");
+    let CIPHERTEXT_2_TV = BytesCiphertext2::from_hex("49cef36e229fff1e5849");
+
+    let H_MESSAGE_1_TV =
+        BytesHashLen::from_hex("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
+    let PLAINTEXT_2_TV = BytesPlaintext2::from_hex("32483324d5a4afcd4326");
+
+    let mut plaintext_2 = BytesPlaintext2::new();
+    plaintext_2 = decrypt_ciphertext_2(
+        &PRK_2E_TV,
+        &G_Y_TV,
+        &C_R_TV,
+        &CIPHERTEXT_2_TV,
+        &H_MESSAGE_1_TV,
+        plaintext_2,
+    );
+
+    assert_bytes_eq!(PLAINTEXT_2_TV, plaintext_2);
+}
