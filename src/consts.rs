@@ -2,6 +2,7 @@ use hacspec_lib::*;
 
 array!(Bytes1, 1, U8);
 array!(BytesCidR, 1, U8);
+array!(BytesEad2, 0, U8);
 array!(BytesIdCred, 3, U8);
 array!(BytesSupportedSuites, 2, U8);
 array!(Bytes3, 3, U8);
