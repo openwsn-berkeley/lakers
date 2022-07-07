@@ -14,9 +14,6 @@ const G_XY_TV: [u8; P256_ELEM_LEN] =
 const G_R_TV: [u8; P256_ELEM_LEN] =
     hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
-const I_TV: [u8; P256_ELEM_LEN] =
-    hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-
 #[test]
 fn test_encode_message_1() {
     let METHOD_TV = U8(0x03);
@@ -278,4 +275,25 @@ fn test_decrypt_ciphertext_2() {
     );
 
     assert_bytes_eq!(PLAINTEXT_2_TV, plaintext_2);
+}
+
+#[test]
+fn test_compute_prk_4x3m() {
+    let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
+        "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
+    );
+    let I_TV = BytesP256ElemLen::from_hex(
+        "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b",
+    );
+    let G_Y_TV = BytesP256ElemLen::from_hex(
+        "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
+    );
+    let PRK_4X3M_TV = BytesP256ElemLen::from_hex(
+        "4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477",
+    );
+
+    let mut prk_4x3m = BytesP256ElemLen::new();
+    prk_4x3m = compute_prk_4x3m(&PRK_3E2M_TV, &I_TV, &G_Y_TV, prk_4x3m);
+
+    assert_bytes_eq!(prk_4x3m, PRK_4X3M_TV);
 }
