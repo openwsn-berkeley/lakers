@@ -4,7 +4,7 @@ use hacspec_lib::*;
 
 use hexlit::hex;
 
-array!(BytesMessage1Tv, 39, U8);
+array!(BytesMessage1Tv, 37, U8);
 // test vectors (TV)
 
 const G_XY_TV: [u8; P256_ELEM_LEN] =
@@ -13,19 +13,23 @@ const G_XY_TV: [u8; P256_ELEM_LEN] =
 #[test]
 fn test_encode_message_1() {
     let METHOD_TV = U8(0x03);
-    let SUITES_I_TV = BytesSupportedSuites::from_hex("0602");
+    // manually modified test vector to include a single supported cipher suite
+    let SUITES_I_TV = BytesSupportedSuites::from_hex("02");
     let G_X_TV = BytesP256ElemLen::from_hex(
         "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6",
     );
     let C_I_TV: i8 = -24i8;
+
+    // manually modified test vector to include a single supported cipher suite
     let MESSAGE_1_TV = BytesMessage1Tv::from_hex(
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637",
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637",
     );
 
     let message_1 = BytesMaxBuffer::new();
 
     let (message_1, message_1_len) =
         encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV, message_1);
+
     assert_eq!(message_1_len, MESSAGE_1_TV.len());
     for i in 0..MESSAGE_1_TV.len() {
         assert_eq!(message_1[i].declassify(), MESSAGE_1_TV[i].declassify());
@@ -41,7 +45,7 @@ fn test_parse_message_2() {
     let CIPHERTEXT_2_TV = BytesCiphertext2::from_hex("49cef36e229fff1e5849");
     let g_y = BytesP256ElemLen::new();
     let ciphertext_2 = BytesCiphertext2::new();
-    let c_r = U8(0xff);
+    let c_r = BytesCidR::new();
 
     let (g_y, ciphertext_2, c_r) = parse_message_2(&MESSAGE_2_TV, g_y, ciphertext_2, c_r);
 
