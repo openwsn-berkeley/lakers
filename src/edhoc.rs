@@ -429,7 +429,7 @@ pub fn compute_prk_4x3m(
 ) -> BytesP256ElemLen {
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_iy = BytesP256ElemLen::new();
-    g_iy = p256_ecdh(&i, &g_y, g_iy);
+    g_iy = p256_ecdh(i, g_y, g_iy);
     prk_4x3m = BytesP256ElemLen::from_seq(&extract(
         &ByteSeq::from_slice(prk_3e2m, 0, prk_3e2m.len()),
         &ByteSeq::from_slice(&g_iy, 0, g_iy.len()),
@@ -446,7 +446,7 @@ pub fn compute_prk_3e2m(
 ) -> BytesP256ElemLen {
     // compute g_rx from static R's public key and private ephemeral key
     let mut g_rx = BytesP256ElemLen::new();
-    g_rx = p256_ecdh(&x, &g_r, g_rx);
+    g_rx = p256_ecdh(x, g_r, g_rx);
     prk_3e2m = BytesP256ElemLen::from_seq(&extract(
         &ByteSeq::from_slice(prk_2e, 0, prk_2e.len()),
         &ByteSeq::from_slice(&g_rx, 0, g_rx.len()),
@@ -462,7 +462,7 @@ pub fn compute_prk_2e(
 ) -> BytesP256ElemLen {
     let mut g_xy = BytesP256ElemLen::new();
     // compute the shared secret
-    g_xy = p256_ecdh(&x, &g_y, g_xy);
+    g_xy = p256_ecdh(x, g_y, g_xy);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
     prk_2e = BytesP256ElemLen::from_seq(&extract(
         &ByteSeq::new(0),
@@ -484,8 +484,8 @@ fn p256_ecdh(
     );
 
     // we only care about the x coordinate
-    let secret_felem = p256_point_mul(scalar, point).unwrap().0;
+    let (x,y) = p256_point_mul(scalar, point).unwrap();
 
-    secret = BytesP256ElemLen::from_seq(&secret_felem.to_byte_seq_be());
+    secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
     secret
 }
