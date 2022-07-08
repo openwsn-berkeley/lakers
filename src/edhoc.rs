@@ -52,7 +52,6 @@ pub fn prepare_message_1(
     mut state: State,
     mut buffer: BytesMaxBuffer,
 ) -> (State, BytesMaxBuffer, usize) {
-
     let State(mut x, prk_2e, prk_3e2m, prk_4x3m, mut h_message_1, th_2, th_3, th_4) = state;
 
     // TODO generate ephemeral key
@@ -66,6 +65,60 @@ pub fn prepare_message_1(
     state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
 
     (state, buffer, message_1_len)
+}
+
+// message_3 must hold MESSAGE_3_LEN
+// returns c_r
+pub fn process_message_2(mut state: State, message_2: &BytesMessage2) -> (State, BytesCidR, U8) {
+    let mut g_y = BytesP256ElemLen::new();
+    let mut ciphertext_2 = BytesCiphertext2::new();
+    let mut c_r = BytesCidR::new();
+
+    let State(x, mut prk_2e, mut prk_3e2m, mut prk_4x3m, h_message_1, mut th_2, mut th_3, th_4) =
+        state;
+
+    let (g_y, ciphertext_2, c_r) = parse_message_2(message_2, g_y, ciphertext_2, c_r);
+
+    // compute prk_2e
+    let mut plaintext_2 = BytesPlaintext2::new();
+    prk_2e = compute_prk_2e(&x, &g_y, prk_2e);
+    plaintext_2 = decrypt_ciphertext_2(
+        &prk_2e,
+        &g_y,
+        &c_r,
+        &ciphertext_2,
+        &h_message_1,
+        plaintext_2,
+    );
+
+    // decode plaintext_2
+    let mut id_cred_r = U8(0 as u8);
+    let mut mac_2 = BytesMac2::new();
+    let mut ead_2 = BytesEad2::new();
+    let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&plaintext_2, id_cred_r, mac_2, ead_2);
+
+    // verify mac_2
+    prk_3e2m = compute_prk_3e2m(&prk_2e, &x, &G_R, prk_3e2m);
+    th_2 = compute_th_2(&h_message_1, &g_y, &c_r, th_2);
+
+    let mut cred_r = BytesMaxBuffer::new();
+    cred_r = cred_r.update(0, &CRED_R);
+    let verified =
+        compute_and_verify_mac_2(&prk_3e2m, &ID_CRED_R, &cred_r, CRED_R.len(), &th_2, &mac_2);
+
+    // XXX if not verified return an error
+
+    // step is actually from processing of message_3
+    // but we do it here to avoid storing ciphertext in State
+    let mut ciphertext_2_buf = BytesMaxBuffer::new();
+    ciphertext_2_buf = ciphertext_2_buf.update(0, &ciphertext_2);
+    th_3 = compute_th_3_th_4(&th_2, &ciphertext_2_buf, ciphertext_2.len(), th_3);
+    // message 3 processing
+    prk_4x3m = compute_prk_4x3m(&prk_3e2m, &I, &g_y, prk_4x3m);
+
+    state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
+
+    (state, c_r, id_cred_r)
 }
 
 pub fn construct_state(
@@ -109,10 +162,10 @@ pub fn parse_message_2(
     rcvd_message_2: &BytesMessage2,
     mut g_y: BytesP256ElemLen,
     mut ciphertext_2: BytesCiphertext2,
-    mut c_r: U8,
-) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
+    mut c_r: BytesCidR,
+) -> (BytesP256ElemLen, BytesCiphertext2, BytesCidR) {
     // FIXME decode negative integers as well
-    c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
+    c_r = BytesCidR([rcvd_message_2[MESSAGE_2_LEN - 1]]);
     g_y = g_y.update(0, &rcvd_message_2.slice(2, P256_ELEM_LEN));
     ciphertext_2 = ciphertext_2.update(
         0,
