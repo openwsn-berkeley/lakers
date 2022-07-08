@@ -4,7 +4,7 @@ array!(Bytes1, 1, U8);
 array!(BytesCidR, 1, U8);
 array!(BytesEad2, 0, U8);
 array!(BytesIdCred, 3, U8);
-array!(BytesSupportedSuites, 2, U8);
+array!(BytesSupportedSuites, 1, U8);
 array!(Bytes3, 3, U8);
 array!(Bytes4, 4, U8);
 array!(Bytes8, 8, U8);
@@ -64,7 +64,8 @@ pub const X: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
 pub const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
-pub const EDHOC_SUPPORTED_SUITES: Bytes1 = Bytes1(secret_bytes!([0x2u8]));
+pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
+    BytesSupportedSuites(secret_bytes!([0x2u8]));
 pub const P256_ELEM_LEN: usize = 32;
 pub const SHA256_DIGEST_LEN: usize = 32;
 pub const AES_CCM_KEY_LEN: usize = 16;
