@@ -121,6 +121,45 @@ pub fn process_message_2(mut state: State, message_2: &BytesMessage2) -> (State,
     (state, c_r, id_cred_r)
 }
 
+// message_3 must hold MESSAGE_3_LEN
+pub fn prepare_message_3(
+    mut state: State,
+    id_cred_i: &BytesIdCred,
+    cred_i: &BytesMaxBuffer,
+    mut message_3: BytesMessage3,
+) -> (State, BytesMessage3) {
+
+    let State(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, mut th_4) = state;
+
+    let mut mac_3 = BytesMac3::new();
+    let mut cred_i_buf = BytesMaxBuffer::new();
+    cred_i_buf = cred_i_buf.update(0, cred_i);
+    mac_3 = compute_mac_3(
+        &prk_4x3m,
+        &th_3,
+        id_cred_i,
+        &cred_i_buf,
+        cred_i.len(),
+        mac_3,
+    );
+
+    message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, id_cred_i, &mac_3, message_3);
+
+    // FIXME hack: skipping first byte of message_3 to get to ciphertext
+    let mut ciphertext_3 = BytesMaxBuffer::new();
+    ciphertext_3 = ciphertext_3.update_slice(0, &message_3, 1, MESSAGE_3_LEN - 1);
+    th_4 = compute_th_3_th_4(
+        &th_3,
+        &ciphertext_3,
+        MESSAGE_3_LEN - 1,
+        th_4,
+    );
+
+    state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
+
+    (state, message_3)
+}
+
 pub fn construct_state(
     x: BytesP256ElemLen,
     prk_2e: BytesP256ElemLen,
