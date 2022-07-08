@@ -438,6 +438,40 @@ pub fn compute_prk_4x3m(
     prk_4x3m
 }
 
+pub fn compute_prk_3e2m(
+    prk_2e: &BytesP256ElemLen,
+    x: &BytesP256ElemLen,
+    g_r: &BytesP256ElemLen,
+    mut prk_3e2m: BytesP256ElemLen,
+) -> BytesP256ElemLen {
+    // compute g_rx from static R's public key and private ephemeral key
+    let mut g_rx = BytesP256ElemLen::new();
+    g_rx = p256_ecdh(&x, &g_r, g_rx);
+    prk_3e2m = BytesP256ElemLen::from_seq(&extract(
+        &ByteSeq::from_slice(prk_2e, 0, prk_2e.len()),
+        &ByteSeq::from_slice(&g_rx, 0, g_rx.len()),
+    ));
+
+    prk_3e2m
+}
+
+pub fn compute_prk_2e(
+    x: &BytesP256ElemLen,
+    g_y: &BytesP256ElemLen,
+    mut prk_2e: BytesP256ElemLen,
+) -> BytesP256ElemLen {
+    let mut g_xy = BytesP256ElemLen::new();
+    // compute the shared secret
+    g_xy = p256_ecdh(&x, &g_y, g_xy);
+    // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
+    prk_2e = BytesP256ElemLen::from_seq(&extract(
+        &ByteSeq::new(0),
+        &ByteSeq::from_slice(&g_xy, 0, g_xy.len()),
+    ));
+
+    prk_2e
+}
+
 fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
