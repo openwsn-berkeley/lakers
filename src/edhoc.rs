@@ -10,6 +10,77 @@ pub mod consts;
 
 use consts::*;
 
+#[derive(Default)]
+pub struct State(
+    BytesP256ElemLen, // x, ephemeral key of the initiator
+    BytesP256ElemLen, // prk_2e
+    BytesP256ElemLen, // prk_3e2m
+    BytesP256ElemLen, // prk_4x3m
+    BytesHashLen,     // h_message_1
+    BytesHashLen,     // th_2
+    BytesHashLen,     // th_3
+    BytesHashLen,     // th_4
+);
+
+pub fn edhoc_exporter(
+    state: State,
+    label: &BytesMaxLabelBuffer,
+    label_len: usize,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+    length: usize,
+    mut output: BytesMaxBuffer,
+) -> BytesMaxBuffer {
+    let State(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4) = state;
+
+    output = edhoc_kdf(
+        &prk_4x3m,
+        &th_4,
+        label,
+        label_len,
+        context,
+        context_len,
+        length,
+        output,
+    );
+
+    output
+}
+
+// must hold MESSAGE_1_LEN
+pub fn prepare_message_1(
+    mut state: State,
+    mut buffer: BytesMaxBuffer,
+) -> (State, BytesMaxBuffer, usize) {
+
+    let State(mut x, prk_2e, prk_3e2m, prk_4x3m, mut h_message_1, th_2, th_3, th_4) = state;
+
+    // TODO generate ephemeral key
+    x = X;
+
+    let (buffer, message_1_len) =
+        encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, C_I, buffer);
+
+    h_message_1 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&buffer, 0, message_1_len)));
+
+    state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
+
+    (state, buffer, message_1_len)
+}
+
+pub fn construct_state(
+    x: BytesP256ElemLen,
+    prk_2e: BytesP256ElemLen,
+    prk_3e2m: BytesP256ElemLen,
+    prk_4x3m: BytesP256ElemLen,
+    h_message_1: BytesHashLen,
+    th_2: BytesHashLen,
+    th_3: BytesHashLen,
+    th_4: BytesHashLen,
+) -> State {
+    State(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4)
+}
+
 pub fn encode_message_1(
     method: U8,
     suites: &BytesSupportedSuites,
@@ -484,7 +555,7 @@ fn p256_ecdh(
     );
 
     // we only care about the x coordinate
-    let (x,y) = p256_point_mul(scalar, point).unwrap();
+    let (x, y) = p256_point_mul(scalar, point).unwrap();
 
     secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
     secret
