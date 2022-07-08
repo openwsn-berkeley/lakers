@@ -6,13 +6,9 @@ use hexlit::hex;
 
 array!(BytesMessage1Tv, 39, U8);
 // test vectors (TV)
-const X_TV: [u8; P256_ELEM_LEN] =
-    hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+
 const G_XY_TV: [u8; P256_ELEM_LEN] =
     hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
-
-const G_R_TV: [u8; P256_ELEM_LEN] =
-    hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
 #[test]
 fn test_encode_message_1() {
@@ -296,4 +292,44 @@ fn test_compute_prk_4x3m() {
     prk_4x3m = compute_prk_4x3m(&PRK_3E2M_TV, &I_TV, &G_Y_TV, prk_4x3m);
 
     assert_bytes_eq!(prk_4x3m, PRK_4X3M_TV);
+}
+
+#[test]
+fn test_compute_prk_3e2m() {
+    let PRK_2E_TV = BytesP256ElemLen::from_hex(
+        "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396",
+    );
+    let X_TV = BytesP256ElemLen::from_hex(
+        "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525",
+    );
+
+    let G_R_TV = BytesP256ElemLen::from_hex(
+        "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0",
+    );
+
+    let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
+        "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
+    );
+    let mut prk_3e2m = BytesP256ElemLen::new();
+    prk_3e2m = compute_prk_3e2m(&PRK_2E_TV, &X_TV, &G_R_TV, prk_3e2m);
+
+    assert_bytes_eq!(prk_3e2m, PRK_3E2M_TV);
+}
+
+#[test]
+fn test_compute_prk_2e() {
+    let X_TV = BytesP256ElemLen::from_hex(
+        "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525",
+    );
+    let G_Y_TV = BytesP256ElemLen::from_hex(
+        "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
+    );
+    let PRK_2E_TV = BytesP256ElemLen::from_hex(
+        "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396",
+    );
+
+    let mut prk_2e = BytesP256ElemLen::new();
+    prk_2e = compute_prk_2e(&X_TV, &G_Y_TV, prk_2e);
+
+    assert_bytes_eq!(prk_2e, PRK_2E_TV);
 }
