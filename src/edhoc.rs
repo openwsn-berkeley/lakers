@@ -92,24 +92,17 @@ pub fn encode_message_1(
 
     let mut index: usize = 0;
 
-    if suites.len() == 1 {
-        output[1] = suites[0];
-        index = 2;
-    } else {
-        output[1] = U8(0x80u8 | suites.len() as u8);
-        output = output.update(2, suites);
-        index = suites.len() + 2;
-    }
-    output[index] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
-    output[index + 1] = U8(P256_ELEM_LEN as u8); // length of the byte string
-    output = output.update(index + 2, g_x);
+    output[1] = suites[0];
+    output[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
+    output[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
+    output = output.update(4, g_x);
     if c_i >= 0i8 {
-        output[index + 2 + P256_ELEM_LEN] = U8(c_i as u8); // CBOR uint less than 24 is encoded verbatim
+        output[4 + P256_ELEM_LEN] = U8(c_i as u8); // CBOR uint less than 24 is encoded verbatim
     } else {
-        output[index + 2 + P256_ELEM_LEN] = U8(0x20u8 | (-1i8 + -c_i) as u8);
+        output[4 + P256_ELEM_LEN] = U8(0x20u8 | (-1i8 + -c_i) as u8);
     }
 
-    (output, index + 3 + P256_ELEM_LEN)
+    (output, 5 + P256_ELEM_LEN)
 }
 
 pub fn parse_message_2(
