@@ -69,7 +69,10 @@ pub fn prepare_message_1(
 
 // message_3 must hold MESSAGE_3_LEN
 // returns c_r
-pub fn process_message_2(mut state: State, message_2: &BytesMessage2) -> (State, BytesCidR, U8) {
+pub fn process_message_2(
+    mut state: State,
+    message_2: &BytesMessage2,
+) -> (State, bool, BytesCidR, U8) {
     let mut g_y = BytesP256ElemLen::new();
     let mut ciphertext_2 = BytesCiphertext2::new();
     let mut c_r = BytesCidR::new();
@@ -107,7 +110,6 @@ pub fn process_message_2(mut state: State, message_2: &BytesMessage2) -> (State,
         compute_and_verify_mac_2(&prk_3e2m, &ID_CRED_R, &cred_r, CRED_R.len(), &th_2, &mac_2);
 
     // XXX if not verified return an error
-
     // step is actually from processing of message_3
     // but we do it here to avoid storing ciphertext in State
     let mut ciphertext_2_buf = BytesMaxBuffer::new();
@@ -118,7 +120,7 @@ pub fn process_message_2(mut state: State, message_2: &BytesMessage2) -> (State,
 
     state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
 
-    (state, c_r, id_cred_r)
+    (state, verified, c_r, id_cred_r)
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -128,7 +130,6 @@ pub fn prepare_message_3(
     cred_i: &BytesMaxBuffer,
     mut message_3: BytesMessage3,
 ) -> (State, BytesMessage3) {
-
     let State(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, mut th_4) = state;
 
     let mut mac_3 = BytesMac3::new();
@@ -148,12 +149,7 @@ pub fn prepare_message_3(
     // FIXME hack: skipping first byte of message_3 to get to ciphertext
     let mut ciphertext_3 = BytesMaxBuffer::new();
     ciphertext_3 = ciphertext_3.update_slice(0, &message_3, 1, MESSAGE_3_LEN - 1);
-    th_4 = compute_th_3_th_4(
-        &th_3,
-        &ciphertext_3,
-        MESSAGE_3_LEN - 1,
-        th_4,
-    );
+    th_4 = compute_th_3_th_4(&th_3, &ciphertext_3, MESSAGE_3_LEN - 1, th_4);
 
     state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
 
