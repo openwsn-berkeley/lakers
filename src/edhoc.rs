@@ -72,10 +72,10 @@ pub fn prepare_message_1(
 pub fn process_message_2(
     mut state: State,
     message_2: &BytesMessage2,
-) -> (State, bool, BytesCidR, U8) {
+) -> (State, bool, BytesCid, U8) {
     let mut g_y = BytesP256ElemLen::new();
     let mut ciphertext_2 = BytesCiphertext2::new();
-    let mut c_r = BytesCidR::new();
+    let mut c_r = BytesCid::new();
 
     let State(x, mut prk_2e, mut prk_3e2m, mut prk_4x3m, h_message_1, mut th_2, mut th_3, th_4) =
         state;
@@ -197,10 +197,10 @@ pub fn parse_message_2(
     rcvd_message_2: &BytesMessage2,
     mut g_y: BytesP256ElemLen,
     mut ciphertext_2: BytesCiphertext2,
-    mut c_r: BytesCidR,
-) -> (BytesP256ElemLen, BytesCiphertext2, BytesCidR) {
+    mut c_r: BytesCid,
+) -> (BytesP256ElemLen, BytesCiphertext2, BytesCid) {
     // FIXME decode negative integers as well
-    c_r = BytesCidR([rcvd_message_2[MESSAGE_2_LEN - 1]]);
+    c_r = BytesCid([rcvd_message_2[MESSAGE_2_LEN - 1]]);
     g_y = g_y.update(0, &rcvd_message_2.slice(2, P256_ELEM_LEN));
     ciphertext_2 = ciphertext_2.update(
         0,
@@ -213,7 +213,7 @@ pub fn parse_message_2(
 pub fn compute_th_2(
     h_message_1: &BytesHashLen,
     g_y: &BytesP256ElemLen,
-    c_r: &BytesCidR,
+    c_r: &BytesCid,
     mut th_2: BytesHashLen,
 ) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
@@ -528,7 +528,7 @@ pub fn decode_plaintext_2(
 pub fn decrypt_ciphertext_2(
     prk_2e: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
-    c_r: &BytesCidR,
+    c_r: &BytesCid,
     ciphertext_2: &BytesCiphertext2,
     h_message_1: &BytesHashLen,
     mut plaintext_2: BytesPlaintext2,

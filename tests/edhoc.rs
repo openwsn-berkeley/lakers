@@ -45,7 +45,7 @@ fn test_parse_message_2() {
     let CIPHERTEXT_2_TV = BytesCiphertext2::from_hex("49cef36e229fff1e5849");
     let g_y = BytesP256ElemLen::new();
     let ciphertext_2 = BytesCiphertext2::new();
-    let c_r = BytesCidR::new();
+    let c_r = BytesCid::new();
 
     let (g_y, ciphertext_2, c_r) = parse_message_2(&MESSAGE_2_TV, g_y, ciphertext_2, c_r);
 
@@ -60,7 +60,7 @@ fn test_compute_th_2() {
     let G_Y_TV = BytesP256ElemLen::from_hex(
         "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
     );
-    let C_R_TV = BytesCidR::from_hex("27");
+    let C_R_TV = BytesCid::from_hex("27");
 
     let TH_2_TV =
         BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
@@ -257,7 +257,7 @@ fn test_decrypt_ciphertext_2() {
         "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5",
     );
 
-    let C_R_TV = BytesCidR::from_hex("27");
+    let C_R_TV = BytesCid::from_hex("27");
     let CIPHERTEXT_2_TV = BytesCiphertext2::from_hex("49cef36e229fff1e5849");
 
     let H_MESSAGE_1_TV =

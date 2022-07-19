@@ -1,7 +1,7 @@
 use hacspec_lib::*;
 
 array!(Bytes1, 1, U8);
-array!(BytesCidR, 1, U8);
+array!(BytesCid, 1, U8);
 array!(BytesEad2, 0, U8);
 array!(BytesIdCred, 3, U8);
 array!(BytesSupportedSuites, 1, U8);
