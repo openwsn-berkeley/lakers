@@ -7,9 +7,6 @@ use hexlit::hex;
 array!(BytesMessage1Tv, 37, U8);
 // test vectors (TV)
 
-const G_XY_TV: [u8; P256_ELEM_LEN] =
-    hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
-
 #[test]
 fn test_encode_message_1() {
     let METHOD_TV = U8(0x03);
