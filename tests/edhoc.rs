@@ -18,17 +18,15 @@ fn test_encode_message_1() {
     let G_X_TV = BytesP256ElemLen::from_hex(
         "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6",
     );
-    let C_I_TV: i8 = -24i8;
+    let C_I_TV = BytesCid::from_hex("37");
 
     // manually modified test vector to include a single supported cipher suite
     let MESSAGE_1_TV = BytesMessage1Tv::from_hex(
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637",
     );
 
-    let message_1 = BytesMaxBuffer::new();
-
     let (message_1, message_1_len) =
-        encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV, message_1);
+        encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, &C_I_TV);
 
     assert_eq!(message_1_len, MESSAGE_1_TV.len());
     for i in 0..MESSAGE_1_TV.len() {
@@ -47,7 +45,7 @@ fn test_parse_message_2() {
     let ciphertext_2 = BytesCiphertext2::new();
     let c_r = BytesCid::new();
 
-    let (g_y, ciphertext_2, c_r) = parse_message_2(&MESSAGE_2_TV, g_y, ciphertext_2, c_r);
+    let (g_y, ciphertext_2, c_r) = parse_message_2(&MESSAGE_2_TV);
 
     assert_bytes_eq!(g_y, G_Y_TV);
     assert_bytes_eq!(ciphertext_2, CIPHERTEXT_2_TV);
@@ -65,8 +63,7 @@ fn test_compute_th_2() {
     let TH_2_TV =
         BytesHashLen::from_hex("9b99cfd7afdcbcc9950a6373507f2a81013319625697e4f9bf7a448fc8e633ca");
 
-    let th_2 = BytesHashLen::new();
-    let th_2 = compute_th_2(&H_MESSAGE_1_TV, &G_Y_TV, &C_R_TV, th_2);
+    let th_2 = compute_th_2(&H_MESSAGE_1_TV, &G_Y_TV, &C_R_TV);
     assert_bytes_eq!(th_2, TH_2_TV);
 }
 
@@ -87,12 +84,10 @@ fn test_compute_th_3_th_4() {
     );
     let TH_4_TV =
         BytesHashLen::from_hex("ba682e7165e9d484bd2ebb031c09da1ea5b82eb332439c4c7ec73c2c239e3450");
-    let th_3 = BytesHashLen::new();
-    let th_3 = compute_th_3_th_4(&TH_2_TV, &CIPHERTEXT_2_TV, CIPHERTEXT_2_LEN, th_3);
+    let th_3 = compute_th_3_th_4(&TH_2_TV, &CIPHERTEXT_2_TV, CIPHERTEXT_2_LEN);
     assert_bytes_eq!(th_3, TH_3_TV);
 
-    let th_4 = BytesHashLen::new();
-    let th_4 = compute_th_3_th_4(&TH_3_TV, &CIPHERTEXT_3_TV, CIPHERTEXT_3_LEN, th_4);
+    let th_4 = compute_th_3_th_4(&TH_3_TV, &CIPHERTEXT_3_TV, CIPHERTEXT_3_LEN);
     assert_bytes_eq!(th_4, TH_4_TV);
 }
 
@@ -114,9 +109,8 @@ fn test_edhoc_kdf() {
 
     let CONTEXT = BytesMaxContextBuffer::new();
 
-    let mut output = BytesMaxBuffer::new();
-    output = edhoc_kdf(
-        &PRK_2E_TV, &TH_2_TV, &LABEL_TV, 11, &CONTEXT, 0, LEN_TV, output,
+    let output = edhoc_kdf(
+        &PRK_2E_TV, &TH_2_TV, &LABEL_TV, 11, &CONTEXT, 0, LEN_TV,
     );
 
     for i in 0..KEYSTREAM_2_TV.len() {
@@ -137,9 +131,7 @@ fn test_edhoc_kdf() {
 
     let MAC_2_TV = BytesMac2::from_hex("3324d5a4afcd4326");
 
-    let mut output_2 = BytesMaxBuffer::new();
-
-    output_2 = edhoc_kdf(
+    let output_2 = edhoc_kdf(
         &PRK_3E2M_TV,
         &TH_2_TV,
         &LABEL_MAC_2_TV,
@@ -147,7 +139,6 @@ fn test_edhoc_kdf() {
         &CONTEXT_INFO_MAC_2,
         CONTEXT_INFO_MAC_2_LEN,
         MAC_LENGTH_2,
-        output_2,
     );
 
     for i in 0..MAC_2_TV.len() {
@@ -167,14 +158,12 @@ fn test_compute_bstr_ciphertext_3() {
     let MAC_3_TV = BytesMac3::from_hex("4cd53d74f0a6ed8b");
 
     let MESSAGE_3_TV = BytesMessage3::from_hex("52885c63fd0b17f2c3f8f10bc8bf3f470ec8a1");
-    let mut bstr_ciphertext_3 = BytesMessage3::new();
 
-    bstr_ciphertext_3 = compute_bstr_ciphertext_3(
+    let bstr_ciphertext_3 = compute_bstr_ciphertext_3(
         &PRK_3E2M_TV,
         &TH_3_TV,
         &ID_CRED_I_TV,
         &MAC_3_TV,
-        bstr_ciphertext_3,
     );
 
     assert_bytes_eq!(bstr_ciphertext_3, MESSAGE_3_TV);
@@ -182,8 +171,6 @@ fn test_compute_bstr_ciphertext_3() {
 
 #[test]
 fn test_compute_mac_3() {
-    let mut mac_3 = BytesMac3::new();
-
     let PRK_4X3M_TV = BytesP256ElemLen::from_hex(
         "4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477",
     );
@@ -195,13 +182,12 @@ fn test_compute_mac_3() {
 
     let MAC_3_TV = BytesMac3::from_hex("4cd53d74f0a6ed8b");
 
-    mac_3 = compute_mac_3(
+    let mac_3 = compute_mac_3(
         &PRK_4X3M_TV,
         &TH_3_TV,
         &ID_CRED_I_TV,
         &CRED_I_TV,
         106,
-        mac_3,
     );
     assert_bytes_eq!(mac_3, MAC_3_TV);
 }
@@ -238,11 +224,7 @@ fn test_decode_plaintext_2() {
     let MAC_2_TV = BytesMac2::from_hex("3324d5a4afcd4326");
     let EAD_2_TV = BytesEad2::new();
 
-    let mut id_cred_r = U8(0);
-    let mut mac_2 = BytesMac2::new();
-    let mut ead_2 = BytesEad2::new();
-
-    let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&PLAINTEXT_2_TV, id_cred_r, mac_2, ead_2);
+    let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&PLAINTEXT_2_TV);
     assert_eq!(U8::declassify(id_cred_r), U8::declassify(ID_CRED_R_TV[2]));
     assert_bytes_eq!(mac_2, MAC_2_TV);
     assert_bytes_eq!(ead_2, EAD_2_TV);
@@ -264,14 +246,12 @@ fn test_decrypt_ciphertext_2() {
         BytesHashLen::from_hex("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
     let PLAINTEXT_2_TV = BytesPlaintext2::from_hex("32483324d5a4afcd4326");
 
-    let mut plaintext_2 = BytesPlaintext2::new();
-    plaintext_2 = decrypt_ciphertext_2(
+    let plaintext_2 = decrypt_ciphertext_2(
         &PRK_2E_TV,
         &G_Y_TV,
         &C_R_TV,
         &CIPHERTEXT_2_TV,
         &H_MESSAGE_1_TV,
-        plaintext_2,
     );
 
     assert_bytes_eq!(PLAINTEXT_2_TV, plaintext_2);
@@ -292,8 +272,7 @@ fn test_compute_prk_4x3m() {
         "4a40f2aca7e1d9dbaf2b276bce75f0ce6d513f75a95af8905f2a14f2493b2477",
     );
 
-    let mut prk_4x3m = BytesP256ElemLen::new();
-    prk_4x3m = compute_prk_4x3m(&PRK_3E2M_TV, &I_TV, &G_Y_TV, prk_4x3m);
+    let prk_4x3m = compute_prk_4x3m(&PRK_3E2M_TV, &I_TV, &G_Y_TV);
 
     assert_bytes_eq!(prk_4x3m, PRK_4X3M_TV);
 }
@@ -314,8 +293,8 @@ fn test_compute_prk_3e2m() {
     let PRK_3E2M_TV = BytesP256ElemLen::from_hex(
         "af4b5918682adf4c96fd7305b69f8fb78efc9a230dd21f4c61be7d3c109446b3",
     );
-    let mut prk_3e2m = BytesP256ElemLen::new();
-    prk_3e2m = compute_prk_3e2m(&PRK_2E_TV, &X_TV, &G_R_TV, prk_3e2m);
+
+    let prk_3e2m = compute_prk_3e2m(&PRK_2E_TV, &X_TV, &G_R_TV);
 
     assert_bytes_eq!(prk_3e2m, PRK_3E2M_TV);
 }
@@ -332,8 +311,7 @@ fn test_compute_prk_2e() {
         "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396",
     );
 
-    let mut prk_2e = BytesP256ElemLen::new();
-    prk_2e = compute_prk_2e(&X_TV, &G_Y_TV, prk_2e);
+    let prk_2e = compute_prk_2e(&X_TV, &G_Y_TV);
 
     assert_bytes_eq!(prk_2e, PRK_2E_TV);
 }
