@@ -83,7 +83,7 @@ pub fn process_message_2(
 
     // verify mac_2
     prk_3e2m = compute_prk_3e2m(&prk_2e, &x, &G_R);
-    th_2 = compute_th_2(&h_message_1, &g_y, &c_r);
+    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
 
     let mut cred_r = BytesMaxBuffer::new();
     cred_r = cred_r.update(0, &CRED_R);
@@ -176,27 +176,20 @@ fn parse_message_2(
 }
 
 fn compute_th_2(
-    h_message_1: &BytesHashLen,
     g_y: &BytesP256ElemLen,
     c_r: &BytesCid,
+    h_message_1: &BytesHashLen,
 ) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
     message[0] = U8(CBOR_BYTE_STRING);
-    message[1] = U8(SHA256_DIGEST_LEN as u8);
-    message = message.update(2, h_message_1);
-    message[SHA256_DIGEST_LEN + 2] = U8(CBOR_BYTE_STRING);
-    message[SHA256_DIGEST_LEN + 3] = U8(P256_ELEM_LEN as u8);
-    message = message.update(SHA256_DIGEST_LEN + 4, g_y);
+    message[1] = U8(P256_ELEM_LEN as u8);
+    message = message.update(2, g_y);
+    message = message.update(2 + P256_ELEM_LEN, c_r);
+    message[2 + P256_ELEM_LEN + c_r.len()] = U8(CBOR_BYTE_STRING);
+    message[3 + P256_ELEM_LEN + c_r.len()] = U8(SHA256_DIGEST_LEN as u8);
+    message = message.update(4 + P256_ELEM_LEN + c_r.len(), h_message_1);
 
-    let c_r: U8 = c_r[0];
-    let c_r_declassified = c_r.declassify() as i8;
-    if c_r_declassified >= 0i8 {
-        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] = c_r;
-    } else {
-        message[SHA256_DIGEST_LEN + 4 + P256_ELEM_LEN] =
-            U8(0x20u8 | (-1i8 - c_r_declassified) as u8);
-    }
-    let len = SHA256_DIGEST_LEN + 5 + P256_ELEM_LEN;
+    let len = 4 + P256_ELEM_LEN + c_r.len() + SHA256_DIGEST_LEN;
 
     let th_2 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message, 0, len)));
 
@@ -473,7 +466,7 @@ fn decrypt_ciphertext_2(
     h_message_1: &BytesHashLen,
 ) -> BytesPlaintext2 {
     // compute the transcript hash th_2
-    let th_2 = compute_th_2(h_message_1, g_y, c_r);
+    let th_2 = compute_th_2(g_y, c_r, h_message_1);
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e, TH_2, "KEYSTREAM_2", h'', plaintext_length )
     let mut label_keystream_2 = BytesMaxLabelBuffer::new();
@@ -641,7 +634,7 @@ mod tests {
         let c_r_tv = BytesCid::from_hex(C_R_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
 
-        let th_2 = compute_th_2(&h_message_1_tv, &g_y_tv, &c_r_tv);
+        let th_2 = compute_th_2(&g_y_tv, &c_r_tv, &h_message_1_tv);
         assert_bytes_eq!(th_2, th_2_tv);
     }
 
