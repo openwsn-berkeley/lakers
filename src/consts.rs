@@ -3,7 +3,7 @@ use hacspec_lib::*;
 array!(Bytes1, 1, U8);
 array!(BytesCid, 1, U8);
 array!(BytesEad2, 0, U8);
-array!(BytesIdCred, 3, U8);
+array!(BytesIdCred, 4, U8);
 array!(BytesSupportedSuites, 1, U8);
 array!(Bytes3, 3, U8);
 array!(Bytes4, 4, U8);
@@ -34,7 +34,7 @@ pub const I: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
     0x53u8, 0x40u8, 0x6au8, 0x13u8, 0x05u8, 0xe8u8, 0x70u8, 0x6bu8
 ]));
 
-pub const ID_CRED_R: BytesIdCred = BytesIdCred(secret_bytes!([0xA1u8, 0x04u8, 0x05u8]));
+pub const ID_CRED_R: BytesIdCred = BytesIdCred(secret_bytes!([0xA1u8, 0x04u8, 0x41u8, 0x32u8]));
 pub const CRED_R: Bytes83 = Bytes83(secret_bytes!([
     0xA2u8, 0x02u8, 0x60u8, 0x08u8, 0xA1u8, 0x01u8, 0xA5u8, 0x01u8, 0x02u8, 0x02u8, 0x05u8, 0x20u8,
     0x01u8, 0x21u8, 0x58u8, 0x20u8, 0x6Fu8, 0x97u8, 0x02u8, 0xA6u8, 0x66u8, 0x02u8, 0xD7u8, 0x8Fu8,
