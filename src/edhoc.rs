@@ -30,23 +30,23 @@ pub fn edhoc_exporter(
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
-) -> BytesMaxBuffer {
+) -> (State, BytesMaxBuffer) {
     let State(
         _x,
         _prk_2e,
         _prk_3e2m,
         _prk_4e3m,
-        prk_out,
+        _prk_out,
         prk_exporter,
         _h_message_1,
         _th_2,
         _th_3,
-        th_4,
+        _th_4,
     ) = state;
 
     let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
 
-    output
+    (state, output)
 }
 
 // must hold MESSAGE_1_LEN
