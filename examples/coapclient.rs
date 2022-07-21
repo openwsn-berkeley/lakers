@@ -3,10 +3,11 @@ use hacspec_edhoc::consts::*;
 use hacspec_edhoc::*;
 use hacspec_lib::*;
 const ID_CRED_I: &str = "a104412b";
+const ID_CRED_R: u8 = 0x0au8;
 const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
 
 fn main() {
-    let url = "coap://127.0.0.1:5683/.well-known/edhoc";
+    let url = "coap://92.34.13.218:5690/.well-known/edhoc";
     println!("Client request: {}", url);
 
     let state: State = Default::default();
