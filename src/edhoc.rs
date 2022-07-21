@@ -451,14 +451,14 @@ fn compute_prk_4x3m(
 }
 
 fn compute_prk_3e2m(
-    prk_2e: &BytesP256ElemLen,
+    salt_3e2m: &BytesP256ElemLen,
     x: &BytesP256ElemLen,
     g_r: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_rx = p256_ecdh(x, g_r);
     let prk_3e2m = BytesP256ElemLen::from_seq(&extract(
-        &ByteSeq::from_slice(prk_2e, 0, prk_2e.len()),
+        &ByteSeq::from_slice(salt_3e2m, 0, salt_3e2m.len()),
         &ByteSeq::from_slice(&g_rx, 0, g_rx.len()),
     ));
 
@@ -532,6 +532,7 @@ mod tests {
     const X_TV: &str = "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525";
     const G_R_TV: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const PLAINTEXT_3_TV: &str = "2b48354f0bc2741eeac6";
+    const SALT_3E2M_TV: &str = "3992a44f330facfc256a00ba320d778a69f99970db398a613f9c25068e0abd03";
 
     #[test]
     fn test_encode_message_1() {
@@ -729,12 +730,12 @@ mod tests {
 
     #[test]
     fn test_compute_prk_3e2m() {
-        let prk_2e_tv = BytesP256ElemLen::from_hex(PRK_2E_TV);
+        let salt_3e2m_tv = BytesP256ElemLen::from_hex(SALT_3E2M_TV);
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_r_tv = BytesP256ElemLen::from_hex(G_R_TV);
         let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
 
-        let prk_3e2m = compute_prk_3e2m(&prk_2e_tv, &x_tv, &g_r_tv);
+        let prk_3e2m = compute_prk_3e2m(&salt_3e2m_tv, &x_tv, &g_r_tv);
         assert_bytes_eq!(prk_3e2m, prk_3e2m_tv);
     }
 
