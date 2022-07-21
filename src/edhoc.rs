@@ -709,7 +709,11 @@ mod tests {
             &ciphertext_2_tv,
             &h_message_1_tv,
         );
-        assert_bytes_eq!(plaintext_2_tv, plaintext_2);
+
+        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
+        for i in 0..PLAINTEXT_2_LEN {
+            assert_eq!(plaintext_2[i].declassify(), plaintext_2_tv[i].declassify());
+        }
     }
 
     #[test]
