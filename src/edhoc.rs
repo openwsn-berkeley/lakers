@@ -436,14 +436,14 @@ fn decrypt_ciphertext_2(
 }
 
 fn compute_prk_4x3m(
-    prk_3e2m: &BytesP256ElemLen,
+    salt_4e3m: &BytesP256ElemLen,
     i: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_iy = p256_ecdh(i, g_y);
     let prk_4x3m = BytesP256ElemLen::from_seq(&extract(
-        &ByteSeq::from_slice(prk_3e2m, 0, prk_3e2m.len()),
+        &ByteSeq::from_slice(salt_4e3m, 0, salt_4e3m.len()),
         &ByteSeq::from_slice(&g_iy, 0, g_iy.len()),
     ));
 
@@ -533,6 +533,7 @@ mod tests {
     const G_R_TV: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const PLAINTEXT_3_TV: &str = "2b48354f0bc2741eeac6";
     const SALT_3E2M_TV: &str = "3992a44f330facfc256a00ba320d778a69f99970db398a613f9c25068e0abd03";
+    const SALT_4E3M_TV: &str = "b842a711416d16f69324969f68bda746629d71b99d0a88160e12b94f4558ecfd";
 
     #[test]
     fn test_encode_message_1() {
@@ -719,12 +720,12 @@ mod tests {
 
     #[test]
     fn test_compute_prk_4x3m() {
-        let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
+        let salt_4e3m_tv = BytesP256ElemLen::from_hex(SALT_4E3M_TV);
         let i_tv = BytesP256ElemLen::from_hex(I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let prk_4x3m_tv = BytesP256ElemLen::from_hex(PRK_4X3M_TV);
 
-        let prk_4x3m = compute_prk_4x3m(&prk_3e2m_tv, &i_tv, &g_y_tv);
+        let prk_4x3m = compute_prk_4x3m(&salt_4e3m_tv, &i_tv, &g_y_tv);
         assert_bytes_eq!(prk_4x3m, prk_4x3m_tv);
     }
 
