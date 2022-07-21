@@ -74,7 +74,19 @@ pub fn process_message_2(
     let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
     // verify mac_2
-    prk_3e2m = compute_prk_3e2m(&prk_2e, &x, &G_R);
+    let mut th_2_context = BytesMaxContextBuffer::new();
+    th_2_context = th_2_context.update(0, &th_2);
+    let salt_3e2m_buf = edhoc_kdf(
+        &prk_2e,
+        U8(1),
+        &th_2_context,
+        SHA256_DIGEST_LEN,
+        SHA256_DIGEST_LEN,
+    );
+    let mut salt_3e2m = BytesHashLen::new();
+    salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
+
+    prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
     th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
 
     let mut cred_r = BytesMaxBuffer::new();
@@ -89,7 +101,20 @@ pub fn process_message_2(
     ciphertext_2_buf = ciphertext_2_buf.update(0, &ciphertext_2);
     th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2.len());
     // message 3 processing
-    prk_4x3m = compute_prk_4x3m(&prk_3e2m, &I, &g_y);
+
+    let mut th_3_context = BytesMaxContextBuffer::new();
+    th_3_context = th_3_context.update(0, &th_3);
+    let salt_4e3m_buf = edhoc_kdf(
+        &prk_3e2m,
+        U8(5),
+        &th_3_context,
+        SHA256_DIGEST_LEN,
+        SHA256_DIGEST_LEN,
+    );
+    let mut salt_4e3m = BytesHashLen::new();
+    salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
+
+    prk_4x3m = compute_prk_4x3m(&salt_4e3m, &I, &g_y);
 
     state = construct_state(x, prk_2e, prk_3e2m, prk_4x3m, h_message_1, th_2, th_3, th_4);
 
@@ -436,7 +461,7 @@ fn decrypt_ciphertext_2(
 }
 
 fn compute_prk_4x3m(
-    salt_4e3m: &BytesP256ElemLen,
+    salt_4e3m: &BytesHashLen,
     i: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
@@ -451,7 +476,7 @@ fn compute_prk_4x3m(
 }
 
 fn compute_prk_3e2m(
-    salt_3e2m: &BytesP256ElemLen,
+    salt_3e2m: &BytesHashLen,
     x: &BytesP256ElemLen,
     g_r: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
@@ -720,7 +745,7 @@ mod tests {
 
     #[test]
     fn test_compute_prk_4x3m() {
-        let salt_4e3m_tv = BytesP256ElemLen::from_hex(SALT_4E3M_TV);
+        let salt_4e3m_tv = BytesHashLen::from_hex(SALT_4E3M_TV);
         let i_tv = BytesP256ElemLen::from_hex(I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let prk_4x3m_tv = BytesP256ElemLen::from_hex(PRK_4X3M_TV);
@@ -731,7 +756,7 @@ mod tests {
 
     #[test]
     fn test_compute_prk_3e2m() {
-        let salt_3e2m_tv = BytesP256ElemLen::from_hex(SALT_3E2M_TV);
+        let salt_3e2m_tv = BytesHashLen::from_hex(SALT_3E2M_TV);
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_r_tv = BytesP256ElemLen::from_hex(G_R_TV);
         let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
