@@ -379,7 +379,7 @@ fn compute_mac_3(
     // compute mac_3
     let output_buf = edhoc_kdf(
         prk_4e3m,
-        U8(5), // length of "MAC_3"
+        U8(6), // registered label for "MAC_3"
         &context,
         context_len,
         MAC_LENGTH_3,
