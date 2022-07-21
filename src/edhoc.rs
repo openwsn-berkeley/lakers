@@ -13,9 +13,11 @@ use consts::*;
 #[derive(Default)]
 pub struct State(
     BytesP256ElemLen, // x, ephemeral key of the initiator
-    BytesP256ElemLen, // prk_2e
-    BytesP256ElemLen, // prk_3e2m
-    BytesP256ElemLen, // prk_4e3m
+    BytesHashLen,     // prk_2e
+    BytesHashLen,     // prk_3e2m
+    BytesHashLen,     // prk_4e3m
+    BytesHashLen,     // prk_out
+    BytesHashLen,     // prk_exporter
     BytesHashLen,     // h_message_1
     BytesHashLen,     // th_2
     BytesHashLen,     // th_3
@@ -29,16 +31,28 @@ pub fn edhoc_exporter(
     context_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let State(_x, _prk_2e, _prk_3e2m, prk_4e3m, _h_message_1, _th_2, _th_3, th_4) = state;
+    let State(
+        _x,
+        _prk_2e,
+        _prk_3e2m,
+        _prk_4e3m,
+        prk_out,
+        prk_exporter,
+        _h_message_1,
+        _th_2,
+        _th_3,
+        th_4,
+    ) = state;
 
-    let output = edhoc_kdf(&prk_4e3m, label, context, context_len, length);
+    let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
 
     output
 }
 
 // must hold MESSAGE_1_LEN
 pub fn prepare_message_1(mut state: State) -> (State, BytesMaxBuffer, usize) {
-    let State(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, th_4) = state;
+    let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
+        state;
 
     // TODO generate ephemeral key
     let x = X;
@@ -49,7 +63,18 @@ pub fn prepare_message_1(mut state: State) -> (State, BytesMaxBuffer, usize) {
     let h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&buffer, 0, message_1_len)));
 
-    state = construct_state(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, th_4);
+    state = construct_state(
+        x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
 
     (state, buffer, message_1_len)
 }
@@ -60,8 +85,18 @@ pub fn process_message_2(
     mut state: State,
     message_2: &BytesMessage2,
 ) -> (State, bool, BytesCid, U8) {
-    let State(x, mut prk_2e, mut prk_3e2m, mut prk_4e3m, h_message_1, mut th_2, mut th_3, th_4) =
-        state;
+    let State(
+        x,
+        mut prk_2e,
+        mut prk_3e2m,
+        mut prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        mut th_2,
+        mut th_3,
+        th_4,
+    ) = state;
 
     let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
 
@@ -116,7 +151,18 @@ pub fn process_message_2(
 
     prk_4e3m = compute_prk_4e3m(&salt_4e3m, &I, &g_y);
 
-    state = construct_state(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, th_4);
+    state = construct_state(
+        x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
 
     (state, verified, c_r, id_cred_r)
 }
@@ -127,7 +173,18 @@ pub fn prepare_message_3(
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
 ) -> (State, BytesMessage3) {
-    let State(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, mut th_4) = state;
+    let State(
+        x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        mut prk_out,
+        mut prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        mut th_4,
+    ) = state;
 
     let mut cred_i_buf = BytesMaxBuffer::new();
     cred_i_buf = cred_i_buf.update(0, cred_i);
@@ -140,22 +197,70 @@ pub fn prepare_message_3(
     ciphertext_3 = ciphertext_3.update_slice(0, &message_3, 1, MESSAGE_3_LEN - 1);
     th_4 = compute_th_3_th_4(&th_3, &ciphertext_3, MESSAGE_3_LEN - 1);
 
-    state = construct_state(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, th_4);
+    // compute prk_out
+    // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4,      hash_length )
+    let mut th_4_context = BytesMaxContextBuffer::new();
+    th_4_context = th_4_context.update(0, &th_4);
+    let prk_out_buf = edhoc_kdf(
+        &prk_4e3m,
+        U8(7),
+        &th_4_context,
+        SHA256_DIGEST_LEN,
+        SHA256_DIGEST_LEN,
+    );
+    prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
+
+    // compute prk_exporter from prk_out
+    // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+    let prk_exporter_buf = edhoc_kdf(
+        &prk_out,
+        U8(10),
+        &BytesMaxContextBuffer::new(),
+        0,
+        SHA256_DIGEST_LEN,
+    );
+    prk_exporter = prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
+
+    state = construct_state(
+        x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
 
     (state, message_3)
 }
 
 pub fn construct_state(
     x: BytesP256ElemLen,
-    prk_2e: BytesP256ElemLen,
-    prk_3e2m: BytesP256ElemLen,
-    prk_4e3m: BytesP256ElemLen,
+    prk_2e: BytesHashLen,
+    prk_3e2m: BytesHashLen,
+    prk_4e3m: BytesHashLen,
+    prk_out: BytesHashLen,
+    prk_exporter: BytesHashLen,
     h_message_1: BytesHashLen,
     th_2: BytesHashLen,
     th_3: BytesHashLen,
     th_4: BytesHashLen,
 ) -> State {
-    State(x, prk_2e, prk_3e2m, prk_4e3m, h_message_1, th_2, th_3, th_4)
+    State(
+        x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    )
 }
 
 fn encode_message_1(
@@ -237,7 +342,7 @@ fn compute_th_3_th_4(
 }
 
 fn edhoc_kdf(
-    prk: &BytesP256ElemLen,
+    prk: &BytesHashLen,
     label: U8,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -278,7 +383,7 @@ fn edhoc_kdf(
 // calculates ciphertext_3 wrapped in a cbor byte string
 // output must hold MESSAGE_3_LEN
 fn compute_bstr_ciphertext_3(
-    prk_3e2m: &BytesP256ElemLen,
+    prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
@@ -367,7 +472,7 @@ fn encode_kdf_context(
 }
 
 fn compute_mac_3(
-    prk_4e3m: &BytesP256ElemLen,
+    prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
@@ -391,7 +496,7 @@ fn compute_mac_3(
 }
 
 fn compute_and_verify_mac_2(
-    prk_3e2m: &BytesP256ElemLen,
+    prk_3e2m: &BytesHashLen,
     id_cred_r: &BytesIdCred,
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
@@ -431,7 +536,7 @@ fn decode_plaintext_2(
 }
 
 fn decrypt_ciphertext_2(
-    prk_2e: &BytesP256ElemLen,
+    prk_2e: &BytesHashLen,
     g_y: &BytesP256ElemLen,
     c_r: &BytesCid,
     ciphertext_2: &BytesCiphertext2,
@@ -464,10 +569,10 @@ fn compute_prk_4e3m(
     salt_4e3m: &BytesHashLen,
     i: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
-) -> BytesP256ElemLen {
+) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_iy = p256_ecdh(i, g_y);
-    let prk_4e3m = BytesP256ElemLen::from_seq(&extract(
+    let prk_4e3m = BytesHashLen::from_seq(&extract(
         &ByteSeq::from_slice(salt_4e3m, 0, salt_4e3m.len()),
         &ByteSeq::from_slice(&g_iy, 0, g_iy.len()),
     ));
@@ -479,10 +584,10 @@ fn compute_prk_3e2m(
     salt_3e2m: &BytesHashLen,
     x: &BytesP256ElemLen,
     g_r: &BytesP256ElemLen,
-) -> BytesP256ElemLen {
+) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_rx = p256_ecdh(x, g_r);
-    let prk_3e2m = BytesP256ElemLen::from_seq(&extract(
+    let prk_3e2m = BytesHashLen::from_seq(&extract(
         &ByteSeq::from_slice(salt_3e2m, 0, salt_3e2m.len()),
         &ByteSeq::from_slice(&g_rx, 0, g_rx.len()),
     ));
@@ -490,11 +595,11 @@ fn compute_prk_3e2m(
     prk_3e2m
 }
 
-fn compute_prk_2e(x: &BytesP256ElemLen, g_y: &BytesP256ElemLen) -> BytesP256ElemLen {
+fn compute_prk_2e(x: &BytesP256ElemLen, g_y: &BytesP256ElemLen) -> BytesHashLen {
     // compute the shared secret
     let g_xy = p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = BytesP256ElemLen::from_seq(&extract(
+    let prk_2e = BytesHashLen::from_seq(&extract(
         &ByteSeq::new(0),
         &ByteSeq::from_slice(&g_xy, 0, g_xy.len()),
     ));
@@ -547,7 +652,7 @@ mod tests {
     const MAC_2_TV: &str = "ad01bc30c6911176";
     const ID_CRED_I_TV: &str = "a104412b";
     const MAC_3_TV: &str = "354f0bc2741eeac6";
-    const MESSAGE_3_TV: &str = "2752c25c8420036764462f57357986616c8d21b0";
+    const MESSAGE_3_TV: &str = "52c25c8420036764462f57357986616c8d21b0";
     const PRK_4X3M_TV: &str = "9eda8cd755ae3b80b47e8ddbb8d7c5fe2b62b462e4bcba2c6c8ea36ee5fb604d";
     const CRED_I_TV : &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
     const ID_CRED_R_TV: &str = "a1044132";
@@ -621,7 +726,7 @@ mod tests {
     fn test_edhoc_kdf() {
         let mut th_2_context_tv = BytesMaxContextBuffer::new();
         th_2_context_tv = th_2_context_tv.update(0, &ByteSeq::from_hex(TH_2_TV));
-        let prk_2e_tv = BytesP256ElemLen::from_hex(PRK_2E_TV);
+        let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let keystream_2_tv = BytesPlaintext2::from_hex(KEYSTREAM_2_TV);
         const LEN_TV: usize = 10;
 
@@ -636,7 +741,7 @@ mod tests {
             assert_eq!(keystream_2_tv[i].declassify(), output[i].declassify());
         }
 
-        let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
+        let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let mut context_info_mac_2 = BytesMaxContextBuffer::new();
         context_info_mac_2 =
             context_info_mac_2.update(0, &ByteSeq::from_hex(CONTEXT_INFO_MAC_2_TV));
@@ -657,7 +762,7 @@ mod tests {
 
     #[test]
     fn test_compute_bstr_ciphertext_3() {
-        let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
+        let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
@@ -670,7 +775,7 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
-        let prk_4e3m_tv = BytesP256ElemLen::from_hex(PRK_4X3M_TV);
+        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4X3M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let mut cred_i_tv = BytesMaxBuffer::new();
@@ -689,7 +794,7 @@ mod tests {
 
     #[test]
     fn test_compute_and_verify_mac_2() {
-        let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
+        let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mut cred_r_tv = BytesMaxBuffer::new();
         cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
@@ -722,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_decrypt_ciphertext_2() {
-        let prk_2e_tv = BytesP256ElemLen::from_hex(PRK_2E_TV);
+        let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let c_r_tv = BytesCid::from_hex(C_R_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
@@ -748,7 +853,7 @@ mod tests {
         let salt_4e3m_tv = BytesHashLen::from_hex(SALT_4E3M_TV);
         let i_tv = BytesP256ElemLen::from_hex(I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let prk_4e3m_tv = BytesP256ElemLen::from_hex(PRK_4X3M_TV);
+        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4X3M_TV);
 
         let prk_4e3m = compute_prk_4e3m(&salt_4e3m_tv, &i_tv, &g_y_tv);
         assert_bytes_eq!(prk_4e3m, prk_4e3m_tv);
@@ -759,7 +864,7 @@ mod tests {
         let salt_3e2m_tv = BytesHashLen::from_hex(SALT_3E2M_TV);
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_r_tv = BytesP256ElemLen::from_hex(G_R_TV);
-        let prk_3e2m_tv = BytesP256ElemLen::from_hex(PRK_3E2M_TV);
+        let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
 
         let prk_3e2m = compute_prk_3e2m(&salt_3e2m_tv, &x_tv, &g_r_tv);
         assert_bytes_eq!(prk_3e2m, prk_3e2m_tv);
@@ -769,7 +874,7 @@ mod tests {
     fn test_compute_prk_2e() {
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let prk_2e_tv = BytesP256ElemLen::from_hex(PRK_2E_TV);
+        let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
 
         let prk_2e = compute_prk_2e(&x_tv, &g_y_tv);
         assert_bytes_eq!(prk_2e, prk_2e_tv);
