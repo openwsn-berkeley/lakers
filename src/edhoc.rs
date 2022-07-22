@@ -84,6 +84,9 @@ pub fn prepare_message_1(mut state: State) -> (State, BytesMaxBuffer, usize) {
 pub fn process_message_2(
     mut state: State,
     message_2: &BytesMessage2,
+    id_cred_r_expected: &BytesIdCred,
+    cred_r_expected: &BytesMaxBuffer,
+    cred_r_len: usize,
 ) -> (State, bool, BytesCid, U8) {
     let State(
         x,
@@ -124,10 +127,8 @@ pub fn process_message_2(
 
     prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
 
-    let mut cred_r = BytesMaxBuffer::new();
-    cred_r = cred_r.update(0, &CRED_R);
     let verified =
-        compute_and_verify_mac_2(&prk_3e2m, &ID_CRED_R, &cred_r, CRED_R.len(), &th_2, &mac_2);
+        compute_and_verify_mac_2(&prk_3e2m, &id_cred_r_expected, &cred_r_expected, cred_r_len, &th_2, &mac_2);
 
     // XXX if not verified return an error
     // step is actually from processing of message_3

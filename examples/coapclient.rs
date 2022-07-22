@@ -3,18 +3,27 @@ use hacspec_edhoc::consts::*;
 use hacspec_edhoc::*;
 use hacspec_lib::*;
 const ID_CRED_I: &str = "a104412b";
-const ID_CRED_R: u8 = 0x0au8;
+const ID_CRED_R: &str = "a104410a";
 const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
+const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
 
 fn main() {
     let url = "coap://92.34.13.218:5690/.well-known/edhoc";
     println!("Client request: {}", url);
 
     let state: State = Default::default();
+
+    // init hacspec structs for id_cred_i and cred_i
     let id_cred_i = BytesIdCred::from_hex(ID_CRED_I);
     let mut cred_i = BytesMaxBuffer::new();
     cred_i = cred_i.update(0, &ByteSeq::from_hex(CRED_I));
     let cred_i_len = CRED_I.len() / 2;
+
+    // init hacspec structs for id_cred_r and cred_r
+    let id_cred_r = BytesIdCred::from_hex(ID_CRED_R);
+    let mut cred_r = BytesMaxBuffer::new();
+    cred_r = cred_r.update(0, &ByteSeq::from_hex(CRED_R));
+    let cred_r_len = CRED_R.len() / 2;
 
     let (state, message_1, message_1_len) = prepare_message_1(state);
     // Send Message 1 over CoAP and convert the response to byte
@@ -32,10 +41,7 @@ fn main() {
     message_2 = message_2.update(0, &ByteSeq::from_public_slice(&response.message.payload));
     let message_2_len = response.message.payload.len();
 
-    let (state, verified, c_r, id_cred_r) = process_message_2(state, &message_2);
-
-    // Check that we are talking with the expected peer
-    assert_eq!(ID_CRED_R, id_cred_r.declassify());
+    let (state, verified, c_r, id_cred_r) = process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len);
 
     let c_r = c_r[0 as usize].declassify();
 
