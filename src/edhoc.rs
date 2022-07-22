@@ -10,6 +10,14 @@ pub mod consts;
 
 use consts::*;
 
+#[derive(PartialEq, Debug)]
+pub enum EDHOCError {
+    Success = 0,
+    UnknownPeer = 1,
+    MacVerificationFailed = 2,
+    UnknownError = 3,
+}
+
 #[derive(Default)]
 pub struct State(
     BytesP256ElemLen, // x, ephemeral key of the initiator
@@ -50,7 +58,7 @@ pub fn edhoc_exporter(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn prepare_message_1(mut state: State) -> (State, BytesMaxBuffer, usize) {
+pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMaxBuffer, usize) {
     let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
         state;
 
@@ -58,7 +66,7 @@ pub fn prepare_message_1(mut state: State) -> (State, BytesMaxBuffer, usize) {
     let x = X;
 
     let (buffer, message_1_len) =
-        encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, &C_I);
+        encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, cid);
 
     let h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&buffer, 0, message_1_len)));
@@ -87,7 +95,7 @@ pub fn process_message_2(
     id_cred_r_expected: &BytesIdCred,
     cred_r_expected: &BytesMaxBuffer,
     cred_r_len: usize,
-) -> (State, bool, BytesCid, U8) {
+) -> (EDHOCError, State, BytesCid, U8) {
     let State(
         x,
         mut prk_2e,
@@ -101,6 +109,9 @@ pub fn process_message_2(
         th_4,
     ) = state;
 
+    // init error
+    let mut error = EDHOCError::UnknownError;
+
     let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
 
     // compute prk_2e
@@ -111,61 +122,75 @@ pub fn process_message_2(
     // decode plaintext_2
     let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-    // verify mac_2
-    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
-    let mut th_2_context = BytesMaxContextBuffer::new();
-    th_2_context = th_2_context.update(0, &th_2);
-    let salt_3e2m_buf = edhoc_kdf(
-        &prk_2e,
-        U8(1 as u8),
-        &th_2_context,
-        SHA256_DIGEST_LEN,
-        SHA256_DIGEST_LEN,
-    );
-    let mut salt_3e2m = BytesHashLen::new();
-    salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
+    if id_cred_r.declassify() == id_cred_r_expected[KID_WITHIN_ID_CRED_INDEX].declassify() {
+        // verify mac_2
+        th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
+        let mut th_2_context = BytesMaxContextBuffer::new();
+        th_2_context = th_2_context.update(0, &th_2);
+        let salt_3e2m_buf = edhoc_kdf(
+            &prk_2e,
+            U8(1 as u8),
+            &th_2_context,
+            SHA256_DIGEST_LEN,
+            SHA256_DIGEST_LEN,
+        );
+        let mut salt_3e2m = BytesHashLen::new();
+        salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
 
-    prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
+        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
 
-    let verified =
-        compute_and_verify_mac_2(&prk_3e2m, &id_cred_r_expected, &cred_r_expected, cred_r_len, &th_2, &mac_2);
+        if compute_and_verify_mac_2(
+            &prk_3e2m,
+            id_cred_r_expected,
+            cred_r_expected,
+            cred_r_len,
+            &th_2,
+            &mac_2,
+        ) {
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::MacVerificationFailed;
+        }
 
-    // XXX if not verified return an error
-    // step is actually from processing of message_3
-    // but we do it here to avoid storing ciphertext in State
-    let mut ciphertext_2_buf = BytesMaxBuffer::new();
-    ciphertext_2_buf = ciphertext_2_buf.update(0, &ciphertext_2);
-    th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
-    // message 3 processing
+        // step is actually from processing of message_3
+        // but we do it here to avoid storing plaintext_2 in State
+        let mut ciphertext_2_buf = BytesMaxBuffer::new();
+        ciphertext_2_buf = ciphertext_2_buf.update(0, &ciphertext_2);
+        th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
+        // message 3 processing
 
-    let mut th_3_context = BytesMaxContextBuffer::new();
-    th_3_context = th_3_context.update(0, &th_3);
-    let salt_4e3m_buf = edhoc_kdf(
-        &prk_3e2m,
-        U8(5 as u8),
-        &th_3_context,
-        SHA256_DIGEST_LEN,
-        SHA256_DIGEST_LEN,
-    );
-    let mut salt_4e3m = BytesHashLen::new();
-    salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
+        let mut th_3_context = BytesMaxContextBuffer::new();
+        th_3_context = th_3_context.update(0, &th_3);
+        let salt_4e3m_buf = edhoc_kdf(
+            &prk_3e2m,
+            U8(5 as u8),
+            &th_3_context,
+            SHA256_DIGEST_LEN,
+            SHA256_DIGEST_LEN,
+        );
+        let mut salt_4e3m = BytesHashLen::new();
+        salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
 
-    prk_4e3m = compute_prk_4e3m(&salt_4e3m, &I, &g_y);
+        prk_4e3m = compute_prk_4e3m(&salt_4e3m, &I, &g_y);
 
-    state = construct_state(
-        x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        th_2,
-        th_3,
-        th_4,
-    );
+        state = construct_state(
+            x,
+            prk_2e,
+            prk_3e2m,
+            prk_4e3m,
+            prk_out,
+            prk_exporter,
+            h_message_1,
+            th_2,
+            th_3,
+            th_4,
+        );
+    } else {
+        // Unknown peer
+        error = EDHOCError::UnknownPeer;
+    }
 
-    (state, verified, c_r, id_cred_r)
+    (error, state, c_r, id_cred_r)
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -188,7 +213,7 @@ pub fn prepare_message_3(
         mut th_4,
     ) = state;
 
-    let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, &cred_i, cred_i_len);
+    let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
 
     let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, id_cred_i, &mac_3);
 

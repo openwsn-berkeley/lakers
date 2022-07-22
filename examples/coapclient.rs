@@ -41,11 +41,12 @@ fn main() {
     message_2 = message_2.update(0, &ByteSeq::from_public_slice(&response.message.payload));
     let message_2_len = response.message.payload.len();
 
-    let (state, verified, c_r, id_cred_r) = process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len);
+    let (error, state, c_r, id_cred_r) =
+        process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len);
 
-    let c_r = c_r[0 as usize].declassify();
 
-    if verified {
+    if error == EDHOCError::Success {
+        let c_r = c_r[0 as usize].declassify();
         let (state, message_3) = prepare_message_3(state, &id_cred_i, &cred_i, cred_i_len);
 
         // Send Message 3 over CoAP
@@ -63,6 +64,6 @@ fn main() {
         let (state, oscore_salt) =
             edhoc_exporter(state, U8(1), &BytesMaxContextBuffer::new(), 0, 16);
     } else {
-        panic!("Message 2 not verified.");
+        panic!("Message 2 processing error: {:#?}", error);
     }
 }
