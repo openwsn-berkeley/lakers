@@ -2,6 +2,7 @@ use coap::CoAPClient;
 use hacspec_edhoc::consts::*;
 use hacspec_edhoc::*;
 use hacspec_lib::*;
+
 const ID_CRED_I: &str = "a104412b";
 const ID_CRED_R: &str = "a104410a";
 const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
@@ -54,7 +55,6 @@ fn main() {
 
     let (error, state, c_r, id_cred_r) =
         process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len, &g_r, &i);
-
 
     if error == EDHOCError::Success {
         let c_r = c_r[0 as usize].declassify();
