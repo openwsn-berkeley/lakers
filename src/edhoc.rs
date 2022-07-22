@@ -95,7 +95,8 @@ pub fn process_message_2(
     id_cred_r_expected: &BytesIdCred,
     cred_r_expected: &BytesMaxBuffer,
     cred_r_len: usize,
-    g_r: &BytesP256ElemLen,
+    g_r: &BytesP256ElemLen, // R's static public DH key
+    i: &BytesP256ElemLen, // I's static private DH key
 ) -> (EDHOCError, State, BytesCid, U8) {
     let State(
         x,
@@ -172,7 +173,7 @@ pub fn process_message_2(
         let mut salt_4e3m = BytesHashLen::new();
         salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
 
-        prk_4e3m = compute_prk_4e3m(&salt_4e3m, &I, &g_y);
+        prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
         state = construct_state(
             x,
