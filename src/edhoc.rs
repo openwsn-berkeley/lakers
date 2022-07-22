@@ -96,7 +96,7 @@ pub fn process_message_2(
     cred_r_expected: &BytesMaxBuffer,
     cred_r_len: usize,
     g_r: &BytesP256ElemLen, // R's static public DH key
-    i: &BytesP256ElemLen, // I's static private DH key
+    i: &BytesP256ElemLen,   // I's static private DH key
 ) -> (EDHOCError, State, BytesCid, U8) {
     let State(
         x,
