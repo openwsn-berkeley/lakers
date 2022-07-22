@@ -87,6 +87,7 @@ pub const MAX_KDF_CONTEXT_LEN: usize = 150;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
 pub const MAX_BUFFER_LEN: usize = 150;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
+pub const CBOR_UINT_1BYTE: u8 = 0x18;
 pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
 pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
 pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;

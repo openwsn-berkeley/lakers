@@ -363,8 +363,14 @@ fn edhoc_kdf(
         info = info.update_slice(3, context, 0, context_len);
         info_len = 3 + context_len;
     }
-    info[info_len] = U8(length as u8);
-    info_len = info_len + 1;
+    if length < 24 {
+        info[info_len] = U8(length as u8);
+        info_len = info_len + 1;
+    } else {
+        info[info_len] = U8(CBOR_UINT_1BYTE);
+        info[info_len + 1] = U8(length as u8);
+        info_len = info_len + 2;
+    }
 
     let mut output = BytesMaxBuffer::new();
     output = output.update(
