@@ -109,6 +109,7 @@ pub fn process_message_2(
     let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
     // verify mac_2
+    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
     let mut th_2_context = BytesMaxContextBuffer::new();
     th_2_context = th_2_context.update(0, &th_2);
     let salt_3e2m_buf = edhoc_kdf(
@@ -122,7 +123,6 @@ pub fn process_message_2(
     salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
 
     prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
-    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
 
     let mut cred_r = BytesMaxBuffer::new();
     cred_r = cred_r.update(0, &CRED_R);
