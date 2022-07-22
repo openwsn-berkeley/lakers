@@ -14,6 +14,7 @@ fn main() {
     let id_cred_i = BytesIdCred::from_hex(ID_CRED_I);
     let mut cred_i = BytesMaxBuffer::new();
     cred_i = cred_i.update(0, &ByteSeq::from_hex(CRED_I));
+    let cred_i_len = CRED_I.len() / 2;
 
     let (state, message_1, message_1_len) = prepare_message_1(state);
     // Send Message 1 over CoAP and convert the response to byte
@@ -39,7 +40,7 @@ fn main() {
     let c_r = c_r[0 as usize].declassify();
 
     if verified {
-        let (state, message_3) = prepare_message_3(state, &id_cred_i, &cred_i);
+        let (state, message_3) = prepare_message_3(state, &id_cred_i, &cred_i, cred_i_len);
 
         // Send Message 3 over CoAP
         let mut message_3_vec = Vec::new();
