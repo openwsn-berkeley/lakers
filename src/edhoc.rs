@@ -172,6 +172,7 @@ pub fn prepare_message_3(
     mut state: State,
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
+    cred_i_len: usize,
 ) -> (State, BytesMessage3) {
     let State(
         x,
@@ -186,9 +187,7 @@ pub fn prepare_message_3(
         mut th_4,
     ) = state;
 
-    let mut cred_i_buf = BytesMaxBuffer::new();
-    cred_i_buf = cred_i_buf.update(0, cred_i);
-    let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, &cred_i_buf, cred_i.len());
+    let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, &cred_i, cred_i_len);
 
     let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, id_cred_i, &mac_3);
 
