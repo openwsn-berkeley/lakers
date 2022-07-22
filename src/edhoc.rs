@@ -114,7 +114,7 @@ pub fn process_message_2(
     th_2_context = th_2_context.update(0, &th_2);
     let salt_3e2m_buf = edhoc_kdf(
         &prk_2e,
-        U8(1),
+        U8(1 as u8),
         &th_2_context,
         SHA256_DIGEST_LEN,
         SHA256_DIGEST_LEN,
@@ -141,7 +141,7 @@ pub fn process_message_2(
     th_3_context = th_3_context.update(0, &th_3);
     let salt_4e3m_buf = edhoc_kdf(
         &prk_3e2m,
-        U8(5),
+        U8(5 as u8),
         &th_3_context,
         SHA256_DIGEST_LEN,
         SHA256_DIGEST_LEN,
@@ -203,7 +203,7 @@ pub fn prepare_message_3(
     th_4_context = th_4_context.update(0, &th_4);
     let prk_out_buf = edhoc_kdf(
         &prk_4e3m,
-        U8(7),
+        U8(7 as u8),
         &th_4_context,
         SHA256_DIGEST_LEN,
         SHA256_DIGEST_LEN,
@@ -214,7 +214,7 @@ pub fn prepare_message_3(
     // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
     let prk_exporter_buf = edhoc_kdf(
         &prk_out,
-        U8(10),
+        U8(10 as u8),
         &BytesMaxContextBuffer::new(),
         0,
         SHA256_DIGEST_LEN,
@@ -412,7 +412,7 @@ fn compute_bstr_ciphertext_3(
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
     let k_3 = edhoc_kdf(
         prk_3e2m,
-        U8(3),
+        U8(3 as u8),
         &th_3_context,
         SHA256_DIGEST_LEN,
         AES_CCM_KEY_LEN,
@@ -420,7 +420,7 @@ fn compute_bstr_ciphertext_3(
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
     let iv_3 = edhoc_kdf(
         prk_3e2m,
-        U8(4),
+        U8(4 as u8),
         &th_3_context,
         SHA256_DIGEST_LEN,
         AES_CCM_IV_LEN,
@@ -490,7 +490,7 @@ fn compute_mac_3(
     // compute mac_3
     let output_buf = edhoc_kdf(
         prk_4e3m,
-        U8(6), // registered label for "MAC_3"
+        U8(6 as u8), // registered label for "MAC_3"
         &context,
         context_len,
         MAC_LENGTH_3,
@@ -513,7 +513,7 @@ fn compute_and_verify_mac_2(
     let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, cred_r_len);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
-    let mac_2 = edhoc_kdf(prk_3e2m, U8(2), &context, context_len, MAC_LENGTH_2);
+    let mac_2 = edhoc_kdf(prk_3e2m, U8(2 as u8), &context, context_len, MAC_LENGTH_2);
 
     let mut verified: bool = true;
     for i in 0..MAC_LENGTH_2 {
@@ -556,7 +556,7 @@ fn decrypt_ciphertext_2(
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
     let keystream_2 = edhoc_kdf(
         prk_2e,
-        U8(0),
+        U8(0 as u8),
         &th_2_context,
         SHA256_DIGEST_LEN,
         CIPHERTEXT_2_LEN,
