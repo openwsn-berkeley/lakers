@@ -95,6 +95,7 @@ pub fn process_message_2(
     id_cred_r_expected: &BytesIdCred,
     cred_r_expected: &BytesMaxBuffer,
     cred_r_len: usize,
+    g_r: &BytesP256ElemLen,
 ) -> (EDHOCError, State, BytesCid, U8) {
     let State(
         x,
@@ -137,7 +138,7 @@ pub fn process_message_2(
         let mut salt_3e2m = BytesHashLen::new();
         salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
 
-        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &G_R);
+        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
         if compute_and_verify_mac_2(
             &prk_3e2m,

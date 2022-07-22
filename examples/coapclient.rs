@@ -6,6 +6,7 @@ const ID_CRED_I: &str = "a104412b";
 const ID_CRED_R: &str = "a104410a";
 const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
 const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
+const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
 const C_I: BytesCid = BytesCid(secret_bytes!([0x0eu8]));
 
 fn main() {
@@ -26,6 +27,9 @@ fn main() {
     cred_r = cred_r.update(0, &ByteSeq::from_hex(CRED_R));
     let cred_r_len = CRED_R.len() / 2;
 
+    // init hacspec structs for R's public static DH key
+    let g_r = BytesP256ElemLen::from_hex(G_R);
+
     let (state, message_1, message_1_len) = prepare_message_1(state, &C_I);
     // Send Message 1 over CoAP and convert the response to byte
     let mut message_1_vec = Vec::new();
@@ -43,7 +47,7 @@ fn main() {
     let message_2_len = response.message.payload.len();
 
     let (error, state, c_r, id_cred_r) =
-        process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len);
+        process_message_2(state, &message_2, &id_cred_r, &cred_r, cred_r_len, &g_r);
 
 
     if error == EDHOCError::Success {
