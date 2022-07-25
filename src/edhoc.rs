@@ -216,16 +216,15 @@ pub fn prepare_message_3(
     ) = state;
 
     let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
+    let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
+    let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, &plaintext_3);
 
-    let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, id_cred_i, &mac_3);
-
-    // FIXME hack: skipping first byte of message_3 to get to ciphertext
-    let mut ciphertext_3 = BytesMaxBuffer::new();
-    ciphertext_3 = ciphertext_3.update_slice(0, &message_3, 1, MESSAGE_3_LEN - 1);
-    th_4 = compute_th_3_th_4(&th_3, &ciphertext_3, MESSAGE_3_LEN - 1);
+    let mut plaintext_3_buf = BytesMaxBuffer::new();
+    plaintext_3_buf = plaintext_3_buf.update_slice(0, &plaintext_3, 0, plaintext_3.len());
+    th_4 = compute_th_3_th_4(&th_3, &plaintext_3_buf, plaintext_3.len());
 
     // compute prk_out
-    // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4,      hash_length )
+    // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
     let mut th_4_context = BytesMaxContextBuffer::new();
     th_4_context = th_4_context.update(0, &th_4);
     let prk_out_buf = edhoc_kdf(
@@ -413,13 +412,26 @@ fn edhoc_kdf(
     output
 }
 
+fn encode_plaintext_3(
+    id_cred_i: &BytesIdCred,
+    mac_3: &BytesMac3,
+) -> BytesPlaintext3 {
+    let mut plaintext_3 = BytesPlaintext3::new();
+
+    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
+    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
+    plaintext_3 = plaintext_3.update(2, mac_3);
+
+    plaintext_3
+}
+
 // calculates ciphertext_3 wrapped in a cbor byte string
 // output must hold MESSAGE_3_LEN
 fn compute_bstr_ciphertext_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
-    id_cred_i: &BytesIdCred,
-    mac_3: &BytesMac3,
+    plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
     let mut encrypt0 = Bytes8::new();
     encrypt0[0] = U8(0x45u8); // 'E'
@@ -431,7 +443,6 @@ fn compute_bstr_ciphertext_3(
     encrypt0[6] = U8(0x74u8); // 't'
     encrypt0[7] = U8(0x30u8); // '0'
 
-    let mut plaintext_3 = BytesPlaintext3::new();
     let mut enc_structure = BytesEncStructureLen::new();
     let mut th_3_context = BytesMaxContextBuffer::new();
     th_3_context = th_3_context.update(0, th_3);
@@ -452,11 +463,7 @@ fn compute_bstr_ciphertext_3(
         SHA256_DIGEST_LEN,
         AES_CCM_IV_LEN,
     );
-    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
 
-    plaintext_3 = plaintext_3.update(2, mac_3);
     // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
     enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3 as u8); // 3 is the fixed number of elements in the array
     enc_structure[1] = U8(CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8);
@@ -474,7 +481,7 @@ fn compute_bstr_ciphertext_3(
         &encrypt_ccm(
             ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
             ByteSeq::from_slice(&iv_3, 0, AES_CCM_IV_LEN),
-            ByteSeq::from_slice(&plaintext_3, 0, PLAINTEXT_3_LEN),
+            ByteSeq::from_slice(plaintext_3, 0, plaintext_3.len()),
             Key128::from_slice(&k_3, 0, AES_CCM_KEY_LEN),
             AES_CCM_TAG_LEN,
         ),
@@ -797,12 +804,11 @@ mod tests {
     fn test_compute_bstr_ciphertext_3() {
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
-        let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
         let bstr_ciphertext_3 =
-            compute_bstr_ciphertext_3(&prk_3e2m_tv, &th_3_tv, &id_cred_i_tv, &mac_3_tv);
+            compute_bstr_ciphertext_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
         assert_bytes_eq!(bstr_ciphertext_3, message_3_tv);
     }
 
@@ -911,5 +917,15 @@ mod tests {
 
         let prk_2e = compute_prk_2e(&x_tv, &g_y_tv);
         assert_bytes_eq!(prk_2e, prk_2e_tv);
+    }
+
+    #[test]
+    fn test_encode_paintext_3() {
+        let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
+        let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+
+        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
+        assert_bytes_eq!(plaintext_3, plaintext_3_tv);
     }
 }
