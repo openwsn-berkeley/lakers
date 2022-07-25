@@ -124,7 +124,7 @@ pub fn process_message_2(
     // decode plaintext_2
     let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-    if id_cred_r.declassify() == id_cred_r_expected[KID_WITHIN_ID_CRED_INDEX].declassify() {
+    if id_cred_r.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
         // verify mac_2
         th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
         let mut th_2_context = BytesMaxContextBuffer::new();
