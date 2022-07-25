@@ -412,10 +412,7 @@ fn edhoc_kdf(
     output
 }
 
-fn encode_plaintext_3(
-    id_cred_i: &BytesIdCred,
-    mac_3: &BytesMac3,
-) -> BytesPlaintext3 {
+fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaintext3 {
     let mut plaintext_3 = BytesPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
@@ -807,8 +804,7 @@ mod tests {
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
-        let bstr_ciphertext_3 =
-            compute_bstr_ciphertext_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
+        let bstr_ciphertext_3 = compute_bstr_ciphertext_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
         assert_bytes_eq!(bstr_ciphertext_3, message_3_tv);
     }
 
