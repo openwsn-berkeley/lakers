@@ -1,4 +1,4 @@
-#![no_std]
+//#![no_std]
 
 use hacspec_aes::*;
 use hacspec_aes_ccm::*;
@@ -173,6 +173,8 @@ pub fn process_message_2(
 
         prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
+        println!("prk_4e3m: {:02x?}", prk_4e3m);
+
         state = construct_state(
             x,
             prk_2e,
@@ -217,9 +219,13 @@ pub fn prepare_message_3(
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
     let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, &plaintext_3);
 
+    println!("mac_3: {:02x?}", mac_3);
+
     let mut plaintext_3_buf = BytesMaxBuffer::new();
     plaintext_3_buf = plaintext_3_buf.update_slice(0, &plaintext_3, 0, plaintext_3.len());
     th_4 = compute_th_3_th_4(&th_3, &plaintext_3_buf, plaintext_3.len());
+
+    println!("th_4: {:02x?}", th_4);
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -233,6 +239,8 @@ pub fn prepare_message_3(
         SHA256_DIGEST_LEN,
     );
     prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
+
+    println!("prk_out: {:02x?}", prk_out);
 
     // compute prk_exporter from prk_out
     // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
