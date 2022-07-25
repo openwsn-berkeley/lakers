@@ -73,7 +73,7 @@ fn main() {
         let (state, oscore_secret) =
             edhoc_exporter(state, U8(0), &BytesMaxContextBuffer::new(), 0, 16);
         let (state, oscore_salt) =
-            edhoc_exporter(state, U8(1), &BytesMaxContextBuffer::new(), 0, 16);
+            edhoc_exporter(state, U8(1), &BytesMaxContextBuffer::new(), 0, 8);
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }
