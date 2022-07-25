@@ -72,4 +72,3 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1; // length as u8
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
-pub const KID_WITHIN_ID_CRED_INDEX: usize = 3;
