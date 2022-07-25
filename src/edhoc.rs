@@ -156,8 +156,6 @@ pub fn process_message_2(
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        let mut ciphertext_2_buf = BytesMaxBuffer::new();
-        ciphertext_2_buf = ciphertext_2_buf.update(0, &ciphertext_2);
         th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
         // message 3 processing
 
