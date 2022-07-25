@@ -2,6 +2,10 @@ use coap::CoAPClient;
 use hacspec_edhoc::consts::*;
 use hacspec_edhoc::*;
 use hacspec_lib::*;
+use coap_lite::{
+    CoapOption, CoapRequest, CoapResponse, ObserveOption, Packet, RequestType as Method,
+    ResponseType as Status,
+};
 
 const ID_CRED_I: &str = "a104412b";
 const ID_CRED_R: &str = "a104410a";
@@ -45,7 +49,17 @@ fn main() {
         message_1_vec.push(message_1[i].declassify());
     }
 
-    let response = CoAPClient::post(url, message_1_vec).unwrap();
+    let mut request = CoapRequest::new();
+    request.set_method(Method::Post);
+    request.set_path("/.well-known/edhoc");
+    request.message.add_option(CoapOption::UriHost, "marco.proxy.rd.coap.amsuess.com".as_bytes().to_vec());
+    request.message.payload = message_1_vec;
+
+    let client = CoAPClient::new("marco.proxy.rd.coap.amsuess.com:5683").unwrap();
+    client.set_receive_timeout(Some(std::time::Duration::new(1, 0)));
+    client.send(&request);
+    let response = client.receive().unwrap();
+
     println!("response_vec = {:02x?}", response.message.payload);
 
     // convert response to hacspec array
@@ -67,13 +81,23 @@ fn main() {
             message_3_vec.push(message_3[i].declassify());
         }
 
-        let _response = CoAPClient::post(url, message_3_vec).unwrap();
+ //       let _response = CoAPClient::post(url, message_3_vec).unwrap();
         // we don't care about the response to message_3 for now
+        //
+        let mut request = CoapRequest::new();
+        request.set_method(Method::Post);
+        request.set_path("/.well-known/edhoc");
+        request.message.add_option(CoapOption::UriHost, "marco.proxy.rd.coap.amsuess.com".as_bytes().to_vec());
+        request.message.header.message_id = 1;
+        request.message.payload = message_3_vec;
+        client.send(&request);
 
         let (state, oscore_secret) =
             edhoc_exporter(state, U8(0), &BytesMaxContextBuffer::new(), 0, 16);
+            println!("oscore_secret: {:02x?}", oscore_secret);
         let (state, oscore_salt) =
             edhoc_exporter(state, U8(1), &BytesMaxContextBuffer::new(), 0, 8);
+            println!("oscore_salt = {:02x?}", oscore_salt);
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }

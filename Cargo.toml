@@ -14,6 +14,7 @@ hacspec-aes = { path = "../../../Software/hacspec/examples/aes" }
 hacspec-aes-ccm = { path = "../../../Software/hacspec/examples/aes-ccm" }
 hacspec-p256 = { path = "../../../Software/hacspec/examples/p256" }
 coap = "0.11.3"
+coap-lite = "0.7.0"
 
 [lib]
 path = "src/edhoc.rs"
