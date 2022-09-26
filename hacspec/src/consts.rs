@@ -11,6 +11,7 @@ array!(BytesPlaintext2, PLAINTEXT_2_LEN, U8);
 array!(BytesPlaintext3, PLAINTEXT_3_LEN, U8);
 array!(BytesMac2, MAC_LENGTH_2, U8);
 array!(BytesMac3, MAC_LENGTH_3, U8);
+array!(BytesMessage1, MESSAGE_1_LEN, U8);
 array!(BytesMessage3, MESSAGE_3_LEN, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
 array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
@@ -36,6 +37,7 @@ pub const X: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
 pub const ID_CRED_LEN: usize = 4;
 pub const CID_LEN: usize = 1;
 pub const SUPPORTED_SUITES_LEN: usize = 1;
+pub const MESSAGE_1_LEN: usize = 37;
 pub const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method

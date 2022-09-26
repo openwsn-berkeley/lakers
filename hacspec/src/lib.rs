@@ -58,18 +58,17 @@ pub fn edhoc_exporter(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMaxBuffer, usize) {
+pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
     let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
         state;
 
     // TODO generate ephemeral key
     let x = X;
 
-    let (buffer, message_1_len) =
-        encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, cid);
+    let message_1 = encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, cid);
 
     let h_message_1 =
-        BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&buffer, 0, message_1_len)));
+        BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
 
     state = construct_state(
         x,
@@ -84,7 +83,7 @@ pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMaxBu
         th_4,
     );
 
-    (state, buffer, message_1_len)
+    (state, message_1)
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -287,13 +286,25 @@ pub fn construct_state(
     )
 }
 
+fn parse_message_1(
+    rcvd_message_1: &BytesMessage1,
+) -> (U8, BytesSupportedSuites, BytesP256ElemLen, BytesCid) {
+    let method = rcvd_message_1[0];
+    let supported_suites = BytesSupportedSuites([rcvd_message_1[1]]);
+    let mut g_x = BytesP256ElemLen::new();
+    g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
+    let c_i = BytesCid([rcvd_message_1[MESSAGE_1_LEN - 1]]);
+
+    (method, supported_suites, g_x, c_i)
+}
+
 fn encode_message_1(
     method: U8,
     suites: &BytesSupportedSuites,
     g_x: &BytesP256ElemLen,
     c_i: &BytesCid,
-) -> (BytesMaxBuffer, usize) {
-    let mut output = BytesMaxBuffer::new();
+) -> BytesMessage1 {
+    let mut output = BytesMessage1::new();
 
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
     output[1] = suites[0];
@@ -302,7 +313,7 @@ fn encode_message_1(
     output = output.update(4, g_x);
     output = output.update(4 + P256_ELEM_LEN, c_i);
 
-    (output, 4 + P256_ELEM_LEN + c_i.len())
+    output
 }
 
 fn parse_message_2(
@@ -659,7 +670,6 @@ fn p256_ecdh(private_key: &BytesP256ElemLen, public_key: &BytesP256ElemLen) -> B
 #[cfg(test)]
 mod tests {
     use super::*;
-    array!(BytesMessage1Tv, 37, U8);
     // test vectors (TV)
 
     const METHOD_TV: u8 = 0x03;
@@ -706,15 +716,27 @@ mod tests {
         let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = BytesCid::from_hex(C_I_TV);
-        let message_1_tv = BytesMessage1Tv::from_hex(MESSAGE_1_TV);
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
 
-        let (message_1, message_1_len) =
-            encode_message_1(method_tv, &suites_i_tv, &g_x_tv, &c_i_tv);
+        let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, &c_i_tv);
 
-        assert_eq!(message_1_len, message_1_tv.len());
-        for i in 0..message_1_tv.len() {
-            assert_eq!(message_1[i].declassify(), message_1_tv[i].declassify());
-        }
+        assert_bytes_eq!(message_1, message_1_tv);
+    }
+
+    #[test]
+    fn test_parse_message_1() {
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
+        let method_tv = METHOD_TV;
+        let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
+        let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
+        let c_i_tv = BytesCid::from_hex(C_I_TV);
+
+        let (method, supported_suites, g_x, c_i) = parse_message_1(&message_1_tv);
+
+        assert_eq!(method.declassify(), method_tv);
+        assert_bytes_eq!(supported_suites, supported_suites_tv);
+        assert_bytes_eq!(g_x, g_x_tv);
+        assert_bytes_eq!(c_i, c_i_tv);
     }
 
     #[test]
