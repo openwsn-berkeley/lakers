@@ -320,7 +320,6 @@ fn parse_message_2(
     rcvd_message_2: &BytesMessage2,
 ) -> (BytesP256ElemLen, BytesCiphertext2, BytesCid) {
     // FIXME decode negative integers as well
-    let c_r = BytesCid([rcvd_message_2[MESSAGE_2_LEN - 1]]);
     let mut g_y = BytesP256ElemLen::new();
     let mut ciphertext_2 = BytesCiphertext2::new();
     g_y = g_y.update(0, &rcvd_message_2.slice(2, P256_ELEM_LEN));
@@ -328,8 +327,25 @@ fn parse_message_2(
         0,
         &rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN),
     );
+    let c_r = BytesCid([rcvd_message_2[MESSAGE_2_LEN - 1]]);
 
     (g_y, ciphertext_2, c_r)
+}
+
+fn encode_message_2(
+    g_y: &BytesP256ElemLen,
+    ciphertext_2: &BytesCiphertext2,
+    c_r: &BytesCid,
+) -> BytesMessage2 {
+    let mut output = BytesMessage2::new();
+
+    output[0] = U8(CBOR_BYTE_STRING);
+    output[1] = U8(P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8);
+    output = output.update(2, g_y);
+    output = output.update(2 + P256_ELEM_LEN, ciphertext_2);
+    output = output.update(2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN, c_r);
+
+    output
 }
 
 fn compute_th_2(
@@ -740,15 +756,29 @@ mod tests {
     }
 
     #[test]
+    fn test_encode_message_2() {
+        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
+        let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
+        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let c_r_tv = BytesCid::from_hex(C_R_TV);
+
+        let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, &c_r_tv);
+
+        assert_bytes_eq!(message_2, message_2_tv);
+    }
+
+    #[test]
     fn test_parse_message_2() {
         let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let c_r_tv = BytesCid::from_hex(C_R_TV);
 
-        let (g_y, ciphertext_2, _c_r) = parse_message_2(&message_2_tv);
+        let (g_y, ciphertext_2, c_r) = parse_message_2(&message_2_tv);
 
         assert_bytes_eq!(g_y, g_y_tv);
         assert_bytes_eq!(ciphertext_2, ciphertext_2_tv);
+        assert_bytes_eq!(c_r, c_r_tv);
     }
 
     #[test]
