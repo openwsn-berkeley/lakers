@@ -12,12 +12,12 @@ hexlit = "0.5.3"
 # Crates used when the native backend is selected
 coap = { version = "0.11.3", optional = true }
 hex-literal = { version = "0.3.4", optional = true}
-hacspec-lib = { path = "../hacspec/lib", optional = true }
-hacspec-p256 = { path = "../hacspec/examples/p256", optional = true }
-hacspec-hkdf = { path = "../hacspec/examples/hkdf", optional = true }
-hacspec-sha256 = { path = "../hacspec/examples/sha256", optional = true }
-hacspec-aes = { path = "../hacspec/examples/aes", optional = true }
-hacspec-aes-ccm = { path = "../hacspec/examples/aes-ccm", optional = true }
+hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
+hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
+hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
+hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
+hacspec-aes = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
+hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
 
 # Crates uses when the cc2538 backend is selected
 cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
