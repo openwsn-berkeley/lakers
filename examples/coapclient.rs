@@ -1,6 +1,6 @@
 use coap::CoAPClient;
-use hacspec_edhoc::consts::*;
-use hacspec_edhoc::*;
+use edhoc::consts::*;
+use edhoc::*;
 use hacspec_lib::*;
 
 const ID_CRED_I: &str = "a104412b";

@@ -1,13 +1,15 @@
-# Hacspec implementation of EDHOC
+# edhoc-rs
 
-The repository contains the implementation of draft-ietf-lake-edhoc-14 in
-Rust-Hacspec.
+A microcontroller-optimized implementation of EDHOC in Rust (`no_std`).
 
-## Supported Authentication Modes
-
-* STAT-STAT
-
-## Supported Roles
-
+Supports:
 * Initiator
+* STAT-STAT authentication mode
 
+## Installation
+
+TODO
+
+## Example
+
+TODO
