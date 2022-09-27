@@ -1,4 +1,4 @@
-use crate::consts::*;
+use super::consts::*;
 
 pub trait Accelerator {
     fn p256_ecdh(
