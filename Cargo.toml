@@ -1,30 +1,7 @@
-[package]
-name = "edhoc"
-version = "0.1.0"
-edition = "2021"
-authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
-description = "EDHOC implementation"
+[workspace]
 
-[dependencies]
-hexlit = "0.5.3"
-
-# Crates used when the native backend is selected
-coap = { version = "0.11.3", optional = true }
-hex-literal = { version = "0.3.4", optional = true}
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-
-# Crates uses when the cc2538 backend is selected
-cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
-
-[features]
-default = ["native"]
-native = ["coap", "hex-literal", "hacspec-p256", "hacspec-hkdf", "hacspec-sha256", "hacspec-aes", "hacspec-aes-ccm"]
-cc2538 = ["cc2538-hal"]
-hacspec = ["hacspec-lib"]
+members = [
+	"lib",
+	"hacspec",
+]
 
