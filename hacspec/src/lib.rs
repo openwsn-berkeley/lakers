@@ -18,7 +18,7 @@ pub enum EDHOCError {
     UnknownError = 3,
 }
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct State(
     BytesP256ElemLen, // x, ephemeral key of the initiator
     BytesHashLen,     // prk_2e
