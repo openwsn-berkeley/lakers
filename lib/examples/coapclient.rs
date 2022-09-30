@@ -23,12 +23,12 @@ fn main() {
     let mut initiator =
         EdhocInitiator::new(state, &I, &G_R, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
 
-    let (message_1, message_1_len) = initiator.prepare_message_1(C_I);
+    let message_1 = initiator.prepare_message_1(C_I);
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut message_1_vec = Vec::new();
     message_1_vec.push(0xf5 as u8);
-    for i in 0..message_1_len {
+    for i in 0..message_1.len() {
         message_1_vec.push(message_1[i]);
     }
 
