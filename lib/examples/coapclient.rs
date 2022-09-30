@@ -1,9 +1,6 @@
 use coap::CoAPClient;
 use edhoc_rs::*;
 use hacspec_lib::*;
-// FIXME remove the following imports when API is reworked
-use edhoc_hacspec::consts::BytesMaxContextBuffer;
-use edhoc_hacspec::consts::BytesMessage2;
 
 const ID_CRED_I: &str = "a104412b";
 const ID_CRED_R: &str = "a104410a";
@@ -35,29 +32,28 @@ fn main() {
     let response = CoAPClient::post(url, message_1_vec).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
-    // convert response to hacspec array
-    let mut message_2 = BytesMessage2::new();
-    message_2 = message_2.update(0, &ByteSeq::from_public_slice(&response.message.payload));
-    let message_2_len = response.message.payload.len();
+    // convert response to byte array
+    // FIXME avoid the use of MESSAGE_2_LEN?
+    let message_2: [u8; EDHOC_MESSAGE_2_LEN] =
+        response.message.payload.try_into().expect("wrong length");
 
     let (error, c_r) = initiator.process_message_2(&message_2);
 
     if error == EdhocError::Success {
-        let c_r = c_r[0 as usize].declassify();
         let message_3 = initiator.prepare_message_3();
 
         // Send Message 3 over CoAP
         let mut message_3_vec = Vec::new();
         message_3_vec.push(c_r);
         for i in 0..message_3.len() {
-            message_3_vec.push(message_3[i].declassify());
+            message_3_vec.push(message_3[i]);
         }
 
         let _response = CoAPClient::post(url, message_3_vec).unwrap();
         // we don't care about the response to message_3 for now
 
-        let oscore_secret = initiator.edhoc_exporter(0u8, &BytesMaxContextBuffer::new(), 0, 16);
-        let oscore_salt = initiator.edhoc_exporter(1u8, &BytesMaxContextBuffer::new(), 0, 8);
+        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16);
+        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8);
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }

@@ -49,7 +49,8 @@ mod hacspec {
             self.state = state;
 
             // convert message_1 into native Rust array
-            let mut message_native : [u8; MESSAGE_1_LEN] = [0; MESSAGE_1_LEN];
+            let mut message_native: [u8; MESSAGE_1_LEN] = [0; MESSAGE_1_LEN];
+
             assert!(message_1.len() == message_native.len());
             for i in 0..message_1.len() {
                 message_native[i] = message_1[i].declassify();
@@ -60,8 +61,8 @@ mod hacspec {
 
         pub fn process_message_2(
             self: &mut HacspecEdhocInitiator<'a>,
-            message_2: &BytesMessage2,
-        ) -> (EDHOCError, BytesCid) {
+            message_2: &[u8; MESSAGE_2_LEN],
+        ) -> (EDHOCError, u8) {
             // init hacspec struct for I, I's private static DH key
             let i = BytesP256ElemLen::from_hex(self.i);
 
@@ -74,15 +75,27 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let g_r = BytesP256ElemLen::from_hex(self.g_r);
 
-            let (error, state, c_r, id_cred_r) = edhoc_hacspec::process_message_2(
-                self.state, message_2, &id_cred_r, &cred_r, cred_r_len, &g_r, &i,
-            );
+            // init hacspec struct for message_2 FIXME can this be done differently?
+            let mut message_2_hacspec = BytesMessage2::new();
+            for i in 0..message_2_hacspec.len() {
+                message_2_hacspec[i] = U8(message_2[i]);
+            }
 
+            let (error, state, c_r, _id_cred_r) = edhoc_hacspec::process_message_2(
+                self.state,
+                &message_2_hacspec,
+                &id_cred_r,
+                &cred_r,
+                cred_r_len,
+                &g_r,
+                &i,
+            );
             self.state = state;
-            (error, c_r)
+
+            (error, c_r[0usize].declassify())
         }
 
-        pub fn prepare_message_3(self: &mut HacspecEdhocInitiator<'a>) -> BytesMessage3 {
+        pub fn prepare_message_3(self: &mut HacspecEdhocInitiator<'a>) -> [u8; MESSAGE_3_LEN] {
             // init hacspec structs for id_cred_i and cred_i
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
@@ -92,21 +105,49 @@ mod hacspec {
             let (state, message_3) = prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
 
             self.state = state;
-            message_3
+
+            // convert message_3 into native Rust array FIXME use hacspec standard library functions once available
+            let mut message_native: [u8; MESSAGE_3_LEN] = [0; MESSAGE_3_LEN];
+
+            assert!(message_3.len() == message_native.len());
+            for i in 0..message_3.len() {
+                message_native[i] = message_3[i].declassify();
+            }
+
+            message_native
         }
 
         pub fn edhoc_exporter(
             self: &mut HacspecEdhocInitiator<'a>,
             label: u8,
-            context: &BytesMaxContextBuffer,
-            context_len: usize,
+            context: &[u8],
             length: usize,
-        ) -> BytesMaxBuffer {
-            let (state, output) =
-                edhoc_exporter(self.state, U8(label), context, context_len, length);
+        ) -> [u8; MAX_BUFFER_LEN] {
+            // init hacspec struct for message_2 FIXME can this be done differently?
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+
+            assert!(context_hacspec.len() >= context.len());
+            for i in 0..context.len() {
+                context_hacspec[i] = U8(context[i]);
+            }
+
+            let (state, output) = edhoc_exporter(
+                self.state,
+                U8(label),
+                &context_hacspec,
+                context.len(),
+                length,
+            );
             self.state = state;
 
-            output
+            // FIXME use hacspec standard library functions once available
+            let mut output_native: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
+            assert!(output.len() == output_native.len());
+            for i in 0..output.len() {
+                output_native[i] = output[i].declassify();
+            }
+
+            output_native
         }
     }
 }
@@ -130,8 +171,10 @@ mod rust {
     }
 }
 
+pub use edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN;
 pub use edhoc_hacspec::EDHOCError as EdhocError;
 pub use edhoc_hacspec::State as EdhocState;
+
 #[cfg(feature = "hacspec")]
 pub use hacspec::HacspecEdhocInitiator as EdhocInitiator;
 
