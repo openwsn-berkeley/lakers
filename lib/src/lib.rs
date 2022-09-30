@@ -75,11 +75,8 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let g_r = BytesP256ElemLen::from_hex(self.g_r);
 
-            // init hacspec struct for message_2 FIXME can this be done differently?
-            let mut message_2_hacspec = BytesMessage2::new();
-            for i in 0..message_2_hacspec.len() {
-                message_2_hacspec[i] = U8(message_2[i]);
-            }
+            // init hacspec struct for message_2
+            let message_2_hacspec = BytesMessage2::from_public_slice(&message_2[..]);
 
             let (error, state, c_r, _id_cred_r) = edhoc_hacspec::process_message_2(
                 self.state,
@@ -123,13 +120,8 @@ mod hacspec {
             context: &[u8],
             length: usize,
         ) -> [u8; MAX_BUFFER_LEN] {
-            // init hacspec struct for message_2 FIXME can this be done differently?
-            let mut context_hacspec = BytesMaxContextBuffer::new();
-
-            assert!(context_hacspec.len() >= context.len());
-            for i in 0..context.len() {
-                context_hacspec[i] = U8(context[i]);
-            }
+            // init hacspec struct for context
+            let context_hacspec = BytesMaxContextBuffer::from_public_slice(context);
 
             let (state, output) = edhoc_exporter(
                 self.state,
