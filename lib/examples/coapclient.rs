@@ -29,7 +29,7 @@ fn main() {
     let mut message_1_vec = Vec::new();
     message_1_vec.push(0xf5 as u8);
     for i in 0..message_1_len {
-        message_1_vec.push(message_1[i].declassify());
+        message_1_vec.push(message_1[i]);
     }
 
     let response = CoAPClient::post(url, message_1_vec).unwrap();

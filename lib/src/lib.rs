@@ -43,11 +43,18 @@ mod hacspec {
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
             c_i: u8,
-        ) -> (BytesMaxBuffer, usize) {
+        ) -> ([u8; MAX_BUFFER_LEN], usize) {
             let (state, message_1, message_1_len) =
                 edhoc_hacspec::prepare_message_1(self.state, &BytesCid([U8(c_i)]));
             self.state = state;
-            (message_1, message_1_len)
+
+            // convert message_1 into native Rust array
+            let mut message_native : [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
+            assert!(message_1.len() == message_native.len());
+            for i in 0..message_1.len() {
+                message_native[i] = message_1[i].declassify();
+            }
+            (message_native, message_1_len)
         }
 
         pub fn process_message_2(
