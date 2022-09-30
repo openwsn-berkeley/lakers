@@ -7,10 +7,6 @@ license = "BSD"
 description = "EDHOC implementation"
 
 [dependencies]
-hexlit = "0.5.3"
-
-coap = { version = "0.11.3" }
-hex-literal = { version = "0.3.4" }
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm" }
 hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch="aesccm" }
 hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch="aesccm" }
