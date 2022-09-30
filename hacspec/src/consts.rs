@@ -1,12 +1,9 @@
 use hacspec_lib::*;
 
-array!(Bytes1, 1, U8);
-array!(BytesCid, 1, U8);
+array!(BytesCid, CID_LEN, U8);
 array!(BytesEad2, 0, U8);
-array!(BytesIdCred, 4, U8);
-array!(BytesSupportedSuites, 1, U8);
-array!(Bytes3, 3, U8);
-array!(Bytes4, 4, U8);
+array!(BytesIdCred, ID_CRED_LEN, U8);
+array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
 array!(Bytes8, 8, U8);
 array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
 array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
@@ -17,12 +14,9 @@ array!(BytesMac3, MAC_LENGTH_3, U8);
 array!(BytesMessage3, MESSAGE_3_LEN, U8);
 array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
 array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
-array!(Bytes32, 32, U8);
-array!(BytesHashLen, 32, U8);
-array!(BytesP256ElemLen, 32, U8);
+array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
+array!(BytesP256ElemLen, P256_ELEM_LEN, U8);
 array!(BytesMessage2, MESSAGE_2_LEN, U8);
-array!(Bytes83, 83, U8);
-array!(Bytes84, 84, U8);
 array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
 array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
 array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
@@ -39,6 +33,9 @@ pub const X: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
     0x45u8, 0xb2u8, 0x1bu8, 0xdcu8, 0x02u8, 0x99u8, 0xdcu8, 0xeau8, 0xa8u8, 0xefu8, 0x23u8, 0x5fu8,
     0x3cu8, 0xa4u8, 0x2cu8, 0xe3u8, 0x53u8, 0x0fu8, 0x95u8, 0x25u8
 ]));
+pub const ID_CRED_LEN: usize = 4;
+pub const CID_LEN: usize = 1;
+pub const SUPPORTED_SUITES_LEN: usize = 1;
 pub const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
