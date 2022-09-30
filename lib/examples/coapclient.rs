@@ -12,47 +12,32 @@ const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd4
 const C_I: u8 = 0x0eu8;
 
 fn main() {
-    let url = "coap://92.34.13.218:5690/.well-known/edhoc";
+    let url = "coap://127.0.0.1:5683/.well-known/edhoc";
     println!("Client request: {}", url);
 
     let state: EdhocState = Default::default();
     let mut initiator =
         EdhocInitiator::new(state, &I, &G_R, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
 
-    let message_1 = initiator.prepare_message_1(C_I);
-
     // Send Message 1 over CoAP and convert the response to byte
-    let mut message_1_vec = Vec::new();
-    message_1_vec.push(0xf5 as u8);
-    for i in 0..message_1.len() {
-        message_1_vec.push(message_1[i]);
-    }
+    let mut msg_1 = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
+    msg_1.extend_from_slice(&initiator.prepare_message_1(C_I));
 
-    let response = CoAPClient::post(url, message_1_vec).unwrap();
+    let response = CoAPClient::post(url, msg_1).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
-    // convert response to byte array
-    // FIXME avoid the use of MESSAGE_2_LEN?
-    let message_2: [u8; EDHOC_MESSAGE_2_LEN] =
-        response.message.payload.try_into().expect("wrong length");
-
-    let (error, c_r) = initiator.process_message_2(&message_2);
+    let (error, c_r) =
+        initiator.process_message_2(&response.message.payload.try_into().expect("wrong length"));
 
     if error == EdhocError::Success {
-        let message_3 = initiator.prepare_message_3();
+        let mut msg_3 = Vec::from([c_r]);
+        msg_3.extend_from_slice(&initiator.prepare_message_3());
 
-        // Send Message 3 over CoAP
-        let mut message_3_vec = Vec::new();
-        message_3_vec.push(c_r);
-        for i in 0..message_3.len() {
-            message_3_vec.push(message_3[i]);
-        }
-
-        let _response = CoAPClient::post(url, message_3_vec).unwrap();
+        let _response = CoAPClient::post(url, msg_3).unwrap();
         // we don't care about the response to message_3 for now
 
-        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16);
-        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8);
+        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }
