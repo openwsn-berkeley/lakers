@@ -1,7 +1,8 @@
 use coap::CoAPClient;
 use edhoc_rs::*;
 use hacspec_lib::*;
-// FIXME remove the following import
+// FIXME remove the following imports when API is reworked
+use edhoc_hacspec::consts::BytesMaxContextBuffer;
 use edhoc_hacspec::consts::BytesMessage2;
 
 const ID_CRED_I: &str = "a104412b";
@@ -55,12 +56,8 @@ fn main() {
         let _response = CoAPClient::post(url, message_3_vec).unwrap();
         // we don't care about the response to message_3 for now
 
-        /*
-        let (state, oscore_secret) =
-            edhoc_exporter(state, U8(0), &BytesMaxContextBuffer::new(), 0, 16);
-        let (state, oscore_salt) =
-            edhoc_exporter(state, U8(1), &BytesMaxContextBuffer::new(), 0, 8);
-        */
+        let oscore_secret = initiator.edhoc_exporter(0u8, &BytesMaxContextBuffer::new(), 0, 16);
+        let oscore_salt = initiator.edhoc_exporter(1u8, &BytesMaxContextBuffer::new(), 0, 8);
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }

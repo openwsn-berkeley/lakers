@@ -86,6 +86,20 @@ mod hacspec {
             self.state = state;
             message_3
         }
+
+        pub fn edhoc_exporter(
+            self: &mut HacspecEdhocInitiator<'a>,
+            label: u8,
+            context: &BytesMaxContextBuffer,
+            context_len: usize,
+            length: usize,
+        ) -> BytesMaxBuffer {
+            let (state, output) =
+                edhoc_exporter(self.state, U8(label), context, context_len, length);
+            self.state = state;
+
+            output
+        }
     }
 }
 
