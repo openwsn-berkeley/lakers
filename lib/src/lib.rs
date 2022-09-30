@@ -24,6 +24,11 @@ mod hacspec {
             id_cred_r: &'a str,
             cred_r: &'a str,
         ) -> HacspecEdhocInitiator<'a> {
+            assert!(i.len() == P256_ELEM_LEN * 2);
+            assert!(g_r.len() == P256_ELEM_LEN * 2);
+            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+
             HacspecEdhocInitiator {
                 state: state,
                 i: i,
