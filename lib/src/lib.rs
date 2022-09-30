@@ -40,11 +40,14 @@ mod hacspec {
             }
         }
 
-        pub fn prepare_message_1(self: &mut HacspecEdhocInitiator<'a>, c_i: u8) -> BytesMaxBuffer {
+        pub fn prepare_message_1(
+            self: &mut HacspecEdhocInitiator<'a>,
+            c_i: u8,
+        ) -> (BytesMaxBuffer, usize) {
             let (state, message_1, message_1_len) =
                 edhoc_hacspec::prepare_message_1(self.state, &BytesCid([U8(c_i)]));
             self.state = state;
-            message_1
+            (message_1, message_1_len)
         }
 
         pub fn process_message_2(
@@ -105,6 +108,8 @@ mod rust {
     }
 }
 
+pub use edhoc_hacspec::EDHOCError as EdhocError;
+pub use edhoc_hacspec::State as EdhocState;
 #[cfg(feature = "hacspec")]
 pub use hacspec::HacspecEdhocInitiator as EdhocInitiator;
 
