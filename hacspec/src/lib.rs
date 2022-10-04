@@ -15,12 +15,14 @@ pub enum EDHOCError {
     Success = 0,
     UnknownPeer = 1,
     MacVerificationFailed = 2,
-    UnknownError = 3,
+    UnsupportedMethod = 3,
+    UnsupportedCipherSuite = 4,
+    UnknownError = 5,
 }
 
 #[derive(Default, Copy, Clone)]
 pub struct State(
-    BytesP256ElemLen, // x, ephemeral key of the initiator
+    BytesP256ElemLen, // x or g_x, ephemeral key of the initiator
     BytesHashLen,     // prk_2e
     BytesHashLen,     // prk_3e2m
     BytesHashLen,     // prk_4e3m
@@ -55,6 +57,132 @@ pub fn edhoc_exporter(
     let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
 
     (state, output)
+}
+
+pub fn process_message_1(mut state: State, message_1: &BytesMessage1) -> (State, EDHOCError) {
+    // Step 1: decode message_1
+    // Step 2: verify that the selected cipher suite is supported
+    // Step 3: If EAD is present make it available to the application
+
+    let State(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    ) = state;
+
+    let mut error = EDHOCError::UnknownError;
+
+    // g_x will be saved to the state
+    let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
+
+    if method.declassify() != EDHOC_METHOD {
+        error = EDHOCError::UnsupportedMethod;
+        return (state, error);
+    }
+
+    if supported_suites[0u8].declassify() != EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+        error = EDHOCError::UnsupportedCipherSuite;
+        return (state, error);
+    }
+
+    // TODO we do not support EAD for now
+
+    // hash message_1 and save to state
+    let h_message_1 =
+        BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message_1, 0, message_1.len())));
+
+    error = EDHOCError::Success;
+
+    state = construct_state(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
+
+    (state, error)
+}
+
+pub fn prepare_message_2(
+    mut state: State,
+    id_cred_r: &BytesIdCred,
+    cred_r: &BytesMaxBuffer,
+    cred_r_len: usize,
+    r: &BytesP256ElemLen, // R's static private DH key
+) -> (State, BytesMessage2) {
+    let State(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    ) = state;
+
+    // TODO generate ephemeral key pair
+    let g_y = G_Y;
+
+    // FIXME generate a connection identifier to multiplex sessions
+    let c_r = BytesCid([U8(0x00)]);
+
+    // compute TH_2
+    let th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
+
+    // compute prk_3e2m
+    let prk_2e = compute_prk_2e(&Y, &g_x);
+    let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+    let prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
+
+    // compute MAC_2
+    let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
+
+    // compute ciphertext_2
+    let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &BytesEad2::new());
+
+    let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
+        &prk_2e,
+        &th_2,
+        &BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2.len()),
+        &h_message_1,
+    );
+
+    let message_2 = encode_message_2(
+        &g_y,
+        &BytesCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
+        &c_r,
+    );
+
+    state = construct_state(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
+
+    (state, message_2)
 }
 
 // must hold MESSAGE_1_LEN
@@ -117,39 +245,33 @@ pub fn process_message_2(
 
     // compute prk_2e
     prk_2e = compute_prk_2e(&x, &g_y);
+
+    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
+
     let (plaintext_2, plaintext_2_len) =
-        decrypt_ciphertext_2(&prk_2e, &g_y, &c_r, &ciphertext_2, &h_message_1);
+        encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2, &h_message_1);
 
     // decode plaintext_2
     let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
     if id_cred_r.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
         // verify mac_2
-        th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
-        let mut th_2_context = BytesMaxContextBuffer::new();
-        th_2_context = th_2_context.update(0, &th_2);
-        let salt_3e2m_buf = edhoc_kdf(
-            &prk_2e,
-            U8(1 as u8),
-            &th_2_context,
-            SHA256_DIGEST_LEN,
-            SHA256_DIGEST_LEN,
-        );
-        let mut salt_3e2m = BytesHashLen::new();
-        salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
+        let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-        if compute_and_verify_mac_2(
+        let expected_mac_2 = compute_mac_2(
             &prk_3e2m,
             id_cred_r_expected,
             cred_r_expected,
             cred_r_len,
             &th_2,
-            &mac_2,
-        ) {
+        );
+
+        if verify_mac_2(&mac_2, &expected_mac_2) {
             error = EDHOCError::Success;
         } else {
+            // FIXME early return!
             error = EDHOCError::MacVerificationFailed;
         }
 
@@ -557,29 +679,37 @@ fn compute_mac_3(
     output
 }
 
-fn compute_and_verify_mac_2(
+fn compute_mac_2(
     prk_3e2m: &BytesHashLen,
     id_cred_r: &BytesIdCred,
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
     th_2: &BytesHashLen,
-    rcvd_mac_2: &BytesMac2,
-) -> bool {
+) -> BytesMac2 {
     // compute MAC_2
     let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, cred_r_len);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
-    let mac_2 = edhoc_kdf(prk_3e2m, U8(2 as u8), &context, context_len, MAC_LENGTH_2);
+    let mut mac_2 = BytesMac2::new();
+    mac_2 = mac_2.update_slice(
+        0,
+        &edhoc_kdf(prk_3e2m, U8(2 as u8), &context, context_len, MAC_LENGTH_2),
+        0,
+        mac_2.len(),
+    );
 
+    mac_2
+}
+
+fn verify_mac_2(rcvd_mac_2: &BytesMac2, expected_mac_2: &BytesMac2) -> bool {
     let mut verified: bool = true;
     for i in 0..MAC_LENGTH_2 {
-        if mac_2[i].declassify() == rcvd_mac_2[i].declassify() {
+        if expected_mac_2[i].declassify() == rcvd_mac_2[i].declassify() {
             verified = true;
         } else {
             verified = false;
         }
     }
-
     verified
 }
 
@@ -597,17 +727,29 @@ fn decode_plaintext_2(
     (id_cred_r, mac_2, ead_2)
 }
 
-fn decrypt_ciphertext_2(
+fn encode_plaintext_2(
+    id_cred_r: &BytesIdCred,
+    mac_2: &BytesMac2,
+    ead_2: &BytesEad2,
+) -> BytesPlaintext2 {
+    let mut plaintext_2 = BytesPlaintext2::new();
+    plaintext_2[0] = id_cred_r[id_cred_r.len() - 1];
+    plaintext_2[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
+    plaintext_2 = plaintext_2.update(2, mac_2);
+    plaintext_2 = plaintext_2.update(2 + mac_2.len(), ead_2);
+
+    plaintext_2
+}
+
+fn encrypt_decrypt_ciphertext_2(
     prk_2e: &BytesHashLen,
-    g_y: &BytesP256ElemLen,
-    c_r: &BytesCid,
+    th_2: &BytesHashLen,
     ciphertext_2: &BytesCiphertext2,
     h_message_1: &BytesHashLen,
 ) -> (BytesMaxBuffer, usize) {
-    // compute the transcript hash th_2
-    let th_2 = compute_th_2(g_y, c_r, h_message_1);
+    // convert the transcript hash th_2 to BytesMaxContextBuffer type
     let mut th_2_context = BytesMaxContextBuffer::new();
-    th_2_context = th_2_context.update(0, &th_2);
+    th_2_context = th_2_context.update(0, th_2);
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
     let keystream_2 = edhoc_kdf(
@@ -619,7 +761,7 @@ fn decrypt_ciphertext_2(
     );
 
     let mut plaintext_2 = BytesMaxBuffer::new();
-    // decrypt ciphertext_2
+    // decrypt/encrypt ciphertext_2
     for i in 0..CIPHERTEXT_2_LEN {
         plaintext_2[i] = ciphertext_2[i] ^ keystream_2[i];
     }
@@ -640,6 +782,24 @@ fn compute_prk_4e3m(
     ));
 
     prk_4e3m
+}
+
+fn compute_salt_3e2m(prk_2e: &BytesHashLen, th_2: &BytesHashLen) -> BytesHashLen {
+    let mut th_2_context = BytesMaxContextBuffer::new();
+    th_2_context = th_2_context.update(0, th_2);
+
+    let salt_3e2m_buf = edhoc_kdf(
+        prk_2e,
+        U8(1 as u8),
+        &th_2_context,
+        SHA256_DIGEST_LEN,
+        SHA256_DIGEST_LEN,
+    );
+
+    let mut salt_3e2m = BytesHashLen::new();
+    salt_3e2m = salt_3e2m.update_slice(0, &salt_3e2m_buf, 0, SHA256_DIGEST_LEN);
+
+    salt_3e2m
 }
 
 fn compute_prk_3e2m(
@@ -886,14 +1046,26 @@ mod tests {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        assert!(compute_and_verify_mac_2(
+        let rcvd_mac_2 = compute_mac_2(
             &prk_3e2m_tv,
             &id_cred_r_tv,
             &cred_r_tv,
             CRED_R_TV.len() / 2,
             &th_2_tv,
-            &mac_2_tv
-        ));
+        );
+
+        assert!(verify_mac_2(&rcvd_mac_2, &mac_2_tv));
+    }
+
+    #[test]
+    fn test_encode_plaintext_2() {
+        let mut plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
+        let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
+
+        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &BytesEad2::new());
+
+        assert_bytes_eq!(plaintext_2, plaintext_2_tv);
     }
 
     #[test]
@@ -911,25 +1083,35 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_ciphertext_2() {
+    fn test_encrypt_decrypt_ciphertext_2() {
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
-        let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let c_r_tv = BytesCid::from_hex(C_R_TV);
+        let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let h_message_1_tv = BytesHashLen::from_hex(H_MESSAGE_1_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
 
-        let (plaintext_2, plaintext_2_len) = decrypt_ciphertext_2(
-            &prk_2e_tv,
-            &g_y_tv,
-            &c_r_tv,
-            &ciphertext_2_tv,
-            &h_message_1_tv,
-        );
+        // test decryption
+        let (plaintext_2, plaintext_2_len) =
+            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &ciphertext_2_tv, &h_message_1_tv);
 
         assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
         for i in 0..PLAINTEXT_2_LEN {
             assert_eq!(plaintext_2[i].declassify(), plaintext_2_tv[i].declassify());
+        }
+
+        let mut plaintext_2_tmp = BytesCiphertext2::new();
+        plaintext_2_tmp = plaintext_2_tmp.update_slice(0, &plaintext_2, 0, plaintext_2_len);
+
+        // test encryption
+        let (ciphertext_2, ciphertext_2_len) =
+            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &plaintext_2_tmp, &h_message_1_tv);
+
+        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN);
+        for i in 0..CIPHERTEXT_2_LEN {
+            assert_eq!(
+                ciphertext_2[i].declassify(),
+                ciphertext_2_tv[i].declassify()
+            );
         }
     }
 
