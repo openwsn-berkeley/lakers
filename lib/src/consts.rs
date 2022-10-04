@@ -10,6 +10,7 @@ pub const C_I: i8 = -24;
 pub const G_X: [u8; 32] = hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
 pub const X: [u8; 32] = hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 pub const ID_CRED_LEN: usize = 4;
+pub const MESSAGE_1_LEN: usize = 37;
 pub const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 pub const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method

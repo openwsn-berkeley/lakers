@@ -18,6 +18,14 @@ pub struct State {
     th_4: [u8; SHA256_DIGEST_LEN],
 }
 
+#[derive(PartialEq, Debug)]
+pub enum EDHOCError {
+    Success = 0,
+    UnknownPeer = 1,
+    MacVerificationFailed = 2,
+    UnknownError = 3,
+}
+
 pub fn edhoc_exporter<A: Accelerator>(
     acc: &mut A,
     state: &mut State,

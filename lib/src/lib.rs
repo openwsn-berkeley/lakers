@@ -6,7 +6,10 @@ pub use {
 };
 
 #[cfg(not(feature = "hacspec"))]
-pub use rust::RustEdhocInitiator as EdhocInitiator;
+pub use {
+    edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
+    rust::RustEdhocInitiator as EdhocInitiator,
+};
 
 #[cfg(not(feature = "hacspec"))]
 mod edhoc;
@@ -206,13 +209,59 @@ mod rust {
                 cred_r: cred_r,
             }
         }
+
+        pub fn prepare_message_1(
+            self: &mut RustEdhocInitiator<'a>,
+            c_i: u8,
+        ) -> [u8; MESSAGE_1_LEN] {
+            let mut acc = NativeAccelerator {};
+            let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+            let message_1 = prepare_message_1(&mut acc, &mut self.state, &mut message_buffer);
+            message_1.try_into().expect("wrong length")
+        }
+
+        pub fn process_message_2(
+            self: &mut RustEdhocInitiator<'a>,
+            message_2: &[u8; MESSAGE_2_LEN],
+        ) -> (EDHOCError, u8) {
+            let mut acc = NativeAccelerator {};
+            let c_r = process_message_2(&mut acc, &mut self.state, message_2);
+
+            (EDHOCError::Success, c_r)
+        }
+
+        pub fn prepare_message_3(self: &mut RustEdhocInitiator<'a>) -> [u8; MESSAGE_3_LEN] {
+            let mut acc = NativeAccelerator {};
+            let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+            let message_3 = prepare_message_3(
+                &mut acc,
+                &mut self.state,
+                self.id_cred_i.as_bytes(),
+                self.cred_i.as_bytes(),
+                &mut message_buffer,
+            );
+
+            message_3.try_into().unwrap()
+        }
+
+        pub fn edhoc_exporter(
+            self: &mut RustEdhocInitiator<'a>,
+            label: u8,
+            context: &[u8],
+            length: usize,
+        ) -> [u8; MAX_BUFFER_LEN] {
+            let mut acc = NativeAccelerator {};
+            let mut buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
+
+            buffer
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::EdhocInitiator;
-    use edhoc_hacspec::*;
+    use super::*;
+    use hexlit::hex;
 
     const ID_CRED_I: &str = "a104412b";
     const ID_CRED_R: &str = "a104410a";
@@ -223,10 +272,41 @@ mod test {
     const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
 
+    const C_I_TV: u8 = 55;
+    const C_R_TV: [u8; 1] = hex!("27");
+
+    const MESSAGE_1_TV: [u8; 37] =
+        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    const MESSAGE_2_TV: [u8; 45] = hex!(
+    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d58b8fec6b1f0580c5043927");
+
     #[test]
     fn test_new() {
-        let state: State = Default::default();
-
+        let state: EdhocState = Default::default();
         let initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+    }
+
+    #[test]
+    fn test_prepare_message_1() {
+        let state: EdhocState = Default::default();
+        let mut initiator =
+            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+
+        let message_1 = initiator.prepare_message_1(C_I_TV);
+        assert_eq!(message_1, MESSAGE_1_TV);
+    }
+
+    #[test]
+    fn test_process_message_2() {
+        let state: EdhocState = Default::default();
+        let mut initiator =
+            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+
+        let message_1 = initiator.prepare_message_1(C_I_TV); // to update the state
+
+        let (error, c_r) = initiator.process_message_2(&MESSAGE_2_TV);
+
+        assert!(error == EdhocError::Success);
+        assert!(c_r == C_R_TV[0]);
     }
 }
