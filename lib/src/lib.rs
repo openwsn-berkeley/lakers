@@ -3,6 +3,7 @@ pub use {
     edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN,
     edhoc_hacspec::EDHOCError as EdhocError, edhoc_hacspec::State as EdhocState,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
 #[cfg(not(feature = "hacspec"))]
@@ -37,6 +38,55 @@ mod hacspec {
         cred_i: &'a str,    // I's full credential
         id_cred_r: &'a str, // identifier of R's credential
         cred_r: &'a str,    // R's full credential
+    }
+
+    pub struct HacspecEdhocResponder<'a> {
+        state: State,       // opaque state
+        r: &'a str,         // private authentication key of R
+        g_i: &'a str,       // public authentication key of I
+        id_cred_i: &'a str, // identifier of I's credential
+        cred_i: &'a str,    // I's full credential
+        id_cred_r: &'a str, // identifier of R's credential
+        cred_r: &'a str,    // R's full credential
+    }
+
+    impl<'a> HacspecEdhocResponder<'a> {
+        pub fn new(
+            state: State,
+            r: &'a str,
+            g_i: &'a str,
+            id_cred_i: &'a str,
+            cred_i: &'a str,
+            id_cred_r: &'a str,
+            cred_r: &'a str,
+        ) -> HacspecEdhocResponder<'a> {
+            assert!(r.len() == P256_ELEM_LEN * 2);
+            assert!(g_i.len() == P256_ELEM_LEN * 2);
+            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+
+            HacspecEdhocResponder {
+                state: state,
+                r: r,
+                g_i: g_i,
+                id_cred_i: id_cred_i,
+                cred_i: cred_i,
+                id_cred_r: id_cred_r,
+                cred_r: cred_r,
+            }
+        }
+
+        pub fn process_message_1(
+            self: &mut HacspecEdhocResponder<'a>,
+            message_1: &[u8; MESSAGE_1_LEN],
+        ) -> EDHOCError {
+            let (state, error) = process_message_1(
+                self.state,
+                &BytesMessage1::from_public_slice(&message_1[..]),
+            );
+            self.state = state;
+            error
+        }
     }
 
     impl<'a> HacspecEdhocInitiator<'a> {
@@ -267,7 +317,8 @@ mod test {
     const ID_CRED_R: &str = "a104410a";
     const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
     const I: &str = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
-    const _G_I_X_COORD: &str = "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"; // not used
+    const R: &str = "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac";
+    const G_I: &str = "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"; // used
     const _G_I_Y_COORD: &str = "6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"; // not used
     const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
@@ -281,9 +332,15 @@ mod test {
     "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d58b8fec6b1f0580c5043927");
 
     #[test]
-    fn test_new() {
+    fn test_new_initiator() {
         let state: EdhocState = Default::default();
         let initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+    }
+
+    #[test]
+    fn test_new_responder() {
+        let state: EdhocState = Default::default();
+        let responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
     #[test]
@@ -294,6 +351,17 @@ mod test {
 
         let message_1 = initiator.prepare_message_1(C_I_TV);
         assert_eq!(message_1, MESSAGE_1_TV);
+    }
+
+    #[test]
+    fn test_process_message_1() {
+        let state: EdhocState = Default::default();
+        let mut responder =
+            EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+
+        let error = responder.process_message_1(&MESSAGE_1_TV);
+
+        assert!(error == EdhocError::Success);
     }
 
     #[test]
