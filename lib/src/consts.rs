@@ -7,10 +7,9 @@ pub const CRED_R : [u8; 83] = hex!("A2026008A101A50102020520012158206F9702A66602
 pub const G_R: [u8; P256_ELEM_LEN] =
     hex!("6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f");
 pub const C_I: i8 = -24;
-pub const G_X: [u8; 32] =
-    hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-pub const X: [u8; 32] =
-    hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+pub const G_X: [u8; 32] = hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
+pub const X: [u8; 32] = hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+pub const ID_CRED_LEN: usize = 4;
 pub const MESSAGE_2_LEN: usize = 45;
 pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
 pub const EDHOC_METHOD: u8 = 3; // stat-stat is the only supported method

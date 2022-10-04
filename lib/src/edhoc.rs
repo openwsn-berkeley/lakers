@@ -1,13 +1,10 @@
 #![cfg_attr(not(feature = "native"), no_std)]
 
-mod accelerator;
-pub mod consts;
-
-use consts::*;
-pub use accelerator::Accelerator;
+pub use crate::accelerator::Accelerator;
+use crate::consts::*;
 
 #[cfg(feature = "native")]
-pub use accelerator::NativeAccelerator;
+pub use crate::accelerator::NativeAccelerator;
 
 #[derive(Default)]
 pub struct State {

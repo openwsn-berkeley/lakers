@@ -1,4 +1,26 @@
 #[cfg(feature = "hacspec")]
+pub use {
+    edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN,
+    edhoc_hacspec::EDHOCError as EdhocError, edhoc_hacspec::State as EdhocState,
+    hacspec::HacspecEdhocInitiator as EdhocInitiator,
+};
+
+#[cfg(not(feature = "hacspec"))]
+pub use rust::RustEdhocInitiator as EdhocInitiator;
+
+#[cfg(not(feature = "hacspec"))]
+mod edhoc;
+
+#[cfg(not(feature = "hacspec"))]
+mod consts;
+
+#[cfg(not(feature = "hacspec"))]
+mod accelerator;
+
+#[cfg(not(feature = "hacspec"))]
+use edhoc::*;
+
+#[cfg(feature = "hacspec")]
 mod hacspec {
     use edhoc_hacspec::consts::*;
     use edhoc_hacspec::*;
@@ -146,32 +168,46 @@ mod hacspec {
 
 #[cfg(not(feature = "hacspec"))]
 mod rust {
-    use crate::*;
+    use super::consts::*;
+    use super::*;
 
-    pub struct RustEdhocInitiator {
-        state: State,
-        i: &str,
-        g_r: &str,
-        id_cred_i: &str,
-        cred_i: &str,
-        id_cred_r: &str,
-        cred_r: &str,
+    pub struct RustEdhocInitiator<'a> {
+        state: State,       // opaque state
+        i: &'a str,         // private authentication key of I
+        g_r: &'a str,       // public authentication key of R
+        id_cred_i: &'a str, // identifier of I's credential
+        cred_i: &'a str,    // I's full credential
+        id_cred_r: &'a str, // identifier of R's credential
+        cred_r: &'a str,    // R's full credential
     }
 
-    impl RustEdhocInitiator {
-        pub fn new() -> RustEdhocInitiator {}
+    impl<'a> RustEdhocInitiator<'a> {
+        pub fn new(
+            state: State,
+            i: &'a str,
+            g_r: &'a str,
+            id_cred_i: &'a str,
+            cred_i: &'a str,
+            id_cred_r: &'a str,
+            cred_r: &'a str,
+        ) -> RustEdhocInitiator<'a> {
+            assert!(i.len() == P256_ELEM_LEN * 2);
+            assert!(g_r.len() == P256_ELEM_LEN * 2);
+            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+
+            RustEdhocInitiator {
+                state: state,
+                i: i,
+                g_r: g_r,
+                id_cred_i: id_cred_i,
+                cred_i: cred_i,
+                id_cred_r: id_cred_r,
+                cred_r: cred_r,
+            }
+        }
     }
 }
-
-pub use edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN;
-pub use edhoc_hacspec::EDHOCError as EdhocError;
-pub use edhoc_hacspec::State as EdhocState;
-
-#[cfg(feature = "hacspec")]
-pub use hacspec::HacspecEdhocInitiator as EdhocInitiator;
-
-#[cfg(not(feature = "hacspec"))]
-pub use rust::RustEdhocInitiator as EdhocInitiator;
 
 #[cfg(test)]
 mod test {
