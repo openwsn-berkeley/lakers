@@ -88,9 +88,7 @@ mod hacspec {
             error
         }
 
-        pub fn prepare_message_2(
-            self: &mut HacspecEdhocResponder<'a>,
-            ) -> [u8; MESSAGE_2_LEN] {
+        pub fn prepare_message_2(self: &mut HacspecEdhocResponder<'a>) -> [u8; MESSAGE_2_LEN] {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
             let mut cred_r = BytesMaxBuffer::new();
@@ -100,9 +98,10 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            let (state, message_2) = prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+            let (state, message_2) =
+                prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
 
-            let mut message_2_native : [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
+            let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
             for i in 0..message_2.len() {
                 message_2_native[i] = message_2[i].declassify();
             }
@@ -350,19 +349,17 @@ mod test {
 
     const MESSAGE_1_TV: [u8; 37] =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
-    const MESSAGE_2_TV: [u8; 45] = hex!(
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d58b8fec6b1f0580c5043927");
 
     #[test]
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
-        let initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
-        let responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
     #[test]
@@ -387,16 +384,36 @@ mod test {
     }
 
     #[test]
-    fn test_process_message_2() {
-        let state: EdhocState = Default::default();
-        let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+    fn test_handshake() {
+        let state_initiator: EdhocState = Default::default();
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            I,
+            G_R,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let state_responder: EdhocState = Default::default();
+        let mut responder = EdhocResponder::new(
+            state_responder,
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
 
         let message_1 = initiator.prepare_message_1(C_I_TV); // to update the state
 
-        let (error, c_r) = initiator.process_message_2(&MESSAGE_2_TV);
+        let error = responder.process_message_1(&message_1);
+        assert!(error == EdhocError::Success);
+
+        let message_2 = responder.prepare_message_2();
+        let (error, _c_r) = initiator.process_message_2(&message_2);
 
         assert!(error == EdhocError::Success);
-        assert!(c_r == C_R_TV[0]);
     }
 }
