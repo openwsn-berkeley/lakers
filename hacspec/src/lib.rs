@@ -412,12 +412,14 @@ fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
 ) -> (U8, BytesSupportedSuites, BytesP256ElemLen, BytesCid) {
     let method = rcvd_message_1[0];
-    let supported_suites = BytesSupportedSuites([rcvd_message_1[1]]);
+    // FIXME as we only support a fixed-sized incoming message_1,
+    // we parse directly the selected cipher suite
+    let selected_suite = BytesSupportedSuites([rcvd_message_1[1]]);
     let mut g_x = BytesP256ElemLen::new();
     g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
     let c_i = BytesCid([rcvd_message_1[MESSAGE_1_LEN - 1]]);
 
-    (method, supported_suites, g_x, c_i)
+    (method, selected_suite, g_x, c_i)
 }
 
 fn encode_message_1(
