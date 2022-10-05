@@ -572,13 +572,7 @@ fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaint
     plaintext_3
 }
 
-// calculates ciphertext_3 wrapped in a cbor byte string
-// output must hold MESSAGE_3_LEN
-fn compute_bstr_ciphertext_3(
-    prk_3e2m: &BytesHashLen,
-    th_3: &BytesHashLen,
-    plaintext_3: &BytesPlaintext3,
-) -> BytesMessage3 {
+fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
     let mut encrypt0 = Bytes8::new();
     encrypt0[0] = U8(0x45u8); // 'E'
     encrypt0[1] = U8(0x6eu8); // 'n'
@@ -590,6 +584,28 @@ fn compute_bstr_ciphertext_3(
     encrypt0[7] = U8(0x30u8); // '0'
 
     let mut enc_structure = BytesEncStructureLen::new();
+
+    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
+    enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3 as u8); // 3 is the fixed number of elements in the array
+    enc_structure[1] = U8(CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8);
+    enc_structure = enc_structure.update(2, &encrypt0);
+    enc_structure[encrypt0.len() + 2] = U8(CBOR_MAJOR_BYTE_STRING | 0x00 as u8); // 0 for zero-length byte string
+    enc_structure[encrypt0.len() + 3] = U8(CBOR_BYTE_STRING); // byte string greater than 24
+    enc_structure[encrypt0.len() + 4] = U8(SHA256_DIGEST_LEN as u8);
+    enc_structure = enc_structure.update(encrypt0.len() + 5, th_3);
+
+    enc_structure
+}
+
+// calculates ciphertext_3 wrapped in a cbor byte string
+// output must hold MESSAGE_3_LEN
+fn compute_bstr_ciphertext_3(
+    prk_3e2m: &BytesHashLen,
+    th_3: &BytesHashLen,
+    plaintext_3: &BytesPlaintext3,
+) -> BytesMessage3 {
+
+
     let mut th_3_context = BytesMaxContextBuffer::new();
     th_3_context = th_3_context.update(0, th_3);
 
@@ -610,17 +626,10 @@ fn compute_bstr_ciphertext_3(
         AES_CCM_IV_LEN,
     );
 
-    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
-    enc_structure[0] = U8(CBOR_MAJOR_ARRAY | 3 as u8); // 3 is the fixed number of elements in the array
-    enc_structure[1] = U8(CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8);
-    enc_structure = enc_structure.update(2, &encrypt0);
-    enc_structure[encrypt0.len() + 2] = U8(CBOR_MAJOR_BYTE_STRING | 0x00 as u8); // 0 for zero-length byte string
-    enc_structure[encrypt0.len() + 3] = U8(CBOR_BYTE_STRING); // byte string greater than 24
-    enc_structure[encrypt0.len() + 4] = U8(SHA256_DIGEST_LEN as u8);
-    enc_structure = enc_structure.update(encrypt0.len() + 5, th_3);
-
     let mut output = BytesMessage3::new();
     output[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
+
+    let enc_structure = encode_enc_structure(th_3);
 
     output = output.update(
         1,
