@@ -604,25 +604,20 @@ fn compute_bstr_ciphertext_3(
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
-
-
-    let mut th_3_context = BytesMaxContextBuffer::new();
-    th_3_context = th_3_context.update(0, th_3);
-
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
     let k_3 = edhoc_kdf(
         prk_3e2m,
         U8(3 as u8),
-        &th_3_context,
-        SHA256_DIGEST_LEN,
+        &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
+        th_3.len(),
         AES_CCM_KEY_LEN,
     );
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
     let iv_3 = edhoc_kdf(
         prk_3e2m,
         U8(4 as u8),
-        &th_3_context,
-        SHA256_DIGEST_LEN,
+        &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
+        th_3.len(),
         AES_CCM_IV_LEN,
     );
 
