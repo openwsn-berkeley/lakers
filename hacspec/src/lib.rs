@@ -17,7 +17,8 @@ pub enum EDHOCError {
     MacVerificationFailed = 2,
     UnsupportedMethod = 3,
     UnsupportedCipherSuite = 4,
-    UnknownError = 5,
+    ParsingError = 5,
+    UnknownError = 6,
 }
 
 #[derive(Default, Copy, Clone)]
@@ -185,6 +186,38 @@ pub fn prepare_message_2(
     (state, message_2)
 }
 
+pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCError, State) {
+    let State(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    ) = state;
+
+    let mut error = EDHOCError::UnknownError;
+
+    state = construct_state(
+        g_x,
+        prk_2e,
+        prk_3e2m,
+        prk_4e3m,
+        prk_out,
+        prk_exporter,
+        h_message_1,
+        th_2,
+        th_3,
+        th_4,
+    );
+
+    (error, state)
+}
+
 // must hold MESSAGE_1_LEN
 pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
     let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
@@ -336,7 +369,7 @@ pub fn prepare_message_3(
 
     let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
-    let message_3 = compute_bstr_ciphertext_3(&prk_3e2m, &th_3, &plaintext_3);
+    let message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
     let mut plaintext_3_buf = BytesMaxBuffer::new();
     plaintext_3_buf = plaintext_3_buf.update_slice(0, &plaintext_3, 0, plaintext_3.len());
@@ -597,47 +630,103 @@ fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
     enc_structure
 }
 
+fn compute_k_3_iv_3(
+    prk_3e2m: &BytesHashLen,
+    th_3: &BytesHashLen,
+) -> (BytesCcmKeyLen, BytesCcmIvLen) {
+    // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
+    let k_3 = BytesCcmKeyLen::from_slice(
+        &edhoc_kdf(
+            prk_3e2m,
+            U8(3 as u8),
+            &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
+            th_3.len(),
+            AES_CCM_KEY_LEN,
+        ),
+        0,
+        AES_CCM_KEY_LEN,
+    );
+    // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
+    let iv_3 = BytesCcmIvLen::from_slice(
+        &edhoc_kdf(
+            prk_3e2m,
+            U8(4 as u8),
+            &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
+            th_3.len(),
+            AES_CCM_IV_LEN,
+        ),
+        0,
+        AES_CCM_IV_LEN,
+    );
+
+    (k_3, iv_3)
+}
+
 // calculates ciphertext_3 wrapped in a cbor byte string
 // output must hold MESSAGE_3_LEN
-fn compute_bstr_ciphertext_3(
+fn encrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
-    // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
-    let k_3 = edhoc_kdf(
-        prk_3e2m,
-        U8(3 as u8),
-        &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
-        th_3.len(),
-        AES_CCM_KEY_LEN,
-    );
-    // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
-    let iv_3 = edhoc_kdf(
-        prk_3e2m,
-        U8(4 as u8),
-        &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
-        th_3.len(),
-        AES_CCM_IV_LEN,
-    );
-
     let mut output = BytesMessage3::new();
     output[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
 
     let enc_structure = encode_enc_structure(th_3);
 
+    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+
     output = output.update(
         1,
         &encrypt_ccm(
             ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
-            ByteSeq::from_slice(&iv_3, 0, AES_CCM_IV_LEN),
+            ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
             ByteSeq::from_slice(plaintext_3, 0, plaintext_3.len()),
-            Key128::from_slice(&k_3, 0, AES_CCM_KEY_LEN),
+            Key128::from_slice(&k_3, 0, k_3.len()),
             AES_CCM_TAG_LEN,
         ),
     );
 
     output
+}
+
+fn decrypt_message_3(
+    prk_3e2m: &BytesHashLen,
+    th_3: &BytesHashLen,
+    message_3: &BytesMessage3,
+) -> (EDHOCError, BytesPlaintext3) {
+    let mut error = EDHOCError::UnknownError;
+
+    // decode message_3
+    let len = message_3[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
+    if len.declassify() as usize != CIPHERTEXT_3_LEN {
+        // early return
+        error = EDHOCError::ParsingError;
+        return (error, BytesPlaintext3::new());
+    }
+
+    let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
+
+    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+
+    let enc_structure = encode_enc_structure(th_3);
+
+    let plaintext_3_seq = match decrypt_ccm(
+        ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
+        ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
+        Key128::from_slice(&k_3, 0, k_3.len()),
+        ByteSeq::from_slice(&ciphertext_3, 0, ciphertext_3.len()),
+        ciphertext_3.len(),
+        AES_CCM_TAG_LEN,
+    ) {
+        Ok(p) => p,
+        Err(e) => return (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
+    };
+
+    let mut plaintext_3 = BytesPlaintext3::new();
+    plaintext_3 = plaintext_3.update(0, &plaintext_3_seq);
+    error = EDHOCError::Success;
+    (error, plaintext_3)
 }
 
 // output must hold id_cred.len() + cred.len()
@@ -1014,14 +1103,27 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_bstr_ciphertext_3() {
+    fn test_encrypt_message_3() {
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
-        let bstr_ciphertext_3 = compute_bstr_ciphertext_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
-        assert_bytes_eq!(bstr_ciphertext_3, message_3_tv);
+        let message_3 = encrypt_message_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
+        assert_bytes_eq!(message_3, message_3_tv);
+    }
+
+    #[test]
+    fn test_decrypt_message_3() {
+        let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
+        let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
+        let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+
+        let (error, plaintext_3) = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
+
+        assert_eq!(error, EDHOCError::Success);
+        assert_bytes_eq!(plaintext_3, plaintext_3_tv);
     }
 
     #[test]
