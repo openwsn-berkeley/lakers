@@ -87,6 +87,28 @@ mod hacspec {
             self.state = state;
             error
         }
+
+        pub fn prepare_message_2(
+            self: &mut HacspecEdhocResponder<'a>,
+            ) -> [u8; MESSAGE_2_LEN] {
+            // init hacspec structs for id_cred_r and cred_r
+            let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
+            let mut cred_r = BytesMaxBuffer::new();
+            cred_r = cred_r.update(0, &ByteSeq::from_hex(self.cred_r));
+            let cred_r_len = self.cred_r.len() / 2;
+
+            // init hacspec structs for R's public static DH key
+            let r = BytesP256ElemLen::from_hex(self.r);
+
+            let (state, message_2) = prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+
+            let mut message_2_native : [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
+            for i in 0..message_2.len() {
+                message_2_native[i] = message_2[i].declassify();
+            }
+
+            message_2_native
+        }
     }
 
     impl<'a> HacspecEdhocInitiator<'a> {
