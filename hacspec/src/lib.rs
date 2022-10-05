@@ -126,14 +126,14 @@ pub fn prepare_message_2(
 ) -> (State, BytesMessage2) {
     let State(
         g_x,
-        prk_2e,
-        prk_3e2m,
+        mut prk_2e,
+        mut prk_3e2m,
         prk_4e3m,
         prk_out,
         prk_exporter,
         h_message_1,
-        th_2,
-        th_3,
+        mut th_2,
+        mut th_3,
         th_4,
     ) = state;
 
@@ -144,18 +144,26 @@ pub fn prepare_message_2(
     let c_r = BytesCid([U8(0x00)]);
 
     // compute TH_2
-    let th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
+    th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(&Y, &g_x);
+    prk_2e = compute_prk_2e(&Y, &g_x);
     let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
-    let prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
+    prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
     // compute MAC_2
     let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
     // compute ciphertext_2
     let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &BytesEad2::new());
+
+    // step is actually from processing of message_3
+    // but we do it here to avoid storing plaintext_2 in State
+    th_3 = compute_th_3_th_4(
+        &th_2,
+        &BytesMaxBuffer::from_slice(&plaintext_2, 0, plaintext_2.len()),
+        plaintext_2.len(),
+    );
 
     let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
         &prk_2e,
@@ -200,7 +208,15 @@ pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCE
         th_4,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+
+    if err != EDHOCError::Success {
+        return (err, state);
+    }
+
+    let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
+
+    // FIXME fetch ID_CRED_I and CRED_I based on kid
 
     state = construct_state(
         g_x,
@@ -215,7 +231,7 @@ pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCE
         th_4,
     );
 
-    (error, state)
+    (EDHOCError::Success, state)
 }
 
 // must hold MESSAGE_1_LEN
@@ -592,6 +608,14 @@ fn edhoc_kdf(
     );
 
     output
+}
+
+fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
+    let kid = plaintext_3[0usize];
+    // skip the CBOR magic byte as we know how long the MAC is
+    let mac_3 = BytesMac3::from_slice(plaintext_3, 2, MAC_LENGTH_3);
+
+    (kid, mac_3)
 }
 
 fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaintext3 {
@@ -1256,12 +1280,25 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_paintext_3() {
+    fn test_encode_plaintext_3() {
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
 
         let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
         assert_bytes_eq!(plaintext_3, plaintext_3_tv);
+    }
+
+    #[test]
+    fn test_decode_plaintext_3() {
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
+        let kid_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
+        let kid_tv = kid_tv[kid_tv.len() - 1];
+
+        let (kid, mac_3) = decode_plaintext_3(&plaintext_3_tv);
+
+        assert_bytes_eq!(mac_3, mac_3_tv);
+        assert_eq!(kid.declassify(), kid_tv.declassify());
     }
 }
