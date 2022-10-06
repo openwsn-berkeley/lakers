@@ -206,7 +206,7 @@ pub fn r_process_message_3(
             );
 
             // verify mac_3
-            if verify_mac_3(&mac_3, &expected_mac_3) {
+            if mac_3.declassify_eq(&expected_mac_3) {
                 error = EDHOCError::Success;
             } else {
                 error = EDHOCError::MacVerificationFailed;
@@ -334,7 +334,7 @@ pub fn i_process_message_2(
             &th_2,
         );
 
-        if verify_mac_2(&mac_2, &expected_mac_2) {
+        if mac_2.declassify_eq(&expected_mac_2) {
             error = EDHOCError::Success;
         } else {
             // FIXME early return!
@@ -809,31 +809,6 @@ fn compute_mac_2(
     mac_2
 }
 
-fn verify_mac_2(rcvd_mac_2: &BytesMac2, expected_mac_2: &BytesMac2) -> bool {
-    let mut verified: bool = true;
-    for i in 0..MAC_LENGTH_2 {
-        if expected_mac_2[i].declassify() == rcvd_mac_2[i].declassify() {
-            verified = true;
-        } else {
-            verified = false;
-        }
-    }
-    verified
-}
-
-// FIXME get rid of this function
-fn verify_mac_3(rcvd_mac_3: &BytesMac3, expected_mac_3: &BytesMac3) -> bool {
-    let mut verified: bool = true;
-    for i in 0..MAC_LENGTH_3 {
-        if expected_mac_3[i].declassify() == rcvd_mac_3[i].declassify() {
-            verified = true;
-        } else {
-            verified = false;
-        }
-    }
-    verified
-}
-
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     _plaintext_2_len: usize,
@@ -1203,7 +1178,7 @@ mod tests {
             &th_2_tv,
         );
 
-        assert!(verify_mac_2(&rcvd_mac_2, &mac_2_tv));
+        assert_bytes_eq!(rcvd_mac_2, mac_2_tv);
     }
 
     #[test]
