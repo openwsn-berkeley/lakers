@@ -199,7 +199,7 @@ pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCE
         g_x,
         prk_2e,
         prk_3e2m,
-        prk_4e3m,
+        mut prk_4e3m,
         prk_out,
         prk_exporter,
         h_message_1,
@@ -217,6 +217,14 @@ pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCE
     let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
 
     // FIXME fetch ID_CRED_I and CRED_I based on kid
+
+    // compute salt_4e3m
+    let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+    // TODO compute prk_4e3m FIXME add y to the state
+    //prk_4e3m = compute_prk_4e3m(&salt_4e3m, y, &g_i);
+
+    // TODO compute mac_3
+    //let mac_3_expected = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
 
     state = construct_state(
         g_x,
