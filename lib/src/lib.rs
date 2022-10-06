@@ -80,7 +80,7 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &[u8; MESSAGE_1_LEN],
         ) -> EDHOCError {
-            let (state, error) = r_process_message_1(
+            let (error, state) = r_process_message_1(
                 self.state,
                 &BytesMessage1::from_public_slice(&message_1[..]),
             );
@@ -100,6 +100,7 @@ mod hacspec {
 
             let (state, message_2) =
                 r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+            self.state = state;
 
             let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
             for i in 0..message_2.len() {
@@ -107,6 +108,66 @@ mod hacspec {
             }
 
             message_2_native
+        }
+
+        pub fn process_message_3(
+            self: &mut HacspecEdhocResponder<'a>,
+            message_3: &[u8; MESSAGE_3_LEN],
+        ) -> (EDHOCError, [u8; SHA256_DIGEST_LEN]) {
+            // init hacspec structs for id_cred_r and cred_r
+            let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
+            let mut cred_i = BytesMaxBuffer::new();
+            cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
+            let cred_i_len = self.cred_i.len() / 2;
+
+            // init hacspec structs for R's public static DH key
+            let g_i = BytesP256ElemLen::from_hex(self.g_i);
+
+            let (error, state, prk_out) = r_process_message_3(
+                self.state,
+                &BytesMessage3::from_public_slice(&message_3[..]),
+                &id_cred_i,
+                &cred_i,
+                cred_i_len,
+                &g_i,
+            );
+            self.state = state;
+
+            let mut prk_out_native: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
+            for i in 0..prk_out_native.len() {
+                prk_out_native[i] = prk_out[i].declassify();
+            }
+
+            (error, prk_out_native)
+        }
+
+        pub fn edhoc_exporter(
+            self: &mut HacspecEdhocResponder<'a>,
+            label: u8,
+            context: &[u8],
+            length: usize,
+        ) -> [u8; MAX_BUFFER_LEN] {
+            // init hacspec struct for context
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
+
+            let (state, output) = edhoc_exporter(
+                self.state,
+                U8(label),
+                &context_hacspec,
+                context.len(),
+                length,
+            );
+            self.state = state;
+
+            // FIXME use hacspec standard library functions once available
+            let mut output_native: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
+            assert!(output.len() == output_native.len());
+            for i in 0..output.len() {
+                output_native[i] = output[i].declassify();
+            }
+
+            output_native
         }
     }
 
@@ -188,27 +249,34 @@ mod hacspec {
             (error, c_r[0usize].declassify())
         }
 
-        pub fn prepare_message_3(self: &mut HacspecEdhocInitiator<'a>) -> [u8; MESSAGE_3_LEN] {
+        pub fn prepare_message_3(
+            self: &mut HacspecEdhocInitiator<'a>,
+        ) -> ([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
             // init hacspec structs for id_cred_i and cred_i
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
 
-            let (state, message_3) =
+            let (state, message_3, prk_out) =
                 i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
 
             self.state = state;
 
             // convert message_3 into native Rust array FIXME use hacspec standard library functions once available
             let mut message_native: [u8; MESSAGE_3_LEN] = [0; MESSAGE_3_LEN];
+            let mut prk_out_native: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
 
             assert!(message_3.len() == message_native.len());
             for i in 0..message_3.len() {
                 message_native[i] = message_3[i].declassify();
             }
 
-            message_native
+            for i in 0..prk_out.len() {
+                prk_out_native[i] = prk_out[i].declassify();
+            }
+
+            (message_native, prk_out_native)
         }
 
         pub fn edhoc_exporter(
@@ -218,7 +286,8 @@ mod hacspec {
             length: usize,
         ) -> [u8; MAX_BUFFER_LEN] {
             // init hacspec struct for context
-            let context_hacspec = BytesMaxContextBuffer::from_public_slice(context);
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
             let (state, output) = edhoc_exporter(
                 self.state,
@@ -414,7 +483,23 @@ mod test {
 
         let message_2 = responder.prepare_message_2();
         let (error, _c_r) = initiator.process_message_2(&message_2);
-
         assert!(error == EdhocError::Success);
+
+        let (message_3, i_prk_out) = initiator.prepare_message_3();
+        let (error, r_prk_out) = responder.process_message_3(&message_3);
+        assert!(error == EdhocError::Success);
+
+        // check that prk_out is equal at initiator and responder side
+        assert_eq!(i_prk_out, r_prk_out);
+
+        // derive OSCORE secret and salt at both sides and compare
+        let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+
+        let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+        let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+
+        assert_eq!(i_oscore_secret, r_oscore_secret);
+        assert_eq!(i_oscore_salt, r_oscore_salt);
     }
 }

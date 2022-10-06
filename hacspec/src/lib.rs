@@ -23,16 +23,14 @@ pub enum EDHOCError {
 
 #[derive(Default, Copy, Clone)]
 pub struct State(
-    BytesP256ElemLen, // x or g_x, ephemeral key of the initiator
-    BytesHashLen,     // prk_2e
+    BytesP256ElemLen, // x or y, ephemeral private key of myself
+    BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
     BytesHashLen,     // prk_3e2m
     BytesHashLen,     // prk_4e3m
     BytesHashLen,     // prk_out
     BytesHashLen,     // prk_exporter
     BytesHashLen,     // h_message_1
-    BytesHashLen,     // th_2
     BytesHashLen,     // th_3
-    BytesHashLen,     // th_4
 );
 
 pub fn edhoc_exporter(
@@ -43,16 +41,14 @@ pub fn edhoc_exporter(
     length: usize,
 ) -> (State, BytesMaxBuffer) {
     let State(
-        _x,
-        _prk_2e,
+        _x_or_y,
+        _gy_or_gx,
         _prk_3e2m,
         _prk_4e3m,
         _prk_out,
         prk_exporter,
         _h_message_1,
-        _th_2,
         _th_3,
-        _th_4,
     ) = state;
 
     let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
@@ -60,23 +56,13 @@ pub fn edhoc_exporter(
     (state, output)
 }
 
-pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (State, EDHOCError) {
+pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {
     // Step 1: decode message_1
     // Step 2: verify that the selected cipher suite is supported
     // Step 3: If EAD is present make it available to the application
 
-    let State(
-        g_x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        th_2,
-        th_3,
-        th_4,
-    ) = state;
+    let State(_y, g_x, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
+        state;
 
     let mut error = EDHOCError::UnknownError;
 
@@ -85,36 +71,34 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (Stat
 
     if method.declassify() != EDHOC_METHOD {
         error = EDHOCError::UnsupportedMethod;
-        return (state, error);
+        return (error, state);
     }
 
     if supported_suites[0u8].declassify() != EDHOC_SUPPORTED_SUITES[0u8].declassify() {
         error = EDHOCError::UnsupportedCipherSuite;
-        return (state, error);
+        return (error, state);
     }
 
     // TODO we do not support EAD for now
 
     // hash message_1 and save to state
-    let h_message_1 =
+    h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message_1, 0, message_1.len())));
 
     error = EDHOCError::Success;
 
     state = construct_state(
+        _y,
         g_x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
+        _prk_3e2m,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
         h_message_1,
-        th_2,
-        th_3,
-        th_4,
+        _th_3,
     );
 
-    (state, error)
+    (error, state)
 }
 
 pub fn r_prepare_message_2(
@@ -124,30 +108,21 @@ pub fn r_prepare_message_2(
     cred_r_len: usize,
     r: &BytesP256ElemLen, // R's static private DH key
 ) -> (State, BytesMessage2) {
-    let State(
-        g_x,
-        mut prk_2e,
-        mut prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        mut th_2,
-        mut th_3,
-        th_4,
-    ) = state;
+    let State(mut y, g_x, mut prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
+        state;
 
     // TODO generate ephemeral key pair
+    y = Y;
     let g_y = G_Y;
 
     // FIXME generate a connection identifier to multiplex sessions
     let c_r = BytesCid([U8(0x00)]);
 
     // compute TH_2
-    th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
+    let th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
 
     // compute prk_3e2m
-    prk_2e = compute_prk_2e(&Y, &g_x);
+    let prk_2e = compute_prk_2e(&Y, &g_x);
     let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
     prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
@@ -179,93 +154,138 @@ pub fn r_prepare_message_2(
     );
 
     state = construct_state(
+        y,
         g_x,
-        prk_2e,
         prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
         h_message_1,
-        th_2,
         th_3,
-        th_4,
     );
 
     (state, message_2)
 }
 
-pub fn r_process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCError, State) {
-    let State(
-        g_x,
-        prk_2e,
-        prk_3e2m,
-        mut prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        th_2,
-        th_3,
-        th_4,
-    ) = state;
+// FIXME fetch ID_CRED_I and CRED_I based on kid
+pub fn r_process_message_3(
+    mut state: State,
+    message_3: &BytesMessage3,
+    id_cred_i_expected: &BytesIdCred,
+    cred_i_expected: &BytesMaxBuffer,
+    cred_i_len: usize,
+    g_i: &BytesP256ElemLen, // I's public DH key
+) -> (EDHOCError, State, BytesHashLen) {
+    let State(y, _g_x, prk_3e2m, mut prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
+        state;
 
-    let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+    let mut error = EDHOCError::UnknownError;
 
-    if err != EDHOCError::Success {
-        return (err, state);
+    // loop with breaks is a trick to avoid early returns that are not supported in hacspec
+    loop {
+        let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+
+        if err != EDHOCError::Success {
+            break;
+        }
+
+        let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
+
+        if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
+            // compute salt_4e3m
+            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+            // TODO compute prk_4e3m
+            prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+
+            // compute mac_3
+            let expected_mac_3 = compute_mac_3(
+                &prk_4e3m,
+                &th_3,
+                id_cred_i_expected,
+                cred_i_expected,
+                cred_i_len,
+            );
+
+            // verify mac_3
+            if verify_mac_3(&mac_3, &expected_mac_3) {
+                error = EDHOCError::Success;
+            } else {
+                error = EDHOCError::MacVerificationFailed;
+                break;
+            }
+
+            let th_4 = compute_th_3_th_4(
+                &th_3,
+                &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
+                plaintext_3.len(),
+            );
+
+            // compute prk_out
+            // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
+            let prk_out_buf = edhoc_kdf(
+                &prk_4e3m,
+                U8(7 as u8),
+                &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
+                th_4.len(),
+                SHA256_DIGEST_LEN,
+            );
+            prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
+
+            // compute prk_exporter from prk_out
+            // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+            let prk_exporter_buf = edhoc_kdf(
+                &prk_out,
+                U8(10 as u8),
+                &BytesMaxContextBuffer::new(),
+                0,
+                SHA256_DIGEST_LEN,
+            );
+            prk_exporter = prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
+
+            error = EDHOCError::Success;
+            state = construct_state(
+                y,
+                _g_x,
+                prk_3e2m,
+                prk_4e3m,
+                prk_out,
+                prk_exporter,
+                _h_message_1,
+                th_3,
+            );
+            break;
+        } else {
+            error = EDHOCError::UnknownPeer;
+            break;
+        }
     }
 
-    let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
-
-    // FIXME fetch ID_CRED_I and CRED_I based on kid
-
-    // compute salt_4e3m
-    let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
-    // TODO compute prk_4e3m FIXME add y to the state
-    //prk_4e3m = compute_prk_4e3m(&salt_4e3m, y, &g_i);
-
-    // TODO compute mac_3
-    //let mac_3_expected = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
-
-    state = construct_state(
-        g_x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        th_2,
-        th_3,
-        th_4,
-    );
-
-    (EDHOCError::Success, state)
+    (error, state, prk_out)
 }
 
 // must hold MESSAGE_1_LEN
 pub fn i_prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
-    let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
+    let State(mut x, _g_y, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
         state;
 
     // TODO generate ephemeral key
-    let x = X;
+    x = X;
+    let g_x = G_X;
 
-    let message_1 = encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &G_X, cid);
+    let message_1 = encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &g_x, cid);
 
-    let h_message_1 =
+    h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
 
     state = construct_state(
         x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
+        _g_y,
+        _prk_3e2m,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
         h_message_1,
-        th_2,
-        th_3,
-        th_4,
+        _th_3,
     );
 
     (state, message_1)
@@ -282,18 +302,8 @@ pub fn i_process_message_2(
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
 ) -> (EDHOCError, State, BytesCid, U8) {
-    let State(
-        x,
-        mut prk_2e,
-        mut prk_3e2m,
-        mut prk_4e3m,
-        prk_out,
-        prk_exporter,
-        h_message_1,
-        mut th_2,
-        mut th_3,
-        th_4,
-    ) = state;
+    let State(x, g_y, mut prk_3e2m, mut prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
+        state;
 
     // init error
     let mut error = EDHOCError::UnknownError;
@@ -301,17 +311,17 @@ pub fn i_process_message_2(
     let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
 
     // compute prk_2e
-    prk_2e = compute_prk_2e(&x, &g_y);
+    let prk_2e = compute_prk_2e(&x, &g_y);
 
-    th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
+    let th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
 
     let (plaintext_2, plaintext_2_len) =
         encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2, &h_message_1);
 
     // decode plaintext_2
-    let (id_cred_r, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
+    let (kid, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-    if id_cred_r.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
+    if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
         // verify mac_2
         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
@@ -343,22 +353,20 @@ pub fn i_process_message_2(
 
         state = construct_state(
             x,
-            prk_2e,
+            g_y,
             prk_3e2m,
             prk_4e3m,
-            prk_out,
-            prk_exporter,
+            _prk_out,
+            _prk_exporter,
             h_message_1,
-            th_2,
             th_3,
-            th_4,
         );
     } else {
         // Unknown peer
         error = EDHOCError::UnknownPeer;
     }
 
-    (error, state, c_r, id_cred_r)
+    (error, state, c_r, kid)
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -367,37 +375,27 @@ pub fn i_prepare_message_3(
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
-) -> (State, BytesMessage3) {
-    let State(
-        x,
-        prk_2e,
-        prk_3e2m,
-        prk_4e3m,
-        mut prk_out,
-        mut prk_exporter,
-        h_message_1,
-        th_2,
-        th_3,
-        mut th_4,
-    ) = state;
+) -> (State, BytesMessage3, BytesHashLen) {
+    let State(_x, _g_y, prk_3e2m, prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
+        state;
 
     let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
     let message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
-    let mut plaintext_3_buf = BytesMaxBuffer::new();
-    plaintext_3_buf = plaintext_3_buf.update_slice(0, &plaintext_3, 0, plaintext_3.len());
-    th_4 = compute_th_3_th_4(&th_3, &plaintext_3_buf, plaintext_3.len());
+    let th_4 = compute_th_3_th_4(
+        &th_3,
+        &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
+        plaintext_3.len(),
+    );
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-    let mut th_4_context = BytesMaxContextBuffer::new();
-    th_4_context = th_4_context.update(0, &th_4);
     let prk_out_buf = edhoc_kdf(
         &prk_4e3m,
         U8(7 as u8),
-        &th_4_context,
-        SHA256_DIGEST_LEN,
+        &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
+        th_4.len(),
         SHA256_DIGEST_LEN,
     );
     prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
@@ -414,44 +412,38 @@ pub fn i_prepare_message_3(
     prk_exporter = prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
 
     state = construct_state(
-        x,
-        prk_2e,
+        _x,
+        _g_y,
         prk_3e2m,
         prk_4e3m,
         prk_out,
         prk_exporter,
-        h_message_1,
-        th_2,
+        _h_message_1,
         th_3,
-        th_4,
     );
 
-    (state, message_3)
+    (state, message_3, prk_out)
 }
 
 pub fn construct_state(
-    x: BytesP256ElemLen,
-    prk_2e: BytesHashLen,
+    x_or_y: BytesP256ElemLen,
+    gx_or_gy: BytesP256ElemLen,
     prk_3e2m: BytesHashLen,
     prk_4e3m: BytesHashLen,
     prk_out: BytesHashLen,
     prk_exporter: BytesHashLen,
     h_message_1: BytesHashLen,
-    th_2: BytesHashLen,
     th_3: BytesHashLen,
-    th_4: BytesHashLen,
 ) -> State {
     State(
-        x,
-        prk_2e,
+        x_or_y,
+        gx_or_gy,
         prk_3e2m,
         prk_4e3m,
         prk_out,
         prk_exporter,
         h_message_1,
-        th_2,
         th_3,
-        th_4,
     )
 }
 
@@ -822,6 +814,19 @@ fn verify_mac_2(rcvd_mac_2: &BytesMac2, expected_mac_2: &BytesMac2) -> bool {
     let mut verified: bool = true;
     for i in 0..MAC_LENGTH_2 {
         if expected_mac_2[i].declassify() == rcvd_mac_2[i].declassify() {
+            verified = true;
+        } else {
+            verified = false;
+        }
+    }
+    verified
+}
+
+// FIXME get rid of this function
+fn verify_mac_3(rcvd_mac_3: &BytesMac3, expected_mac_3: &BytesMac3) -> bool {
+    let mut verified: bool = true;
+    for i in 0..MAC_LENGTH_3 {
+        if expected_mac_3[i].declassify() == rcvd_mac_3[i].declassify() {
             verified = true;
         } else {
             verified = false;
