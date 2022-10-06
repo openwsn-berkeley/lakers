@@ -67,7 +67,7 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
     let mut error = EDHOCError::UnknownError;
 
     // g_x will be saved to the state
-    let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
+    let (method, supported_suites, g_x, _c_i) = parse_message_1(message_1);
 
     if method.declassify() != EDHOC_METHOD {
         error = EDHOCError::UnsupportedMethod;
@@ -144,7 +144,6 @@ pub fn r_prepare_message_2(
         &prk_2e,
         &th_2,
         &BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2.len()),
-        &h_message_1,
     );
 
     let message_2 = encode_message_2(
@@ -316,7 +315,7 @@ pub fn i_process_message_2(
     let th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
 
     let (plaintext_2, plaintext_2_len) =
-        encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2, &h_message_1);
+        encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
 
     // decode plaintext_2
     let (kid, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
@@ -734,7 +733,7 @@ fn decrypt_message_3(
         AES_CCM_TAG_LEN,
     ) {
         Ok(p) => p,
-        Err(e) => return (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
+        Err(_e) => return (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
     };
 
     let mut plaintext_3 = BytesPlaintext3::new();
@@ -867,7 +866,6 @@ fn encrypt_decrypt_ciphertext_2(
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
     ciphertext_2: &BytesCiphertext2,
-    h_message_1: &BytesHashLen,
 ) -> (BytesMaxBuffer, usize) {
     // convert the transcript hash th_2 to BytesMaxContextBuffer type
     let mut th_2_context = BytesMaxContextBuffer::new();
@@ -1238,12 +1236,11 @@ mod tests {
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let h_message_1_tv = BytesHashLen::from_hex(H_MESSAGE_1_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
 
         // test decryption
         let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &ciphertext_2_tv, &h_message_1_tv);
+            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &ciphertext_2_tv);
 
         assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
         for i in 0..PLAINTEXT_2_LEN {
@@ -1255,7 +1252,7 @@ mod tests {
 
         // test encryption
         let (ciphertext_2, ciphertext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &plaintext_2_tmp, &h_message_1_tv);
+            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &plaintext_2_tmp);
 
         assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN);
         for i in 0..CIPHERTEXT_2_LEN {

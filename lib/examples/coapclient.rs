@@ -31,7 +31,7 @@ fn main() {
 
     if error == EdhocError::Success {
         let mut msg_3 = Vec::from([c_r]);
-        let (message_3, prk_out) = initiator.prepare_message_3();
+        let (message_3, _prk_out) = initiator.prepare_message_3();
         msg_3.extend_from_slice(&message_3);
 
         let _response = CoAPClient::post(url, msg_3).unwrap();
