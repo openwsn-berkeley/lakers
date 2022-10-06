@@ -10,6 +10,7 @@ pub use {
 pub use {
     edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
     rust::RustEdhocInitiator as EdhocInitiator,
+    rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(not(feature = "hacspec"))]
@@ -325,6 +326,70 @@ mod rust {
         cred_r: &'a str,    // R's full credential
     }
 
+    pub struct RustEdhocResponder<'a> {
+        state: State,       // opaque state
+        r: &'a str,         // private authentication key of R
+        g_i: &'a str,       // public authentication key of I
+        id_cred_i: &'a str, // identifier of I's credential
+        cred_i: &'a str,    // I's full credential
+        id_cred_r: &'a str, // identifier of R's credential
+        cred_r: &'a str,    // R's full credential
+    }
+
+    impl<'a> RustEdhocResponder<'a> {
+        pub fn new(
+            state: State,
+            r: &'a str,
+            g_i: &'a str,
+            id_cred_i: &'a str,
+            cred_i: &'a str,
+            id_cred_r: &'a str,
+            cred_r: &'a str,
+        ) -> RustEdhocResponder<'a> {
+            assert!(r.len() == P256_ELEM_LEN * 2);
+            assert!(g_i.len() == P256_ELEM_LEN * 2);
+            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+
+            RustEdhocResponder {
+                state: state,
+                r: r,
+                g_i: g_i,
+                id_cred_i: id_cred_i,
+                cred_i: cred_i,
+                id_cred_r: id_cred_r,
+                cred_r: cred_r,
+            }
+        }
+
+        pub fn process_message_1(
+            self: &mut RustEdhocResponder<'a>,
+            message_1: &[u8; MESSAGE_1_LEN],
+        ) -> EDHOCError {
+            EDHOCError::UnknownError
+        }
+
+        pub fn prepare_message_2(self: &mut RustEdhocResponder<'a>) -> [u8; MESSAGE_2_LEN] {
+            [0; MESSAGE_2_LEN]
+        }
+
+        pub fn process_message_3(
+            self: &mut RustEdhocResponder<'a>,
+            message_3: &[u8; MESSAGE_3_LEN],
+        ) -> (EDHOCError, [u8; SHA256_DIGEST_LEN]) {
+            (EDHOCError::UnknownError, [0; SHA256_DIGEST_LEN])
+        }
+
+        pub fn edhoc_exporter(
+            self: &mut RustEdhocResponder<'a>,
+            label: u8,
+            context: &[u8],
+            length: usize,
+        ) -> [u8; MAX_BUFFER_LEN] {
+            [0; MAX_BUFFER_LEN]
+        }
+    }
+
     impl<'a> RustEdhocInitiator<'a> {
         pub fn new(
             state: State,
@@ -371,7 +436,9 @@ mod rust {
             (EDHOCError::Success, c_r)
         }
 
-        pub fn prepare_message_3(self: &mut RustEdhocInitiator<'a>) -> [u8; MESSAGE_3_LEN] {
+        pub fn prepare_message_3(
+            self: &mut RustEdhocInitiator<'a>,
+        ) -> ([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
             let mut acc = NativeAccelerator {};
             let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
             let message_3 = prepare_message_3(
@@ -382,7 +449,8 @@ mod rust {
                 &mut message_buffer,
             );
 
-            message_3.try_into().unwrap()
+            // dummy prk_out for the time being
+            (message_3.try_into().unwrap(), [0; SHA256_DIGEST_LEN])
         }
 
         pub fn edhoc_exporter(
