@@ -329,17 +329,7 @@ pub fn process_message_2(
         th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
         // message 3 processing
 
-        let mut th_3_context = BytesMaxContextBuffer::new();
-        th_3_context = th_3_context.update(0, &th_3);
-        let salt_4e3m_buf = edhoc_kdf(
-            &prk_3e2m,
-            U8(5 as u8),
-            &th_3_context,
-            SHA256_DIGEST_LEN,
-            SHA256_DIGEST_LEN,
-        );
-        let mut salt_4e3m = BytesHashLen::new();
-        salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
+        let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
         prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
@@ -886,6 +876,22 @@ fn encrypt_decrypt_ciphertext_2(
     }
 
     (plaintext_2, CIPHERTEXT_2_LEN)
+}
+
+fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashLen {
+    let mut th_3_context = BytesMaxContextBuffer::new();
+    th_3_context = th_3_context.update(0, th_3);
+    let salt_4e3m_buf = edhoc_kdf(
+        &prk_3e2m,
+        U8(5 as u8),
+        &th_3_context,
+        th_3.len(),
+        SHA256_DIGEST_LEN,
+    );
+    let mut salt_4e3m = BytesHashLen::new();
+    salt_4e3m = salt_4e3m.update_slice(0, &salt_4e3m_buf, 0, SHA256_DIGEST_LEN);
+
+    salt_4e3m
 }
 
 fn compute_prk_4e3m(
