@@ -310,13 +310,7 @@ fn compute_and_verify_mac_2<A: Accelerator>(
         &mut mac_2,
     );
 
-    let mut verified: bool = true;
-    for i in 0..MAC_LENGTH_2 {
-        if mac_2[i] != rcvd_mac_2[i] {
-            verified = false;
-        }
-    }
-    verified
+    mac_2 == rcvd_mac_2
 }
 
 fn compute_mac_3<A: Accelerator>(
