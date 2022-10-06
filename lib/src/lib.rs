@@ -80,7 +80,7 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &[u8; MESSAGE_1_LEN],
         ) -> EDHOCError {
-            let (state, error) = process_message_1(
+            let (state, error) = r_process_message_1(
                 self.state,
                 &BytesMessage1::from_public_slice(&message_1[..]),
             );
@@ -99,7 +99,7 @@ mod hacspec {
             let r = BytesP256ElemLen::from_hex(self.r);
 
             let (state, message_2) =
-                prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+                r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
 
             let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
             for i in 0..message_2.len() {
@@ -141,7 +141,7 @@ mod hacspec {
             c_i: u8,
         ) -> [u8; MESSAGE_1_LEN] {
             let (state, message_1) =
-                edhoc_hacspec::prepare_message_1(self.state, &BytesCid([U8(c_i)]));
+                edhoc_hacspec::i_prepare_message_1(self.state, &BytesCid([U8(c_i)]));
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -174,7 +174,7 @@ mod hacspec {
             // init hacspec struct for message_2
             let message_2_hacspec = BytesMessage2::from_public_slice(&message_2[..]);
 
-            let (error, state, c_r, _id_cred_r) = edhoc_hacspec::process_message_2(
+            let (error, state, c_r, _id_cred_r) = edhoc_hacspec::i_process_message_2(
                 self.state,
                 &message_2_hacspec,
                 &id_cred_r,
@@ -195,7 +195,8 @@ mod hacspec {
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
 
-            let (state, message_3) = prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
+            let (state, message_3) =
+                i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
 
             self.state = state;
 

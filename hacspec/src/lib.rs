@@ -60,7 +60,7 @@ pub fn edhoc_exporter(
     (state, output)
 }
 
-pub fn process_message_1(mut state: State, message_1: &BytesMessage1) -> (State, EDHOCError) {
+pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (State, EDHOCError) {
     // Step 1: decode message_1
     // Step 2: verify that the selected cipher suite is supported
     // Step 3: If EAD is present make it available to the application
@@ -117,7 +117,7 @@ pub fn process_message_1(mut state: State, message_1: &BytesMessage1) -> (State,
     (state, error)
 }
 
-pub fn prepare_message_2(
+pub fn r_prepare_message_2(
     mut state: State,
     id_cred_r: &BytesIdCred,
     cred_r: &BytesMaxBuffer,
@@ -194,7 +194,7 @@ pub fn prepare_message_2(
     (state, message_2)
 }
 
-pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCError, State) {
+pub fn r_process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCError, State) {
     let State(
         g_x,
         prk_2e,
@@ -243,7 +243,7 @@ pub fn process_message_3(mut state: State, message_3: &BytesMessage3) -> (EDHOCE
 }
 
 // must hold MESSAGE_1_LEN
-pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
+pub fn i_prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
     let State(x, prk_2e, prk_3e2m, prk_4e3m, prk_out, prk_exporter, h_message_1, th_2, th_3, th_4) =
         state;
 
@@ -273,7 +273,7 @@ pub fn prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessa
 
 // message_3 must hold MESSAGE_3_LEN
 // returns c_r
-pub fn process_message_2(
+pub fn i_process_message_2(
     mut state: State,
     message_2: &BytesMessage2,
     id_cred_r_expected: &BytesIdCred,
@@ -362,7 +362,7 @@ pub fn process_message_2(
 }
 
 // message_3 must hold MESSAGE_3_LEN
-pub fn prepare_message_3(
+pub fn i_prepare_message_3(
     mut state: State,
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
