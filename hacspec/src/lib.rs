@@ -533,9 +533,7 @@ fn compute_th_3_th_4(
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(SHA256_DIGEST_LEN as u8);
     message = message.update(2, th);
-    for i in SHA256_DIGEST_LEN + 2..SHA256_DIGEST_LEN + 2 + plaintext_len {
-        message[i] = plaintext[i - SHA256_DIGEST_LEN - 2];
-    }
+    message = message.update_slice(2 + th.len(), plaintext, 0, plaintext_len);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
