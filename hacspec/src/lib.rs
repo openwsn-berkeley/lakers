@@ -180,16 +180,12 @@ pub fn r_process_message_3(
 
     let mut error = EDHOCError::UnknownError;
 
-    // loop with breaks is a trick to avoid early returns that are not supported in hacspec
-    loop {
-        let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+    let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
 
-        if err != EDHOCError::Success {
-            break;
-        }
-
+    if err == EDHOCError::Success {
         let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
 
+        // compare the kid received with the kid expected in id_cred_i
         if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
             // compute salt_4e3m
             let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
@@ -208,57 +204,56 @@ pub fn r_process_message_3(
             // verify mac_3
             if mac_3.declassify_eq(&expected_mac_3) {
                 error = EDHOCError::Success;
+                let th_4 = compute_th_3_th_4(
+                    &th_3,
+                    &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
+                    plaintext_3.len(),
+                );
+
+                // compute prk_out
+                // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
+                let prk_out_buf = edhoc_kdf(
+                    &prk_4e3m,
+                    U8(7 as u8),
+                    &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
+                    th_4.len(),
+                    SHA256_DIGEST_LEN,
+                );
+                prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
+
+                // compute prk_exporter from prk_out
+                // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+                let prk_exporter_buf = edhoc_kdf(
+                    &prk_out,
+                    U8(10 as u8),
+                    &BytesMaxContextBuffer::new(),
+                    0,
+                    SHA256_DIGEST_LEN,
+                );
+                prk_exporter =
+                    prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
+
+                error = EDHOCError::Success;
+                state = construct_state(
+                    y,
+                    _g_x,
+                    prk_3e2m,
+                    prk_4e3m,
+                    prk_out,
+                    prk_exporter,
+                    _h_message_1,
+                    th_3,
+                );
             } else {
                 error = EDHOCError::MacVerificationFailed;
-                break;
             }
-
-            let th_4 = compute_th_3_th_4(
-                &th_3,
-                &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
-                plaintext_3.len(),
-            );
-
-            // compute prk_out
-            // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-            let prk_out_buf = edhoc_kdf(
-                &prk_4e3m,
-                U8(7 as u8),
-                &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
-                th_4.len(),
-                SHA256_DIGEST_LEN,
-            );
-            prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
-
-            // compute prk_exporter from prk_out
-            // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-            let prk_exporter_buf = edhoc_kdf(
-                &prk_out,
-                U8(10 as u8),
-                &BytesMaxContextBuffer::new(),
-                0,
-                SHA256_DIGEST_LEN,
-            );
-            prk_exporter = prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
-
-            error = EDHOCError::Success;
-            state = construct_state(
-                y,
-                _g_x,
-                prk_3e2m,
-                prk_4e3m,
-                prk_out,
-                prk_exporter,
-                _h_message_1,
-                th_3,
-            );
-            break;
         } else {
             error = EDHOCError::UnknownPeer;
-            break;
         }
+    } else {
+        // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+        error = err;
     }
-
     (error, state, prk_out)
 }
 
