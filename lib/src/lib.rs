@@ -9,8 +9,7 @@ pub use {
 #[cfg(not(feature = "hacspec"))]
 pub use {
     edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
-    rust::RustEdhocInitiator as EdhocInitiator,
-    rust::RustEdhocResponder as EdhocResponder,
+    rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(not(feature = "hacspec"))]
