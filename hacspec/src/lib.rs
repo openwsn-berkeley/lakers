@@ -113,7 +113,7 @@ pub fn r_prepare_message_2(
     let g_y = G_Y;
 
     // FIXME generate a connection identifier to multiplex sessions
-    let c_r = BytesCid([U8(0x00)]);
+    let c_r = BytesCid([U8(0x00u8)]);
 
     // compute TH_2
     let th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
@@ -859,7 +859,7 @@ fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashL
     let mut th_3_context = BytesMaxContextBuffer::new();
     th_3_context = th_3_context.update(0, th_3);
     let salt_4e3m_buf = edhoc_kdf(
-        &prk_3e2m,
+        prk_3e2m,
         U8(5 as u8),
         &th_3_context,
         th_3.len(),
