@@ -523,6 +523,7 @@ fn compute_th_2(
     th_2
 }
 
+// FIXME consider separating into compute_th_3 and compute_th_4
 fn compute_th_3_th_4(
     th: &BytesHashLen,
     plaintext: &BytesMaxBuffer,
