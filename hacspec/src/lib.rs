@@ -327,31 +327,29 @@ pub fn i_process_message_2(
         );
 
         if mac_2.declassify_eq(&expected_mac_2) {
+            // step is actually from processing of message_3
+            // but we do it here to avoid storing plaintext_2 in State
+            th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
+            // message 3 processing
+
+            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+
+            prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+
             error = EDHOCError::Success;
+            state = construct_state(
+                x,
+                g_y,
+                prk_3e2m,
+                prk_4e3m,
+                _prk_out,
+                _prk_exporter,
+                h_message_1,
+                th_3,
+            );
         } else {
-            // FIXME early return!
             error = EDHOCError::MacVerificationFailed;
         }
-
-        // step is actually from processing of message_3
-        // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
-        // message 3 processing
-
-        let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
-
-        prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
-
-        state = construct_state(
-            x,
-            g_y,
-            prk_3e2m,
-            prk_4e3m,
-            _prk_out,
-            _prk_exporter,
-            h_message_1,
-            th_3,
-        );
     } else {
         // Unknown peer
         error = EDHOCError::UnknownPeer;
