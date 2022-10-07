@@ -69,34 +69,31 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
     // g_x will be saved to the state
     let (method, supported_suites, g_x, _c_i) = parse_message_1(message_1);
 
-    if method.declassify() != EDHOC_METHOD {
+    if method.declassify() == EDHOC_METHOD {
+        if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+            // TODO we do not support EAD for now
+
+            // hash message_1 and save to state
+            h_message_1 =
+                BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message_1, 0, message_1.len())));
+
+            error = EDHOCError::Success;
+            state = construct_state(
+                _y,
+                g_x,
+                _prk_3e2m,
+                _prk_4e3m,
+                _prk_out,
+                _prk_exporter,
+                h_message_1,
+                _th_3,
+            );
+        } else {
+            error = EDHOCError::UnsupportedCipherSuite;
+        }
+    } else {
         error = EDHOCError::UnsupportedMethod;
-        return (error, state);
     }
-
-    if supported_suites[0u8].declassify() != EDHOC_SUPPORTED_SUITES[0u8].declassify() {
-        error = EDHOCError::UnsupportedCipherSuite;
-        return (error, state);
-    }
-
-    // TODO we do not support EAD for now
-
-    // hash message_1 and save to state
-    h_message_1 =
-        BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message_1, 0, message_1.len())));
-
-    error = EDHOCError::Success;
-
-    state = construct_state(
-        _y,
-        g_x,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        h_message_1,
-        _th_3,
-    );
 
     (error, state)
 }
