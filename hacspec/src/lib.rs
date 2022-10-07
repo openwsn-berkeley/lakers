@@ -701,36 +701,35 @@ fn decrypt_message_3(
     message_3: &BytesMessage3,
 ) -> (EDHOCError, BytesPlaintext3) {
     let mut error = EDHOCError::UnknownError;
+    let mut plaintext_3 = BytesPlaintext3::new();
 
     // decode message_3
     let len = message_3[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
-    if len.declassify() as usize != CIPHERTEXT_3_LEN {
-        // early return
+
+    // compare parsed length with the expected length of the ciphertext
+    if len.declassify() as usize == CIPHERTEXT_3_LEN {
+        let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
+
+        let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+
+        let enc_structure = encode_enc_structure(th_3);
+
+        let (err, p3) = match decrypt_ccm(
+            ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
+            ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
+            Key128::from_slice(&k_3, 0, k_3.len()),
+            ByteSeq::from_slice(&ciphertext_3, 0, ciphertext_3.len()),
+            ciphertext_3.len(),
+            AES_CCM_TAG_LEN,
+        ) {
+            AesCcmResult::Ok(p) => (EDHOCError::Success, p),
+            AesCcmResult::Err(_) => (EDHOCError::MacVerificationFailed, ByteSeq::new(0)),
+        };
+        error = err;
+        plaintext_3 = plaintext_3.update(0, &p3);
+    } else {
         error = EDHOCError::ParsingError;
-        return (error, BytesPlaintext3::new());
     }
-
-    let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
-
-    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
-
-    let enc_structure = encode_enc_structure(th_3);
-
-    let plaintext_3_seq = match decrypt_ccm(
-        ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
-        ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
-        Key128::from_slice(&k_3, 0, k_3.len()),
-        ByteSeq::from_slice(&ciphertext_3, 0, ciphertext_3.len()),
-        ciphertext_3.len(),
-        AES_CCM_TAG_LEN,
-    ) {
-        Ok(p) => p,
-        Err(_e) => return (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
-    };
-
-    let mut plaintext_3 = BytesPlaintext3::new();
-    plaintext_3 = plaintext_3.update(0, &plaintext_3_seq);
-    error = EDHOCError::Success;
     (error, plaintext_3)
 }
 
