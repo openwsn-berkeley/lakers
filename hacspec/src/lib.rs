@@ -134,7 +134,7 @@ pub fn r_prepare_message_2(
     let g_y = G_Y;
 
     // FIXME generate a connection identifier to multiplex sessions
-    let c_r = U8(0x00u8);
+    let c_r = C_R;
 
     // compute TH_2
     let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);

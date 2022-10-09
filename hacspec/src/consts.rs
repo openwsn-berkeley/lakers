@@ -44,6 +44,7 @@ pub const Y: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
     0x4bu8, 0x0au8, 0x1au8, 0x64u8, 0x09u8, 0x77u8, 0xe4u8, 0x18u8
 ]));
 pub const C_I: U8 = U8(0x37u8);
+pub const C_R: U8 = U8(0x00);
 
 pub const ID_CRED_LEN: usize = 4;
 pub const SUPPORTED_SUITES_LEN: usize = 1;
