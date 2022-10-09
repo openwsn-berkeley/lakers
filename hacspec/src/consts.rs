@@ -1,6 +1,5 @@
 use hacspec_lib::*;
 
-array!(BytesCid, CID_LEN, U8);
 array!(BytesEad2, 0, U8);
 array!(BytesIdCred, ID_CRED_LEN, U8);
 array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
@@ -44,8 +43,9 @@ pub const Y: BytesP256ElemLen = BytesP256ElemLen(secret_bytes!([
     0xacu8, 0xa1u8, 0xe1u8, 0xf7u8, 0x53u8, 0xcdu8, 0xccu8, 0x3eu8, 0x2cu8, 0x69u8, 0xfau8, 0x88u8,
     0x4bu8, 0x0au8, 0x1au8, 0x64u8, 0x09u8, 0x77u8, 0xe4u8, 0x18u8
 ]));
+pub const C_I: U8 = U8(0x37u8);
+
 pub const ID_CRED_LEN: usize = 4;
-pub const CID_LEN: usize = 1;
 pub const SUPPORTED_SUITES_LEN: usize = 1;
 pub const MESSAGE_1_LEN: usize = 37;
 pub const MESSAGE_2_LEN: usize = 45;

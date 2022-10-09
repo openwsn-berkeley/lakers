@@ -24,6 +24,7 @@ pub enum EDHOCError {
 #[derive(Default, Copy, Clone)]
 pub struct State(
     BytesP256ElemLen, // x or y, ephemeral private key of myself
+    U8,               // c_i, connection identifier chosen by the initiator
     BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
     BytesHashLen,     // prk_3e2m
     BytesHashLen,     // prk_4e3m
@@ -42,6 +43,7 @@ pub fn edhoc_exporter(
 ) -> (State, BytesMaxBuffer) {
     let State(
         _x_or_y,
+        _c_i,
         _gy_or_gx,
         _prk_3e2m,
         _prk_4e3m,
@@ -61,13 +63,13 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
     // Step 2: verify that the selected cipher suite is supported
     // Step 3: If EAD is present make it available to the application
 
-    let State(_y, g_x, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
+    let State(_y, mut c_i, g_x, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
         state;
 
     let mut error = EDHOCError::UnknownError;
 
     // g_x will be saved to the state
-    let (method, supported_suites, g_x, _c_i) = parse_message_1(message_1);
+    let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
 
     if method.declassify() == EDHOC_METHOD {
         if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
@@ -80,6 +82,7 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
             error = EDHOCError::Success;
             state = construct_state(
                 _y,
+                c_i,
                 g_x,
                 _prk_3e2m,
                 _prk_4e3m,
@@ -105,7 +108,7 @@ pub fn r_prepare_message_2(
     cred_r_len: usize,
     r: &BytesP256ElemLen, // R's static private DH key
 ) -> (State, BytesMessage2) {
-    let State(mut y, g_x, mut prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
+    let State(mut y, _c_i, g_x, mut prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
         state;
 
     // TODO generate ephemeral key pair
@@ -113,10 +116,10 @@ pub fn r_prepare_message_2(
     let g_y = G_Y;
 
     // FIXME generate a connection identifier to multiplex sessions
-    let c_r = BytesCid([U8(0x00u8)]);
+    let c_r = U8(0x00u8);
 
     // compute TH_2
-    let th_2 = compute_th_2(&G_Y, &c_r, &h_message_1);
+    let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
 
     // compute prk_3e2m
     let prk_2e = compute_prk_2e(&Y, &g_x);
@@ -146,11 +149,12 @@ pub fn r_prepare_message_2(
     let message_2 = encode_message_2(
         &g_y,
         &BytesCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
-        &c_r,
+        c_r,
     );
 
     state = construct_state(
         y,
+        _c_i,
         g_x,
         prk_3e2m,
         _prk_4e3m,
@@ -172,7 +176,7 @@ pub fn r_process_message_3(
     cred_i_len: usize,
     g_i: &BytesP256ElemLen, // I's public DH key
 ) -> (EDHOCError, State, BytesHashLen) {
-    let State(y, _g_x, prk_3e2m, mut prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
+    let State(y, _c_i, _g_x, prk_3e2m, mut prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
         state;
 
     let mut error = EDHOCError::UnknownError;
@@ -233,6 +237,7 @@ pub fn r_process_message_3(
                 error = EDHOCError::Success;
                 state = construct_state(
                     y,
+                    _c_i,
                     _g_x,
                     prk_3e2m,
                     prk_4e3m,
@@ -255,8 +260,8 @@ pub fn r_process_message_3(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn i_prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMessage1) {
-    let State(mut x, _g_y, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
+pub fn i_prepare_message_1(mut state: State) -> (State, BytesMessage1) {
+    let State(mut x, mut c_i, _g_y, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
         state;
 
     // we only support a single cipher suite which is already CBOR-encoded
@@ -266,13 +271,17 @@ pub fn i_prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMes
     x = X;
     let g_x = G_X;
 
-    let message_1 = encode_message_1(U8(EDHOC_METHOD), selected_suites, &g_x, cid);
+    // Choose a connection identifier C_I and store it for the length of the protocol.
+    c_i = C_I;
+
+    let message_1 = encode_message_1(U8(EDHOC_METHOD), selected_suites, &g_x, c_i);
 
     h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
 
     state = construct_state(
         x,
+        c_i,
         _g_y,
         _prk_3e2m,
         _prk_4e3m,
@@ -295,8 +304,8 @@ pub fn i_process_message_2(
     cred_r_len: usize,
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
-) -> (EDHOCError, State, BytesCid, U8) {
-    let State(x, g_y, mut prk_3e2m, mut prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
+) -> (EDHOCError, State, U8, U8) {
+    let State(x, _c_i, g_y, mut prk_3e2m, mut prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
         state;
 
     // init error
@@ -307,7 +316,7 @@ pub fn i_process_message_2(
     // compute prk_2e
     let prk_2e = compute_prk_2e(&x, &g_y);
 
-    let th_2 = compute_th_2(&g_y, &c_r, &h_message_1);
+    let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
 
     let (plaintext_2, plaintext_2_len) =
         encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
@@ -342,6 +351,7 @@ pub fn i_process_message_2(
             error = EDHOCError::Success;
             state = construct_state(
                 x,
+                _c_i,
                 g_y,
                 prk_3e2m,
                 prk_4e3m,
@@ -368,7 +378,7 @@ pub fn i_prepare_message_3(
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
 ) -> (State, BytesMessage3, BytesHashLen) {
-    let State(_x, _g_y, prk_3e2m, prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
+    let State(_x, _c_i, _g_y, prk_3e2m, prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
         state;
 
     let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
@@ -405,6 +415,7 @@ pub fn i_prepare_message_3(
 
     state = construct_state(
         _x,
+        _c_i,
         _g_y,
         prk_3e2m,
         prk_4e3m,
@@ -419,6 +430,7 @@ pub fn i_prepare_message_3(
 
 pub fn construct_state(
     x_or_y: BytesP256ElemLen,
+    c_i: U8,
     gx_or_gy: BytesP256ElemLen,
     prk_3e2m: BytesHashLen,
     prk_4e3m: BytesHashLen,
@@ -429,6 +441,7 @@ pub fn construct_state(
 ) -> State {
     State(
         x_or_y,
+        c_i,
         gx_or_gy,
         prk_3e2m,
         prk_4e3m,
@@ -441,14 +454,14 @@ pub fn construct_state(
 
 fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
-) -> (U8, BytesSupportedSuites, BytesP256ElemLen, BytesCid) {
+) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
     let method = rcvd_message_1[0];
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
     let selected_suite = BytesSupportedSuites([rcvd_message_1[1]]);
     let mut g_x = BytesP256ElemLen::new();
     g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
-    let c_i = BytesCid([rcvd_message_1[MESSAGE_1_LEN - 1]]);
+    let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
     (method, selected_suite, g_x, c_i)
 }
@@ -457,7 +470,7 @@ fn encode_message_1(
     method: U8,
     suites: &BytesSupportedSuites,
     g_x: &BytesP256ElemLen,
-    c_i: &BytesCid,
+    c_i: U8,
 ) -> BytesMessage1 {
     let mut output = BytesMessage1::new();
 
@@ -466,14 +479,14 @@ fn encode_message_1(
     output[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
     output[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
     output = output.update(4, g_x);
-    output = output.update(4 + P256_ELEM_LEN, c_i);
+    output[4 + P256_ELEM_LEN] = c_i;
 
     output
 }
 
 fn parse_message_2(
     rcvd_message_2: &BytesMessage2,
-) -> (BytesP256ElemLen, BytesCiphertext2, BytesCid) {
+) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
     // FIXME decode negative integers as well
     let mut g_y = BytesP256ElemLen::new();
     let mut ciphertext_2 = BytesCiphertext2::new();
@@ -482,7 +495,7 @@ fn parse_message_2(
         0,
         &rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN),
     );
-    let c_r = BytesCid([rcvd_message_2[MESSAGE_2_LEN - 1]]);
+    let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
 
     (g_y, ciphertext_2, c_r)
 }
@@ -490,7 +503,7 @@ fn parse_message_2(
 fn encode_message_2(
     g_y: &BytesP256ElemLen,
     ciphertext_2: &BytesCiphertext2,
-    c_r: &BytesCid,
+    c_r: U8,
 ) -> BytesMessage2 {
     let mut output = BytesMessage2::new();
 
@@ -498,26 +511,26 @@ fn encode_message_2(
     output[1] = U8(P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8);
     output = output.update(2, g_y);
     output = output.update(2 + P256_ELEM_LEN, ciphertext_2);
-    output = output.update(2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN, c_r);
+    output[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN] = c_r;
 
     output
 }
 
 fn compute_th_2(
     g_y: &BytesP256ElemLen,
-    c_r: &BytesCid,
+    c_r: U8,
     h_message_1: &BytesHashLen,
 ) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(P256_ELEM_LEN as u8);
     message = message.update(2, g_y);
-    message = message.update(2 + P256_ELEM_LEN, c_r);
-    message[2 + P256_ELEM_LEN + c_r.len()] = U8(CBOR_BYTE_STRING);
-    message[3 + P256_ELEM_LEN + c_r.len()] = U8(SHA256_DIGEST_LEN as u8);
-    message = message.update(4 + P256_ELEM_LEN + c_r.len(), h_message_1);
+    message[2 + P256_ELEM_LEN] = c_r;
+    message[3 + P256_ELEM_LEN] = U8(CBOR_BYTE_STRING);
+    message[4 + P256_ELEM_LEN] = U8(SHA256_DIGEST_LEN as u8);
+    message = message.update(5 + P256_ELEM_LEN, h_message_1);
 
-    let len = 4 + P256_ELEM_LEN + c_r.len() + SHA256_DIGEST_LEN;
+    let len = 5 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
     let th_2 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message, 0, len)));
 
@@ -954,12 +967,12 @@ mod tests {
     // manually modified test vector to include a single supported cipher suite
     const SUITES_I_TV: &str = "02";
     const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
-    const C_I_TV: &str = "37";
+    const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
-    const C_R_TV: &str = "27";
+    const C_R_TV: u8 = 0x27;
     const MESSAGE_2_TV: &str =
     "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d58b8fec6b1f0580c5043927";
     const CIPHERTEXT_2_TV: &str = "8b8fec6b1f0580c50439";
@@ -993,10 +1006,10 @@ mod tests {
         let method_tv = U8(METHOD_TV);
         let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
-        let c_i_tv = BytesCid::from_hex(C_I_TV);
+        let c_i_tv = U8(C_I_TV);
         let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
 
-        let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, &c_i_tv);
+        let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, c_i_tv);
 
         assert_bytes_eq!(message_1, message_1_tv);
     }
@@ -1007,14 +1020,14 @@ mod tests {
         let method_tv = METHOD_TV;
         let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
-        let c_i_tv = BytesCid::from_hex(C_I_TV);
+        let c_i_tv = U8(C_I_TV);
 
         let (method, supported_suites, g_x, c_i) = parse_message_1(&message_1_tv);
 
         assert_eq!(method.declassify(), method_tv);
         assert_bytes_eq!(supported_suites, supported_suites_tv);
         assert_bytes_eq!(g_x, g_x_tv);
-        assert_bytes_eq!(c_i, c_i_tv);
+        assert_eq!(c_i.declassify(), c_i_tv.declassify());
     }
 
     #[test]
@@ -1022,9 +1035,9 @@ mod tests {
         let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let c_r_tv = BytesCid::from_hex(C_R_TV);
+        let c_r_tv = U8(C_R_TV);
 
-        let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, &c_r_tv);
+        let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, c_r_tv);
 
         assert_bytes_eq!(message_2, message_2_tv);
     }
@@ -1034,23 +1047,23 @@ mod tests {
         let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let c_r_tv = BytesCid::from_hex(C_R_TV);
+        let c_r_tv = U8(C_R_TV);
 
         let (g_y, ciphertext_2, c_r) = parse_message_2(&message_2_tv);
 
         assert_bytes_eq!(g_y, g_y_tv);
         assert_bytes_eq!(ciphertext_2, ciphertext_2_tv);
-        assert_bytes_eq!(c_r, c_r_tv);
+        assert_eq!(c_r.declassify(), c_r_tv.declassify());
     }
 
     #[test]
     fn test_compute_th_2() {
         let h_message_1_tv = BytesHashLen::from_hex(H_MESSAGE_1_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let c_r_tv = BytesCid::from_hex(C_R_TV);
+        let c_r_tv = U8(C_R_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
 
-        let th_2 = compute_th_2(&g_y_tv, &c_r_tv, &h_message_1_tv);
+        let th_2 = compute_th_2(&g_y_tv, c_r_tv, &h_message_1_tv);
         assert_bytes_eq!(th_2, th_2_tv);
     }
 

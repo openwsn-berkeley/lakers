@@ -9,7 +9,6 @@ const _G_I_X_COORD: &str = "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a4129
 const _G_I_Y_COORD: &str = "6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"; // not used
 const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
 const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
-const C_I: u8 = 0x0eu8;
 
 fn main() {
     let url = "coap://127.0.0.1:5683/.well-known/edhoc";
@@ -21,7 +20,7 @@ fn main() {
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1 = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
-    msg_1.extend_from_slice(&initiator.prepare_message_1(C_I));
+    msg_1.extend_from_slice(&initiator.prepare_message_1());
 
     let response = CoAPClient::post(url, msg_1).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);

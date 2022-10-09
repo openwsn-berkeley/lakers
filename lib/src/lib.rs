@@ -199,10 +199,9 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
-            c_i: u8,
         ) -> [u8; MESSAGE_1_LEN] {
             let (state, message_1) =
-                edhoc_hacspec::i_prepare_message_1(self.state, &BytesCid([U8(c_i)]));
+                edhoc_hacspec::i_prepare_message_1(self.state);
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -246,7 +245,7 @@ mod hacspec {
             );
             self.state = state;
 
-            (error, c_r[0usize].declassify())
+            (error, c_r.declassify())
         }
 
         pub fn prepare_message_3(
@@ -417,7 +416,6 @@ mod rust {
 
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
-            c_i: u8,
         ) -> [u8; MESSAGE_1_LEN] {
             let mut acc = NativeAccelerator {};
             let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
@@ -480,8 +478,6 @@ mod test {
     const _G_I_Y_COORD: &str = "6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"; // not used
     const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
-
-    const C_I_TV: u8 = 55;
     const C_R_TV: [u8; 1] = hex!("27");
 
     const MESSAGE_1_TV: [u8; 37] =
@@ -505,7 +501,7 @@ mod test {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let message_1 = initiator.prepare_message_1(C_I_TV);
+        let message_1 = initiator.prepare_message_1();
         assert_eq!(message_1, MESSAGE_1_TV);
     }
 
@@ -543,7 +539,7 @@ mod test {
             CRED_R,
         );
 
-        let message_1 = initiator.prepare_message_1(C_I_TV); // to update the state
+        let message_1 = initiator.prepare_message_1(); // to update the state
 
         let error = responder.process_message_1(&message_1);
         assert!(error == EdhocError::Success);
