@@ -259,11 +259,14 @@ pub fn i_prepare_message_1(mut state: State, cid: &BytesCid) -> (State, BytesMes
     let State(mut x, _g_y, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
         state;
 
+    // we only support a single cipher suite which is already CBOR-encoded
+    let selected_suites = &EDHOC_SUPPORTED_SUITES;
+
     // TODO generate ephemeral key
     x = X;
     let g_x = G_X;
 
-    let message_1 = encode_message_1(U8(EDHOC_METHOD), &EDHOC_SUPPORTED_SUITES, &g_x, cid);
+    let message_1 = encode_message_1(U8(EDHOC_METHOD), selected_suites, &g_x, cid);
 
     h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
