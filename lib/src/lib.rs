@@ -197,11 +197,8 @@ mod hacspec {
             }
         }
 
-        pub fn prepare_message_1(
-            self: &mut HacspecEdhocInitiator<'a>,
-        ) -> [u8; MESSAGE_1_LEN] {
-            let (state, message_1) =
-                edhoc_hacspec::i_prepare_message_1(self.state);
+        pub fn prepare_message_1(self: &mut HacspecEdhocInitiator<'a>) -> [u8; MESSAGE_1_LEN] {
+            let (state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -414,9 +411,7 @@ mod rust {
             }
         }
 
-        pub fn prepare_message_1(
-            self: &mut RustEdhocInitiator<'a>,
-        ) -> [u8; MESSAGE_1_LEN] {
+        pub fn prepare_message_1(self: &mut RustEdhocInitiator<'a>) -> [u8; MESSAGE_1_LEN] {
             let mut acc = NativeAccelerator {};
             let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
             let message_1 = prepare_message_1(&mut acc, &mut self.state, &mut message_buffer);

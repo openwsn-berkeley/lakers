@@ -63,8 +63,17 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
     // Step 2: verify that the selected cipher suite is supported
     // Step 3: If EAD is present make it available to the application
 
-    let State(_y, mut c_i, g_x, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
-        state;
+    let State(
+        _y,
+        mut c_i,
+        g_x,
+        _prk_3e2m,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
+        mut h_message_1,
+        _th_3,
+    ) = state;
 
     let mut error = EDHOCError::UnknownError;
 
@@ -108,8 +117,17 @@ pub fn r_prepare_message_2(
     cred_r_len: usize,
     r: &BytesP256ElemLen, // R's static private DH key
 ) -> (State, BytesMessage2) {
-    let State(mut y, _c_i, g_x, mut prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
-        state;
+    let State(
+        mut y,
+        _c_i,
+        g_x,
+        mut prk_3e2m,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
+        h_message_1,
+        mut th_3,
+    ) = state;
 
     // TODO generate ephemeral key pair
     y = Y;
@@ -176,8 +194,17 @@ pub fn r_process_message_3(
     cred_i_len: usize,
     g_i: &BytesP256ElemLen, // I's public DH key
 ) -> (EDHOCError, State, BytesHashLen) {
-    let State(y, _c_i, _g_x, prk_3e2m, mut prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
-        state;
+    let State(
+        y,
+        _c_i,
+        _g_x,
+        prk_3e2m,
+        mut prk_4e3m,
+        mut prk_out,
+        mut prk_exporter,
+        _h_message_1,
+        th_3,
+    ) = state;
 
     let mut error = EDHOCError::UnknownError;
 
@@ -261,8 +288,17 @@ pub fn r_process_message_3(
 
 // must hold MESSAGE_1_LEN
 pub fn i_prepare_message_1(mut state: State) -> (State, BytesMessage1) {
-    let State(mut x, mut c_i, _g_y, _prk_3e2m, _prk_4e3m, _prk_out, _prk_exporter, mut h_message_1, _th_3) =
-        state;
+    let State(
+        mut x,
+        mut c_i,
+        _g_y,
+        _prk_3e2m,
+        _prk_4e3m,
+        _prk_out,
+        _prk_exporter,
+        mut h_message_1,
+        _th_3,
+    ) = state;
 
     // we only support a single cipher suite which is already CBOR-encoded
     let selected_suites = &EDHOC_SUPPORTED_SUITES;
@@ -305,8 +341,17 @@ pub fn i_process_message_2(
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
 ) -> (EDHOCError, State, U8, U8) {
-    let State(x, _c_i, g_y, mut prk_3e2m, mut prk_4e3m, _prk_out, _prk_exporter, h_message_1, mut th_3) =
-        state;
+    let State(
+        x,
+        _c_i,
+        g_y,
+        mut prk_3e2m,
+        mut prk_4e3m,
+        _prk_out,
+        _prk_exporter,
+        h_message_1,
+        mut th_3,
+    ) = state;
 
     // init error
     let mut error = EDHOCError::UnknownError;
@@ -378,8 +423,17 @@ pub fn i_prepare_message_3(
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
 ) -> (State, BytesMessage3, BytesHashLen) {
-    let State(_x, _c_i, _g_y, prk_3e2m, prk_4e3m, mut prk_out, mut prk_exporter, _h_message_1, th_3) =
-        state;
+    let State(
+        _x,
+        _c_i,
+        _g_y,
+        prk_3e2m,
+        prk_4e3m,
+        mut prk_out,
+        mut prk_exporter,
+        _h_message_1,
+        th_3,
+    ) = state;
 
     let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
@@ -484,9 +538,7 @@ fn encode_message_1(
     output
 }
 
-fn parse_message_2(
-    rcvd_message_2: &BytesMessage2,
-) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
+fn parse_message_2(rcvd_message_2: &BytesMessage2) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
     // FIXME decode negative integers as well
     let mut g_y = BytesP256ElemLen::new();
     let mut ciphertext_2 = BytesCiphertext2::new();
@@ -516,11 +568,7 @@ fn encode_message_2(
     output
 }
 
-fn compute_th_2(
-    g_y: &BytesP256ElemLen,
-    c_r: U8,
-    h_message_1: &BytesHashLen,
-) -> BytesHashLen {
+fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(P256_ELEM_LEN as u8);
