@@ -59,10 +59,6 @@ pub fn edhoc_exporter(
 }
 
 pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {
-    // Step 1: decode message_1
-    // Step 2: verify that the selected cipher suite is supported
-    // Step 3: If EAD is present make it available to the application
-
     let State(
         _y,
         mut c_i,
@@ -77,14 +73,18 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
 
     let mut error = EDHOCError::UnknownError;
 
+    // Step 1: decode message_1
     // g_x will be saved to the state
     let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
 
+    // verify that the method is supported
     if method.declassify() == EDHOC_METHOD {
+        // Step 2: verify that the selected cipher suite is supported
         if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+            // Step 3: If EAD is present make it available to the application
             // TODO we do not support EAD for now
 
-            // hash message_1 and save to state
+            // hash message_1 and save the hash to the state to avoid saving the whole message
             h_message_1 =
                 BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message_1, 0, message_1.len())));
 
@@ -310,8 +310,10 @@ pub fn i_prepare_message_1(mut state: State) -> (State, BytesMessage1) {
     // Choose a connection identifier C_I and store it for the length of the protocol.
     c_i = C_I;
 
+    // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     let message_1 = encode_message_1(U8(EDHOC_METHOD), selected_suites, &g_x, c_i);
 
+    // hash message_1 here to avoid saving the whole message in the state
     h_message_1 =
         BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
 
