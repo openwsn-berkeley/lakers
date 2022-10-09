@@ -152,11 +152,7 @@ pub fn r_prepare_message_2(
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
-    th_3 = compute_th_3_th_4(
-        &th_2,
-        &BytesMaxBuffer::from_slice(&plaintext_2, 0, plaintext_2.len()),
-        plaintext_2.len(),
-    );
+    th_3 = compute_th_3(&th_2, &plaintext_2);
 
     let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
         &prk_2e,
@@ -232,11 +228,7 @@ pub fn r_process_message_3(
             // verify mac_3
             if mac_3.declassify_eq(&expected_mac_3) {
                 error = EDHOCError::Success;
-                let th_4 = compute_th_3_th_4(
-                    &th_3,
-                    &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
-                    plaintext_3.len(),
-                );
+                let th_4 = compute_th_4(&th_3, &plaintext_3);
 
                 // compute prk_out
                 // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -388,7 +380,10 @@ pub fn i_process_message_2(
         if mac_2.declassify_eq(&expected_mac_2) {
             // step is actually from processing of message_3
             // but we do it here to avoid storing plaintext_2 in State
-            th_3 = compute_th_3_th_4(&th_2, &plaintext_2, plaintext_2_len);
+            th_3 = compute_th_3(
+                &th_2,
+                &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+            );
             // message 3 processing
 
             let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
@@ -441,11 +436,7 @@ pub fn i_prepare_message_3(
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
     let message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
-    let th_4 = compute_th_3_th_4(
-        &th_3,
-        &BytesMaxBuffer::from_slice(&plaintext_3, 0, plaintext_3.len()),
-        plaintext_3.len(),
-    );
+    let th_4 = compute_th_4(&th_3, &plaintext_3);
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -587,23 +578,35 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
     th_2
 }
 
-// FIXME consider separating into compute_th_3 and compute_th_4
-fn compute_th_3_th_4(
-    th: &BytesHashLen,
-    plaintext: &BytesMaxBuffer,
-    plaintext_len: usize,
-) -> BytesHashLen {
+fn compute_th_3(th_2: &BytesHashLen, plaintext_2: &BytesPlaintext2) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
 
     message[0] = U8(CBOR_BYTE_STRING);
-    message[1] = U8(SHA256_DIGEST_LEN as u8);
-    message = message.update(2, th);
-    message = message.update_slice(2 + th.len(), plaintext, 0, plaintext_len);
+    message[1] = U8(th_2.len() as u8);
+    message = message.update(2, th_2);
+    message = message.update(2 + th_2.len(), plaintext_2);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
         0,
-        SHA256_DIGEST_LEN + 2 + plaintext_len,
+        th_2.len() + 2 + plaintext_2.len(),
+    )));
+
+    output
+}
+
+fn compute_th_4(th_3: &BytesHashLen, plaintext_3: &BytesPlaintext3) -> BytesHashLen {
+    let mut message = BytesMaxBuffer::new();
+
+    message[0] = U8(CBOR_BYTE_STRING);
+    message[1] = U8(th_3.len() as u8);
+    message = message.update(2, th_3);
+    message = message.update(2 + th_3.len(), plaintext_3);
+
+    let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
+        &message,
+        0,
+        th_3.len() + 2 + plaintext_3.len(),
     )));
 
     output
@@ -1118,19 +1121,22 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_th_3_th_4() {
+    fn test_compute_th_3() {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let mut plaintext_2_tv = BytesMaxBuffer::new();
-        plaintext_2_tv = plaintext_2_tv.update(0, &BytesPlaintext2::from_hex(PLAINTEXT_2_TV));
-        let mut plaintext_3_tv = BytesMaxBuffer::new();
-        plaintext_3_tv = plaintext_3_tv.update(0, &BytesPlaintext3::from_hex(PLAINTEXT_3_TV));
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+
+        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv);
+        assert_bytes_eq!(th_3, th_3_tv);
+    }
+
+    #[test]
+    fn test_compute_th_4() {
+        let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
 
-        let th_3 = compute_th_3_th_4(&th_2_tv, &plaintext_2_tv, PLAINTEXT_2_LEN);
-        assert_bytes_eq!(th_3, th_3_tv);
-
-        let th_4 = compute_th_3_th_4(&th_3_tv, &plaintext_3_tv, PLAINTEXT_3_LEN);
+        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv);
         assert_bytes_eq!(th_4, th_4_tv);
     }
 
