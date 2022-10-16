@@ -70,7 +70,7 @@ pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 // maximum supported length of connection identifier for R
 pub const MAX_KDF_CONTEXT_LEN: usize = 150;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = 150;
+pub const MAX_BUFFER_LEN: usize = 160;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
 pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
