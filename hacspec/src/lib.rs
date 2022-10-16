@@ -140,7 +140,7 @@ pub fn r_prepare_message_2(
     let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(&Y, &g_x);
+    let prk_2e = compute_prk_2e(&Y, &g_x, &th_2);
     let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
     prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
@@ -352,10 +352,10 @@ pub fn i_process_message_2(
 
     let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
 
-    // compute prk_2e
-    let prk_2e = compute_prk_2e(&x, &g_y);
-
     let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
+
+    // compute prk_2e
+    let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
 
     let (plaintext_2, plaintext_2_len) =
         encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
@@ -985,12 +985,16 @@ fn compute_prk_3e2m(
     prk_3e2m
 }
 
-fn compute_prk_2e(x: &BytesP256ElemLen, g_y: &BytesP256ElemLen) -> BytesHashLen {
+fn compute_prk_2e(
+    x: &BytesP256ElemLen,
+    g_y: &BytesP256ElemLen,
+    th_2: &BytesHashLen,
+) -> BytesHashLen {
     // compute the shared secret
     let g_xy = p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
     let prk_2e = BytesHashLen::from_seq(&extract(
-        &ByteSeq::new(0),
+        &ByteSeq::from_slice(th_2, 0, th_2.len()),
         &ByteSeq::from_slice(&g_xy, 0, g_xy.len()),
     ));
 
@@ -1324,9 +1328,10 @@ mod tests {
     fn test_compute_prk_2e() {
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
+        let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
 
-        let prk_2e = compute_prk_2e(&x_tv, &g_y_tv);
+        let prk_2e = compute_prk_2e(&x_tv, &g_y_tv, &th_2_tv);
         assert_bytes_eq!(prk_2e, prk_2e_tv);
     }
 
