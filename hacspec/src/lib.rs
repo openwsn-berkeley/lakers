@@ -140,7 +140,7 @@ pub fn r_prepare_message_2(
     let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(&Y, &g_x);
+    let prk_2e = compute_prk_2e(&Y, &g_x, &th_2);
     let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
     prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
@@ -152,7 +152,7 @@ pub fn r_prepare_message_2(
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
-    th_3 = compute_th_3(&th_2, &plaintext_2);
+    th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
     let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
         &prk_2e,
@@ -228,7 +228,7 @@ pub fn r_process_message_3(
             // verify mac_3
             if mac_3.declassify_eq(&expected_mac_3) {
                 error = EDHOCError::Success;
-                let th_4 = compute_th_4(&th_3, &plaintext_3);
+                let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
                 // compute prk_out
                 // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -352,10 +352,10 @@ pub fn i_process_message_2(
 
     let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
 
-    // compute prk_2e
-    let prk_2e = compute_prk_2e(&x, &g_y);
-
     let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
+
+    // compute prk_2e
+    let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
 
     let (plaintext_2, plaintext_2_len) =
         encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
@@ -383,6 +383,8 @@ pub fn i_process_message_2(
             th_3 = compute_th_3(
                 &th_2,
                 &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+                cred_r_expected,
+                cred_r_len,
             );
             // message 3 processing
 
@@ -436,7 +438,7 @@ pub fn i_prepare_message_3(
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
     let message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
-    let th_4 = compute_th_4(&th_3, &plaintext_3);
+    let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -578,35 +580,47 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
     th_2
 }
 
-fn compute_th_3(th_2: &BytesHashLen, plaintext_2: &BytesPlaintext2) -> BytesHashLen {
+fn compute_th_3(
+    th_2: &BytesHashLen,
+    plaintext_2: &BytesPlaintext2,
+    cred_r: &BytesMaxBuffer,
+    cred_r_len: usize,
+) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
 
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_2.len() as u8);
     message = message.update(2, th_2);
     message = message.update(2 + th_2.len(), plaintext_2);
+    message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
         0,
-        th_2.len() + 2 + plaintext_2.len(),
+        th_2.len() + 2 + plaintext_2.len() + cred_r_len,
     )));
 
     output
 }
 
-fn compute_th_4(th_3: &BytesHashLen, plaintext_3: &BytesPlaintext3) -> BytesHashLen {
+fn compute_th_4(
+    th_3: &BytesHashLen,
+    plaintext_3: &BytesPlaintext3,
+    cred_i: &BytesMaxBuffer,
+    cred_i_len: usize,
+) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
 
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_3.len() as u8);
     message = message.update(2, th_3);
     message = message.update(2 + th_3.len(), plaintext_3);
+    message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
         0,
-        th_3.len() + 2 + plaintext_3.len(),
+        th_3.len() + 2 + plaintext_3.len() + cred_i_len,
     )));
 
     output
@@ -985,12 +999,16 @@ fn compute_prk_3e2m(
     prk_3e2m
 }
 
-fn compute_prk_2e(x: &BytesP256ElemLen, g_y: &BytesP256ElemLen) -> BytesHashLen {
+fn compute_prk_2e(
+    x: &BytesP256ElemLen,
+    g_y: &BytesP256ElemLen,
+    th_2: &BytesHashLen,
+) -> BytesHashLen {
     // compute the shared secret
     let g_xy = p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
     let prk_2e = BytesHashLen::from_seq(&extract(
-        &ByteSeq::new(0),
+        &ByteSeq::from_slice(th_2, 0, th_2.len()),
         &ByteSeq::from_slice(&g_xy, 0, g_xy.len()),
     ));
 
@@ -1027,32 +1045,32 @@ mod tests {
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     const MESSAGE_2_TV: &str =
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d58b8fec6b1f0580c5043927";
-    const CIPHERTEXT_2_TV: &str = "8b8fec6b1f0580c50439";
+    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
+    const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
     const H_MESSAGE_1_TV: &str = "ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c";
     const TH_2_TV: &str = "9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c";
-    const TH_3_TV: &str = "085de16d9c8235cbf57c46d06d16d456a6c0ad81aa4b448b6abc98dcba6125eb";
-    const CIPHERTEXT_3_TV: &str = "c25c8420036764462f57357986616c8d21b0";
-    const TH_4_TV: &str = "a4097a6b9e39f7d3dc4f8af2c4a8645b373d7af586f415df626e16b6ac2755d3";
-    const PRK_2E_TV: &str = "fd9eef627487e40390cae922512db5a647c08dc90deb22b72ece6f156ff1c396";
-    const KEYSTREAM_2_TV: &str = "b9c7416aa3354654154f";
-    const PRK_3E2M_TV: &str = "7e230e62b909ca7492367aaa8a229f6306c5ac67482184b33362d28d177a56e9";
-    const CONTEXT_INFO_MAC_2_TV : &str = "a104413258209d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439ca2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072";
-    const MAC_2_TV: &str = "ad01bc30c6911176";
+    const TH_3_TV: &str = "b778f602331ff68ac402a6511b9de285bedf6eab3e9ed12dfe22a53eeda7de48";
+    const CIPHERTEXT_3_TV: &str = "c2b62835dc9b1f53419c1d3a2261eeed3505";
+    const TH_4_TV: &str = "1f57dabf8f26da0657d9840c9b1077c1d4c47db243a8b41360a98ec4cb706b70";
+    const PRK_2E_TV: &str = "e01fa14dd56e308267a1a812a9d0b95341e394abc7c5c39dd71885f7d4cd5bf3";
+    const KEYSTREAM_2_TV: &str = "366c89337ff80c69359a";
+    const PRK_3E2M_TV: &str = "412d60cdf99dc7490754c969ad4c46b1350b908433ebf3fe063be8627fb35b3b";
+    const CONTEXT_INFO_MAC_2_TV: &str = "a104413258209d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439ca2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072";
+    const MAC_2_TV: &str = "d0d1a594797d0aaf";
     const ID_CRED_I_TV: &str = "a104412b";
-    const MAC_3_TV: &str = "354f0bc2741eeac6";
-    const MESSAGE_3_TV: &str = "52c25c8420036764462f57357986616c8d21b0";
-    const PRK_4X3M_TV: &str = "9eda8cd755ae3b80b47e8ddbb8d7c5fe2b62b462e4bcba2c6c8ea36ee5fb604d";
+    const MAC_3_TV: &str = "ddf106b86fd22fe4";
+    const MESSAGE_3_TV: &str = "52c2b62835dc9b1f53419c1d3a2261eeed3505";
+    const PRK_4E3M_TV: &str = "7d0159bbe45473c9402e0d42dbceb45dca05b744cae1e083e58315b8aa47ceec";
     const CRED_I_TV : &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
     const ID_CRED_R_TV: &str = "a1044132";
     const CRED_R_TV : &str = "A2026B6578616D706C652E65647508A101A501020241322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
-    const PLAINTEXT_2_TV: &str = "3248ad01bc30c6911176";
+    const PLAINTEXT_2_TV: &str = "3248d0d1a594797d0aaf";
     const I_TV: &str = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
     const X_TV: &str = "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525";
     const G_R_TV: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
-    const PLAINTEXT_3_TV: &str = "2b48354f0bc2741eeac6";
-    const SALT_3E2M_TV: &str = "3992a44f330facfc256a00ba320d778a69f99970db398a613f9c25068e0abd03";
-    const SALT_4E3M_TV: &str = "b842a711416d16f69324969f68bda746629d71b99d0a88160e12b94f4558ecfd";
+    const PLAINTEXT_3_TV: &str = "2b48ddf106b86fd22fe4";
+    const SALT_3E2M_TV: &str = "a4f767b3469a6e6ae5fcbf273839fa87c41f462b03ad1ca7ce8f37c95366d8d1";
+    const SALT_4E3M_TV: &str = "8c60d4357fba5f694a81482c4d38a1000bc3e3e2a29406d18153ffc3595c17ba";
 
     #[test]
     fn test_encode_message_1() {
@@ -1125,8 +1143,10 @@ mod tests {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let mut cred_r_tv = BytesMaxBuffer::new();
+        cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
 
-        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv);
+        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len() / 2);
         assert_bytes_eq!(th_3, th_3_tv);
     }
 
@@ -1135,8 +1155,10 @@ mod tests {
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
+        let mut cred_i_tv = BytesMaxBuffer::new();
+        cred_i_tv = cred_i_tv.update(0, &ByteSeq::from_hex(CRED_I_TV));
 
-        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv);
+        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len() / 2);
         assert_bytes_eq!(th_4, th_4_tv);
     }
 
@@ -1146,7 +1168,7 @@ mod tests {
         th_2_context_tv = th_2_context_tv.update(0, &ByteSeq::from_hex(TH_2_TV));
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let keystream_2_tv = BytesPlaintext2::from_hex(KEYSTREAM_2_TV);
-        const LEN_TV: usize = 10;
+        const LEN_TV: usize = PLAINTEXT_2_LEN;
 
         let output = edhoc_kdf(
             &prk_2e_tv,
@@ -1204,7 +1226,7 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
-        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4X3M_TV);
+        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let mut cred_i_tv = BytesMaxBuffer::new();
@@ -1303,7 +1325,7 @@ mod tests {
         let salt_4e3m_tv = BytesHashLen::from_hex(SALT_4E3M_TV);
         let i_tv = BytesP256ElemLen::from_hex(I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4X3M_TV);
+        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
 
         let prk_4e3m = compute_prk_4e3m(&salt_4e3m_tv, &i_tv, &g_y_tv);
         assert_bytes_eq!(prk_4e3m, prk_4e3m_tv);
@@ -1324,9 +1346,10 @@ mod tests {
     fn test_compute_prk_2e() {
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
+        let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
 
-        let prk_2e = compute_prk_2e(&x_tv, &g_y_tv);
+        let prk_2e = compute_prk_2e(&x_tv, &g_y_tv, &th_2_tv);
         assert_bytes_eq!(prk_2e, prk_2e_tv);
     }
 
