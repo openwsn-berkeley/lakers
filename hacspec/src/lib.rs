@@ -152,7 +152,7 @@ pub fn r_prepare_message_2(
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
-    th_3 = compute_th_3(&th_2, &plaintext_2);
+    th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
     let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
         &prk_2e,
@@ -228,7 +228,7 @@ pub fn r_process_message_3(
             // verify mac_3
             if mac_3.declassify_eq(&expected_mac_3) {
                 error = EDHOCError::Success;
-                let th_4 = compute_th_4(&th_3, &plaintext_3);
+                let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
                 // compute prk_out
                 // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -383,6 +383,8 @@ pub fn i_process_message_2(
             th_3 = compute_th_3(
                 &th_2,
                 &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+                cred_r_expected,
+                cred_r_len,
             );
             // message 3 processing
 
@@ -436,7 +438,7 @@ pub fn i_prepare_message_3(
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
     let message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
-    let th_4 = compute_th_4(&th_3, &plaintext_3);
+    let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -578,35 +580,47 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
     th_2
 }
 
-fn compute_th_3(th_2: &BytesHashLen, plaintext_2: &BytesPlaintext2) -> BytesHashLen {
+fn compute_th_3(
+    th_2: &BytesHashLen,
+    plaintext_2: &BytesPlaintext2,
+    cred_r: &BytesMaxBuffer,
+    cred_r_len: usize,
+) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
 
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_2.len() as u8);
     message = message.update(2, th_2);
     message = message.update(2 + th_2.len(), plaintext_2);
+    message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
         0,
-        th_2.len() + 2 + plaintext_2.len(),
+        th_2.len() + 2 + plaintext_2.len() + cred_r_len,
     )));
 
     output
 }
 
-fn compute_th_4(th_3: &BytesHashLen, plaintext_3: &BytesPlaintext3) -> BytesHashLen {
+fn compute_th_4(
+    th_3: &BytesHashLen,
+    plaintext_3: &BytesPlaintext3,
+    cred_i: &BytesMaxBuffer,
+    cred_i_len: usize,
+) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
 
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_3.len() as u8);
     message = message.update(2, th_3);
     message = message.update(2 + th_3.len(), plaintext_3);
+    message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
 
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
         &message,
         0,
-        th_3.len() + 2 + plaintext_3.len(),
+        th_3.len() + 2 + plaintext_3.len() + cred_i_len,
     )));
 
     output
@@ -1129,8 +1143,10 @@ mod tests {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let mut cred_r_tv = BytesMaxBuffer::new();
+        cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
 
-        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv);
+        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len() / 2);
         assert_bytes_eq!(th_3, th_3_tv);
     }
 
@@ -1139,8 +1155,10 @@ mod tests {
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
+        let mut cred_i_tv = BytesMaxBuffer::new();
+        cred_i_tv = cred_i_tv.update(0, &ByteSeq::from_hex(CRED_I_TV));
 
-        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv);
+        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len() / 2);
         assert_bytes_eq!(th_4, th_4_tv);
     }
 
