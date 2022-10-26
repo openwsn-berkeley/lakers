@@ -54,7 +54,7 @@ pub fn edhoc_exporter(
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
-) -> (State, BytesMaxBuffer) {
+) -> (EDHOCError, State, BytesMaxBuffer) {
     let State(
         current_state,
         _x_or_y,
@@ -68,9 +68,17 @@ pub fn edhoc_exporter(
         _th_3,
     ) = state;
 
-    let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
+    let mut output = BytesMaxBuffer::new();
+    let mut error = EDHOCError::UnknownError;
 
-    (state, output)
+    if current_state == EDHOCState::Completed {
+        output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::WrongState;
+    }
+
+    (error, state, output)
 }
 
 pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {

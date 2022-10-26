@@ -37,8 +37,8 @@ fn main() {
         let _response = CoAPClient::post(url, msg_3).unwrap();
         // we don't care about the response to message_3 for now
 
-        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        let (_error, _oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        let (_error, _oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }

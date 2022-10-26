@@ -148,12 +148,12 @@ mod hacspec {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> [u8; MAX_BUFFER_LEN] {
+        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
             // init hacspec struct for context
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (state, output) = edhoc_exporter(
+            let (error, state, output) = edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
@@ -169,7 +169,7 @@ mod hacspec {
                 output_native[i] = output[i].declassify();
             }
 
-            output_native
+            (error, output_native)
         }
     }
 
@@ -284,12 +284,12 @@ mod hacspec {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> [u8; MAX_BUFFER_LEN] {
+        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
             // init hacspec struct for context
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (state, output) = edhoc_exporter(
+            let (error, state, output) = edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
@@ -305,7 +305,7 @@ mod hacspec {
                 output_native[i] = output[i].declassify();
             }
 
-            output_native
+            (error, output_native)
         }
     }
 }
@@ -559,11 +559,15 @@ mod test {
         assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
-        let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        let (error, i_oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(error == EdhocError::Success);
+        let (error, i_oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(error == EdhocError::Success);
 
-        let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        let (error, r_oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(error == EdhocError::Success);
+        let (error, r_oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(error == EdhocError::Success);
 
         assert_eq!(i_oscore_secret, r_oscore_secret);
         assert_eq!(i_oscore_salt, r_oscore_salt);
