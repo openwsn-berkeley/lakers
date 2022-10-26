@@ -293,7 +293,7 @@ pub fn i_prepare_message_1(mut state: State) -> (State, BytesMessage1) {
     ) = state;
 
     // we only support a single cipher suite which is already CBOR-encoded
-    let selected_suites = &EDHOC_SUPPORTED_SUITES;
+    let selected_suites = EDHOC_SUPPORTED_SUITES;
 
     // TODO generate ephemeral key
     x = X;
@@ -303,7 +303,7 @@ pub fn i_prepare_message_1(mut state: State) -> (State, BytesMessage1) {
     c_i = C_I;
 
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(U8(EDHOC_METHOD), selected_suites, &g_x, c_i);
+    let message_1 = encode_message_1(U8(EDHOC_METHOD), &selected_suites, &g_x, c_i);
 
     // hash message_1 here to avoid saving the whole message in the state
     h_message_1 =
