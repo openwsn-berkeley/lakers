@@ -88,7 +88,9 @@ mod hacspec {
             error
         }
 
-        pub fn prepare_message_2(self: &mut HacspecEdhocResponder<'a>) -> [u8; MESSAGE_2_LEN] {
+        pub fn prepare_message_2(
+            self: &mut HacspecEdhocResponder<'a>,
+        ) -> (EDHOCError, [u8; MESSAGE_2_LEN]) {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
             let mut cred_r = BytesMaxBuffer::new();
@@ -98,7 +100,7 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            let (state, message_2) =
+            let (error, state, message_2) =
                 r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
             self.state = state;
 
@@ -107,7 +109,7 @@ mod hacspec {
                 message_2_native[i] = message_2[i].declassify();
             }
 
-            message_2_native
+            (error, message_2_native)
         }
 
         pub fn process_message_3(
@@ -197,8 +199,10 @@ mod hacspec {
             }
         }
 
-        pub fn prepare_message_1(self: &mut HacspecEdhocInitiator<'a>) -> [u8; MESSAGE_1_LEN] {
-            let (state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
+        pub fn prepare_message_1(
+            self: &mut HacspecEdhocInitiator<'a>,
+        ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
+            let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -209,7 +213,7 @@ mod hacspec {
                 message_native[i] = message_1[i].declassify();
             }
 
-            message_native
+            (error, message_native)
         }
 
         pub fn process_message_2(
@@ -247,14 +251,14 @@ mod hacspec {
 
         pub fn prepare_message_3(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> ([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
+        ) -> (EDHOCError, [u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
             // init hacspec structs for id_cred_i and cred_i
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
 
-            let (state, message_3, prk_out) =
+            let (error, state, message_3, prk_out) =
                 i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
 
             self.state = state;
@@ -272,7 +276,7 @@ mod hacspec {
                 prk_out_native[i] = prk_out[i].declassify();
             }
 
-            (message_native, prk_out_native)
+            (error, message_native, prk_out_native)
         }
 
         pub fn edhoc_exporter(
@@ -496,7 +500,8 @@ mod test {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let message_1 = initiator.prepare_message_1();
+        let (error, message_1) = initiator.prepare_message_1();
+        assert!(error == EdhocError::Success);
         assert_eq!(message_1, MESSAGE_1_TV);
     }
 
@@ -534,16 +539,19 @@ mod test {
             CRED_R,
         );
 
-        let message_1 = initiator.prepare_message_1(); // to update the state
+        let (error, message_1) = initiator.prepare_message_1(); // to update the state
+        assert!(error == EdhocError::Success);
 
         let error = responder.process_message_1(&message_1);
         assert!(error == EdhocError::Success);
 
-        let message_2 = responder.prepare_message_2();
+        let (error, message_2) = responder.prepare_message_2();
+        assert!(error == EdhocError::Success);
         let (error, _c_r) = initiator.process_message_2(&message_2);
         assert!(error == EdhocError::Success);
 
-        let (message_3, i_prk_out) = initiator.prepare_message_3();
+        let (error, message_3, i_prk_out) = initiator.prepare_message_3();
+        assert!(error == EdhocError::Success);
         let (error, r_prk_out) = responder.process_message_3(&message_3);
         assert!(error == EdhocError::Success);
 
