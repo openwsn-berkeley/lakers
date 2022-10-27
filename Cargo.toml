@@ -3,5 +3,6 @@
 members = [
 	"lib",
 	"hacspec",
+	"crypto",
 ]
 

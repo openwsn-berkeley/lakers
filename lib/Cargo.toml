@@ -15,18 +15,12 @@ coap-lite = { version = "0.9.1", optional = true }
 hex-literal = { version = "0.3.4", optional = true}
 edhoc-hacspec = { path = "../hacspec", optional = true }
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-
-# Crates uses when the cc2538 backend is selected
+edhoc-crypto = { path = "../crypto" }
 cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
 
 [features]
 default = ["native", "hacspec"]
-native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "hacspec-p256", "hacspec-hkdf", "hacspec-sha256", "hacspec-aes", "hacspec-aes-ccm"]
-cc2538 = ["cc2538-hal"]
+native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "edhoc-crypto/native"]
+cc2538 = ["cc2538-hal", "edhoc-crypto/cc2538"]
 hacspec = ["edhoc-hacspec", "hacspec-lib"]
 

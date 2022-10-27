@@ -1,8 +1,7 @@
 #[cfg(feature = "hacspec")]
 pub use {
-    edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN,
-    edhoc_hacspec::EDHOCError as EdhocError, edhoc_hacspec::State as EdhocState,
-    hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    edhoc_consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN, edhoc_hacspec::EDHOCError as EdhocError,
+    edhoc_hacspec::State as EdhocState, hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
@@ -16,17 +15,11 @@ pub use {
 mod edhoc;
 
 #[cfg(not(feature = "hacspec"))]
-mod consts;
-
-#[cfg(not(feature = "hacspec"))]
-mod accelerator;
-
-#[cfg(not(feature = "hacspec"))]
 use edhoc::*;
 
 #[cfg(feature = "hacspec")]
 mod hacspec {
-    use edhoc_hacspec::consts::*;
+    use edhoc_consts::*;
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
@@ -314,8 +307,8 @@ mod hacspec {
 
 #[cfg(not(feature = "hacspec"))]
 mod rust {
-    use super::consts::*;
     use super::*;
+    use edhoc_consts::*;
 
     pub struct RustEdhocInitiator<'a> {
         state: State,       // opaque state

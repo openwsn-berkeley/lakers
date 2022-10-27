@@ -1,27 +1,9 @@
 #![no_std]
 #![feature(derive_default_enum)]
 
-use hacspec_aes::*;
-use hacspec_aes_ccm::*;
-use hacspec_hkdf::*;
+use edhoc_consts::*;
+use edhoc_crypto::*;
 use hacspec_lib::*;
-use hacspec_p256::*;
-use hacspec_sha256::*;
-pub mod consts;
-
-use consts::*;
-
-#[derive(PartialEq, Debug)]
-pub enum EDHOCError {
-    Success = 0,
-    UnknownPeer = 1,
-    MacVerificationFailed = 2,
-    UnsupportedMethod = 3,
-    UnsupportedCipherSuite = 4,
-    ParsingError = 5,
-    WrongState = 6,
-    UnknownError = 7,
-}
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 pub enum EDHOCState {
@@ -110,11 +92,7 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
                 // TODO we do not support EAD for now
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                h_message_1 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
-                    message_1,
-                    0,
-                    message_1.len(),
-                )));
+                h_message_1 = sha256_digest(&ByteSeq::from_slice(message_1, 0, message_1.len()));
 
                 error = EDHOCError::Success;
                 current_state = EDHOCState::ProcessedMessage1;
@@ -368,8 +346,7 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         message_1 = encode_message_1(U8(EDHOC_METHOD), &selected_suites, &g_x, c_i);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 =
-            BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message_1, 0, message_1.len())));
+        h_message_1 = sha256_digest(&ByteSeq::from_slice(&message_1, 0, message_1.len()));
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
 
@@ -667,7 +644,7 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
 
     let len = 5 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let th_2 = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(&message, 0, len)));
+    let th_2 = sha256_digest(&ByteSeq::from_slice(&message, 0, len));
 
     th_2
 }
@@ -686,11 +663,11 @@ fn compute_th_3(
     message = message.update(2 + th_2.len(), plaintext_2);
     message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
 
-    let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
+    let output = sha256_digest(&ByteSeq::from_slice(
         &message,
         0,
         th_2.len() + 2 + plaintext_2.len() + cred_r_len,
-    )));
+    ));
 
     output
 }
@@ -709,11 +686,11 @@ fn compute_th_4(
     message = message.update(2 + th_3.len(), plaintext_3);
     message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
 
-    let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(
+    let output = sha256_digest(&ByteSeq::from_slice(
         &message,
         0,
         th_3.len() + 2 + plaintext_3.len() + cred_i_len,
-    )));
+    ));
 
     output
 }
@@ -749,16 +726,7 @@ fn edhoc_kdf(
         info_len = info_len + 2;
     }
 
-    let mut output = BytesMaxBuffer::new();
-    output = output.update(
-        0,
-        &expand(
-            &ByteSeq::from_slice(prk, 0, prk.len()),
-            &ByteSeq::from_slice(&info, 0, info_len),
-            length,
-        )
-        .unwrap(),
-    );
+    let output = hkdf_expand(prk, &info, info_len, length);
 
     output
 }
@@ -855,13 +823,7 @@ fn encrypt_message_3(
 
     output = output.update(
         1,
-        &encrypt_ccm(
-            ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
-            ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
-            ByteSeq::from_slice(plaintext_3, 0, plaintext_3.len()),
-            Key128::from_slice(&k_3, 0, k_3.len()),
-            AES_CCM_TAG_LEN,
-        ),
+        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, &plaintext_3),
     );
 
     output
@@ -886,17 +848,7 @@ fn decrypt_message_3(
 
         let enc_structure = encode_enc_structure(th_3);
 
-        let (err, p3) = match decrypt_ccm(
-            ByteSeq::from_slice(&enc_structure, 0, enc_structure.len()),
-            ByteSeq::from_slice(&iv_3, 0, iv_3.len()),
-            Key128::from_slice(&k_3, 0, k_3.len()),
-            ByteSeq::from_slice(&ciphertext_3, 0, ciphertext_3.len()),
-            ciphertext_3.len(),
-            AES_CCM_TAG_LEN,
-        ) {
-            AesCcmResult::Ok(p) => (EDHOCError::Success, p),
-            AesCcmResult::Err(_) => (EDHOCError::MacVerificationFailed, ByteSeq::new(0)),
-        };
+        let (err, p3) = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
         error = err;
         plaintext_3 = plaintext_3.update(0, &p3);
     } else {
@@ -1050,10 +1002,7 @@ fn compute_prk_4e3m(
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_iy = p256_ecdh(i, g_y);
-    let prk_4e3m = BytesHashLen::from_seq(&extract(
-        &ByteSeq::from_slice(salt_4e3m, 0, salt_4e3m.len()),
-        &ByteSeq::from_slice(&g_iy, 0, g_iy.len()),
-    ));
+    let prk_4e3m = hkdf_extract(salt_4e3m, &g_iy);
 
     prk_4e3m
 }
@@ -1083,10 +1032,7 @@ fn compute_prk_3e2m(
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_rx = p256_ecdh(x, g_r);
-    let prk_3e2m = BytesHashLen::from_seq(&extract(
-        &ByteSeq::from_slice(salt_3e2m, 0, salt_3e2m.len()),
-        &ByteSeq::from_slice(&g_rx, 0, g_rx.len()),
-    ));
+    let prk_3e2m = hkdf_extract(salt_3e2m, &g_rx);
 
     prk_3e2m
 }
@@ -1099,26 +1045,9 @@ fn compute_prk_2e(
     // compute the shared secret
     let g_xy = p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = BytesHashLen::from_seq(&extract(
-        &ByteSeq::from_slice(th_2, 0, th_2.len()),
-        &ByteSeq::from_slice(&g_xy, 0, g_xy.len()),
-    ));
+    let prk_2e = hkdf_extract(th_2, &g_xy);
 
     prk_2e
-}
-
-fn p256_ecdh(private_key: &BytesP256ElemLen, public_key: &BytesP256ElemLen) -> BytesP256ElemLen {
-    let scalar = P256Scalar::from_byte_seq_be(private_key);
-    let point = (
-        P256FieldElement::from_byte_seq_be(public_key),
-        p256_calculate_w(P256FieldElement::from_byte_seq_be(public_key)),
-    );
-
-    // we only care about the x coordinate
-    let (x, _y) = p256_point_mul(scalar, point).unwrap();
-
-    let secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
-    secret
 }
 
 #[cfg(test)]
