@@ -19,10 +19,11 @@ fn main() {
         EdhocInitiator::new(state, &I, &G_R, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
 
     // Send Message 1 over CoAP and convert the response to byte
-    let mut msg_1 = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
-    msg_1.extend_from_slice(&initiator.prepare_message_1());
+    let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
+    let (_error, message_1) = initiator.prepare_message_1();
+    msg_1_buf.extend_from_slice(&message_1);
 
-    let response = CoAPClient::post(url, msg_1).unwrap();
+    let response = CoAPClient::post(url, msg_1_buf).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
     let (error, c_r) =
@@ -30,14 +31,14 @@ fn main() {
 
     if error == EdhocError::Success {
         let mut msg_3 = Vec::from([c_r]);
-        let (message_3, _prk_out) = initiator.prepare_message_3();
+        let (_error, message_3, _prk_out) = initiator.prepare_message_3();
         msg_3.extend_from_slice(&message_3);
 
         let _response = CoAPClient::post(url, msg_3).unwrap();
         // we don't care about the response to message_3 for now
 
-        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        let (_error, _oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        let (_error, _oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }
