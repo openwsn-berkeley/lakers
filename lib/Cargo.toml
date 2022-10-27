@@ -16,6 +16,7 @@ hex-literal = { version = "0.3.4", optional = true}
 edhoc-hacspec = { path = "../hacspec", optional = true }
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
 edhoc-crypto = { path = "../crypto" }
+edhoc-consts = { path = "../consts" }
 cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
 
 [features]
