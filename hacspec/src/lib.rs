@@ -576,7 +576,8 @@ fn parse_message_1(
     let method = rcvd_message_1[0];
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let selected_suite = BytesSupportedSuites([rcvd_message_1[1]]);
+    let mut selected_suite = BytesSupportedSuites::new();
+    selected_suite = selected_suite.update(0, &rcvd_message_1.slice(1,1));
     let mut g_x = BytesP256ElemLen::new();
     g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
@@ -823,7 +824,7 @@ fn encrypt_message_3(
 
     output = output.update(
         1,
-        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, &plaintext_3),
+        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3),
     );
 
     output
