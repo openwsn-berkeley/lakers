@@ -11,8 +11,8 @@ mod native {
     use hacspec_p256::*;
     use hacspec_sha256::*;
 
-    pub fn sha256_digest(message: &ByteSeq) -> BytesHashLen {
-        let output = BytesHashLen::from_seq(&hash(message));
+    pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+        let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message, 0, message_len)));
         output
     }
 

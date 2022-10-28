@@ -92,7 +92,10 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
                 // TODO we do not support EAD for now
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                h_message_1 = sha256_digest(&ByteSeq::from_slice(message_1, 0, message_1.len()));
+                h_message_1 = sha256_digest(
+                    &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
+                    message_1.len(),
+                );
 
                 error = EDHOCError::Success;
                 current_state = EDHOCState::ProcessedMessage1;
@@ -346,7 +349,10 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         message_1 = encode_message_1(U8(EDHOC_METHOD), &selected_suites, &g_x, c_i);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(&ByteSeq::from_slice(&message_1, 0, message_1.len()));
+        h_message_1 = sha256_digest(
+            &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
+            message_1.len(),
+        );
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
 
@@ -577,7 +583,7 @@ fn parse_message_1(
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
     let mut selected_suite = BytesSupportedSuites::new();
-    selected_suite = selected_suite.update(0, &rcvd_message_1.slice(1,1));
+    selected_suite = selected_suite.update(0, &rcvd_message_1.slice(1, 1));
     let mut g_x = BytesP256ElemLen::new();
     g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
@@ -645,7 +651,7 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
 
     let len = 5 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let th_2 = sha256_digest(&ByteSeq::from_slice(&message, 0, len));
+    let th_2 = sha256_digest(&message, len);
 
     th_2
 }
@@ -664,11 +670,7 @@ fn compute_th_3(
     message = message.update(2 + th_2.len(), plaintext_2);
     message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
 
-    let output = sha256_digest(&ByteSeq::from_slice(
-        &message,
-        0,
-        th_2.len() + 2 + plaintext_2.len() + cred_r_len,
-    ));
+    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len() + cred_r_len);
 
     output
 }
@@ -687,11 +689,7 @@ fn compute_th_4(
     message = message.update(2 + th_3.len(), plaintext_3);
     message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
 
-    let output = sha256_digest(&ByteSeq::from_slice(
-        &message,
-        0,
-        th_3.len() + 2 + plaintext_3.len() + cred_i_len,
-    ));
+    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
 
     output
 }
