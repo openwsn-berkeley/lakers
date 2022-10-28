@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(derive_default_enum)]
 
 use edhoc_consts::*;
 use edhoc_crypto::*;
