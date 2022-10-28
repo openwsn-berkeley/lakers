@@ -1,12 +1,12 @@
 #![no_std]
 
-#[cfg(all(feature = "native", feature = "hacspec"))]
+#[cfg(feature = "hacspec-native")]
 pub use native_hacspec::*;
 
-#[cfg(all(feature = "cc2538", feature = "hacspec"))]
+#[cfg(feature = "hacspec-cc2538")]
 pub use cc2538_hacspec::*;
 
-#[cfg(all(feature = "native", feature = "hacspec"))]
+#[cfg(feature = "hacspec-native")]
 mod native_hacspec {
     use edhoc_consts::*;
     use hacspec_aes::*;
@@ -103,7 +103,7 @@ mod native_hacspec {
     }
 }
 
-#[cfg(all(feature = "cc2538", feature = "hacspec"))]
+#[cfg(feature = "hacspec-cc2538")]
 mod cc2538_hacspec {
     use edhoc_consts::*;
 

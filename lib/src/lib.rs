@@ -1,23 +1,23 @@
-#[cfg(feature = "hacspec")]
+#[cfg(feature = "hacspec-native")]
 pub use {
     edhoc_consts::*, edhoc_hacspec::State as EdhocState,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 pub use {
     edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 mod edhoc;
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 use edhoc::*;
 
-#[cfg(feature = "hacspec")]
+#[cfg(feature = "hacspec-native")]
 mod hacspec {
     use edhoc_consts::*;
     use edhoc_hacspec::*;
@@ -305,7 +305,7 @@ mod hacspec {
     }
 }
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 mod rust {
     use super::*;
     use edhoc_consts::*;
