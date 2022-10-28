@@ -1,7 +1,7 @@
 #[cfg(feature = "hacspec")]
 pub use {
-    edhoc_consts::*,
-    edhoc_hacspec::State as EdhocState, hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    edhoc_consts::*, edhoc_hacspec::State as EdhocState,
+    hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
