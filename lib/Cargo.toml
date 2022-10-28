@@ -23,5 +23,5 @@ cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto
 default = ["native", "hacspec"]
 native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "edhoc-crypto/native"]
 cc2538 = ["cc2538-hal", "edhoc-crypto/cc2538"]
-hacspec = ["edhoc-hacspec", "hacspec-lib"]
+hacspec = ["edhoc-hacspec", "hacspec-lib", "edhoc-crypto/hacspec"]
 

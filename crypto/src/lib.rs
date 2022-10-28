@@ -1,8 +1,11 @@
-#[cfg(feature = "native")]
-pub use native::*;
+#[cfg(all(feature = "native", feature = "hacspec"))]
+pub use native_hacspec::*;
 
-#[cfg(feature = "native")]
-mod native {
+#[cfg(feature = "cc2538")]
+pub use cc2538::*;
+
+#[cfg(all(feature = "native", feature = "hacspec"))]
+mod native_hacspec {
     use edhoc_consts::*;
     use hacspec_aes::*;
     use hacspec_aes_ccm::*;
@@ -97,3 +100,6 @@ mod native {
         secret
     }
 }
+
+#[cfg(all(feature = "cc2538", feature = "hacspec"))]
+mod cc2538 {}
