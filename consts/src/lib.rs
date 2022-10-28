@@ -1,3 +1,5 @@
+#![no_std]
+
 use hacspec_lib::*;
 
 #[derive(PartialEq, Debug)]

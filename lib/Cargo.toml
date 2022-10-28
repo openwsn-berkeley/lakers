@@ -20,8 +20,7 @@ edhoc-consts = { path = "../consts" }
 cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
 
 [features]
-default = ["native", "hacspec"]
-native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "edhoc-crypto/native"]
-cc2538 = ["cc2538-hal", "edhoc-crypto/cc2538"]
-hacspec = ["edhoc-hacspec", "hacspec-lib", "edhoc-crypto/hacspec"]
+default = ["hacspec-native"]
+hacspec-native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "edhoc-crypto/hacspec-native"]
+hacspec-cc2538 = ["cc2538-hal", "edhoc-crypto/hacspec-cc2538"]
 

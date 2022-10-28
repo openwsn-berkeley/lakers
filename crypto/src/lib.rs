@@ -1,8 +1,10 @@
+#![no_std]
+
 #[cfg(all(feature = "native", feature = "hacspec"))]
 pub use native_hacspec::*;
 
-#[cfg(feature = "cc2538")]
-pub use cc2538::*;
+#[cfg(all(feature = "cc2538", feature = "hacspec"))]
+pub use cc2538_hacspec::*;
 
 #[cfg(all(feature = "native", feature = "hacspec"))]
 mod native_hacspec {
@@ -102,4 +104,54 @@ mod native_hacspec {
 }
 
 #[cfg(all(feature = "cc2538", feature = "hacspec"))]
-mod cc2538 {}
+mod cc2538_hacspec {
+    use edhoc_consts::*;
+
+    use cc2538_hal::crypto::Crypto;
+    use cc2538_hal::crypto::ecc::EccCurveInfo;
+    use cc2538_hal::crypto::ecc::EcPoint;
+    use cc2538_hal::crypto::aes_engine::ccm::AesCcmInfo;
+    use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};
+
+   pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    BytesHashLen::new()
+   }
+
+    pub fn hkdf_expand(
+        prk: &BytesHashLen,
+        info: &BytesMaxInfoBuffer,
+        info_len: usize,
+        length: usize,
+    ) -> BytesMaxBuffer {
+        BytesMaxBuffer::new()
+    }
+
+    pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+        BytesHashLen::new()
+    }
+
+    pub fn aes_ccm_encrypt_tag_8(
+        key: &BytesCcmKeyLen,
+        iv: &BytesCcmIvLen,
+        ad: &BytesEncStructureLen,
+        plaintext: &BytesPlaintext3,
+    ) -> BytesCiphertext3 {
+        BytesCiphertext3::new()
+    }
+
+    pub fn aes_ccm_decrypt_tag_8(
+        key: &BytesCcmKeyLen,
+        iv: &BytesCcmIvLen,
+        ad: &BytesEncStructureLen,
+        ciphertext: &BytesCiphertext3,
+    ) -> (EDHOCError, BytesPlaintext3) {
+        (EDHOCError::Success, BytesPlaintext3::new())
+    }
+    pub fn p256_ecdh(
+        private_key: &BytesP256ElemLen,
+        public_key: &BytesP256ElemLen,
+    ) -> BytesP256ElemLen {
+        BytesP256ElemLen::new()
+    }
+
+}
