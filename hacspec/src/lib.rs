@@ -421,7 +421,8 @@ pub fn i_process_message_2(
     let mut kid = U8(0xffu8); // invalidate kid
 
     if current_state == EDHOCState::WaitMessage2 {
-        let (g_y, ciphertext_2, c_r) = parse_message_2(message_2);
+        let (g_y, ciphertext_2, c_r_2) = parse_message_2(message_2);
+        c_r = c_r_2;
 
         let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
 
