@@ -1,5 +1,6 @@
 use coap::CoAPClient;
 use edhoc_rs::*;
+use std::time::Duration;
 
 const ID_CRED_I: &str = "a104412b";
 const ID_CRED_R: &str = "a104410a";
@@ -12,6 +13,7 @@ const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd4
 
 fn main() {
     let url = "coap://127.0.0.1:5683/.well-known/edhoc";
+    let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
 
     let state: EdhocState = Default::default();
@@ -23,7 +25,7 @@ fn main() {
     let (_error, message_1) = initiator.prepare_message_1();
     msg_1_buf.extend_from_slice(&message_1);
 
-    let response = CoAPClient::post(url, msg_1_buf).unwrap();
+    let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
     let (error, c_r) =
@@ -34,11 +36,15 @@ fn main() {
         let (_error, message_3, _prk_out) = initiator.prepare_message_3();
         msg_3.extend_from_slice(&message_3);
 
-        let _response = CoAPClient::post(url, msg_3).unwrap();
+        let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
         // we don't care about the response to message_3 for now
 
         let (_error, _oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
         let (_error, _oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+
+        println!("EDHOC exchange successfully completed");
+        println!("OSCORE secret: {:02x?}", _oscore_secret);
+        println!("OSCORE salt: {:02x?}", _oscore_salt);
     } else {
         panic!("Message 2 processing error: {:#?}", error);
     }
