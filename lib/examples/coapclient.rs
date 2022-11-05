@@ -1,4 +1,5 @@
 use coap::CoAPClient;
+use std::time::Duration;
 use edhoc_rs::*;
 
 const ID_CRED_I: &str = "a104412b";
@@ -23,7 +24,7 @@ fn main() {
     let (_error, message_1) = initiator.prepare_message_1();
     msg_1_buf.extend_from_slice(&message_1);
 
-    let response = CoAPClient::post(url, msg_1_buf).unwrap();
+    let response = CoAPClient::post_with_timeout(url, msg_1_buf, Duration::new(5, 0)).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
     let (error, c_r) =
