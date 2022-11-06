@@ -30,6 +30,7 @@ mod hacspec {
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
+    #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocInitiator<'a> {
         state: State,       // opaque state
         i: &'a str,         // private authentication key of I
@@ -40,6 +41,7 @@ mod hacspec {
         cred_r: &'a str,    // R's full credential
     }
 
+    #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocResponder<'a> {
         state: State,       // opaque state
         r: &'a str,         // private authentication key of R

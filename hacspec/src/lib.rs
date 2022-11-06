@@ -34,7 +34,7 @@ pub enum EDHOCState {
     Completed = 5,         // initiator and responder
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct State(
     EDHOCState,
     BytesP256ElemLen, // x or y, ephemeral private key of myself
