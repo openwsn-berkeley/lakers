@@ -90,7 +90,7 @@ mod hacspec {
 
         pub fn prepare_message_2(
             self: &mut HacspecEdhocResponder<'a>,
-        ) -> (EDHOCError, [u8; MESSAGE_2_LEN]) {
+        ) -> (EDHOCError, [u8; MESSAGE_2_LEN], u8) {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
             let mut cred_r = BytesMaxBuffer::new();
@@ -100,7 +100,7 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            let (error, state, message_2) =
+            let (error, state, message_2, c_r) =
                 r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
             self.state = state;
 
@@ -109,7 +109,7 @@ mod hacspec {
                 message_2_native[i] = message_2[i].declassify();
             }
 
-            (error, message_2_native)
+            (error, message_2_native, c_r.declassify())
         }
 
         pub fn process_message_3(
@@ -545,8 +545,9 @@ mod test {
         let error = responder.process_message_1(&message_1);
         assert!(error == EdhocError::Success);
 
-        let (error, message_2) = responder.prepare_message_2();
+        let (error, message_2, c_r) = responder.prepare_message_2();
         assert!(error == EdhocError::Success);
+        assert!(c_r != 0xff);
         let (error, _c_r) = initiator.process_message_2(&message_2);
         assert!(error == EdhocError::Success);
 
