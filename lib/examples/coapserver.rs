@@ -43,7 +43,7 @@ fn main() {
                         .expect("wrong length"),
                 );
 
-                if error == EdhocError::Success {
+                if error == EDHOCError::Success {
                     let (_error, message_2, c_r) = responder.prepare_message_2();
                     response.message.payload = message_2.to_vec();
                     // save state
@@ -64,7 +64,7 @@ fn main() {
                         .expect("wrong length"),
                 );
 
-                if error != EdhocError::Success {
+                if error != EDHOCError::Success {
                     println!("EDHOC processing error: {:?}", error);
                     // FIXME remove state from edhoc_connections
                     continue;
@@ -90,12 +90,12 @@ fn main() {
 fn lookup_state<'a>(
     c_r_rcvd: u8,
     edhoc_protocol_states: &'a Vec<(u8, EdhocResponder<'a>, EdhocState)>,
-) -> Result<(u8, EdhocResponder, EdhocState), EdhocError> {
+) -> Result<(u8, EdhocResponder, EdhocState), EDHOCError> {
     for element in edhoc_protocol_states {
         let (c_r, responder, state) = element;
         if *c_r == c_r_rcvd {
             return Ok((*c_r, *responder, *state));
         }
     }
-    return Err(EdhocError::WrongState);
+    return Err(EDHOCError::WrongState);
 }
