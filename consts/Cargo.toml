@@ -1,0 +1,10 @@
+[package]
+name = "edhoc-consts"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
+license = "BSD"
+description = "EDHOC crypto library"
+
+[dependencies]
+hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", default-features = false }
