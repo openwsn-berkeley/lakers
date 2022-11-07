@@ -7,7 +7,7 @@ license = "BSD"
 description = "EDHOC implementation"
 
 [dependencies]
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm" }
+hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", default-features = false }
 edhoc-crypto = { path = "../crypto" }
 edhoc-consts = { path = "../consts" }
 
