@@ -14,7 +14,7 @@ coap = { version = "0.12", optional = true }
 coap-lite = { version = "0.9.1", optional = true }
 hex-literal = { version = "0.3.4", optional = true}
 edhoc-hacspec = { path = "../hacspec", optional = true }
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", default-features = false, optional = true }
+hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
 edhoc-crypto = { path = "../crypto", default-features = false, optional = true }
 edhoc-consts = { path = "../consts" }
 
