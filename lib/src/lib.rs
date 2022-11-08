@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), no_std)]
+
 #[cfg(feature = "hacspec-native")]
 pub use {
     edhoc_consts::*, edhoc_hacspec::State as EdhocState,
