@@ -4,6 +4,7 @@ members = [
 	"lib",
 	"hacspec",
 	"crypto",
+	"examples/coap",
 ]
 
 [patch.crates-io]
