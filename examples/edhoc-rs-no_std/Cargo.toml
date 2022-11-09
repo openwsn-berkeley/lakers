@@ -16,6 +16,3 @@ cortex-m = "0.7.4"
 cortex-m-rt = "0.7.1"
 cortex-m-semihosting = "0.5.0"
 panic-semihosting = { version = "0.6.0", features = ["exit"] }
-
-[patch.crates-io]
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
