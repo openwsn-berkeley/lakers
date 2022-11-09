@@ -6,6 +6,7 @@ members = [
   "crypto",
   "crypto/edhoc-crypto-cc2538",
   "crypto/edhoc-crypto-hacspec",
+  "crypto/edhoc-crypto-psa",
   "examples/coap",
   "examples/edhoc-rs-no_std",
 ]
@@ -17,6 +18,7 @@ default-members = [
   "hacspec",
   "crypto",
   "crypto/edhoc-crypto-hacspec",
+  "crypto/edhoc-crypto-psa",
   "examples/coap",
 ]
 

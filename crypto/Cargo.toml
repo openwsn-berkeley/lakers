@@ -15,7 +15,11 @@ edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
 # cc2538 hardware accelerated
 edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
 
+# psa
+edhoc-crypto-psa = { path = "./edhoc-crypto-psa", optional = true }
+
 [features]
 default = [ "hacspec" ]
 hacspec = [ "edhoc-crypto-hacspec" ]
 cc2538 = [ "edhoc-crypto-cc2538" ]
+psa = [ "edhoc-crypto-psa" ]
