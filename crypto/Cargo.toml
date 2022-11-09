@@ -4,29 +4,18 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
-description = "EDHOC crypto library"
+description = "EDHOC crypto library dispatch crate"
 
 [dependencies]
 edhoc-consts = { path = "../consts" }
-hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
-hacspec-p256 = { version = "0.1.0", optional = true }
-hacspec-hkdf = { version = "0.1.0", optional = true }
-hacspec-sha256 = { version = "0.1.0", optional = true }
-hacspec-aes = { version = "0.1.0", optional = true }
-hacspec-aes-ccm = { version = "0.1.0", optional = true}
 
-# Crates used when the cc2538 backend is selected
-cortex-m = { version = "0.7.4", optional = true }
-cortex-m-rt = { version = "0.7.1", optional = true }
-cortex-m-semihosting = { version = "0.5.0", optional = true }
-panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }
-cc2538-pac = { version = "0.1.0", features = ["rt"], optional = true }
-cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
+# hacspec
+edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
 
-# depend on an allocator
-static-alloc = { version = "0.2.3", optional = true }
+# cc2538 hardware accelerated
+edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
 
 [features]
-default = ["hacspec-native"]
-hacspec-native = ["hacspec-lib/std", "hacspec-p256", "hacspec-hkdf", "hacspec-sha256", "hacspec-aes", "hacspec-aes-ccm" ]
-hacspec-cc2538 = [ "cortex-m", "cortex-m-rt", "cortex-m-semihosting", "panic-semihosting", "cc2538-pac", "cc2538-hal", "static-alloc", "hacspec-lib/alloc" ]
+default = [ "hacspec" ]
+hacspec = [ "edhoc-crypto-hacspec" ]
+cc2538 = [ "edhoc-crypto-cc2538" ]

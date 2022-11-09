@@ -1,10 +1,22 @@
 [workspace]
 
 members = [
-	"lib",
-	"hacspec",
-	"crypto",
-	"examples/coap",
+  "lib",
+  "hacspec",
+  "crypto",
+  "crypto/edhoc-crypto-cc2538",
+  "crypto/edhoc-crypto-hacspec",
+  "examples/coap",
+]
+
+# reduced "default-members", should include only packages that can be built and
+# tested on the host architecture
+default-members = [
+  "lib",
+  "hacspec",
+  "crypto",
+  "crypto/edhoc-crypto-hacspec",
+  "examples/coap",
 ]
 
 [patch.crates-io]
