@@ -16,6 +16,6 @@ edhoc-consts = { path = "../consts" }
 
 [features]
 default = ["hacspec-native"]
-hacspec-native = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec-native"]
-hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/hacspec-cc2538"]
+hacspec-native = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec"]
+hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538"]
 
