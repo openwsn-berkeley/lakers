@@ -1,6 +1,10 @@
 #![cfg_attr(not(test), no_std)]
 
-#[cfg(any(feature = "hacspec-native", feature = "hacspec-cc2538"))]
+#[cfg(any(
+    feature = "hacspec-native",
+    feature = "hacspec-cc2538",
+    feature = "hacspec-psa"
+))]
 pub use {
     edhoc_consts::*, edhoc_hacspec::State as EdhocState,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
@@ -19,7 +23,11 @@ mod edhoc;
 #[cfg(feature = "rust-native")]
 use edhoc::*;
 
-#[cfg(any(feature = "hacspec-native", feature = "hacspec-cc2538"))]
+#[cfg(any(
+    feature = "hacspec-native",
+    feature = "hacspec-cc2538",
+    feature = "hacspec-psa"
+))]
 mod hacspec {
     use edhoc_consts::*;
     use edhoc_hacspec::*;
