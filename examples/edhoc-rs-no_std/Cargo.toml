@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { path = "../../lib", default-features = false, features = ["hacspec-cc2538"] }
+edhoc-rs = { path = "../../lib", default-features = false }
 hexlit = "0.5.3"
 
 # depend on an allocator
@@ -16,3 +16,8 @@ cortex-m = "0.7.4"
 cortex-m-rt = "0.7.1"
 cortex-m-semihosting = "0.5.0"
 panic-semihosting = { version = "0.6.0", features = ["exit"] }
+
+[features]
+default = [ "cc2538" ]
+cc2538 = [ "edhoc-rs/hacspec-cc2538" ]
+psa = [ "edhoc-rs/hacspec-psa" ]
