@@ -36,3 +36,4 @@ hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch = "aesccm" 
 hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 hacspec-aes = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+psa-crypto = { git = "https://github.com/kaspar030/rust-psa-crypto", branch = "baremetal" }
