@@ -30,5 +30,7 @@ jobs:
       run: rustup target add thumbv7m-none-eabi
     - name: Build no_std edhoc-rs
       run: cargo build --target="thumbv7m-none-eabi" --features="hacspec-cc2538" --no-default-features --package edhoc-rs
-    - name: Build examples/edhoc-rs-no_std
+    - name: Build examples/edhoc-rs-no_std cc2538
       run: cd examples/edhoc-rs-no_std && cargo build
+    - name: Build examples/edhoc-rs-no_std psa
+      run: cd examples/edhoc-rs-no_std && cargo build --no-default-features --features=psa
