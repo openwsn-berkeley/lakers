@@ -22,6 +22,13 @@ default-members = [
   "examples/coap",
 ]
 
+# according to https://doc.rust-lang.org/edition-guide/rust-2021/default-cargo-resolver.html,
+# this needs to be explicitly set if using virtual manifests (like this).
+# We need this so dependency crates use it *in all cases*.
+# Specifically, `psa-crypto` merges build-dependency and regular dependency
+# features without this, causing forced "std" in downstream crate.
+resolver = "2"
+
 [patch.crates-io]
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
