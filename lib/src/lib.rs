@@ -1,32 +1,27 @@
-#[cfg(feature = "hacspec")]
+#![cfg_attr(not(test), no_std)]
+
+#[cfg(any(feature = "hacspec-native", feature = "hacspec-cc2538"))]
 pub use {
-    edhoc_hacspec::consts::MESSAGE_2_LEN as EDHOC_MESSAGE_2_LEN,
-    edhoc_hacspec::EDHOCError as EdhocError, edhoc_hacspec::State as EdhocState,
+    edhoc_consts::*, edhoc_hacspec::State as EdhocState,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 pub use {
     edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 mod edhoc;
 
-#[cfg(not(feature = "hacspec"))]
-mod consts;
-
-#[cfg(not(feature = "hacspec"))]
-mod accelerator;
-
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 use edhoc::*;
 
-#[cfg(feature = "hacspec")]
+#[cfg(any(feature = "hacspec-native", feature = "hacspec-cc2538"))]
 mod hacspec {
-    use edhoc_hacspec::consts::*;
+    use edhoc_consts::*;
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
@@ -312,10 +307,10 @@ mod hacspec {
     }
 }
 
-#[cfg(not(feature = "hacspec"))]
+#[cfg(feature = "rust-native")]
 mod rust {
-    use super::consts::*;
     use super::*;
+    use edhoc_consts::*;
 
     pub struct RustEdhocInitiator<'a> {
         state: State,       // opaque state
@@ -503,7 +498,7 @@ mod test {
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
         let (error, message_1) = initiator.prepare_message_1();
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
         assert_eq!(message_1, MESSAGE_1_TV);
     }
 
@@ -515,7 +510,7 @@ mod test {
 
         let error = responder.process_message_1(&MESSAGE_1_TV);
 
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
     }
 
     #[test]
@@ -542,35 +537,35 @@ mod test {
         );
 
         let (error, message_1) = initiator.prepare_message_1(); // to update the state
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         let error = responder.process_message_1(&message_1);
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         let (error, message_2, c_r) = responder.prepare_message_2();
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
         assert!(c_r != 0xff);
         let (error, _c_r) = initiator.process_message_2(&message_2);
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         let (error, message_3, i_prk_out) = initiator.prepare_message_3();
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
         let (error, r_prk_out) = responder.process_message_3(&message_3);
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
         let (error, i_oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
         let (error, i_oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         let (error, r_oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
         let (error, r_oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EdhocError::Success);
+        assert!(error == EDHOCError::Success);
 
         assert_eq!(i_oscore_secret, r_oscore_secret);
         assert_eq!(i_oscore_salt, r_oscore_salt);

@@ -1,0 +1,21 @@
+[package]
+name = "edhoc-crypto"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
+license = "BSD"
+description = "EDHOC crypto library dispatch crate"
+
+[dependencies]
+edhoc-consts = { path = "../consts" }
+
+# hacspec
+edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
+
+# cc2538 hardware accelerated
+edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
+
+[features]
+default = [ "hacspec" ]
+hacspec = [ "edhoc-crypto-hacspec" ]
+cc2538 = [ "edhoc-crypto-cc2538" ]

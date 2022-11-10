@@ -1,4 +1,18 @@
+#![no_std]
+
 use hacspec_lib::*;
+
+#[derive(PartialEq, Debug)]
+pub enum EDHOCError {
+    Success = 0,
+    UnknownPeer = 1,
+    MacVerificationFailed = 2,
+    UnsupportedMethod = 3,
+    UnsupportedCipherSuite = 4,
+    ParsingError = 5,
+    WrongState = 6,
+    UnknownError = 7,
+}
 
 array!(BytesEad2, 0, U8);
 array!(BytesIdCred, ID_CRED_LEN, U8);

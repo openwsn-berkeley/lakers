@@ -1,7 +1,29 @@
 [workspace]
 
 members = [
-	"lib",
-	"hacspec",
+  "lib",
+  "hacspec",
+  "crypto",
+  "crypto/edhoc-crypto-cc2538",
+  "crypto/edhoc-crypto-hacspec",
+  "examples/coap",
+  "examples/edhoc-rs-no_std",
 ]
 
+# reduced "default-members", should include only packages that can be built and
+# tested on the host architecture
+default-members = [
+  "lib",
+  "hacspec",
+  "crypto",
+  "crypto/edhoc-crypto-hacspec",
+  "examples/coap",
+]
+
+[patch.crates-io]
+hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+hacspec-aes = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }

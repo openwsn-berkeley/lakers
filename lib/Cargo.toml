@@ -9,24 +9,13 @@ description = "EDHOC implementation in Rust"
 [dependencies]
 hexlit = "0.5.3"
 
-# Crates used when the native backend is selected
-coap = { version = "0.12", optional = true }
-coap-lite = { version = "0.9.1", optional = true }
-hex-literal = { version = "0.3.4", optional = true}
 edhoc-hacspec = { path = "../hacspec", optional = true }
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch="aesccm", optional = true }
-
-# Crates uses when the cc2538 backend is selected
-cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto", optional = true }
+hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
+edhoc-crypto = { path = "../crypto", default-features = false, optional = true }
+edhoc-consts = { path = "../consts" }
 
 [features]
-default = ["native", "hacspec"]
-native = ["coap", "coap-lite", "hex-literal", "hacspec-lib", "hacspec-p256", "hacspec-hkdf", "hacspec-sha256", "hacspec-aes", "hacspec-aes-ccm"]
-cc2538 = ["cc2538-hal"]
-hacspec = ["edhoc-hacspec", "hacspec-lib"]
+default = ["hacspec-native"]
+hacspec-native = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec"]
+hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538"]
 

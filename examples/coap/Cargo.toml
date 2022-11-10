@@ -1,0 +1,9 @@
+[package]
+name = "coap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+edhoc-rs = { path = "../../lib", features = [ "hacspec-native" ] }
+coap = { version = "0.12" }
+coap-lite = { version = "0.9.1" }

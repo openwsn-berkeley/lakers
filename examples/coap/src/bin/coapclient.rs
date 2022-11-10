@@ -31,7 +31,7 @@ fn main() {
     let (error, c_r) =
         initiator.process_message_2(&response.message.payload.try_into().expect("wrong length"));
 
-    if error == EdhocError::Success {
+    if error == EDHOCError::Success {
         let mut msg_3 = Vec::from([c_r]);
         let (_error, message_3, _prk_out) = initiator.prepare_message_3();
         msg_3.extend_from_slice(&message_3);
