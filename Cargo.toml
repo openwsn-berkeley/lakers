@@ -15,10 +15,6 @@ members = [
 # tested on the host architecture
 default-members = [
   "lib",
-  "hacspec",
-  "crypto",
-  "crypto/edhoc-crypto-hacspec",
-  "crypto/edhoc-crypto-psa",
   "examples/coap",
 ]
 
