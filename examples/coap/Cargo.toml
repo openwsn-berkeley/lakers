@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { path = "../../lib", features = [ "hacspec-native" ] }
+edhoc-rs = { path = "../../lib", default-features = false }
 coap = { version = "0.12" }
 coap-lite = { version = "0.9.1" }
+
+[features]
+default = [ "hacspec-native" ]
+hacspec-native = [ "edhoc-rs/hacspec-native" ]
+hacspec-psa = [ "edhoc-rs/hacspec-psa" ]
