@@ -43,13 +43,16 @@ pub fn aes_ccm_encrypt_tag_8(
     plaintext: &BytesPlaintext3,
 ) -> BytesCiphertext3 {
     use psa_crypto::operations::{aead, key_management};
+    use psa_crypto::types::algorithm::Aead::AeadWithShortenedTag;
     use psa_crypto::types::algorithm::{Aead, AeadWithDefaultLengthTag};
-    use psa_crypto::types::algorithm::Aead::{AeadWithShortenedTag};
     use psa_crypto::types::key::{Attributes, Lifetime, Policy, Type, UsageFlags};
 
     psa_crypto::init().unwrap();
 
-    let alg = Aead::AeadWithShortenedTag {aead_alg: AeadWithDefaultLengthTag::Ccm, tag_length: 8};
+    let alg = Aead::AeadWithShortenedTag {
+        aead_alg: AeadWithDefaultLengthTag::Ccm,
+        tag_length: 8,
+    };
     let mut usage_flags: UsageFlags = Default::default();
     usage_flags.set_encrypt();
 
@@ -63,7 +66,7 @@ pub fn aes_ccm_encrypt_tag_8(
         },
     };
     let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
-    let mut output_buffer : [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
+    let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
 
     let length = aead::encrypt(
         my_key,
@@ -85,10 +88,49 @@ pub fn aes_ccm_decrypt_tag_8(
     ad: &BytesEncStructureLen,
     ciphertext: &BytesCiphertext3,
 ) -> (EDHOCError, BytesPlaintext3) {
-    let (err, p3) = (EDHOCError::UnknownError, BytesPlaintext3::new());
-    // TODO
+    use psa_crypto::operations::{aead, key_management};
+    use psa_crypto::types::algorithm::Aead::AeadWithShortenedTag;
+    use psa_crypto::types::algorithm::{Aead, AeadWithDefaultLengthTag};
+    use psa_crypto::types::key::{Attributes, Lifetime, Policy, Type, UsageFlags};
+    use psa_crypto::types::status::Result;
 
-    (err, p3)
+    psa_crypto::init().unwrap();
+
+    let alg = Aead::AeadWithShortenedTag {
+        aead_alg: AeadWithDefaultLengthTag::Ccm,
+        tag_length: 8,
+    };
+    let mut usage_flags: UsageFlags = Default::default();
+    usage_flags.set_decrypt();
+
+    let attributes = Attributes {
+        key_type: Type::Aes,
+        bits: 128,
+        lifetime: Lifetime::Volatile,
+        policy: Policy {
+            usage_flags,
+            permitted_algorithms: alg.into(),
+        },
+    };
+    let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
+    let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
+
+    let (plaintext, err) = match aead::decrypt(
+        my_key,
+        alg,
+        &iv.to_public_array(),
+        &ad.to_public_array(),
+        &ciphertext.to_public_array(),
+        &mut output_buffer,
+    ) {
+        Result::Ok(_) => (
+            BytesPlaintext3::from_public_slice(&output_buffer[..]),
+            EDHOCError::Success,
+        ),
+        Result::Err(_) => (BytesPlaintext3::new(), EDHOCError::MacVerificationFailed),
+    };
+
+    (err, plaintext)
 }
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
