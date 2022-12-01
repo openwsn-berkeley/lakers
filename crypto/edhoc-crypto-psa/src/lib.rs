@@ -136,7 +136,37 @@ pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
-    let secret = BytesP256ElemLen::new();
-    // TODO
-    secret
+    use psa_crypto::operations::{key_agreement, key_management};
+    use psa_crypto::types::algorithm::{KeyAgreement, RawKeyAgreement};
+    use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, UsageFlags};
+
+    let mut peer_public_key: [u8; 33] = [0; 33];
+    peer_public_key[0] = 0x02; // sign does not matter for ECDH operation
+    peer_public_key[1..33].copy_from_slice(&public_key.to_public_array());
+
+    let alg = RawKeyAgreement::Ecdh;
+    let mut usage_flags: UsageFlags = Default::default();
+    usage_flags.set_derive();
+    let attributes = Attributes {
+        key_type: Type::EccKeyPair {
+            curve_family: EccFamily::SecpR1,
+        },
+        bits: 256,
+        lifetime: Lifetime::Volatile,
+        policy: Policy {
+            usage_flags,
+            permitted_algorithms: KeyAgreement::Raw(alg).into(),
+        },
+    };
+
+    psa_crypto::init().unwrap();
+    let my_key = key_management::import(attributes, None, &private_key.to_public_array()).unwrap();
+    let mut output_buffer: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+
+    let size = key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer)
+        .unwrap();
+
+    let output = BytesP256ElemLen::from_public_slice(&output_buffer[..]);
+
+    output
 }
