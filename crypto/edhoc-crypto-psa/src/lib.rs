@@ -23,12 +23,49 @@ pub fn hkdf_expand(
     info_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let mut output = BytesMaxBuffer::new();
-    // TODO
-    output
+    // Implementation of HKDF-Expand as per RFC5869
+
+    let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
+
+    let mut n = 0;
+
+    // N = ceil(L/HashLen)
+    if (length % SHA256_DIGEST_LEN == 0) {
+        n = length / SHA256_DIGEST_LEN;
+    } else {
+        n = length / SHA256_DIGEST_LEN + 1;
+    }
+
+    let info_buf = info.to_public_array();
+
+    let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
+        [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];
+    message[..info_len].copy_from_slice(&info_buf[..info_len]);
+    message[info_len] = 0x01;
+    let mut t_i = hmac_sha256(&message[..info_len + 1], prk.to_public_array()).to_public_array();
+    output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
+
+    for i in 2..n {
+        message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
+        message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
+            .copy_from_slice(&info_buf[..info_len]);
+        message[SHA256_DIGEST_LEN + info_len] = i as u8;
+        t_i = hmac_sha256(
+            &message[..SHA256_DIGEST_LEN + info_len + 1],
+            prk.to_public_array(),
+        )
+        .to_public_array();
+        output[i * SHA256_DIGEST_LEN..(i + 1) * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
+    }
+
+    output[length..].fill(0x00);
+
+    BytesMaxBuffer::from_public_slice(&output)
 }
 
 pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+    // Implementation of HKDF-Extract as per RFC 5869
+
     // TODO generalize if salt is not provided
     let output = hmac_sha256(&ikm.to_public_array(), salt.to_public_array());
 
