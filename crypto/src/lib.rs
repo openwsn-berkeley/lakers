@@ -8,4 +8,3 @@ pub use edhoc_crypto_cc2538::*;
 
 #[cfg(feature = "psa")]
 pub use edhoc_crypto_psa::*;
-
