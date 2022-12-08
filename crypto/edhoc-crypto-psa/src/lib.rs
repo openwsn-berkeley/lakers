@@ -29,58 +29,8 @@ pub fn hkdf_expand(
 }
 
 pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
-    use psa_crypto::operations::{key_derivation, key_management};
-    use psa_crypto::types::algorithm::{Hash, KeyDerivation};
-    use psa_crypto::types::key::{Attributes, Lifetime, Policy, Type, UsageFlags};
-    use psa_crypto::types::key_derivation::{Input, InputSecret, Inputs, Operation};
-
-    let mut usage_flags: UsageFlags = Default::default();
-    usage_flags.set_derive();
-    let mut attributes = Attributes {
-        key_type: Type::Derive,
-        bits: 256,
-        lifetime: Lifetime::Volatile,
-        policy: Policy {
-            usage_flags,
-            permitted_algorithms: KeyDerivation::Hkdf {
-                hash_alg: Hash::Sha256,
-            }
-            .into(),
-        },
-    };
-
-    let mut usage_flags: UsageFlags = Default::default();
-    usage_flags.set_derive();
-    let mut derived_key_attributes = Attributes {
-        key_type: Type::RawData,
-        bits: 256, // 32 bytes fixed length in extract
-        lifetime: Lifetime::Volatile,
-        policy: Policy {
-            usage_flags,
-            permitted_algorithms: KeyDerivation::Hkdf {
-                hash_alg: Hash::Sha256,
-            }
-            .into(),
-        },
-    };
-
-    psa_crypto::init().unwrap();
-    let my_key = key_management::import(attributes, None, &ikm.to_public_array()).unwrap();
-    let salt_array = salt.to_public_array();
-    let mut operation = Operation {
-        inputs: Inputs::Hkdf {
-            hash_alg: Hash::Sha256,
-            salt: Some(Input::Bytes(&salt_array)),
-            secret: InputSecret::Input(Input::Key(my_key)),
-            info: Input::Bytes(&[]),
-        },
-        capacity: None,
-    };
-    let _new_key = key_derivation::output_key(operation, derived_key_attributes, None).unwrap();
-
-    let mut output_buf: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
-    let output_size = key_management::export(_new_key, &mut output_buf).unwrap();
-    let output = BytesHashLen::from_public_slice(&output_buf[..]);
+    // TODO generalize if salt is not provided
+    let output = hmac_sha256(&ikm.to_public_array(), salt.to_public_array());
 
     output
 }
