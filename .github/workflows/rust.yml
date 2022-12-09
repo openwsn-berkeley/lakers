@@ -22,6 +22,10 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Build with PSA crypto backend
+      run: cargo build --package edhoc-rs --package edhoc-hacspec --package edhoc-crypto --no-default-features --features="hacspec-psa"
+    - name: Run tests with PSA crypto backend
+      run: cargo test --package edhoc-rs --package edhoc-hacspec --package edhoc-crypto --no-default-features --features="hacspec-psa" --no-fail-fast --verbose
     - name: Install thumbv7m-none-eabi rust target support
       run: rustup target add thumbv7m-none-eabi
     - name: Build no_std edhoc-rs
