@@ -1090,6 +1090,18 @@ mod tests {
     const PLAINTEXT_3_TV: &str = "2b48ddf106b86fd22fe4";
     const SALT_3E2M_TV: &str = "a4f767b3469a6e6ae5fcbf273839fa87c41f462b03ad1ca7ce8f37c95366d8d1";
     const SALT_4E3M_TV: &str = "8c60d4357fba5f694a81482c4d38a1000bc3e3e2a29406d18153ffc3595c17ba";
+    const G_XY_TV: &str = "2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba";
+
+    #[test]
+    fn test_ecdh() {
+        let x_tv = BytesP256ElemLen::from_hex(X_TV);
+        let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
+        let g_xy_tv = BytesP256ElemLen::from_hex(G_XY_TV);
+
+        let g_xy = p256_ecdh(&x_tv, &g_y_tv);
+
+        assert_bytes_eq!(g_xy, g_xy_tv);
+    }
 
     #[test]
     fn test_encode_message_1() {
