@@ -28,6 +28,8 @@ jobs:
       run: cargo test --package edhoc-rs --package edhoc-hacspec --package edhoc-crypto --no-default-features --features="hacspec-psa" --no-fail-fast --verbose
     - name: Install thumbv7m-none-eabi rust target support
       run: rustup target add thumbv7m-none-eabi
+    - name: Install arm gcc
+      run: apt-get -y update && apt-get -y install gcc-arm-none-eabi
     - name: Build no_std edhoc-rs
       run: cargo build --target="thumbv7m-none-eabi" --features="hacspec-cc2538" --no-default-features --package edhoc-rs
     - name: Build examples/edhoc-rs-no_std cc2538
