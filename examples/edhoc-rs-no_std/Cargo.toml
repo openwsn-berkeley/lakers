@@ -20,4 +20,4 @@ panic-semihosting = { version = "0.6.0", features = ["exit"] }
 [features]
 default = [ "cc2538" ]
 cc2538 = [ "edhoc-rs/hacspec-cc2538" ]
-psa = [ "edhoc-rs/hacspec-psa" ]
+psa = [ "edhoc-rs/hacspec-psa-baremetal" ]
