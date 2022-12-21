@@ -67,3 +67,13 @@ fn main() -> ! {
     // the cortex_m_rt `entry` macro requires `main()` to never return
     loop {}
 }
+
+use core::ffi::c_void;
+
+#[no_mangle]
+pub extern "C" fn malloc(size: usize) -> *mut c_void {
+    core::ptr::null_mut()
+}
+
+#[no_mangle]
+pub extern "C" fn free(ptr: *mut c_void, size: usize) {}
