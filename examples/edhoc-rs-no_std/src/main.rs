@@ -15,7 +15,7 @@ use cortex_m_semihosting::{
 
 use panic_semihosting as _;
 
-use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocState};
+use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 
 #[entry]
 fn main() -> ! {
@@ -60,6 +60,65 @@ fn main() -> ! {
     }
 
     test_prepare_message_1();
+
+    fn test_handshake() {
+        let state_initiator: EdhocState = Default::default();
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            I,
+            G_R,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let state_responder: EdhocState = Default::default();
+        let mut responder = EdhocResponder::new(
+            state_responder,
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+
+        let (error, message_1) = initiator.prepare_message_1(); // to update the state
+        assert!(error == EDHOCError::Success);
+
+        let error = responder.process_message_1(&message_1);
+        assert!(error == EDHOCError::Success);
+
+        let (error, message_2, c_r) = responder.prepare_message_2();
+        assert!(error == EDHOCError::Success);
+        assert!(c_r != 0xff);
+        let (error, _c_r) = initiator.process_message_2(&message_2);
+        assert!(error == EDHOCError::Success);
+
+        let (error, message_3, i_prk_out) = initiator.prepare_message_3();
+        assert!(error == EDHOCError::Success);
+        let (error, r_prk_out) = responder.process_message_3(&message_3);
+        assert!(error == EDHOCError::Success);
+
+        // check that prk_out is equal at initiator and responder side
+        assert_eq!(i_prk_out, r_prk_out);
+
+        // derive OSCORE secret and salt at both sides and compare
+        let (error, i_oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(error == EDHOCError::Success);
+        let (error, i_oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(error == EDHOCError::Success);
+
+        let (error, r_oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(error == EDHOCError::Success);
+        let (error, r_oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(error == EDHOCError::Success);
+
+        assert_eq!(i_oscore_secret, r_oscore_secret);
+        assert_eq!(i_oscore_salt, r_oscore_salt);
+    }
+
+    //test_handshake();
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);
