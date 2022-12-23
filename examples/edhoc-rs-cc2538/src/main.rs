@@ -137,3 +137,13 @@ fn inner_main() -> Result<(), &'static str> {
     }
     Ok(())
 }
+
+use core::ffi::c_void;
+
+#[no_mangle]
+pub extern "C" fn malloc(size: usize) -> *mut c_void {
+    core::ptr::null_mut()
+}
+
+#[no_mangle]
+pub extern "C" fn free(ptr: *mut c_void, size: usize) {}
