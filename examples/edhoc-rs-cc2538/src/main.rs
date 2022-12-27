@@ -138,7 +138,7 @@ fn inner_main() -> Result<(), &'static str> {
     Ok(())
 }
 
-use core::ffi::c_void;
+use core::ffi::{c_void, c_char};
 
 #[no_mangle]
 pub extern "C" fn malloc(size: usize) -> *mut c_void {
@@ -147,3 +147,10 @@ pub extern "C" fn malloc(size: usize) -> *mut c_void {
 
 #[no_mangle]
 pub extern "C" fn free(ptr: *mut c_void, size: usize) {}
+
+#[no_mangle]
+pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
+    panic!("strstr handler!");
+    core::ptr::null_mut()
+}
+
