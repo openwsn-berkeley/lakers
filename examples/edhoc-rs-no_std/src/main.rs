@@ -2,11 +2,6 @@
 #![no_main]
 #![feature(default_alloc_error_handler)]
 
-use static_alloc::Bump;
-
-#[global_allocator]
-static A: Bump<[u8; 1 << 10]> = Bump::uninit();
-
 use cortex_m_rt::entry;
 use cortex_m_semihosting::{
     debug::{self, EXIT_SUCCESS},
@@ -17,12 +12,26 @@ use panic_semihosting as _;
 
 use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 
+extern crate alloc;
+
+use embedded_alloc::Heap;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
+
 extern "C" {
     pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
 }
 
 #[entry]
 fn main() -> ! {
+    // Initialize the allocator BEFORE you use it
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 1 << 10;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+    }
 
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
     unsafe {
