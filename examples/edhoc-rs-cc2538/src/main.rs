@@ -3,11 +3,6 @@
 #![allow(unused)]
 #![feature(default_alloc_error_handler)]
 
-use static_alloc::Bump;
-
-#[global_allocator]
-static A: Bump<[u8; 1 << 11]> = Bump::uninit();
-
 use panic_rtt_target as _;
 use rtt_target::{rprintln, rtt_init_print};
 
@@ -24,8 +19,32 @@ use cc2538_pac as pac;
 use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 use hexlit::hex;
 
+extern crate alloc;
+
+use embedded_alloc::Heap;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
+
+extern "C" {
+    pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
+}
+
 #[entry]
 fn main() -> ! {
+    // Initialize the allocator BEFORE you use it
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 1 << 10;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+    }
+
+    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    unsafe {
+        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    }
+
     rtt_init_print!();
 
     match inner_main() {
@@ -140,14 +159,6 @@ fn inner_main() -> Result<(), &'static str> {
 }
 
 use core::ffi::{c_void, c_char};
-
-#[no_mangle]
-pub extern "C" fn malloc(size: usize) -> *mut c_void {
-    core::ptr::null_mut()
-}
-
-#[no_mangle]
-pub extern "C" fn free(ptr: *mut c_void, size: usize) {}
 
 #[no_mangle]
 pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {

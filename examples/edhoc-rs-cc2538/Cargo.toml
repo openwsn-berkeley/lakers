@@ -9,11 +9,11 @@ description = "edhoc-rs example on CC2538 SoC"
 [dependencies]
 edhoc-rs = { path = "../../lib", default-features = false }
 # depend on an allocator
-static-alloc = { version = "0.2.3" }
+embedded-alloc = "0.5.0"
 hexlit = "0.5.3"
 cc2538-pac = { version = "0.1.0", features = ["rt"] }
 cc2538-hal = { git = "https://github.com/thvdveld/cc2538-hal/", branch = "crypto" }
-cortex-m = { version = "0.7.4", features = ["inline-asm"] }
+cortex-m = { version = "0.7.6", features = ["inline-asm", "critical-section-single-core"] }
 cortex-m-rt = { version = "0.7", features = ["device"] }
 panic-rtt-target = { version = "0.1.2", features = ["cortex-m"] }
 rtt-target = { version = "0.3.1", features = ["cortex-m"] }
