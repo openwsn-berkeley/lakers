@@ -17,8 +17,18 @@ use panic_semihosting as _;
 
 use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 
+extern "C" {
+    pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
+}
+
 #[entry]
 fn main() -> ! {
+
+    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    unsafe {
+        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    }
+
     // testing output
     println!("Hello, hacspec!");
 
@@ -130,12 +140,10 @@ fn main() -> ! {
     loop {}
 }
 
-use core::ffi::c_void;
+use core::ffi::{c_char, c_void};
 
 #[no_mangle]
-pub extern "C" fn malloc(size: usize) -> *mut c_void {
+pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
+    panic!("strstr handler!");
     core::ptr::null_mut()
 }
-
-#[no_mangle]
-pub extern "C" fn free(ptr: *mut c_void, size: usize) {}
