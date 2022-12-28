@@ -74,6 +74,7 @@ fn inner_main() -> Result<(), &'static str> {
     rprintln!("Hello from CC2538");
 
     test_handshake();
+    rprintln!("Test test_handshake passed.");
 
     fn test_handshake() {
         let state_initiator: EdhocState = Default::default();
