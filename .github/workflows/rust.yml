@@ -35,4 +35,4 @@ jobs:
     - name: Build examples/edhoc-rs-no_std cc2538
       run: cd examples/edhoc-rs-no_std && cargo build
     - name: Build examples/edhoc-rs-no_std psa
-      run: cd examples/edhoc-rs-no_std && cargo build --no-default-features --features=psa
+      run: cd examples/edhoc-rs-no_std && cargo build --no-default-features --features=psa --release
