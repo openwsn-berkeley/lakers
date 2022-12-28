@@ -48,6 +48,7 @@ fn main() -> ! {
     }
 
     test_new_initiator();
+    println!("Test test_new_initiator passed.");
 
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
@@ -60,6 +61,7 @@ fn main() -> ! {
     }
 
     test_prepare_message_1();
+    println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
         let state_initiator: EdhocState = Default::default();
@@ -118,7 +120,8 @@ fn main() -> ! {
         assert_eq!(i_oscore_salt, r_oscore_salt);
     }
 
-    //test_handshake();
+    test_handshake();
+    println!("Test test_handshake passed.");
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);
