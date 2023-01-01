@@ -1,0 +1,13 @@
+[package]
+name = "edhoc-crypto-cryptocell310"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
+license = "BSD"
+description = "ARM CryptoCell 310 sys crate"
+links = "nrf_cc310_0.9.13"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+bindgen = "0.63.0"

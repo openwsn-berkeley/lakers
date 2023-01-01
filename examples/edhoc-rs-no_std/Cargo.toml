@@ -23,4 +23,4 @@ rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 default = [ "cc2538" ]
 cc2538 = [ "edhoc-rs/hacspec-cc2538" ]
 psa = [ "edhoc-rs/hacspec-psa-baremetal" ]
-nrf52840 = [ ]
+nrf52840 = [ "edhoc-rs/hacspec-cryptocell310" ]
