@@ -43,7 +43,12 @@ pub fn hkdf_expand(
 }
 
 pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
-    BytesHashLen::new()
+    // Implementation of HKDF-Extract as per RFC 5869
+
+    // TODO generalize if salt is not provided
+    let output = hmac_sha256(&mut ikm.to_public_array(), salt.to_public_array());
+
+    output
 }
 
 pub fn aes_ccm_encrypt_tag_8(
