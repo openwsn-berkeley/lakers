@@ -39,7 +39,23 @@ pub fn hkdf_expand(
     info_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    BytesMaxBuffer::new()
+    let mut buffer = [0x00u8; MAX_BUFFER_LEN];
+    unsafe {
+        CRYS_HKDF_KeyDerivFunc(
+            CRYS_HKDF_HASH_OpMode_t_CRYS_HKDF_HASH_SHA256_mode,
+            core::ptr::null_mut(),
+            0 as usize,
+            prk.to_public_array().as_mut_ptr(),
+            prk.len() as u32,
+            info.to_public_array().as_mut_ptr(),
+            info_len as u32,
+            buffer.as_mut_ptr(),
+            length as u32,
+            SaSiBool_SASI_TRUE,
+        );
+    }
+
+    BytesMaxBuffer::from_public_slice(&buffer)
 }
 
 pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
