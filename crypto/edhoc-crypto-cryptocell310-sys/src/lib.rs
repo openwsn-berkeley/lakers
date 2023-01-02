@@ -87,7 +87,39 @@ pub fn aes_ccm_decrypt_tag_8(
     ad: &BytesEncStructureLen,
     ciphertext: &BytesCiphertext3,
 ) -> (EDHOCError, BytesPlaintext3) {
-    (EDHOCError::Success, BytesPlaintext3::new())
+    let mut output = [0x0u8; PLAINTEXT_3_LEN];
+    let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
+
+    aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key.to_public_array());
+
+    let mut err = EDHOCError::MacVerificationFailed;
+    let mut plaintext = BytesPlaintext3::new();
+
+    unsafe {
+        (err, plaintext) = match CC_AESCCM(
+            SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
+            aesccm_key.as_mut_ptr(),
+            CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
+            iv.to_public_array().as_mut_ptr(),
+            iv.len() as u8,
+            ad.to_public_array().as_mut_ptr(),
+            ad.len() as u32,
+            ciphertext.to_public_array().as_mut_ptr(),
+            (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
+            output.as_mut_ptr(),
+            AES_CCM_TAG_LEN as u8, // authentication tag length
+            ciphertext.to_public_array()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
+            0 as u32, // CCM
+        ) {
+            CRYS_OK => (
+                EDHOCError::Success,
+                BytesPlaintext3::from_public_slice(&output[..]),
+            ),
+            _ => (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
+        };
+    }
+
+    (err, plaintext)
 }
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
