@@ -127,3 +127,42 @@ pub fn p256_ecdh(
 ) -> BytesP256ElemLen {
     BytesP256ElemLen::new()
 }
+
+fn hmac_sha256(message: &mut [u8], mut key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
+    let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
+
+    unsafe {
+        CRYS_HMAC(
+            CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
+            key.as_mut_ptr(),
+            key.len() as u16,
+            message.as_mut_ptr(),
+            message.len(),
+            buffer.as_mut_ptr(),
+        );
+    }
+
+    BytesHashLen::from_public_slice(&convert_array(&buffer[..SHA256_DIGEST_LEN / 4]))
+}
+
+pub fn test_hmac_sha256() {
+    let mut KEY: [u8; 32] = [0x0b; 32];
+    let mut MESSAGE_1: [u8; 0] = [];
+    const RESULT_1_TV: [u8; 32] = [
+        0x51, 0x77, 0xe6, 0x37, 0xaa, 0xac, 0x0b, 0x50, 0xe5, 0xdc, 0xa8, 0xbb, 0x05, 0xb0, 0xb5,
+        0x71, 0x44, 0x4b, 0xd5, 0x9b, 0x9b, 0x0d, 0x83, 0x4d, 0x50, 0x68, 0x1a, 0xf2, 0x1f, 0xc1,
+        0x4b, 0x1e,
+    ];
+    let mut MESSAGE_2: [u8; 1] = [0x0a];
+    const RESULT_2_TV: [u8; 32] = [
+        0x30, 0x50, 0x86, 0x79, 0x39, 0x85, 0x02, 0xd9, 0xdd, 0x70, 0x7e, 0xff, 0x6c, 0x84, 0x08,
+        0x9d, 0x83, 0x12, 0xcc, 0xea, 0x25, 0x36, 0x4d, 0x9c, 0xb8, 0xb0, 0xbd, 0x94, 0xd0, 0xe6,
+        0x55, 0xa3,
+    ];
+
+    let result_1 = hmac_sha256(&mut MESSAGE_1, KEY).to_public_array();
+    assert_eq!(result_1, RESULT_1_TV);
+
+    let result_2 = hmac_sha256(&mut MESSAGE_2, KEY).to_public_array();
+    assert_eq!(result_2, RESULT_2_TV);
+}
