@@ -146,7 +146,53 @@ pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
-    BytesP256ElemLen::new()
+    let mut output = [0x0u8; P256_ELEM_LEN];
+    let mut output_len: u32 = output.len() as u32;
+
+    let mut tmp: CRYS_ECDH_TempData_t = Default::default();
+
+    let mut public_key_compressed = [0x0u8; P256_ELEM_LEN + 1];
+    public_key_compressed[0] = 0x02;
+    public_key_compressed[1..].copy_from_slice(&public_key.to_public_array());
+
+    let mut public_key_cc310: CRYS_ECPKI_UserPublKey_t = Default::default();
+
+    let mut domain =
+        unsafe { CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1) };
+
+    unsafe {
+        _DX_ECPKI_BuildPublKey(
+            domain,
+            public_key_compressed.as_mut_ptr(),
+            (P256_ELEM_LEN + 1) as u32,
+            EC_PublKeyCheckMode_t_CheckPointersAndSizesOnly,
+            &mut public_key_cc310,
+            core::ptr::null_mut(),
+        );
+    }
+
+    let mut private_key_cc310: CRYS_ECPKI_UserPrivKey_t = Default::default();
+
+    unsafe {
+        CRYS_ECPKI_BuildPrivKey(
+            domain,
+            private_key.to_public_array().as_mut_ptr(),
+            P256_ELEM_LEN as u32,
+            &mut private_key_cc310,
+        );
+    }
+
+    unsafe {
+        CRYS_ECDH_SVDP_DH(
+            &mut public_key_cc310,
+            &mut private_key_cc310,
+            output.as_mut_ptr(),
+            &mut output_len,
+            &mut tmp,
+        );
+    }
+
+    BytesP256ElemLen::from_public_slice(&output)
 }
 
 fn hmac_sha256(message: &mut [u8], mut key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {

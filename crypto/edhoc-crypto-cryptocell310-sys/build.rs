@@ -28,6 +28,7 @@ fn main() {
         .generate_comments(false)
         .size_t_is_usize(true)
         .use_core()
+        .derive_default(true)
         .generate()
         .expect("Unable to generate bindings");
 
