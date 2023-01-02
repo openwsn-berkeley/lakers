@@ -15,7 +15,8 @@ fn main() {
         .join("nrf_cc310")
         .join("lib")
         .join("cortex-m4")
-        .join("hard-float");
+        .join("hard-float")
+        .join("no-interrupts");
 
     let bindings = bindgen::Builder::default()
         .clang_arg(format!("-I{}", out_dir.to_str().unwrap()))
