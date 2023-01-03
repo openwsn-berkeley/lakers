@@ -3,7 +3,8 @@
 #[cfg(any(
     feature = "hacspec-native",
     feature = "hacspec-cc2538",
-    feature = "hacspec-psa"
+    feature = "hacspec-psa",
+    feature = "hacspec-cryptocell310"
 ))]
 pub use {
     edhoc_consts::*, edhoc_hacspec::State as EdhocState,
@@ -26,7 +27,8 @@ use edhoc::*;
 #[cfg(any(
     feature = "hacspec-native",
     feature = "hacspec-cc2538",
-    feature = "hacspec-psa"
+    feature = "hacspec-psa",
+    feature = "hacspec-cryptocell310"
 ))]
 mod hacspec {
     use edhoc_consts::*;
