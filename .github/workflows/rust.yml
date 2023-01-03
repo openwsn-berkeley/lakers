@@ -42,3 +42,5 @@ jobs:
       run: cd examples/edhoc-rs-no_std && cargo run --no-default-features --features=psa --release
     - name: Build examples/edhoc-rs-no_std psa nrf52840
       run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, nrf52840" --release
+    - name: Build examples/edhoc-rs-no_std cryptocell310 nrf52840
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, nrf52840"
