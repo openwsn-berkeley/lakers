@@ -9,6 +9,19 @@ use psa_crypto::types::algorithm::{Aead, AeadWithDefaultLengthTag, KeyAgreement,
 use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, UsageFlags};
 use psa_crypto::types::status::Result;
 
+#[no_mangle]
+pub extern "C" fn mbedtls_hardware_poll(
+    data: *mut ::core::ffi::c_void,
+    output: *mut ::core::ffi::c_uchar,
+    len: usize,
+    olen: *mut usize,
+) -> ::core::ffi::c_int {
+    unsafe {
+        *olen = len;
+    }
+    0i32
+}
+
 pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let hash_alg = Hash::Sha256;
     let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];

@@ -19,4 +19,5 @@ default = ["hacspec-native"]
 hacspec-native = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec"]
 hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538"]
 hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa"]
+hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal"]
 
