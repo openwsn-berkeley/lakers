@@ -7,4 +7,9 @@ license = "BSD"
 description = "EDHOC crypto library"
 
 [dependencies]
-hacspec-lib = { version = "0.1.0-beta.1", default-features = false }
+hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
+
+[features]
+default = [ "hacspec" ]
+hacspec = [ "hacspec-lib/alloc" ]
+rust = [ ]
