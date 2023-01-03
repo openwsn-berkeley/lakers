@@ -59,7 +59,60 @@ mod common {
 }
 
 #[cfg(feature = "rust")]
-mod rust {}
+mod rust {
+    use super::common::*;
+
+    pub type BytesEad2 = [u8; 0];
+    pub type BytesIdCred = [u8; ID_CRED_LEN];
+    pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
+    pub type Bytes8 = [u8; 8];
+    pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
+    pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
+    pub type BytesPlaintext2 = [u8; PLAINTEXT_2_LEN];
+    pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
+    pub type BytesMac2 = [u8; MAC_LENGTH_2];
+    pub type BytesMac3 = [u8; MAC_LENGTH_3];
+    pub type BytesMessage1 = [u8; MESSAGE_1_LEN];
+    pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
+    pub type BytesCiphertext2 = [u8; CIPHERTEXT_2_LEN];
+    pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
+    pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
+    pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
+    pub type BytesMessage2 = [u8; MESSAGE_2_LEN];
+    pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
+    pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
+    pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
+    pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
+    pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
+
+    pub const G_X: [u8; P256_ELEM_LEN] = [
+        0x8au8, 0xf6u8, 0xf4u8, 0x30u8, 0xebu8, 0xe1u8, 0x8du8, 0x34u8, 0x18u8, 0x40u8, 0x17u8,
+        0xa9u8, 0xa1u8, 0x1bu8, 0xf5u8, 0x11u8, 0xc8u8, 0xdfu8, 0xf8u8, 0xf8u8, 0x34u8, 0x73u8,
+        0x0bu8, 0x96u8, 0xc1u8, 0xb7u8, 0xc8u8, 0xdbu8, 0xcau8, 0x2fu8, 0xc3u8, 0xb6u8,
+    ];
+
+    pub const X: [u8; P256_ELEM_LEN] = [
+        0x36u8, 0x8eu8, 0xc1u8, 0xf6u8, 0x9au8, 0xebu8, 0x65u8, 0x9bu8, 0xa3u8, 0x7du8, 0x5au8,
+        0x8du8, 0x45u8, 0xb2u8, 0x1bu8, 0xdcu8, 0x02u8, 0x99u8, 0xdcu8, 0xeau8, 0xa8u8, 0xefu8,
+        0x23u8, 0x5fu8, 0x3cu8, 0xa4u8, 0x2cu8, 0xe3u8, 0x53u8, 0x0fu8, 0x95u8, 0x25u8,
+    ];
+
+    pub const G_Y: [u8; P256_ELEM_LEN] = [
+        0x41u8, 0x97u8, 0x01u8, 0xd7u8, 0xf0u8, 0x0au8, 0x26u8, 0xc2u8, 0xdcu8, 0x58u8, 0x7au8,
+        0x36u8, 0xddu8, 0x75u8, 0x25u8, 0x49u8, 0xf3u8, 0x37u8, 0x63u8, 0xc8u8, 0x93u8, 0x42u8,
+        0x2cu8, 0x8eu8, 0xa0u8, 0xf9u8, 0x55u8, 0xa1u8, 0x3au8, 0x4fu8, 0xf5u8, 0xd5u8,
+    ];
+
+    pub const Y: [u8; P256_ELEM_LEN] = [
+        0xe2u8, 0xf4u8, 0x12u8, 0x67u8, 0x77u8, 0x20u8, 0x5eu8, 0x85u8, 0x3bu8, 0x43u8, 0x7du8,
+        0x6eu8, 0xacu8, 0xa1u8, 0xe1u8, 0xf7u8, 0x53u8, 0xcdu8, 0xccu8, 0x3eu8, 0x2cu8, 0x69u8,
+        0xfau8, 0x88u8, 0x4bu8, 0x0au8, 0x1au8, 0x64u8, 0x09u8, 0x77u8, 0xe4u8, 0x18u8,
+    ];
+
+    pub const C_I: u8 = 0x37u8;
+    pub const C_R: u8 = 0x00u8;
+    pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
+}
 
 #[cfg(feature = "hacspec")]
 mod hacspec {
