@@ -10,6 +10,6 @@ description = "EDHOC crypto library constants crate"
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
 
 [features]
-default = [ "hacspec" ]
+default = [ ]
 hacspec = [ "hacspec-lib/alloc" ]
 rust = [ ]

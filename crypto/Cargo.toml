@@ -7,7 +7,7 @@ license = "BSD"
 description = "EDHOC crypto library dispatch crate"
 
 [dependencies]
-edhoc-consts = { path = "../consts", features = ["hacspec"] }
+edhoc-consts = { path = "../consts", default-features = false }
 
 # hacspec
 edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }

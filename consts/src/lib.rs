@@ -123,6 +123,20 @@ mod rust {
     pub const C_I: u8 = 0x37u8;
     pub const C_R: u8 = 0x00u8;
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
+
+    #[derive(Default, Copy, Clone, Debug)]
+    pub struct State(
+        pub EDHOCState,
+        pub BytesP256ElemLen, // x or y, ephemeral private key of myself
+        pub u8,               // c_i, connection identifier chosen by the initiator
+        pub BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
+        pub BytesHashLen,     // prk_3e2m
+        pub BytesHashLen,     // prk_4e3m
+        pub BytesHashLen,     // prk_out
+        pub BytesHashLen,     // prk_exporter
+        pub BytesHashLen,     // h_message_1
+        pub BytesHashLen,     // th_3
+    );
 }
 
 #[cfg(feature = "hacspec")]
