@@ -72,7 +72,7 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
-
+    pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
     pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
