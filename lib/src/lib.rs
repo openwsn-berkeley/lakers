@@ -7,7 +7,7 @@
     feature = "hacspec-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::*, edhoc_hacspec::State as EdhocState,
+    edhoc_consts::*, edhoc_consts::State as EdhocState,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };

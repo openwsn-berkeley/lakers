@@ -4,31 +4,6 @@ use edhoc_consts::*;
 use edhoc_crypto::*;
 use hacspec_lib::*;
 
-#[derive(Default, PartialEq, Copy, Clone, Debug)]
-pub enum EDHOCState {
-    #[default]
-    Start = 0, // initiator and responder
-    WaitMessage2 = 1,      // initiator
-    ProcessedMessage2 = 2, // initiator
-    ProcessedMessage1 = 3, // responder
-    WaitMessage3 = 4,      // responder
-    Completed = 5,         // initiator and responder
-}
-
-#[derive(Default, Copy, Clone, Debug)]
-pub struct State(
-    EDHOCState,
-    BytesP256ElemLen, // x or y, ephemeral private key of myself
-    U8,               // c_i, connection identifier chosen by the initiator
-    BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
-    BytesHashLen,     // prk_3e2m
-    BytesHashLen,     // prk_4e3m
-    BytesHashLen,     // prk_out
-    BytesHashLen,     // prk_exporter
-    BytesHashLen,     // h_message_1
-    BytesHashLen,     // th_3
-);
-
 pub fn edhoc_exporter(
     state: State,
     label: U8,

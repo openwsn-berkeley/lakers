@@ -10,6 +10,17 @@ pub use rust::*;
 
 mod common {
 
+    #[derive(Default, PartialEq, Copy, Clone, Debug)]
+    pub enum EDHOCState {
+        #[default]
+        Start = 0, // initiator and responder
+        WaitMessage2 = 1,      // initiator
+        ProcessedMessage2 = 2, // initiator
+        ProcessedMessage1 = 3, // responder
+        WaitMessage3 = 4,      // responder
+        Completed = 5,         // initiator and responder
+    }
+
     #[derive(PartialEq, Debug)]
     pub enum EDHOCError {
         Success = 0,
@@ -166,4 +177,18 @@ mod hacspec {
     pub const C_R: U8 = U8(0x00u8);
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
         BytesSupportedSuites(secret_bytes!([0x2u8]));
+
+    #[derive(Default, Copy, Clone, Debug)]
+    pub struct State(
+        pub EDHOCState,
+        pub BytesP256ElemLen, // x or y, ephemeral private key of myself
+        pub U8,               // c_i, connection identifier chosen by the initiator
+        pub BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
+        pub BytesHashLen,     // prk_3e2m
+        pub BytesHashLen,     // prk_4e3m
+        pub BytesHashLen,     // prk_out
+        pub BytesHashLen,     // prk_exporter
+        pub BytesHashLen,     // h_message_1
+        pub BytesHashLen,     // th_3
+    );
 }
