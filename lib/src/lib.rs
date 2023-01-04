@@ -7,7 +7,7 @@
     feature = "hacspec-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::*, edhoc_consts::State as EdhocState,
+    edhoc_consts::State as EdhocState, edhoc_consts::*,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
@@ -441,7 +441,11 @@ mod rust {
         pub fn prepare_message_3(
             self: &mut RustEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
-            (EDHOCError::UnknownError, [0x00u8; MESSAGE_3_LEN], [0x00u8; SHA256_DIGEST_LEN])
+            (
+                EDHOCError::UnknownError,
+                [0x00u8; MESSAGE_3_LEN],
+                [0x00u8; SHA256_DIGEST_LEN],
+            )
         }
 
         pub fn edhoc_exporter(
@@ -454,7 +458,6 @@ mod rust {
         }
     }
 }
-
 
 #[cfg(test)]
 mod test {
