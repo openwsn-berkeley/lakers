@@ -65,10 +65,9 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
                 // TODO we do not support EAD for now
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                h_message_1 = sha256_digest(
-                    &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
-                    message_1.len(),
-                );
+                let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+                message_1_buf[..message_1.len()].copy_from_slice(&message_1[..]);
+                h_message_1 = sha256_digest(message_1_buf, message_1.len());
 
                 error = EDHOCError::Success;
                 current_state = EDHOCState::ProcessedMessage1;
@@ -148,17 +147,14 @@ pub fn r_prepare_message_2(
         // but we do it here to avoid storing plaintext_2 in State
         th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
-        let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
-            &prk_2e,
-            &th_2,
-            &BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2.len()),
-        );
+        let mut ct: BytesCiphertext2 = [0x00; CIPHERTEXT_2_LEN];
+        ct[..].copy_from_slice(&plaintext_2[..]);
 
-        message_2 = encode_message_2(
-            &g_y,
-            &BytesCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
-            c_r,
-        );
+        let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ct);
+
+        ct[..].copy_from_slice(&ciphertext_2[..ciphertext_2_len]);
+
+        message_2 = encode_message_2(&g_y, &ct, c_r);
 
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage3;
@@ -229,19 +225,16 @@ pub fn r_process_message_3(
                 );
 
                 // verify mac_3
-                if mac_3.declassify_eq(&expected_mac_3) {
+                if mac_3 == expected_mac_3 {
                     error = EDHOCError::Success;
                     let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
+                    let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+                    th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
                     // compute prk_out
                     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-                    let prk_out_buf = edhoc_kdf(
-                        &prk_4e3m,
-                        7u8,
-                        &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
-                        th_4.len(),
-                        SHA256_DIGEST_LEN,
-                    );
+                    let prk_out_buf =
+                        edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
                     prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
                     // compute prk_exporter from prk_out
@@ -321,11 +314,11 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(EDHOC_METHOD, &selected_suites, &g_x, c_i);
 
+        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        message_1_buf[..message_1.len()].copy_from_slice(&message_1[..]);
+
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(
-            &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
-            message_1.len(),
-        );
+        h_message_1 = sha256_digest(&message_1_buf, message_1.len());
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
 
@@ -406,15 +399,12 @@ pub fn i_process_message_2(
                 &th_2,
             );
 
-            if mac_2.declassify_eq(&expected_mac_2) {
+            if mac_2 == expected_mac_2 {
                 // step is actually from processing of message_3
                 // but we do it here to avoid storing plaintext_2 in State
-                th_3 = compute_th_3(
-                    &th_2,
-                    &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
-                    cred_r_expected,
-                    cred_r_len,
-                );
+                let mut pt2: BytesPlaintext2 = [0x00; PLAINTEXT_2_LEN];
+                pt2[..].copy_from_slice(&plaintext_2[..plaintext_2_len]);
+                th_3 = compute_th_3(&th_2, &pt2, cred_r_expected, cred_r_len);
                 // message 3 processing
 
                 let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
@@ -480,15 +470,12 @@ pub fn i_prepare_message_3(
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
 
+        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
+
         // compute prk_out
         // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-        let prk_out_buf = edhoc_kdf(
-            &prk_4e3m,
-            7u8,
-            &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
-            th_4.len(),
-            SHA256_DIGEST_LEN,
-        );
+        let prk_out_buf = edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
         prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
         // compute prk_exporter from prk_out
@@ -707,7 +694,8 @@ fn edhoc_kdf(
 fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
     let kid = plaintext_3[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
-    let mac_3 = BytesMac3::from_slice(plaintext_3, 2, MAC_LENGTH_3);
+    let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
+    mac_3[..].copy_from_slice(&plaintext_3[2..2 + MAC_LENGTH_3]);
 
     (kid, mac_3)
 }
@@ -753,29 +741,16 @@ fn compute_k_3_iv_3(
     th_3: &BytesHashLen,
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
-    let k_3 = BytesCcmKeyLen::from_slice(
-        &edhoc_kdf(
-            prk_3e2m,
-            3u8,
-            &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
-            th_3.len(),
-            AES_CCM_KEY_LEN,
-        ),
-        0,
-        AES_CCM_KEY_LEN,
-    );
+    let mut k_3: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
+    let mut th_3_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+    th_3_buf[..th_3.len()].copy_from_slice(&th_3[..]);
+    let k_3_buf = edhoc_kdf(prk_3e2m, 3u8, &th_3_buf, th_3.len(), AES_CCM_KEY_LEN);
+    k_3[..].copy_from_slice(&k_3_buf[..AES_CCM_KEY_LEN]);
+
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
-    let iv_3 = BytesCcmIvLen::from_slice(
-        &edhoc_kdf(
-            prk_3e2m,
-            4u8,
-            &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
-            th_3.len(),
-            AES_CCM_IV_LEN,
-        ),
-        0,
-        AES_CCM_IV_LEN,
-    );
+    let mut iv_3: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
+    let iv_3_buf = edhoc_kdf(prk_3e2m, 4u8, &th_3_buf, th_3.len(), AES_CCM_IV_LEN);
+    iv_3[..].copy_from_slice(&iv_3_buf[..AES_CCM_IV_LEN]);
 
     (k_3, iv_3)
 }
@@ -817,7 +792,7 @@ fn decrypt_message_3(
 
     // compare parsed length with the expected length of the ciphertext
     if len as usize == CIPHERTEXT_3_LEN {
-        let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
+        let ciphertext_3 = &message_3[1..1 + CIPHERTEXT_3_LEN];
 
         let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
