@@ -14,7 +14,7 @@ pub use {
 
 #[cfg(feature = "rust-native")]
 pub use {
-    edhoc::EDHOCError as EdhocError, edhoc::State as EdhocState,
+    edhoc_consts::EDHOCError as EdhocError, edhoc_consts::State as EdhocState,
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
@@ -319,9 +319,9 @@ mod hacspec {
 
 #[cfg(feature = "rust-native")]
 mod rust {
-    use super::*;
     use edhoc_consts::*;
 
+    #[derive(Default, Copy, Clone, Debug)]
     pub struct RustEdhocInitiator<'a> {
         state: State,       // opaque state
         i: &'a str,         // private authentication key of I
@@ -332,6 +332,7 @@ mod rust {
         cred_r: &'a str,    // R's full credential
     }
 
+    #[derive(Default, Copy, Clone, Debug)]
     pub struct RustEdhocResponder<'a> {
         state: State,       // opaque state
         r: &'a str,         // private authentication key of R
@@ -375,15 +376,17 @@ mod rust {
             EDHOCError::UnknownError
         }
 
-        pub fn prepare_message_2(self: &mut RustEdhocResponder<'a>) -> [u8; MESSAGE_2_LEN] {
-            [0; MESSAGE_2_LEN]
+        pub fn prepare_message_2(
+            self: &mut RustEdhocResponder<'a>,
+        ) -> (EDHOCError, [u8; MESSAGE_2_LEN], u8) {
+            (EDHOCError::UnknownError, [0x00u8; MESSAGE_2_LEN], 0x00u8)
         }
 
         pub fn process_message_3(
             self: &mut RustEdhocResponder<'a>,
             message_3: &[u8; MESSAGE_3_LEN],
         ) -> (EDHOCError, [u8; SHA256_DIGEST_LEN]) {
-            (EDHOCError::UnknownError, [0; SHA256_DIGEST_LEN])
+            (EDHOCError::UnknownError, [0x00u8; SHA256_DIGEST_LEN])
         }
 
         pub fn edhoc_exporter(
@@ -391,8 +394,8 @@ mod rust {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> [u8; MAX_BUFFER_LEN] {
-            [0; MAX_BUFFER_LEN]
+        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
+            (EDHOCError::UnknownError, [0x00u8; MAX_BUFFER_LEN])
         }
     }
 
@@ -422,38 +425,23 @@ mod rust {
             }
         }
 
-        pub fn prepare_message_1(self: &mut RustEdhocInitiator<'a>) -> [u8; MESSAGE_1_LEN] {
-            let mut acc = NativeAccelerator {};
-            let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-            let message_1 = prepare_message_1(&mut acc, &mut self.state, &mut message_buffer);
-            message_1.try_into().expect("wrong length")
+        pub fn prepare_message_1(
+            self: &mut RustEdhocInitiator<'a>,
+        ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
+            (EDHOCError::UnknownError, [0x00u8; MESSAGE_1_LEN])
         }
 
         pub fn process_message_2(
             self: &mut RustEdhocInitiator<'a>,
             message_2: &[u8; MESSAGE_2_LEN],
         ) -> (EDHOCError, u8) {
-            let mut acc = NativeAccelerator {};
-            let c_r = process_message_2(&mut acc, &mut self.state, message_2);
-
-            (EDHOCError::Success, c_r)
+            (EDHOCError::UnknownError, 0x00u8)
         }
 
         pub fn prepare_message_3(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> ([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
-            let mut acc = NativeAccelerator {};
-            let mut message_buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-            let message_3 = prepare_message_3(
-                &mut acc,
-                &mut self.state,
-                self.id_cred_i.as_bytes(),
-                self.cred_i.as_bytes(),
-                &mut message_buffer,
-            );
-
-            // dummy prk_out for the time being
-            (message_3.try_into().unwrap(), [0; SHA256_DIGEST_LEN])
+        ) -> (EDHOCError, [u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
+            (EDHOCError::UnknownError, [0x00u8; MESSAGE_3_LEN], [0x00u8; SHA256_DIGEST_LEN])
         }
 
         pub fn edhoc_exporter(
@@ -461,18 +449,17 @@ mod rust {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> [u8; MAX_BUFFER_LEN] {
-            let mut acc = NativeAccelerator {};
-            let mut buffer: [u8; MAX_BUFFER_LEN] = [0x00; MAX_BUFFER_LEN];
-
-            buffer
+        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
+            (EDHOCError::UnknownError, [0x00u8; MAX_BUFFER_LEN])
         }
     }
 }
 
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use edhoc_consts::*;
     use hexlit::hex;
 
     const ID_CRED_I: &str = "a104412b";
