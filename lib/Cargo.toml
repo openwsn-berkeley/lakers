@@ -11,7 +11,7 @@ hexlit = "0.5.3"
 
 edhoc-hacspec = { path = "../hacspec", optional = true }
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
-edhoc-crypto = { path = "../crypto", default-features = false, optional = true }
+edhoc-crypto = { path = "../crypto", default-features = false }
 edhoc-consts = { path = "../consts", default-features = false }
 
 [features]

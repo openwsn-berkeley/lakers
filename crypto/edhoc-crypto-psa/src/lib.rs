@@ -1,7 +1,6 @@
 #![no_std]
 
 use edhoc_consts::*;
-use hacspec_lib::*;
 use psa_crypto::operations::hash::hash_compute;
 use psa_crypto::operations::{aead, key_agreement, key_management};
 use psa_crypto::types::algorithm::Hash;
@@ -30,6 +29,9 @@ pub use rust::*;
 
 #[cfg(feature = "hacspec")]
 mod hacspec {
+    use hacspec_lib::*;
+    use super::*;
+
     pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
         let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
@@ -267,6 +269,8 @@ mod hacspec {
 
 #[cfg(feature = "rust")]
 mod rust {
+    use super::*;
+
     pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
         let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
@@ -325,7 +329,7 @@ mod rust {
         // Implementation of HKDF-Extract as per RFC 5869
 
         // TODO generalize if salt is not provided
-        let output = hmac_sha256(&ikm, salt);
+        let output = hmac_sha256(ikm, salt);
 
         output
     }
@@ -354,7 +358,7 @@ mod rust {
                 permitted_algorithms: alg.into(),
             },
         };
-        let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
+        let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
 
         aead::encrypt(
@@ -394,7 +398,7 @@ mod rust {
                 permitted_algorithms: alg.into(),
             },
         };
-        let my_key = key_management::import(attributes, None, &key).unwrap();
+        let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
         let (plaintext, err) = match aead::decrypt(
@@ -420,7 +424,7 @@ mod rust {
     ) -> BytesP256ElemLen {
         let mut peer_public_key: [u8; 33] = [0; 33];
         peer_public_key[0] = 0x02; // sign does not matter for ECDH operation
-        peer_public_key[1..33].copy_from_slice(&public_key.to_public_array());
+        peer_public_key[1..33].copy_from_slice(&public_key[..]);
 
         let alg = RawKeyAgreement::Ecdh;
         let mut usage_flags: UsageFlags = Default::default();
@@ -448,7 +452,7 @@ mod rust {
         output_buffer
     }
 
-    pub fn hmac_sha256(message: &[u8], key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
+    pub fn hmac_sha256(message: &[u8], key: &[u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
         // implementation of HMAC as per RFC2104
 
         const IPAD: [u8; 64] = [0x36; 64];
@@ -458,7 +462,7 @@ mod rust {
         //        (e.g., if K is of length 20 bytes and B=64, then K will be
         //         appended with 44 zero bytes 0x00)
         let mut b: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
-        b[0..SHA256_DIGEST_LEN].copy_from_slice(&key);
+        b[0..SHA256_DIGEST_LEN].copy_from_slice(&key[..]);
 
         //    (2) XOR (bitwise exclusive-OR) the B byte string computed in step
         //        (1) with ipad
@@ -482,7 +486,7 @@ mod rust {
         }
         //    (6) append the H result from step (4) to the B byte string
         //        resulting from step (5)
-        s5[64..64 + SHA256_DIGEST_LEN].copy_from_slice(&ih.to_public_array());
+        s5[64..64 + SHA256_DIGEST_LEN].copy_from_slice(&ih);
 
         //    (7) apply H to the stream generated in step (6) and output
         //        the result
