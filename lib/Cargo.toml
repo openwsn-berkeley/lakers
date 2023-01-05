@@ -21,4 +21,4 @@ hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538", "
 hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-consts/hacspec" ]
 hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-consts/hacspec" ]
 hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cryptocell310", "edhoc-consts/hacspec" ]
-rust-native = [ "edhoc-consts/rust" ]
+rust-native = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]

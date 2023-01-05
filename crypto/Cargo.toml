@@ -25,6 +25,7 @@ edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", option
 default = [ "hacspec" ]
 hacspec = [ "edhoc-crypto-hacspec" ]
 cc2538 = [ "edhoc-crypto-cc2538" ]
-psa = [ "edhoc-crypto-psa" ]
+psa = [ "edhoc-crypto-psa/hacspec" ]
 psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
+psa-rust = [ "edhoc-crypto-psa/rust" ]
 cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
