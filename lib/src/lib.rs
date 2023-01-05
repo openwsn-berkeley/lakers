@@ -319,7 +319,9 @@ mod hacspec {
 
 #[cfg(feature = "rust-native")]
 mod rust {
+    use super::*;
     use edhoc_consts::*;
+    use hex::FromHex;
 
     #[derive(Default, Copy, Clone, Debug)]
     pub struct RustEdhocInitiator<'a> {
@@ -373,20 +375,50 @@ mod rust {
             self: &mut RustEdhocResponder<'a>,
             message_1: &[u8; MESSAGE_1_LEN],
         ) -> EDHOCError {
-            EDHOCError::UnknownError
+            let (error, state) = r_process_message_1(self.state, message_1);
+            self.state = state;
+
+            error
         }
 
         pub fn prepare_message_2(
             self: &mut RustEdhocResponder<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_2_LEN], u8) {
-            (EDHOCError::UnknownError, [0x00u8; MESSAGE_2_LEN], 0x00u8)
+            let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+            hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
+                .expect("Decoding failed");
+
+            let (error, state, message_2, c_r) = r_prepare_message_2(
+                self.state,
+                &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+                &cred_r,
+                self.cred_r.len() / 2,
+                &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
+            );
+            self.state = state;
+
+            (error, message_2, c_r)
         }
 
         pub fn process_message_3(
             self: &mut RustEdhocResponder<'a>,
             message_3: &[u8; MESSAGE_3_LEN],
         ) -> (EDHOCError, [u8; SHA256_DIGEST_LEN]) {
-            (EDHOCError::UnknownError, [0x00u8; SHA256_DIGEST_LEN])
+            let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+            hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
+                .expect("Decoding failed");
+
+            let (error, state, prk_out) = r_process_message_3(
+                self.state,
+                message_3,
+                &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+                &cred_i,
+                self.cred_i.len() / 2,
+                &<BytesP256ElemLen>::from_hex(self.g_i).expect("Decoding failed"),
+            );
+            self.state = state;
+
+            (error, prk_out)
         }
 
         pub fn edhoc_exporter(
@@ -395,7 +427,14 @@ mod rust {
             context: &[u8],
             length: usize,
         ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
-            (EDHOCError::UnknownError, [0x00u8; MAX_BUFFER_LEN])
+            let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            let (error, state, output) =
+                edhoc_exporter(self.state, label, &context_buf, context.len(), length);
+            self.state = state;
+
+            (error, output)
         }
     }
 
@@ -428,24 +467,50 @@ mod rust {
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            (EDHOCError::UnknownError, [0x00u8; MESSAGE_1_LEN])
+            let (error, state, message_1) = i_prepare_message_1(self.state);
+            self.state = state;
+
+            (error, message_1)
         }
 
         pub fn process_message_2(
             self: &mut RustEdhocInitiator<'a>,
             message_2: &[u8; MESSAGE_2_LEN],
         ) -> (EDHOCError, u8) {
-            (EDHOCError::UnknownError, 0x00u8)
+            let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+            hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
+                .expect("Decoding failed");
+
+            let (error, state, c_r, _kid) = i_process_message_2(
+                self.state,
+                message_2,
+                &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+                &cred_r,
+                self.cred_r.len() / 2,
+                &<BytesP256ElemLen>::from_hex(self.g_r).expect("Decoding failed"),
+                &<BytesP256ElemLen>::from_hex(self.i).expect("Decoding failed"),
+            );
+            self.state = state;
+
+            (error, c_r)
         }
 
         pub fn prepare_message_3(
             self: &mut RustEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
-            (
-                EDHOCError::UnknownError,
-                [0x00u8; MESSAGE_3_LEN],
-                [0x00u8; SHA256_DIGEST_LEN],
-            )
+            let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+            hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
+                .expect("Decoding failed");
+
+            let (error, state, message_3, prk_out) = i_prepare_message_3(
+                self.state,
+                &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+                &cred_i,
+                self.cred_i.len() / 2,
+            );
+            self.state = state;
+
+            (error, message_3, prk_out)
         }
 
         pub fn edhoc_exporter(
@@ -454,7 +519,14 @@ mod rust {
             context: &[u8],
             length: usize,
         ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
-            (EDHOCError::UnknownError, [0x00u8; MAX_BUFFER_LEN])
+            let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            let (error, state, output) =
+                edhoc_exporter(self.state, label, &context_buf, context.len(), length);
+            self.state = state;
+
+            (error, output)
         }
     }
 }
