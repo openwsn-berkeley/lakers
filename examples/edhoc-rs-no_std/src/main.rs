@@ -39,9 +39,9 @@ fn main() -> ! {
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 
-    #[cfg(feature = "psa")]
+    #[cfg(any(feature = "psa", feature = "rust-psa",))]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(feature = "psa")]
+    #[cfg(any(feature = "psa", feature = "rust-psa",))]
     unsafe {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
