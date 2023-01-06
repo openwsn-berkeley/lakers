@@ -29,8 +29,8 @@ pub use rust::*;
 
 #[cfg(feature = "hacspec")]
 mod hacspec {
-    use hacspec_lib::*;
     use super::*;
+    use hacspec_lib::*;
 
     pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
@@ -299,13 +299,11 @@ mod rust {
             n = length / SHA256_DIGEST_LEN + 1;
         }
 
-
         let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
             [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];
         message[..info_len].copy_from_slice(&info[..info_len]);
         message[info_len] = 0x01;
-        let mut t_i =
-            hmac_sha256(&message[..info_len + 1], prk);
+        let mut t_i = hmac_sha256(&message[..info_len + 1], prk);
         output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
 
         for i in 2..n {
@@ -313,10 +311,7 @@ mod rust {
             message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
                 .copy_from_slice(&info[..info_len]);
             message[SHA256_DIGEST_LEN + info_len] = i as u8;
-            t_i = hmac_sha256(
-                &message[..SHA256_DIGEST_LEN + info_len + 1],
-                prk,
-            );
+            t_i = hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
             output[i * SHA256_DIGEST_LEN..(i + 1) * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 
@@ -361,15 +356,7 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
 
-        aead::encrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            plaintext,
-            &mut output_buffer,
-        )
-        .unwrap();
+        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer).unwrap();
 
         output_buffer
     }
@@ -401,20 +388,11 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
-        let (plaintext, err) = match aead::decrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            ciphertext,
-            &mut output_buffer,
-        ) {
-            Result::Ok(_) => (
-                output_buffer,
-                EDHOCError::Success,
-            ),
-            Result::Err(_) => ([0x00u8; PLAINTEXT_3_LEN], EDHOCError::MacVerificationFailed),
-        };
+        let (plaintext, err) =
+            match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer) {
+                Result::Ok(_) => (output_buffer, EDHOCError::Success),
+                Result::Err(_) => ([0x00u8; PLAINTEXT_3_LEN], EDHOCError::MacVerificationFailed),
+            };
 
         (err, plaintext)
     }
@@ -442,8 +420,7 @@ mod rust {
         };
 
         psa_crypto::init().unwrap();
-        let my_key =
-            key_management::import(attributes, None, private_key).unwrap();
+        let my_key = key_management::import(attributes, None, private_key).unwrap();
         let mut output_buffer: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
 
         key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer)
@@ -490,10 +467,7 @@ mod rust {
 
         //    (7) apply H to the stream generated in step (6) and output
         //        the result
-        let oh = sha256_digest(
-            &s5,
-            3 * SHA256_DIGEST_LEN,
-        );
+        let oh = sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
 
         oh
     }
