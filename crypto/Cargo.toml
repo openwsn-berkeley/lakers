@@ -18,9 +18,13 @@ edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
 # psa
 edhoc-crypto-psa = { path = "./edhoc-crypto-psa", optional = true }
 
+# cryptocell for nrf52840
+edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
+
 [features]
 default = [ "hacspec" ]
 hacspec = [ "edhoc-crypto-hacspec" ]
 cc2538 = [ "edhoc-crypto-cc2538" ]
 psa = [ "edhoc-crypto-psa" ]
 psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
+cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
