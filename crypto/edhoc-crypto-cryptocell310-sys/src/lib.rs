@@ -255,7 +255,7 @@ mod rust {
         unsafe {
             CRYS_HASH(
                 CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-                message.as_mut_ptr(),
+                message.clone().as_mut_ptr(),
                 message_len,
                 buffer.as_mut_ptr(),
             );
@@ -276,9 +276,9 @@ mod rust {
                 CRYS_HKDF_HASH_OpMode_t_CRYS_HKDF_HASH_SHA256_mode,
                 core::ptr::null_mut(),
                 0 as usize,
-                prk.as_mut_ptr(),
+                prk.clone().as_mut_ptr(),
                 prk.len() as u32,
-                info.as_mut_ptr(),
+                info.clone().as_mut_ptr(),
                 info_len as u32,
                 buffer.as_mut_ptr(),
                 length as u32,
@@ -293,7 +293,7 @@ mod rust {
         // Implementation of HKDF-Extract as per RFC 5869
 
         // TODO generalize if salt is not provided
-        let output = hmac_sha256(&mut ikm[..], *salt);
+        let output = hmac_sha256(&mut ikm.clone()[..], *salt);
 
         output
     }
@@ -315,11 +315,11 @@ mod rust {
                 SaSiAesEncryptMode_t_SASI_AES_ENCRYPT,
                 aesccm_key.as_mut_ptr(),
                 CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
-                iv.as_mut_ptr(),
+                iv.clone().as_mut_ptr(),
                 iv.len() as u8,
-                ad.as_mut_ptr(),
+                ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.as_mut_ptr(),
+                plaintext.clone().as_mut_ptr(),
                 plaintext.len() as u32,
                 output.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
@@ -352,21 +352,18 @@ mod rust {
                 SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
                 aesccm_key.as_mut_ptr(),
                 CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
-                iv.as_mut_ptr(),
+                iv.clone().as_mut_ptr(),
                 iv.len() as u8,
-                ad.as_mut_ptr(),
+                ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                ciphertext.as_mut_ptr(),
+                ciphertext.clone().as_mut_ptr(),
                 (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
                 output.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                ciphertext.clone()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => (
-                    EDHOCError::Success,
-                    output,
-                ),
+                CRYS_OK => (EDHOCError::Success, output),
                 _ => (EDHOCError::MacVerificationFailed, [0x00u8; PLAINTEXT_3_LEN]),
             };
         }
@@ -407,7 +404,7 @@ mod rust {
         unsafe {
             CRYS_ECPKI_BuildPrivKey(
                 domain,
-                private_key.as_mut_ptr(),
+                private_key.clone().as_mut_ptr(),
                 P256_ELEM_LEN as u32,
                 &mut private_key_cc310,
             );
@@ -443,4 +440,3 @@ mod rust {
         convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
     }
 }
-
