@@ -9,7 +9,11 @@ links = "nrf_cc310_0.9.13"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
-hacspec-lib = { version = "0.1.0-beta.1", default-features = false, features = [ "alloc" ] }
+hacspec-lib = { version = "0.1.0-beta.1", default-features = false, features = [ "alloc" ], optional = true }
 
 [build-dependencies]
 bindgen = "0.63.0"
+
+[features]
+rust = [ ]
+hacspec = [ "hacspec-lib" ]

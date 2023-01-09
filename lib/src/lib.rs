@@ -12,16 +12,28 @@ pub use {
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
-#[cfg(any(feature = "rust-native", feature = "rust-psa-baremetal",))]
+#[cfg(any(
+    feature = "rust-native",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, rust::RustEdhocInitiator as EdhocInitiator,
     rust::RustEdhocResponder as EdhocResponder,
 };
 
-#[cfg(any(feature = "rust-native", feature = "rust-psa-baremetal",))]
+#[cfg(any(
+    feature = "rust-native",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 mod edhoc;
 
-#[cfg(any(feature = "rust-native", feature = "rust-psa-baremetal",))]
+#[cfg(any(
+    feature = "rust-native",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 use edhoc::*;
 
 #[cfg(any(
@@ -317,7 +329,11 @@ mod hacspec {
     }
 }
 
-#[cfg(any(feature = "rust-native", feature = "rust-psa-baremetal",))]
+#[cfg(any(
+    feature = "rust-native",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 mod rust {
     use super::*;
     use edhoc_consts::*;
