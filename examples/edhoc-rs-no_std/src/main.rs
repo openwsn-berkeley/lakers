@@ -5,12 +5,12 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
-#[cfg(not(feature = "nrf52840"))]
+#[cfg(not(feature = "rtt"))]
 use cortex_m_semihosting::hprintln as println;
 
 use panic_semihosting as _;
 
-#[cfg(feature = "nrf52840")]
+#[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
 use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
@@ -28,7 +28,7 @@ extern "C" {
 
 #[entry]
 fn main() -> ! {
-    #[cfg(feature = "nrf52840")]
+    #[cfg(feature = "rtt")]
     rtt_init_print!();
 
     // Initialize the allocator BEFORE you use it
