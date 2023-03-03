@@ -47,7 +47,7 @@ fn main() -> ! {
     }
 
     // testing output
-    println!("Hello, hacspec!");
+    println!("Hello, edhoc-rs!");
 
     // testing asserts
     assert!(1 == 1);
