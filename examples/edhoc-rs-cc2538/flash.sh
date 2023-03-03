@@ -1,6 +1,6 @@
 #! /bin/sh
 
-cargo build --target thumbv7m-none-eabi
+cargo build --no-default-features --features psa
 #cargo build --release
 
 # First convert the elf to binary.
