@@ -13,7 +13,7 @@ Supports:
 
 2. Download, compile, and run the tests:
 ```
-git clone git@github.com:geonnave/edhoc-rs.git && cd edhoc-rs
+git clone git@github.com:openwsn-berkeley/edhoc-rs.git && cd edhoc-rs
 cargo build
 cargo test
 ```
@@ -22,15 +22,17 @@ cargo test
 
 In one terminal, run an example CoAP server:
 ```
-./target/debug/coapserver
+cargo run --bin coapserver
 ```
 
 In another one, run the client:
 ```
-./target/debug/coapclient
+cargo run --bin coapclient
 ```
 
 In the output you should find the EDHOC handshake messages and the derived OSCORE secret/salt.
+
+The source code for these examples is at `examples/coap/src/bin`.
 
 ## Selecting target / crypto backend
 
