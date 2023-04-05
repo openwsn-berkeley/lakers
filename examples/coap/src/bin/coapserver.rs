@@ -16,6 +16,7 @@ fn main() {
 
     let mut edhoc_connections = Vec::new();
 
+    println!("Waiting for CoAP messages...");
     loop {
         let (size, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
         let packet = Packet::from_bytes(&buf[..size]).unwrap();
