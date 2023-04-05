@@ -5,12 +5,12 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
-#[cfg(not(feature = "nrf52840"))]
+#[cfg(not(feature = "rtt"))]
 use cortex_m_semihosting::hprintln as println;
 
 use panic_semihosting as _;
 
-#[cfg(feature = "nrf52840")]
+#[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
 use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
@@ -28,7 +28,7 @@ extern "C" {
 
 #[entry]
 fn main() -> ! {
-    #[cfg(feature = "nrf52840")]
+    #[cfg(feature = "rtt")]
     rtt_init_print!();
 
     // Initialize the allocator BEFORE you use it
@@ -39,15 +39,15 @@ fn main() -> ! {
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 
-    #[cfg(feature = "psa")]
+    #[cfg(any(feature = "psa", feature = "rust-psa",))]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(feature = "psa")]
+    #[cfg(any(feature = "psa", feature = "rust-psa",))]
     unsafe {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
 
     // testing output
-    println!("Hello, hacspec!");
+    println!("Hello, edhoc-rs!");
 
     // testing asserts
     assert!(1 == 1);

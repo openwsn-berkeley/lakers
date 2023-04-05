@@ -28,6 +28,8 @@ jobs:
       run: cargo test --package edhoc-rs --package edhoc-hacspec --package edhoc-crypto --no-default-features --features="hacspec-psa" --no-fail-fast --verbose
     - name: Install thumbv7m-none-eabi and thumbv7em-none-eabihf rust target support
       run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+    - name: Build Rust version with PSA crypto backend
+      run: cargo build --package edhoc-rs --features="rust-native" --package edhoc-crypto --no-default-features --features="psa-rust"
     - name: Install arm gcc
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
     - name: Install QEMU ARM emulator
@@ -41,6 +43,6 @@ jobs:
     - name: Run tests in QEMU
       run: cd examples/edhoc-rs-no_std && cargo run --no-default-features --features=psa --release
     - name: Build examples/edhoc-rs-no_std psa nrf52840
-      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, nrf52840" --release
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, rtt" --release
     - name: Build examples/edhoc-rs-no_std cryptocell310 nrf52840
-      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, nrf52840"
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, rtt"

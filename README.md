@@ -43,15 +43,15 @@ To build an example application that works on the [nrf52840dk](https://www.nordi
 cd ./examples/edhoc-rs-no_std
 
 # using software-based crypto
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, nrf52840" --release
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, rtt" --release
 
 # using hardware-accelerated crypto
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, nrf52840"
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, rtt"
 ```
 
 To build **and** flash to the board, replace the word `build` with `embed` in the commands above (you may need to `cargo install cargo-embed`).
 
-For example: `cargo embed --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, nrf52840"`
+For example: `cargo embed --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, rtt"`
 
 To see more examples on how to build it using different crypto backends and workspace features, check the [Github Actions file](./.github/workflows/rust.yml).
 

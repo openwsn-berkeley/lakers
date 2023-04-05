@@ -7,7 +7,7 @@ license = "BSD"
 description = "EDHOC crypto library dispatch crate"
 
 [dependencies]
-edhoc-consts = { path = "../consts" }
+edhoc-consts = { path = "../consts", default-features = false }
 
 # hacspec
 edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
@@ -16,7 +16,7 @@ edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
 edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
 
 # psa
-edhoc-crypto-psa = { path = "./edhoc-crypto-psa", optional = true }
+edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, optional = true }
 
 # cryptocell for nrf52840
 edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
@@ -25,6 +25,9 @@ edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", option
 default = [ "hacspec" ]
 hacspec = [ "edhoc-crypto-hacspec" ]
 cc2538 = [ "edhoc-crypto-cc2538" ]
-psa = [ "edhoc-crypto-psa" ]
+psa = [ "edhoc-crypto-psa/hacspec" ]
 psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
-cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
+psa-rust = [ "edhoc-crypto-psa/rust" ]
+psa-rust-baremetal = [ "psa-rust", "edhoc-crypto-psa/baremetal" ]
+cryptocell310 = [ "edhoc-crypto-cryptocell310/hacspec" ]
+cryptocell310-rust = [ "edhoc-crypto-cryptocell310/rust" ]

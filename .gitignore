@@ -5,3 +5,7 @@ target/*
 Cargo.lock
 
 cscope*
+
+*.swp
+*.swo
+.DS_Store

@@ -7,7 +7,7 @@ license = "BSD"
 description = "EDHOC crypto library hacspec backend"
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts = { path = "../../consts", default-features = false, features = ["hacspec"] }
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false }
 hacspec-p256 = { version = "0.1.0" }
 hacspec-hkdf = { version = "0.1.0" }
