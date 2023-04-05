@@ -36,4 +36,15 @@ The source code for these examples is at `examples/coap/src/bin`.
 
 ## Selecting target / crypto backend
 
-TO-DO
+To see more examples on how to build it using different crypto backends, check the [Github Actions file](./.github/workflows/rust.yml).
+
+## Directory structure
+This library is structured as a Workspace, a feature from Cargo which makes it easy to manage more than one package / application in the same repository. Here are its the main folders:
+
+- `lib`: The main library for the EDHOC implementation.
+- `examples`: Example applications that demonstrate how to use the EDHOC library. There are several subdirectories, each containing a different example application (e.g., coap, edhoc-rs-cc2538, edhoc-rs-no_std).
+- `consts`: Defines constants used throughout the project.
+- `crypto`: Implement wrappers from cryptographic operations that work in different targets (native, nrf52840 with and without hardware-accelerated crypto, etc.).
+- `hacspec`: Leverages the Hacspec cryptographic specification language to implement the EDHOC protocol (the RFC stuff).
+
+To see how to select a different feature, check the [Github Actions file](./.github/workflows/rust.yml).
