@@ -7,7 +7,7 @@ use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_p256::*;
 use hacspec_sha256::*;
-use rand::{Fill, Rng};
+use rand::Rng;
 
 pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message, 0, message_len)));
@@ -95,11 +95,37 @@ pub fn p256_ecdh(
     secret
 }
 
-/// Generate a random byte array of type A
-pub fn random_bytes<A: Default + Fill>() -> A {
-    let mut out = A::default();
-    rand::thread_rng().fill(&mut out);
-    out
+/// Verify that k != 0 && k < ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+fn p256_validate_private_key(k: &BytesP256ElemLen) -> bool {
+    let mut valid = true;
+    // convert to P256Scalar then back to bytes, if the bytes are not the same, it's not a valid private key
+    let k_element = P256Scalar::from_byte_seq_be(k);
+    let k_element_bytes = k_element.to_byte_seq_be();
+    let mut all_zero = true;
+    for i in 0..k.len() {
+        if !k[i].equal(U8(0u8)) {
+            all_zero = false;
+        }
+        if !k_element_bytes[i].equal(k[i]) {
+            valid = false;
+        }
+    }
+    valid && !all_zero
+}
+
+pub fn p256_generate_private_key() -> BytesP256ElemLen {
+    let mut private_key = BytesP256ElemLen::new();
+
+    loop {
+        for i in 0..private_key.len() {
+            private_key[i] = U8(rand::thread_rng().gen::<u8>());
+        }
+        if p256_validate_private_key(&private_key) {
+            break;
+        }
+    }
+
+    private_key
 }
 
 #[cfg(test)]
@@ -107,8 +133,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_random_bytes() {
-        let random_data = random_bytes::<[u8; 32]>();
-        assert_eq!(random_data.len(), 32);
+    fn test_validate_private_key() {
+        let all_zeroes_key: BytesP256ElemLen = BytesP256ElemLen::default();
+        assert!(!p256_validate_private_key(&all_zeroes_key));
+
+        let largest_valid_key = BytesP256ElemLen::from_hex("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632550");
+        assert!(p256_validate_private_key(&largest_valid_key));
+
+        let too_large_key = BytesP256ElemLen::from_hex("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551");
+        assert!(!p256_validate_private_key(&too_large_key));
+    }
+
+    #[test]
+    fn test_p256_generate_private_key() {
+        let random_key = p256_generate_private_key();
+        assert_eq!(random_key.len(), P256_ELEM_LEN);
     }
 }
