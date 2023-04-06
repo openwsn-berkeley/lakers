@@ -110,3 +110,28 @@ pub fn p256_generate_private_key() -> BytesP256ElemLen {
 
     private_key
 }
+
+pub fn p256_generate_public_key(private_key: &BytesP256ElemLen) -> BytesP256ElemLen {
+    let scalar = P256Scalar::from_byte_seq_be(private_key);
+    let public_key_point = p256_point_mul_base(scalar).unwrap();
+    BytesP256ElemLen::from_seq(&public_key_point.0.to_byte_seq_be())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_p256_keys() {
+        let x = p256_generate_private_key();
+        let g_x = p256_generate_public_key(&x);
+
+        let y = p256_generate_private_key();
+        let g_y = p256_generate_public_key(&y);
+
+        let g_xy = p256_ecdh(&x, &g_y);
+        let g_yx = p256_ecdh(&y, &g_x);
+
+        assert_bytes_eq!(g_xy, g_yx);
+    }
+}
