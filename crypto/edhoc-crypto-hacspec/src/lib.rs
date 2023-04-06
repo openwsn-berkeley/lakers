@@ -78,6 +78,7 @@ pub fn aes_ccm_decrypt_tag_8(
 
     (err, p3)
 }
+
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
@@ -95,24 +96,6 @@ pub fn p256_ecdh(
     secret
 }
 
-/// Verify that k != 0 && k < ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
-fn p256_validate_private_key(k: &BytesP256ElemLen) -> bool {
-    let mut valid = true;
-    // convert to P256Scalar then back to bytes, if the bytes are not the same, it's not a valid private key
-    let k_element = P256Scalar::from_byte_seq_be(k);
-    let k_element_bytes = k_element.to_byte_seq_be();
-    let mut all_zero = true;
-    for i in 0..k.len() {
-        if !k[i].equal(U8(0u8)) {
-            all_zero = false;
-        }
-        if !k_element_bytes[i].equal(k[i]) {
-            valid = false;
-        }
-    }
-    valid && !all_zero
-}
-
 pub fn p256_generate_private_key() -> BytesP256ElemLen {
     let mut private_key = BytesP256ElemLen::new();
 
@@ -120,7 +103,7 @@ pub fn p256_generate_private_key() -> BytesP256ElemLen {
         for i in 0..private_key.len() {
             private_key[i] = U8(rand::thread_rng().gen::<u8>());
         }
-        if p256_validate_private_key(&private_key) {
+        if p256_validate_private_key(&ByteSeq::from_slice(&private_key, 0, private_key.len())) {
             break;
         }
     }
@@ -131,18 +114,6 @@ pub fn p256_generate_private_key() -> BytesP256ElemLen {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_validate_private_key() {
-        let all_zeroes_key: BytesP256ElemLen = BytesP256ElemLen::default();
-        assert!(!p256_validate_private_key(&all_zeroes_key));
-
-        let largest_valid_key = BytesP256ElemLen::from_hex("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632550");
-        assert!(p256_validate_private_key(&largest_valid_key));
-
-        let too_large_key = BytesP256ElemLen::from_hex("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551");
-        assert!(!p256_validate_private_key(&too_large_key));
-    }
 
     #[test]
     fn test_p256_generate_private_key() {
