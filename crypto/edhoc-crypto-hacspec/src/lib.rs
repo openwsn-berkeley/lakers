@@ -7,6 +7,7 @@ use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_p256::*;
 use hacspec_sha256::*;
+use rand::{Fill, Rng};
 
 pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message, 0, message_len)));
@@ -92,4 +93,22 @@ pub fn p256_ecdh(
 
     let secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
     secret
+}
+
+/// Generate a random byte array of type A
+pub fn random_bytes<A: Default + Fill>() -> A {
+    let mut out = A::default();
+    rand::thread_rng().fill(&mut out);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_random_bytes() {
+        let random_data = random_bytes::<[u8; 32]>();
+        assert_eq!(random_data.len(), 32);
+    }
 }

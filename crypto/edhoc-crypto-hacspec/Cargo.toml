@@ -14,3 +14,4 @@ hacspec-hkdf = { version = "0.1.0" }
 hacspec-sha256 = { version = "0.1.0" }
 hacspec-aes = { version = "0.1.0" }
 hacspec-aes-ccm = { version = "0.1.0" }
+rand = "0.8.5"
