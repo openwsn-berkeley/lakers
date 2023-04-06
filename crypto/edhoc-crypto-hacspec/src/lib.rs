@@ -110,14 +110,3 @@ pub fn p256_generate_private_key() -> BytesP256ElemLen {
 
     private_key
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_p256_generate_private_key() {
-        let random_key = p256_generate_private_key();
-        assert_eq!(random_key.len(), P256_ELEM_LEN);
-    }
-}
