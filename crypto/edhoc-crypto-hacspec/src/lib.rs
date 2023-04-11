@@ -125,6 +125,7 @@ mod tests {
     fn test_p256_keys() {
         let x = p256_generate_private_key();
         let g_x = p256_generate_public_key(&x);
+        assert_eq!(x.len(), 32);
 
         let y = p256_generate_private_key();
         let g_y = p256_generate_public_key(&y);
