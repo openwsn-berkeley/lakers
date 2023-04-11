@@ -222,66 +222,63 @@ mod hacspec {
         BytesHashLen::from_public_slice(&convert_array(&buffer[..SHA256_DIGEST_LEN / 4]))
     }
 
-    // pub fn p256_generate_private_key() -> BytesP256ElemLen {
-    pub fn p256_generate_private_key() -> (BytesP256ElemLen, BytesP256ElemLen) {
-        #![feature(c_void_variant)]
-        let rndState_ptr: *mut core::ffi::c_void = core::ptr::null_mut();
-        let mut rndWorkBuff: CRYS_RND_WorkBuff_t = Default::default();
+    pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+        let rnd_context: *mut core::ffi::c_void = core::ptr::null_mut();
+        let mut rnd_work_buffer: CRYS_RND_WorkBuff_t = Default::default();
         unsafe {
-            CRYS_RndInit(rndState_ptr, &mut rndWorkBuff as *mut _);
+            CRYS_RndInit(rnd_context, &mut rnd_work_buffer as *mut _);
         }
 
-        let rndGenerateVectFunc: SaSiRndGenerateVectWorkFunc_t = core::prelude::v1::Some(CRYS_RND_GenerateVector);
-        let mut pDomain = unsafe {
+        let rnd_generate_vect_func: SaSiRndGenerateVectWorkFunc_t = core::prelude::v1::Some(CRYS_RND_GenerateVector);
+        let mut curve_256 = unsafe {
             CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1)
         };
 
-        let mut UserPrivKey: *mut CRYS_ECPKI_UserPrivKey_t = core::ptr::null_mut();
-        let mut UserPublKey: *mut CRYS_ECPKI_UserPublKey_t = core::ptr::null_mut();
-        let mut TempECCKGBuff: *mut CRYS_ECPKI_KG_TempData_t = core::ptr::null_mut();
-        let mut FipsBuff: *mut CRYS_ECPKI_KG_FipsContext_t = core::ptr::null_mut();
+        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t = core::ptr::null_mut();
+        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t = core::ptr::null_mut();
+        let mut temp_data: *mut CRYS_ECPKI_KG_TempData_t = core::ptr::null_mut();
+        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t = core::ptr::null_mut();
 
         unsafe {
             CRYS_ECPKI_GenKeyPair(
-                rndState_ptr,
-                rndGenerateVectFunc,
-                pDomain,
-                UserPrivKey,
-                UserPublKey,
-                TempECCKGBuff,
-                FipsBuff,
+                rnd_context,
+                rnd_generate_vect_func,
+                curve_256,
+                crys_private_key,
+                crys_public_key,
+                temp_data,
+                temp_fips_buffer,
             );
         }
 
-        let mut pExportPrivKey: [u8; P256_ELEM_LEN] = [0x0; P256_ELEM_LEN];
-        let mut pPrivKeySizeBytes: u32 = Default::default();
+        let mut private_key: [u8; P256_ELEM_LEN] = [0x0; P256_ELEM_LEN];
+        let mut key_size: u32 = Default::default();
 
         unsafe {
             CRYS_ECPKI_ExportPrivKey(
-                UserPrivKey,
-                pExportPrivKey.as_mut_ptr(),
-                &mut pPrivKeySizeBytes
+                crys_private_key,
+                private_key.as_mut_ptr(),
+                &mut key_size
             );
         }
 
-        let private_key = BytesP256ElemLen::from_public_slice(&pExportPrivKey[..]);
+        let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
 
-        let mut pExportPubKey: [u8; P256_ELEM_LEN] = [0x0; P256_ELEM_LEN];
-        let mut pPubKeySizeBytes: u32 = Default::default();
-        let compression: CRYS_ECPKI_PointCompression_t = CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
+        let mut public_key: [u8; P256_ELEM_LEN] = [0x0; P256_ELEM_LEN];
+        let mut key_size: u32 = Default::default();
+        let compressed_flag: CRYS_ECPKI_PointCompression_t = CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
 
         unsafe {
             CRYS_ECPKI_ExportPublKey(
-                UserPublKey,
-                compression,
-                pExportPubKey.as_mut_ptr(),
-                &mut pPubKeySizeBytes
+                crys_public_key,
+                compressed_flag,
+                public_key.as_mut_ptr(),
+                &mut key_size
             );
         }
 
-        let public_key = BytesP256ElemLen::from_public_slice(&pExportPubKey[..]);
+        let public_key = BytesP256ElemLen::from_public_slice(&public_key[..]);
 
-        // private_key
         (private_key, public_key)
     }
 

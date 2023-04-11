@@ -96,9 +96,9 @@ pub fn p256_ecdh(
     secret
 }
 
-pub fn p256_generate_private_key() -> BytesP256ElemLen {
+pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    // generate a private key
     let mut private_key = BytesP256ElemLen::new();
-
     loop {
         for i in 0..private_key.len() {
             private_key[i] = U8(rand::thread_rng().gen::<u8>());
@@ -108,13 +108,12 @@ pub fn p256_generate_private_key() -> BytesP256ElemLen {
         }
     }
 
-    private_key
-}
-
-pub fn p256_generate_public_key(private_key: &BytesP256ElemLen) -> BytesP256ElemLen {
-    let scalar = P256Scalar::from_byte_seq_be(private_key);
+    // obtain the corresponding public key
+    let scalar = P256Scalar::from_byte_seq_be(&private_key);
     let public_key_point = p256_point_mul_base(scalar).unwrap();
-    BytesP256ElemLen::from_seq(&public_key_point.0.to_byte_seq_be())
+    let public_key = BytesP256ElemLen::from_seq(&public_key_point.0.to_byte_seq_be());
+
+    (private_key, public_key)
 }
 
 #[cfg(test)]
@@ -123,12 +122,11 @@ mod tests {
 
     #[test]
     fn test_p256_keys() {
-        let x = p256_generate_private_key();
-        let g_x = p256_generate_public_key(&x);
+        let (x, g_x) = p256_generate_key_pair();
         assert_eq!(x.len(), 32);
+        assert_eq!(g_x.len(), 32);
 
-        let y = p256_generate_private_key();
-        let g_y = p256_generate_public_key(&y);
+        let (y, g_y) = p256_generate_key_pair();
 
         let g_xy = p256_ecdh(&x, &g_y);
         let g_yx = p256_ecdh(&y, &g_x);

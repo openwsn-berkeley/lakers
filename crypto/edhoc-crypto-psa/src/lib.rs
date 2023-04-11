@@ -266,7 +266,7 @@ mod hacspec {
         oh
     }
 
-    pub fn p256_generate_private_key() -> BytesP256ElemLen {
+    pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
         let alg = RawKeyAgreement::Ecdh;
         let mut usage_flags: UsageFlags = Default::default();
         usage_flags.set_derive();
@@ -283,29 +283,22 @@ mod hacspec {
         };
 
         psa_crypto::init().unwrap();
-        let key_id = key_management::generate(attributes, None).unwrap();
-        // obtain the actual value of the private key
-        let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
-        let size = key_management::export(key_id, &mut private_key).unwrap();
 
+        let key_id = key_management::generate(attributes, None).unwrap();
+        let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+        key_management::export(key_id, &mut private_key).unwrap();
         let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
 
-        private_key
+        let mut public_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+        key_management::export_public(key_id, &mut public_key).unwrap();
+        let public_key = BytesP256ElemLen::from_public_slice(&public_key[..]);
+
+        (private_key, public_key)
     }
-
-    // pub fn p256_generate_public_key(private_key: &BytesP256ElemLen) -> BytesP256ElemLen {
-    //     let mut public_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
-    //     psa_crypto::init().unwrap();
-    //     key_management::export_public(key_id, &mut public_key).unwrap();
-
-    //     let public_key = BytesP256ElemLen::from_public_slice(&public_key[..]);
-
-    //     public_key
-    // }
 
     // TODO: move to test module
     fn test_p256_keys() {
-        let x = p256_generate_private_key();
+        let (x, g_x) = p256_generate_key_pair();
         assert_eq!(x.len(), 32);
     }
 }
