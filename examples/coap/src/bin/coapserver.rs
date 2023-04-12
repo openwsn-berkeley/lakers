@@ -70,9 +70,9 @@ fn main() {
                 response.message.payload = b"".to_vec();
 
                 println!("EDHOC exchange successfully completed");
-                let (_error, _oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+                let _oscore_secret = responder.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
                 println!("oscore_secret: {:02x?}", _oscore_secret);
-                let (_error, _oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+                let _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
                 println!("oscore_salt: {:02x?}", _oscore_salt);
             }
         }

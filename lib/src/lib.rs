@@ -167,18 +167,18 @@ mod hacspec {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
+        ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
             // init hacspec struct for context
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (error, state, output) = edhoc_exporter(
+            let (state, output) = edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
                 context.len(),
                 length,
-            );
+            )?;
             self.state = state;
 
             // FIXME use hacspec standard library functions once available
@@ -188,7 +188,7 @@ mod hacspec {
                 output_native[i] = output[i].declassify();
             }
 
-            (error, output_native)
+            Ok(output_native)
         }
     }
 
@@ -303,18 +303,18 @@ mod hacspec {
             label: u8,
             context: &[u8],
             length: usize,
-        ) -> (EDHOCError, [u8; MAX_BUFFER_LEN]) {
+        ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
             // init hacspec struct for context
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (error, state, output) = edhoc_exporter(
+            let (state, output) = edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
                 context.len(),
                 length,
-            );
+            )?;
             self.state = state;
 
             // FIXME use hacspec standard library functions once available
@@ -324,7 +324,7 @@ mod hacspec {
                 output_native[i] = output[i].declassify();
             }
 
-            (error, output_native)
+            Ok(output_native)
         }
     }
 }
@@ -645,17 +645,17 @@ mod test {
         assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
-        let (error, i_oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EDHOCError::Success);
-        let (error, i_oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EDHOCError::Success);
+        let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(i_oscore_secret.is_ok());
+        let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(i_oscore_salt.is_ok());
 
-        let (error, r_oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EDHOCError::Success);
-        let (error, r_oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EDHOCError::Success);
+        let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(r_oscore_secret.is_ok());
+        let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(r_oscore_salt.is_ok());
 
-        assert_eq!(i_oscore_secret, r_oscore_secret);
-        assert_eq!(i_oscore_salt, r_oscore_salt);
+        assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
+        assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
 }

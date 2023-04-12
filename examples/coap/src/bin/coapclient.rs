@@ -39,8 +39,8 @@ fn main() {
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
         // we don't care about the response to message_3 for now
 
-        let (_error, _oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let (_error, _oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
+        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
 
         println!("EDHOC exchange successfully completed");
         println!("OSCORE secret: {:02x?}", _oscore_secret);
