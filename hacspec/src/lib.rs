@@ -35,7 +35,10 @@ pub fn edhoc_exporter(
     }
 }
 
-pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> Result<State, EDHOCError> {
+pub fn r_process_message_1(
+    mut state: State,
+    message_1: &BytesMessage1,
+) -> Result<State, EDHOCError> {
     let State(
         mut current_state,
         _y,

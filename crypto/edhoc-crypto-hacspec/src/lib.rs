@@ -70,7 +70,7 @@ pub fn aes_ccm_decrypt_tag_8(
         ByteSeq::from_slice(ciphertext, 0, ciphertext.len()),
         ciphertext.len(),
         AES_CCM_TAG_LEN,
-        );
+    );
 
     if ret.is_ok() {
         Ok(BytesPlaintext3::from_seq(&ret.unwrap()))
