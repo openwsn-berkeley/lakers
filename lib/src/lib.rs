@@ -220,8 +220,8 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
+        ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
+            let (state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state)?;
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -232,7 +232,7 @@ mod hacspec {
                 message_native[i] = message_1[i].declassify();
             }
 
-            (error, message_native)
+            Ok(message_native)
         }
 
         pub fn process_message_2(
@@ -585,9 +585,9 @@ mod test {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let (error, message_1) = initiator.prepare_message_1();
-        assert!(error == EDHOCError::Success);
-        assert_eq!(message_1, MESSAGE_1_TV);
+        let message_1 = initiator.prepare_message_1();
+        assert!(message_1.is_ok());
+        assert_eq!(message_1.unwrap(), MESSAGE_1_TV);
     }
 
     #[test]
@@ -624,10 +624,10 @@ mod test {
             CRED_R,
         );
 
-        let (error, message_1) = initiator.prepare_message_1(); // to update the state
-        assert!(error == EDHOCError::Success);
+        let message_1 = initiator.prepare_message_1(); // to update the state
+        assert!(message_1.is_ok());
 
-        let error = responder.process_message_1(&message_1);
+        let error = responder.process_message_1(&message_1.unwrap());
         assert!(error.is_ok());
 
         let ret = responder.prepare_message_2();

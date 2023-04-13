@@ -300,7 +300,7 @@ pub fn r_process_message_3(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage1) {
+pub fn i_prepare_message_1(mut state: State) -> Result<(State, BytesMessage1), EDHOCError> {
     let State(
         mut current_state,
         mut x,
@@ -356,7 +356,11 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_1)
+    if error == EDHOCError::Success {
+        Ok((state, message_1))
+    } else {
+        Err(error)
+    }
 }
 
 // message_3 must hold MESSAGE_3_LEN
