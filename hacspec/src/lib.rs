@@ -197,7 +197,7 @@ pub fn r_process_message_3(
     cred_i_expected: &BytesMaxBuffer,
     cred_i_len: usize,
     g_i: &BytesP256ElemLen, // I's public DH key
-) -> (EDHOCError, State, BytesHashLen) {
+) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
         y,
@@ -292,7 +292,11 @@ pub fn r_process_message_3(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, prk_out)
+    if error == EDHOCError::Success {
+        Ok((state, prk_out))
+    } else {
+        Err(error)
+    }
 }
 
 // must hold MESSAGE_1_LEN

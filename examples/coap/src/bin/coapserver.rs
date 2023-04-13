@@ -54,14 +54,14 @@ fn main() {
                     lookup_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let (error, _prk_out) = responder.process_message_3(
+                let prk_out = responder.process_message_3(
                     &request.message.payload[1..]
                         .try_into()
                         .expect("wrong length"),
                 );
 
-                if error != EDHOCError::Success {
-                    println!("EDHOC processing error: {:?}", error);
+                if prk_out.is_err() {
+                    println!("EDHOC processing error: {:?}", prk_out);
                     // FIXME remove state from edhoc_connections
                     continue;
                 }

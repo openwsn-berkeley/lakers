@@ -134,7 +134,7 @@ mod hacspec {
         pub fn process_message_3(
             self: &mut HacspecEdhocResponder<'a>,
             message_3: &[u8; MESSAGE_3_LEN],
-        ) -> (EDHOCError, [u8; SHA256_DIGEST_LEN]) {
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
@@ -144,14 +144,14 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let g_i = BytesP256ElemLen::from_hex(self.g_i);
 
-            let (error, state, prk_out) = r_process_message_3(
+            let (state, prk_out) = r_process_message_3(
                 self.state,
                 &BytesMessage3::from_public_slice(&message_3[..]),
                 &id_cred_i,
                 &cred_i,
                 cred_i_len,
                 &g_i,
-            );
+            )?;
             self.state = state;
 
             let mut prk_out_native: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
@@ -159,7 +159,7 @@ mod hacspec {
                 prk_out_native[i] = prk_out[i].declassify();
             }
 
-            (error, prk_out_native)
+            Ok(prk_out_native)
         }
 
         pub fn edhoc_exporter(
@@ -641,11 +641,11 @@ mod test {
 
         let (error, message_3, i_prk_out) = initiator.prepare_message_3();
         assert!(error == EDHOCError::Success);
-        let (error, r_prk_out) = responder.process_message_3(&message_3);
-        assert!(error == EDHOCError::Success);
+        let r_prk_out = responder.process_message_3(&message_3);
+        assert!(r_prk_out.is_ok());
 
         // check that prk_out is equal at initiator and responder side
-        assert_eq!(i_prk_out, r_prk_out);
+        assert_eq!(i_prk_out, r_prk_out.unwrap());
 
         // derive OSCORE secret and salt at both sides and compare
         let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
