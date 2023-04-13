@@ -270,15 +270,15 @@ mod hacspec {
 
         pub fn prepare_message_3(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> (EDHOCError, [u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]) {
+        ) -> Result<([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
             // init hacspec structs for id_cred_i and cred_i
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
 
-            let (error, state, message_3, prk_out) =
-                i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
+            let (state, message_3, prk_out) =
+                i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len)?;
 
             self.state = state;
 
@@ -295,7 +295,7 @@ mod hacspec {
                 prk_out_native[i] = prk_out[i].declassify();
             }
 
-            (error, message_native, prk_out_native)
+            Ok((message_native, prk_out_native))
         }
 
         pub fn edhoc_exporter(
@@ -639,8 +639,11 @@ mod test {
         let _c_r = initiator.process_message_2(&message_2);
         assert!(_c_r.is_ok());
 
-        let (error, message_3, i_prk_out) = initiator.prepare_message_3();
-        assert!(error == EDHOCError::Success);
+        let ret = initiator.prepare_message_3();
+        assert!(ret.is_ok());
+
+        let (message_3, i_prk_out) = ret.unwrap();
+
         let r_prk_out = responder.process_message_3(&message_3);
         assert!(r_prk_out.is_ok());
 

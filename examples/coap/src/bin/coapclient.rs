@@ -33,7 +33,7 @@ fn main() {
 
     if c_r.is_ok() {
         let mut msg_3 = Vec::from([c_r.unwrap()]);
-        let (_error, message_3, _prk_out) = initiator.prepare_message_3();
+        let (message_3, _prk_out) = initiator.prepare_message_3().unwrap();
         msg_3.extend_from_slice(&message_3);
 
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();

@@ -475,7 +475,7 @@ pub fn i_prepare_message_3(
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
-) -> (EDHOCError, State, BytesMessage3, BytesHashLen) {
+) -> Result<(State, BytesMessage3, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
         _x,
@@ -539,7 +539,11 @@ pub fn i_prepare_message_3(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_3, prk_out)
+    if error == EDHOCError::Success {
+        Ok((state, message_3, prk_out))
+    } else {
+        Err(error)
+    }
 }
 
 pub fn construct_state(
