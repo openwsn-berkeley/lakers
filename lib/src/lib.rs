@@ -98,13 +98,13 @@ mod hacspec {
         pub fn process_message_1(
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &[u8; MESSAGE_1_LEN],
-        ) -> EDHOCError {
-            let (error, state) = r_process_message_1(
+        ) -> Result<(), EDHOCError> {
+            let state = r_process_message_1(
                 self.state,
                 &BytesMessage1::from_public_slice(&message_1[..]),
-            );
+            )?;
             self.state = state;
-            error
+            Ok(())
         }
 
         pub fn prepare_message_2(
@@ -598,7 +598,7 @@ mod test {
 
         let error = responder.process_message_1(&MESSAGE_1_TV);
 
-        assert!(error == EDHOCError::Success);
+        assert!(error.is_ok());
     }
 
     #[test]
@@ -628,7 +628,7 @@ mod test {
         assert!(error == EDHOCError::Success);
 
         let error = responder.process_message_1(&message_1);
-        assert!(error == EDHOCError::Success);
+        assert!(error.is_ok());
 
         let (error, message_2, c_r) = responder.prepare_message_2();
         assert!(error == EDHOCError::Success);

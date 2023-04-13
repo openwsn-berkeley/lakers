@@ -39,7 +39,7 @@ fn main() {
                         .expect("wrong length"),
                 );
 
-                if error == EDHOCError::Success {
+                if error.is_ok() {
                     let (_error, message_2, c_r) = responder.prepare_message_2();
                     response.message.payload = message_2.to_vec();
                     // save state

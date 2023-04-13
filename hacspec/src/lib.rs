@@ -35,7 +35,7 @@ pub fn edhoc_exporter(
     }
 }
 
-pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {
+pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> Result<State, EDHOCError> {
     let State(
         mut current_state,
         _y,
@@ -94,7 +94,11 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
         error = EDHOCError::WrongState;
     }
 
-    (error, state)
+    if error == EDHOCError::Success {
+        Ok(state)
+    } else {
+        Err(error)
+    }
 }
 
 pub fn r_prepare_message_2(
