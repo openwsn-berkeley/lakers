@@ -6,7 +6,6 @@ use psa_crypto::operations::{aead, key_agreement, key_management};
 use psa_crypto::types::algorithm::Hash;
 use psa_crypto::types::algorithm::{Aead, AeadWithDefaultLengthTag, KeyAgreement, RawKeyAgreement};
 use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, UsageFlags};
-use psa_crypto::types::status::Result;
 
 #[no_mangle]
 pub extern "C" fn mbedtls_hardware_poll(
@@ -145,7 +144,7 @@ mod hacspec {
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
         ciphertext: &BytesCiphertext3,
-    ) -> (EDHOCError, BytesPlaintext3) {
+    ) -> Result<BytesPlaintext3, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -167,22 +166,20 @@ mod hacspec {
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
-        let (plaintext, err) = match aead::decrypt(
+        let ret = aead::decrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
             &ciphertext.to_public_array(),
             &mut output_buffer,
-        ) {
-            Result::Ok(_) => (
-                BytesPlaintext3::from_public_slice(&output_buffer[..]),
-                EDHOCError::Success,
-            ),
-            Result::Err(_) => (BytesPlaintext3::new(), EDHOCError::MacVerificationFailed),
-        };
+        );
 
-        (err, plaintext)
+        if ret.is_ok() {
+            Ok(BytesPlaintext3::from_public_slice(&output_buffer[..]))
+        } else {
+            Err(EDHOCError::MacVerificationFailed)
+        }
     }
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
@@ -366,7 +363,7 @@ mod rust {
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
         ciphertext: &BytesCiphertext3,
-    ) -> (EDHOCError, BytesPlaintext3) {
+    ) -> Result<BytesPlaintext3, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -388,13 +385,13 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
-        let (plaintext, err) =
-            match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer) {
-                Result::Ok(_) => (output_buffer, EDHOCError::Success),
-                Result::Err(_) => ([0x00u8; PLAINTEXT_3_LEN], EDHOCError::MacVerificationFailed),
-            };
+        let ret = aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer);
 
-        (err, plaintext)
+        if ret.is_ok() {
+            Ok(output_buffer)
+        } else {
+            Err(EDHOCError::MacVerificationFailed)
+        }
     }
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
