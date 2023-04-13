@@ -107,7 +107,7 @@ pub fn r_prepare_message_2(
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
     r: &BytesP256ElemLen, // R's static private DH key
-) -> (EDHOCError, State, BytesMessage2, U8) {
+) -> Result<(State, BytesMessage2, U8), EDHOCError> {
     let State(
         mut current_state,
         mut y,
@@ -182,7 +182,11 @@ pub fn r_prepare_message_2(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_2, c_r)
+    if error == EDHOCError::Success {
+        Ok((state, message_2, c_r))
+    } else {
+        Err(error)
+    }
 }
 
 // FIXME fetch ID_CRED_I and CRED_I based on kid

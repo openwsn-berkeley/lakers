@@ -40,7 +40,7 @@ fn main() {
                 );
 
                 if error.is_ok() {
-                    let (_error, message_2, c_r) = responder.prepare_message_2();
+                    let (message_2, c_r) = responder.prepare_message_2().unwrap();
                     response.message.payload = message_2.to_vec();
                     // save state
                     let edhoc_protocol_state = (c_r, responder, state);
