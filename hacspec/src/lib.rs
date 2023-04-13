@@ -373,7 +373,7 @@ pub fn i_process_message_2(
     cred_r_len: usize,
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
-) -> (EDHOCError, State, U8, U8) {
+) -> Result<(State, U8, U8), EDHOCError> {
     let State(
         mut current_state,
         x,
@@ -462,7 +462,11 @@ pub fn i_process_message_2(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, c_r, kid)
+    if error == EDHOCError::Success {
+        Ok((state, c_r, kid))
+    } else {
+        Err(error)
+    }
 }
 
 // message_3 must hold MESSAGE_3_LEN

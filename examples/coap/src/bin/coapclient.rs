@@ -28,11 +28,11 @@ fn main() {
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
-    let (error, c_r) =
+    let c_r =
         initiator.process_message_2(&response.message.payload.try_into().expect("wrong length"));
 
-    if error == EDHOCError::Success {
-        let mut msg_3 = Vec::from([c_r]);
+    if c_r.is_ok() {
+        let mut msg_3 = Vec::from([c_r.unwrap()]);
         let (_error, message_3, _prk_out) = initiator.prepare_message_3();
         msg_3.extend_from_slice(&message_3);
 
@@ -46,6 +46,6 @@ fn main() {
         println!("OSCORE secret: {:02x?}", _oscore_secret);
         println!("OSCORE salt: {:02x?}", _oscore_salt);
     } else {
-        panic!("Message 2 processing error: {:#?}", error);
+        panic!("Message 2 processing error: {:#?}", c_r);
     }
 }
