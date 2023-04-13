@@ -62,20 +62,21 @@ pub fn aes_ccm_decrypt_tag_8(
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
     ciphertext: &BytesCiphertext3,
-) -> (EDHOCError, BytesPlaintext3) {
-    let (err, p3) = match decrypt_ccm(
+) -> Result<BytesPlaintext3, EDHOCError> {
+    let ret = decrypt_ccm(
         ByteSeq::from_slice(ad, 0, ad.len()),
         ByteSeq::from_slice(iv, 0, iv.len()),
         Key128::from_slice(key, 0, key.len()),
         ByteSeq::from_slice(ciphertext, 0, ciphertext.len()),
         ciphertext.len(),
         AES_CCM_TAG_LEN,
-    ) {
-        AesCcmResult::Ok(p) => (EDHOCError::Success, BytesPlaintext3::from_seq(&p)),
-        AesCcmResult::Err(_) => (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
-    };
+        );
 
-    (err, p3)
+    if ret.is_ok() {
+        Ok(BytesPlaintext3::from_seq(&ret.unwrap()))
+    } else {
+        Err(EDHOCError::MacVerificationFailed)
+    }
 }
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,

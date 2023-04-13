@@ -214,9 +214,10 @@ pub fn r_process_message_3(
     let mut error = EDHOCError::UnknownError;
 
     if current_state == EDHOCState::WaitMessage3 {
-        let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+        let plaintext_3 = decrypt_message_3(&prk_3e2m, &th_3, message_3);
 
-        if err == EDHOCError::Success {
+        if plaintext_3.is_ok() {
+            let plaintext_3 = plaintext_3.unwrap();
             let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
 
             // compare the kid received with the kid expected in id_cred_i
@@ -286,7 +287,7 @@ pub fn r_process_message_3(
             }
         } else {
             // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
-            error = err;
+            error = plaintext_3.err().expect("error handling error");
         }
     } else {
         error = EDHOCError::WrongState;
@@ -822,7 +823,7 @@ fn decrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     message_3: &BytesMessage3,
-) -> (EDHOCError, BytesPlaintext3) {
+) -> Result<BytesPlaintext3, EDHOCError> {
     let mut error = EDHOCError::UnknownError;
     let mut plaintext_3 = BytesPlaintext3::new();
 
@@ -837,13 +838,23 @@ fn decrypt_message_3(
 
         let enc_structure = encode_enc_structure(th_3);
 
-        let (err, p3) = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
-        error = err;
-        plaintext_3 = plaintext_3.update(0, &p3);
+        let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+
+        if p3.is_ok() {
+            error = EDHOCError::Success;
+            plaintext_3 = plaintext_3.update(0, &p3.unwrap());
+        } else {
+            error = p3.err().expect("error handling error");
+        }
     } else {
         error = EDHOCError::ParsingError;
     }
-    (error, plaintext_3)
+
+    if error == EDHOCError::Success {
+        Ok(plaintext_3)
+    } else {
+        Err(error)
+    }
 }
 
 // output must hold id_cred.len() + cred.len()
@@ -1235,10 +1246,10 @@ mod tests {
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let (error, plaintext_3) = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
+        let plaintext_3 = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
 
-        assert_eq!(error, EDHOCError::Success);
-        assert_bytes_eq!(plaintext_3, plaintext_3_tv);
+        assert!(plaintext_3.is_ok());
+        assert_bytes_eq!(plaintext_3.unwrap(), plaintext_3_tv);
     }
 
     #[test]
