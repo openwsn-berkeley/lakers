@@ -556,10 +556,8 @@ fn parse_message_1(
     let method = rcvd_message_1[0];
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let mut selected_suite = BytesSupportedSuites::new();
-    selected_suite = selected_suite.update(0, &rcvd_message_1.slice(1, 1));
-    let mut g_x = BytesP256ElemLen::new();
-    g_x = g_x.update(0, &rcvd_message_1.slice(4, P256_ELEM_LEN));
+    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1);
+    let g_x = BytesP256ElemLen::from_slice(rcvd_message_1, 4, P256_ELEM_LEN);
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
     (method, selected_suite, g_x, c_i)
@@ -585,13 +583,9 @@ fn encode_message_1(
 
 fn parse_message_2(rcvd_message_2: &BytesMessage2) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
     // FIXME decode negative integers as well
-    let mut g_y = BytesP256ElemLen::new();
-    let mut ciphertext_2 = BytesCiphertext2::new();
-    g_y = g_y.update(0, &rcvd_message_2.slice(2, P256_ELEM_LEN));
-    ciphertext_2 = ciphertext_2.update(
-        0,
-        &rcvd_message_2.slice(2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN),
-    );
+    let g_y = BytesP256ElemLen::from_slice(rcvd_message_2, 2, P256_ELEM_LEN);
+    let ciphertext_2 =
+        BytesCiphertext2::from_slice(rcvd_message_2, 2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
     let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
 
     (g_y, ciphertext_2, c_r)
@@ -870,8 +864,7 @@ fn compute_mac_3(
         MAC_LENGTH_3,
     );
 
-    let mut output = BytesMac3::new();
-    output = output.update_slice(0, &output_buf, 0, MAC_LENGTH_3);
+    let output = BytesMac3::from_slice(&output_buf, 0, MAC_LENGTH_3);
     output
 }
 
@@ -886,12 +879,10 @@ fn compute_mac_2(
     let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, cred_r_len);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
-    let mut mac_2 = BytesMac2::new();
-    mac_2 = mac_2.update_slice(
-        0,
+    let mac_2 = BytesMac2::from_slice(
         &edhoc_kdf(prk_3e2m, U8(2 as u8), &context, context_len, MAC_LENGTH_2),
         0,
-        mac_2.len(),
+        MAC_LENGTH_2,
     );
 
     mac_2
@@ -903,8 +894,7 @@ fn decode_plaintext_2(
 ) -> (U8, BytesMac2, BytesEad2) {
     let id_cred_r = plaintext_2[0];
     // skip cbor byte string byte as we know how long the string is
-    let mut mac_2 = BytesMac2::new();
-    mac_2 = mac_2.update_slice(0, plaintext_2, 2, MAC_LENGTH_2);
+    let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
     // FIXME we don't support ead_2 parsing for now
     let ead_2 = BytesEad2::new();
 
@@ -931,8 +921,7 @@ fn encrypt_decrypt_ciphertext_2(
     ciphertext_2: &BytesCiphertext2,
 ) -> (BytesMaxBuffer, usize) {
     // convert the transcript hash th_2 to BytesMaxContextBuffer type
-    let mut th_2_context = BytesMaxContextBuffer::new();
-    th_2_context = th_2_context.update(0, th_2);
+    let th_2_context = BytesMaxContextBuffer::from_slice(th_2, 0, th_2.len());
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
     let keystream_2 = edhoc_kdf(
@@ -953,8 +942,7 @@ fn encrypt_decrypt_ciphertext_2(
 }
 
 fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashLen {
-    let mut th_3_context = BytesMaxContextBuffer::new();
-    th_3_context = th_3_context.update(0, th_3);
+    let th_3_context = BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len());
     let salt_4e3m_buf = edhoc_kdf(
         prk_3e2m,
         U8(5 as u8),
@@ -981,8 +969,7 @@ fn compute_prk_4e3m(
 }
 
 fn compute_salt_3e2m(prk_2e: &BytesHashLen, th_2: &BytesHashLen) -> BytesHashLen {
-    let mut th_2_context = BytesMaxContextBuffer::new();
-    th_2_context = th_2_context.update(0, th_2);
+    let th_2_context = BytesMaxContextBuffer::from_slice(th_2, 0, th_2.len());
 
     let salt_3e2m_buf = edhoc_kdf(
         prk_2e,
@@ -1149,8 +1136,8 @@ mod tests {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let mut cred_r_tv = BytesMaxBuffer::new();
-        cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
+        let cred_r_tv =
+            BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_R_TV), 0, CRED_R_TV.len() / 2);
 
         let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len() / 2);
         assert_bytes_eq!(th_3, th_3_tv);
@@ -1161,8 +1148,8 @@ mod tests {
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
-        let mut cred_i_tv = BytesMaxBuffer::new();
-        cred_i_tv = cred_i_tv.update(0, &ByteSeq::from_hex(CRED_I_TV));
+        let cred_i_tv =
+            BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_I_TV), 0, CRED_I_TV.len() / 2);
 
         let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len() / 2);
         assert_bytes_eq!(th_4, th_4_tv);
@@ -1170,8 +1157,8 @@ mod tests {
 
     #[test]
     fn test_edhoc_kdf() {
-        let mut th_2_context_tv = BytesMaxContextBuffer::new();
-        th_2_context_tv = th_2_context_tv.update(0, &ByteSeq::from_hex(TH_2_TV));
+        let th_2_context_tv =
+            BytesMaxContextBuffer::from_slice(&ByteSeq::from_hex(TH_2_TV), 0, TH_2_TV.len() / 2);
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let keystream_2_tv = BytesPlaintext2::from_hex(KEYSTREAM_2_TV);
         const LEN_TV: usize = PLAINTEXT_2_LEN;
@@ -1188,9 +1175,11 @@ mod tests {
         }
 
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
-        let mut context_info_mac_2 = BytesMaxContextBuffer::new();
-        context_info_mac_2 =
-            context_info_mac_2.update(0, &ByteSeq::from_hex(CONTEXT_INFO_MAC_2_TV));
+        let context_info_mac_2 = BytesMaxContextBuffer::from_slice(
+            &ByteSeq::from_hex(CONTEXT_INFO_MAC_2_TV),
+            0,
+            CONTEXT_INFO_MAC_2_TV.len() / 2,
+        );
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
         let output_2 = edhoc_kdf(
@@ -1235,8 +1224,8 @@ mod tests {
         let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
-        let mut cred_i_tv = BytesMaxBuffer::new();
-        cred_i_tv = cred_i_tv.update(0, &ByteSeq::from_hex(CRED_I_TV));
+        let cred_i_tv =
+            BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_I_TV), 0, CRED_I_TV.len() / 2);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
 
         let mac_3 = compute_mac_3(
@@ -1253,8 +1242,8 @@ mod tests {
     fn test_compute_and_verify_mac_2() {
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
-        let mut cred_r_tv = BytesMaxBuffer::new();
-        cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
+        let cred_r_tv =
+            BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_R_TV), 0, CRED_R_TV.len() / 2);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
@@ -1271,7 +1260,7 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_2() {
-        let mut plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
@@ -1282,8 +1271,11 @@ mod tests {
 
     #[test]
     fn test_decode_plaintext_2() {
-        let mut plaintext_2_tv = BytesMaxBuffer::new();
-        plaintext_2_tv = plaintext_2_tv.update(0, &ByteSeq::from_hex(PLAINTEXT_2_TV));
+        let plaintext_2_tv = BytesMaxBuffer::from_slice(
+            &ByteSeq::from_hex(PLAINTEXT_2_TV),
+            0,
+            PLAINTEXT_2_TV.len() / 2,
+        );
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
         let ead_2_tv = BytesEad2::new();
@@ -1310,8 +1302,7 @@ mod tests {
             assert_eq!(plaintext_2[i].declassify(), plaintext_2_tv[i].declassify());
         }
 
-        let mut plaintext_2_tmp = BytesCiphertext2::new();
-        plaintext_2_tmp = plaintext_2_tmp.update_slice(0, &plaintext_2, 0, plaintext_2_len);
+        let plaintext_2_tmp = BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2_len);
 
         // test encryption
         let (ciphertext_2, ciphertext_2_len) =
