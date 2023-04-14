@@ -124,18 +124,16 @@ pub fn r_prepare_message_2(
     let mut c_r = U8(0xffu8); // invalid c_r
 
     if current_state == EDHOCState::ProcessedMessage1 {
-        // TODO generate ephemeral key pair
-        y = Y;
-        let g_y = G_Y;
+        let (y, g_y) = p256_generate_key_pair();
 
         // FIXME generate a connection identifier to multiplex sessions
         c_r = C_R;
 
         // compute TH_2
-        let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
+        let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
 
         // compute prk_3e2m
-        let prk_2e = compute_prk_2e(&Y, &g_x, &th_2);
+        let prk_2e = compute_prk_2e(&y, &g_x, &th_2);
         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
@@ -312,9 +310,7 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         // we only support a single cipher suite which is already CBOR-encoded
         let selected_suites = EDHOC_SUPPORTED_SUITES;
 
-        // TODO generate ephemeral key
-        x = X;
-        let g_x = G_X;
+        let (x, g_x) = p256_generate_key_pair();
 
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;

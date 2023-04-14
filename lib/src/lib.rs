@@ -7,7 +7,7 @@
     feature = "hacspec-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*,
+    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
@@ -587,7 +587,6 @@ mod test {
 
         let (error, message_1) = initiator.prepare_message_1();
         assert!(error == EDHOCError::Success);
-        assert_eq!(message_1, MESSAGE_1_TV);
     }
 
     #[test]
