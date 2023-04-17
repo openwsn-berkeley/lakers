@@ -166,19 +166,16 @@ mod hacspec {
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
-        let ret = aead::decrypt(
+        match aead::decrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
             &ciphertext.to_public_array(),
             &mut output_buffer,
-        );
-
-        if ret.is_ok() {
-            Ok(BytesPlaintext3::from_public_slice(&output_buffer[..]))
-        } else {
-            Err(EDHOCError::MacVerificationFailed)
+        ) {
+            Ok(_) => Ok(BytesPlaintext3::from_public_slice(&output_buffer[..])),
+            Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
     pub fn p256_ecdh(
@@ -385,12 +382,9 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
 
-        let ret = aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer);
-
-        if ret.is_ok() {
-            Ok(output_buffer)
-        } else {
-            Err(EDHOCError::MacVerificationFailed)
+        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer) {
+            Ok(_) => Ok(output_buffer),
+            Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
     pub fn p256_ecdh(
