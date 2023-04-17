@@ -290,7 +290,7 @@ mod hacspec {
         key_management::export(key_id, &mut private_key).unwrap();
         let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
 
-        let mut public_key: [u8; P256_ELEM_LEN*2+1] = [0; P256_ELEM_LEN*2+1]; // allocate buffer for: sign, x, and y coordinates
+        let mut public_key: [u8; P256_ELEM_LEN * 2 + 1] = [0; P256_ELEM_LEN * 2 + 1]; // allocate buffer for: sign, x, and y coordinates
         key_management::export_public(key_id, &mut public_key).unwrap();
         let public_key = BytesP256ElemLen::from_public_slice(&public_key[1..33]); // return only the x coordinate
 
@@ -526,7 +526,7 @@ mod rust {
         let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
         key_management::export(key_id, &mut private_key).unwrap();
 
-        let mut public_key: [u8; P256_ELEM_LEN*2+1] = [0; P256_ELEM_LEN*2+1]; // allocate buffer for: sign, x, and y coordinates
+        let mut public_key: [u8; P256_ELEM_LEN * 2 + 1] = [0; P256_ELEM_LEN * 2 + 1]; // allocate buffer for: sign, x, and y coordinates
         key_management::export_public(key_id, &mut public_key).unwrap();
         let public_key: [u8; P256_ELEM_LEN] = public_key[1..33].try_into().unwrap(); // return only the x coordinate
 

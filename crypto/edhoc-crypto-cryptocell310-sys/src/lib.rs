@@ -5,8 +5,8 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-use edhoc_consts::*;
 use core::ffi::c_void;
+use edhoc_consts::*;
 
 fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
     assert!(input.len() == SHA256_DIGEST_LEN / 4);
@@ -230,17 +230,19 @@ mod hacspec {
             SaSi_LibInit();
             CRYS_RndInit(
                 &mut rnd_context as *mut _ as *mut c_void,
-                &mut rnd_work_buffer as *mut _
+                &mut rnd_work_buffer as *mut _,
             );
         }
         let rnd_generate_vect_func: SaSiRndGenerateVectWorkFunc_t = Some(CRYS_RND_GenerateVector);
-        let mut curve_256 = unsafe {
-            CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1)
-        };
-        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t = &mut CRYS_ECPKI_UserPrivKey_t::default();
-        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t = &mut CRYS_ECPKI_UserPublKey_t::default();
+        let mut curve_256 =
+            unsafe { CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1) };
+        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t =
+            &mut CRYS_ECPKI_UserPrivKey_t::default();
+        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t =
+            &mut CRYS_ECPKI_UserPublKey_t::default();
         let mut temp_data: *mut CRYS_ECPKI_KG_TempData_t = &mut CRYS_ECPKI_KG_TempData_t::default();
-        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t = &mut CRYS_ECPKI_KG_FipsContext_t::default();
+        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t =
+            &mut CRYS_ECPKI_KG_FipsContext_t::default();
 
         unsafe {
             CRYS_ECPKI_GenKeyPair(
@@ -258,25 +260,22 @@ mod hacspec {
         let mut key_size: u32 = P256_ELEM_LEN.try_into().unwrap();
 
         unsafe {
-            CRYS_ECPKI_ExportPrivKey(
-                crys_private_key,
-                private_key.as_mut_ptr(),
-                &mut key_size
-            );
+            CRYS_ECPKI_ExportPrivKey(crys_private_key, private_key.as_mut_ptr(), &mut key_size);
         }
 
         let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
 
-        let mut public_key: [u8; P256_ELEM_LEN+1] = [0x0; P256_ELEM_LEN+1];
+        let mut public_key: [u8; P256_ELEM_LEN + 1] = [0x0; P256_ELEM_LEN + 1];
         let mut key_size: u32 = (P256_ELEM_LEN as u32) + 1;
-        let compressed_flag: CRYS_ECPKI_PointCompression_t = CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
+        let compressed_flag: CRYS_ECPKI_PointCompression_t =
+            CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
 
         unsafe {
             CRYS_ECPKI_ExportPublKey(
                 crys_public_key,
                 compressed_flag,
                 public_key.as_mut_ptr(),
-                &mut key_size
+                &mut key_size,
             );
         }
 
@@ -510,17 +509,19 @@ mod rust {
             SaSi_LibInit();
             CRYS_RndInit(
                 &mut rnd_context as *mut _ as *mut c_void,
-                &mut rnd_work_buffer as *mut _
+                &mut rnd_work_buffer as *mut _,
             );
         }
         let rnd_generate_vect_func: SaSiRndGenerateVectWorkFunc_t = Some(CRYS_RND_GenerateVector);
-        let mut curve_256 = unsafe {
-            CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1)
-        };
-        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t = &mut CRYS_ECPKI_UserPrivKey_t::default();
-        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t = &mut CRYS_ECPKI_UserPublKey_t::default();
+        let mut curve_256 =
+            unsafe { CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1) };
+        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t =
+            &mut CRYS_ECPKI_UserPrivKey_t::default();
+        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t =
+            &mut CRYS_ECPKI_UserPublKey_t::default();
         let mut temp_data: *mut CRYS_ECPKI_KG_TempData_t = &mut CRYS_ECPKI_KG_TempData_t::default();
-        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t = &mut CRYS_ECPKI_KG_FipsContext_t::default();
+        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t =
+            &mut CRYS_ECPKI_KG_FipsContext_t::default();
 
         unsafe {
             CRYS_ECPKI_GenKeyPair(
@@ -538,25 +539,22 @@ mod rust {
         let mut key_size: u32 = P256_ELEM_LEN.try_into().unwrap();
 
         unsafe {
-            CRYS_ECPKI_ExportPrivKey(
-                crys_private_key,
-                private_key.as_mut_ptr(),
-                &mut key_size
-            );
+            CRYS_ECPKI_ExportPrivKey(crys_private_key, private_key.as_mut_ptr(), &mut key_size);
         }
 
         // let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
 
-        let mut public_key: [u8; P256_ELEM_LEN+1] = [0x0; P256_ELEM_LEN+1];
+        let mut public_key: [u8; P256_ELEM_LEN + 1] = [0x0; P256_ELEM_LEN + 1];
         let mut key_size: u32 = (P256_ELEM_LEN as u32) + 1;
-        let compressed_flag: CRYS_ECPKI_PointCompression_t = CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
+        let compressed_flag: CRYS_ECPKI_PointCompression_t =
+            CRYS_ECPKI_PointCompression_t_CRYS_EC_PointCompressed;
 
         unsafe {
             CRYS_ECPKI_ExportPublKey(
                 crys_public_key,
                 compressed_flag,
                 public_key.as_mut_ptr(),
-                &mut key_size
+                &mut key_size,
             );
         }
 
