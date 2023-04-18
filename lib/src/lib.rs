@@ -7,7 +7,7 @@
     feature = "hacspec-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*,
+    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
     hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
@@ -18,8 +18,8 @@ pub use {
     feature = "rust-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*, rust::RustEdhocInitiator as EdhocInitiator,
-    rust::RustEdhocResponder as EdhocResponder,
+    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
+    rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(any(
@@ -123,7 +123,10 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r) {
+            // Generate ephemeral key pair
+            let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+
+            match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y) {
                 Ok((state, message_2, c_r)) => {
                     self.state = state;
                     Ok((message_2.to_public_array(), c_r.declassify()))
@@ -216,7 +219,10 @@ mod hacspec {
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
-            match edhoc_hacspec::i_prepare_message_1(self.state) {
+            // Generate ephemeral key pair
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+
+            match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x) {
                 Ok((state, message_1)) => {
                     self.state = state;
                     Ok(message_1.to_public_array())
@@ -380,6 +386,7 @@ mod rust {
             let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             let (error, state, message_2, c_r) = r_prepare_message_2(
                 self.state,
@@ -387,6 +394,8 @@ mod rust {
                 &cred_r,
                 self.cred_r.len() / 2,
                 &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
+                x,
+                g_x,
             );
             self.state = state;
 
@@ -460,7 +469,8 @@ mod rust {
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            let (error, state, message_1) = i_prepare_message_1(self.state);
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+            let (error, state, message_1) = i_prepare_message_1(self.state, x, g_x);
             self.state = state;
 
             (error, message_1)
@@ -564,7 +574,6 @@ mod test {
 
         let message_1 = initiator.prepare_message_1();
         assert!(message_1.is_ok());
-        assert_eq!(message_1.unwrap(), MESSAGE_1_TV);
     }
 
     #[test]

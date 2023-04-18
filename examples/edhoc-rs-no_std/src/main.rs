@@ -13,7 +13,7 @@ use panic_semihosting as _;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
-use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
+use edhoc_rs::*;
 
 extern crate alloc;
 
@@ -66,9 +66,6 @@ fn main() -> ! {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: [u8; 37] =
-        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
-
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
         let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
@@ -77,6 +74,18 @@ fn main() -> ! {
     test_new_initiator();
     println!("Test test_new_initiator passed.");
 
+    fn test_p256_keys() {
+        let (x, g_x) = p256_generate_key_pair();
+        assert_eq!(x.to_public_array().len(), 32);
+        assert_ne!(g_x.to_public_array(), [0; 32]);
+        let (y, g_y) = p256_generate_key_pair();
+
+        let g_xy = p256_ecdh(&x, &g_y);
+        let g_yx = p256_ecdh(&y, &g_x);
+        assert_eq!(g_xy.to_public_array(), g_yx.to_public_array());
+    }
+    test_p256_keys();
+
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
         let mut initiator =
@@ -84,7 +93,6 @@ fn main() -> ! {
 
         let message_1 = initiator.prepare_message_1();
         assert!(message_1.is_ok());
-        assert_eq!(message_1.unwrap(), MESSAGE_1_TV);
     }
 
     test_prepare_message_1();
