@@ -567,6 +567,8 @@ mod test {
     const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
+    const G_X: [u8; 32] = hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
+    const X: [u8; 32] = hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 
     const MESSAGE_1_TV: [u8; 37] =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
@@ -589,7 +591,10 @@ mod test {
         let state: EdhocState = Default::default();
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        let (error, message_1) = initiator.prepare_message_1(X, G_X);
+        let (error, message_1) = initiator.prepare_message_1(
+            BytesP256ElemLen::from_public_slice(&X[..]),
+            BytesP256ElemLen::from_public_slice(&G_X[..]),
+        );
         assert!(error == EDHOCError::Success);
         assert_eq!(message_1, MESSAGE_1_TV);
 
