@@ -117,7 +117,7 @@ mod hacspec {
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
         ciphertext: &BytesCiphertext3,
-    ) -> (EDHOCError, BytesPlaintext3) {
+    ) -> Result<BytesPlaintext3, EDHOCError> {
         let mut output = [0x0u8; PLAINTEXT_3_LEN];
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
@@ -127,7 +127,7 @@ mod hacspec {
         let mut plaintext = BytesPlaintext3::new();
 
         unsafe {
-            (err, plaintext) = match CC_AESCCM(
+            match CC_AESCCM(
                 SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
                 aesccm_key.as_mut_ptr(),
                 CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
@@ -142,15 +142,10 @@ mod hacspec {
                 ciphertext.to_public_array()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => (
-                    EDHOCError::Success,
-                    BytesPlaintext3::from_public_slice(&output[..]),
-                ),
-                _ => (EDHOCError::MacVerificationFailed, BytesPlaintext3::new()),
-            };
+                CRYS_OK => Ok(BytesPlaintext3::from_public_slice(&output[..])),
+                _ => Err(EDHOCError::MacVerificationFailed),
+            }
         }
-
-        (err, plaintext)
     }
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
@@ -338,7 +333,7 @@ mod rust {
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
         ciphertext: &BytesCiphertext3,
-    ) -> (EDHOCError, BytesPlaintext3) {
+    ) -> Result<BytesPlaintext3, EDHOCError> {
         let mut output = [0x0u8; PLAINTEXT_3_LEN];
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
@@ -348,7 +343,7 @@ mod rust {
         let mut plaintext: BytesPlaintext3 = [0x00u8; PLAINTEXT_3_LEN];
 
         unsafe {
-            (err, plaintext) = match CC_AESCCM(
+            match CC_AESCCM(
                 SaSiAesEncryptMode_t_SASI_AES_DECRYPT,
                 aesccm_key.as_mut_ptr(),
                 CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
@@ -363,12 +358,10 @@ mod rust {
                 ciphertext.clone()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => (EDHOCError::Success, output),
-                _ => (EDHOCError::MacVerificationFailed, [0x00u8; PLAINTEXT_3_LEN]),
-            };
+                CRYS_OK => Ok(output),
+                _ => Err(EDHOCError::MacVerificationFailed),
+            }
         }
-
-        (err, plaintext)
     }
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
