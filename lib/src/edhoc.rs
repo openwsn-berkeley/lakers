@@ -9,7 +9,7 @@ pub fn edhoc_exporter(
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
-) -> (EDHOCError, State, BytesMaxBuffer) {
+) -> Result<(State, BytesMaxBuffer), EDHOCError> {
     let State(
         current_state,
         _x_or_y,
@@ -28,15 +28,16 @@ pub fn edhoc_exporter(
 
     if current_state == EDHOCState::Completed {
         output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
-        error = EDHOCError::Success;
+        Ok((state, output))
     } else {
-        error = EDHOCError::WrongState;
+        Err(EDHOCError::WrongState)
     }
-
-    (error, state, output)
 }
 
-pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {
+pub fn r_process_message_1(
+    mut state: State,
+    message_1: &BytesMessage1,
+) -> Result<State, EDHOCError> {
     let State(
         mut current_state,
         _y,
@@ -94,7 +95,10 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
         error = EDHOCError::WrongState;
     }
 
-    (error, state)
+    match error {
+        EDHOCError::Success => Ok(state),
+        _ => Err(error),
+    }
 }
 
 pub fn r_prepare_message_2(
@@ -105,7 +109,7 @@ pub fn r_prepare_message_2(
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
-) -> (EDHOCError, State, BytesMessage2, U8) {
+) -> Result<(State, BytesMessage2, U8), EDHOCError> {
     let State(
         mut current_state,
         mut _y,
@@ -173,7 +177,10 @@ pub fn r_prepare_message_2(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_2, c_r)
+    match error {
+        EDHOCError::Success => Ok((state, message_2, c_r)),
+        _ => Err(error),
+    }
 }
 
 // FIXME fetch ID_CRED_I and CRED_I based on kid
@@ -184,7 +191,7 @@ pub fn r_process_message_3(
     cred_i_expected: &BytesMaxBuffer,
     cred_i_len: usize,
     g_i: &BytesP256ElemLen, // I's public DH key
-) -> (EDHOCError, State, BytesHashLen) {
+) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
         y,
@@ -277,7 +284,10 @@ pub fn r_process_message_3(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, prk_out)
+    match error {
+        EDHOCError::Success => Ok((state, prk_out)),
+        _ => Err(error),
+    }
 }
 
 // must hold MESSAGE_1_LEN
@@ -285,7 +295,7 @@ pub fn i_prepare_message_1(
     mut state: State,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
-) -> (EDHOCError, State, BytesMessage1) {
+) -> Result<(State, BytesMessage1), EDHOCError> {
     let State(
         mut current_state,
         mut _x,
@@ -337,7 +347,10 @@ pub fn i_prepare_message_1(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_1)
+    match error {
+        EDHOCError::Success => Ok((state, message_1)),
+        _ => Err(error),
+    }
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -350,7 +363,7 @@ pub fn i_process_message_2(
     cred_r_len: usize,
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
-) -> (EDHOCError, State, U8, U8) {
+) -> Result<(State, U8, U8), EDHOCError> {
     let State(
         mut current_state,
         x,
@@ -436,7 +449,10 @@ pub fn i_process_message_2(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, c_r, kid)
+    match error {
+        EDHOCError::Success => Ok((state, c_r, kid)),
+        _ => Err(error),
+    }
 }
 
 // message_3 must hold MESSAGE_3_LEN
@@ -445,7 +461,7 @@ pub fn i_prepare_message_3(
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
-) -> (EDHOCError, State, BytesMessage3, BytesHashLen) {
+) -> Result<(State, BytesMessage3, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
         _x,
@@ -506,7 +522,10 @@ pub fn i_prepare_message_3(
         error = EDHOCError::WrongState;
     }
 
-    (error, state, message_3, prk_out)
+    match error {
+        EDHOCError::Success => Ok((state, message_3, prk_out)),
+        _ => Err(error),
+    }
 }
 
 pub fn construct_state(
@@ -810,10 +829,9 @@ fn decrypt_message_3(
         error = EDHOCError::ParsingError;
     }
 
-    if error == EDHOCError::Success {
-        Ok(plaintext_3)
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok(plaintext_3),
+        _ => Err(error),
     }
 }
 
