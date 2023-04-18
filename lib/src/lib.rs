@@ -585,6 +585,15 @@ mod test {
 
     #[test]
     fn test_prepare_message_1() {
+        // with hardcoded ephemeral key
+        let state: EdhocState = Default::default();
+        let mut initiator =
+            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let (error, message_1) = initiator.prepare_message_1(X, G_X);
+        assert!(error == EDHOCError::Success);
+        assert_eq!(message_1, MESSAGE_1_TV);
+
+        // with dynamic ephemeral key
         let state: EdhocState = Default::default();
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);

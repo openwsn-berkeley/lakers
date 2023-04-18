@@ -13,7 +13,6 @@ use panic_semihosting as _;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
-// use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 use edhoc_rs::*;
 
 extern crate alloc;
@@ -98,7 +97,6 @@ fn main() -> ! {
         let (x, g_x) = p256_generate_key_pair();
         let (error, message_1) = initiator.prepare_message_1(x, g_x);
         assert!(error == EDHOCError::Success);
-        // assert_eq!(message_1, MESSAGE_1_TV);
     }
 
     test_prepare_message_1();
