@@ -109,6 +109,8 @@ mod hacspec {
 
         pub fn prepare_message_2(
             self: &mut HacspecEdhocResponder<'a>,
+            y: BytesP256ElemLen,
+            g_y: BytesP256ElemLen,
         ) -> (EDHOCError, [u8; MESSAGE_2_LEN], u8) {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
@@ -120,7 +122,7 @@ mod hacspec {
             let r = BytesP256ElemLen::from_hex(self.r);
 
             let (error, state, message_2, c_r) =
-                r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+                r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y);
             self.state = state;
 
             let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
@@ -220,8 +222,10 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
+            x: BytesP256ElemLen,
+            g_x: BytesP256ElemLen,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
+            let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state, x, g_x);
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -585,7 +589,8 @@ mod test {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let (error, message_1) = initiator.prepare_message_1();
+        let (x, g_x) = p256_generate_key_pair();
+        let (error, message_1) = initiator.prepare_message_1(x, g_x);
         assert!(error == EDHOCError::Success);
     }
 
@@ -623,13 +628,15 @@ mod test {
             CRED_R,
         );
 
-        let (error, message_1) = initiator.prepare_message_1(); // to update the state
+        let (x, g_x) = p256_generate_key_pair();
+        let (error, message_1) = initiator.prepare_message_1(x, g_x); // to update the state
         assert!(error == EDHOCError::Success);
 
         let error = responder.process_message_1(&message_1);
         assert!(error == EDHOCError::Success);
 
-        let (error, message_2, c_r) = responder.prepare_message_2();
+        let (y, g_y) = p256_generate_key_pair();
+        let (error, message_2, c_r) = responder.prepare_message_2(y, g_y);
         assert!(error == EDHOCError::Success);
         assert!(c_r != 0xff);
         let (error, _c_r) = initiator.process_message_2(&message_2);

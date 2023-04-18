@@ -40,7 +40,8 @@ fn main() {
                 );
 
                 if error == EDHOCError::Success {
-                    let (_error, message_2, c_r) = responder.prepare_message_2();
+                    let (y, g_y) = p256_generate_key_pair();
+                    let (_error, message_2, c_r) = responder.prepare_message_2(y, g_y);
                     response.message.payload = message_2.to_vec();
                     // save state
                     let edhoc_protocol_state = (c_r, responder, state);
