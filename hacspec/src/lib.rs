@@ -97,10 +97,9 @@ pub fn r_process_message_1(
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok(state)
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok(state),
+        _ => Err(error),
     }
 }
 
@@ -185,10 +184,9 @@ pub fn r_prepare_message_2(
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok((state, message_2, c_r))
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok((state, message_2, c_r)),
+        _ => Err(error),
     }
 }
 
@@ -296,10 +294,9 @@ pub fn r_process_message_3(
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok((state, prk_out))
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok((state, prk_out)),
+        _ => Err(error),
     }
 }
 
@@ -360,10 +357,9 @@ pub fn i_prepare_message_1(mut state: State) -> Result<(State, BytesMessage1), E
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok((state, message_1))
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok((state, message_1)),
+        _ => Err(error),
     }
 }
 
@@ -466,10 +462,9 @@ pub fn i_process_message_2(
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok((state, c_r, kid))
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok((state, c_r, kid)),
+        _ => Err(error),
     }
 }
 
@@ -543,10 +538,9 @@ pub fn i_prepare_message_3(
         error = EDHOCError::WrongState;
     }
 
-    if error == EDHOCError::Success {
-        Ok((state, message_3, prk_out))
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok((state, message_3, prk_out)),
+        _ => Err(error),
     }
 }
 
@@ -853,10 +847,9 @@ fn decrypt_message_3(
         error = EDHOCError::ParsingError;
     }
 
-    if error == EDHOCError::Success {
-        Ok(plaintext_3)
-    } else {
-        Err(error)
+    match error {
+        EDHOCError::Success => Ok(plaintext_3),
+        _ => Err(error),
     }
 }
 
