@@ -30,6 +30,8 @@ jobs:
       run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
     - name: Build Rust version with PSA crypto backend
       run: cargo build --package edhoc-rs --features="rust-native" --package edhoc-crypto --no-default-features --features="psa-rust"
+    - name: Test Rust version with PSA crypto backend
+      run: cargo test --package edhoc-rs --features="rust-native" --package edhoc-crypto --no-default-features --features="psa-rust"
     - name: Install arm gcc
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
     - name: Install QEMU ARM emulator

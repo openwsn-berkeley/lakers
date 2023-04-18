@@ -158,11 +158,10 @@ fn inner_main() -> Result<(), &'static str> {
     Ok(())
 }
 
-use core::ffi::{c_void, c_char};
+use core::ffi::{c_char, c_void};
 
 #[no_mangle]
 pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
     panic!("strstr handler!");
     core::ptr::null_mut()
 }
-

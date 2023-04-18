@@ -48,3 +48,7 @@ pub fn p256_ecdh(
 ) -> BytesP256ElemLen {
     BytesP256ElemLen::new()
 }
+
+pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    (BytesP256ElemLen::new(), BytesP256ElemLen::new())
+}

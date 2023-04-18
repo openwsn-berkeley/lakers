@@ -265,6 +265,37 @@ mod hacspec {
 
         oh
     }
+
+    pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+        let alg = RawKeyAgreement::Ecdh;
+        let mut usage_flags: UsageFlags = UsageFlags::default();
+        usage_flags.set_export();
+        usage_flags.set_derive();
+        let attributes = Attributes {
+            key_type: Type::EccKeyPair {
+                curve_family: EccFamily::SecpR1,
+            },
+            bits: 256,
+            lifetime: Lifetime::Volatile,
+            policy: Policy {
+                usage_flags,
+                permitted_algorithms: KeyAgreement::Raw(alg).into(),
+            },
+        };
+
+        psa_crypto::init().unwrap();
+
+        let key_id = key_management::generate(attributes, None).unwrap();
+        let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+        key_management::export(key_id, &mut private_key).unwrap();
+        let private_key = BytesP256ElemLen::from_public_slice(&private_key[..]);
+
+        let mut public_key: [u8; P256_ELEM_LEN * 2 + 1] = [0; P256_ELEM_LEN * 2 + 1]; // allocate buffer for: sign, x, and y coordinates
+        key_management::export_public(key_id, &mut public_key).unwrap();
+        let public_key = BytesP256ElemLen::from_public_slice(&public_key[1..33]); // return only the x coordinate
+
+        (private_key, public_key)
+    }
 }
 
 #[cfg(feature = "rust")]
@@ -470,6 +501,36 @@ mod rust {
         let oh = sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
 
         oh
+    }
+
+    pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+        let alg = RawKeyAgreement::Ecdh;
+        let mut usage_flags: UsageFlags = UsageFlags::default();
+        usage_flags.set_export();
+        usage_flags.set_derive();
+        let attributes = Attributes {
+            key_type: Type::EccKeyPair {
+                curve_family: EccFamily::SecpR1,
+            },
+            bits: 256,
+            lifetime: Lifetime::Volatile,
+            policy: Policy {
+                usage_flags,
+                permitted_algorithms: KeyAgreement::Raw(alg).into(),
+            },
+        };
+
+        psa_crypto::init().unwrap();
+
+        let key_id = key_management::generate(attributes, None).unwrap();
+        let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+        key_management::export(key_id, &mut private_key).unwrap();
+
+        let mut public_key: [u8; P256_ELEM_LEN * 2 + 1] = [0; P256_ELEM_LEN * 2 + 1]; // allocate buffer for: sign, x, and y coordinates
+        key_management::export_public(key_id, &mut public_key).unwrap();
+        let public_key: [u8; P256_ELEM_LEN] = public_key[1..33].try_into().unwrap(); // return only the x coordinate
+
+        (private_key, public_key)
     }
 }
 

@@ -103,10 +103,12 @@ pub fn r_prepare_message_2(
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
     r: &BytesP256ElemLen, // R's static private DH key
+    y: BytesP256ElemLen,
+    g_y: BytesP256ElemLen,
 ) -> (EDHOCError, State, BytesMessage2, U8) {
     let State(
         mut current_state,
-        mut y,
+        mut _y,
         _c_i,
         g_x,
         mut prk_3e2m,
@@ -122,18 +124,14 @@ pub fn r_prepare_message_2(
     let mut c_r = 0xffu8; // invalid c_r
 
     if current_state == EDHOCState::ProcessedMessage1 {
-        // TODO generate ephemeral key pair
-        y = Y;
-        let g_y = G_Y;
-
         // FIXME generate a connection identifier to multiplex sessions
         c_r = C_R;
 
         // compute TH_2
-        let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
+        let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
 
         // compute prk_3e2m
-        let prk_2e = compute_prk_2e(&Y, &g_x, &th_2);
+        let prk_2e = compute_prk_2e(&y, &g_x, &th_2);
         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
@@ -282,10 +280,14 @@ pub fn r_process_message_3(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage1) {
+pub fn i_prepare_message_1(
+    mut state: State,
+    x: BytesP256ElemLen,
+    g_x: BytesP256ElemLen,
+) -> (EDHOCError, State, BytesMessage1) {
     let State(
         mut current_state,
-        mut x,
+        mut _x,
         mut c_i,
         _g_y,
         _prk_3e2m,
@@ -303,10 +305,6 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
     if current_state == EDHOCState::Start {
         // we only support a single cipher suite which is already CBOR-encoded
         let selected_suites = EDHOC_SUPPORTED_SUITES;
-
-        // TODO generate ephemeral key
-        x = X;
-        let g_x = G_X;
 
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;

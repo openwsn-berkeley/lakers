@@ -7,6 +7,7 @@ use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_p256::*;
 use hacspec_sha256::*;
+use rand::Rng;
 
 pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message, 0, message_len)));
@@ -77,6 +78,7 @@ pub fn aes_ccm_decrypt_tag_8(
 
     (err, p3)
 }
+
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
@@ -92,4 +94,43 @@ pub fn p256_ecdh(
 
     let secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
     secret
+}
+
+pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    // generate a private key
+    let mut private_key = BytesP256ElemLen::new();
+    loop {
+        for i in 0..private_key.len() {
+            private_key[i] = U8(rand::thread_rng().gen::<u8>());
+        }
+        if p256_validate_private_key(&ByteSeq::from_slice(&private_key, 0, private_key.len())) {
+            break;
+        }
+    }
+
+    // obtain the corresponding public key
+    let scalar = P256Scalar::from_byte_seq_be(&private_key);
+    let public_key_point = p256_point_mul_base(scalar).unwrap();
+    let public_key = BytesP256ElemLen::from_seq(&public_key_point.0.to_byte_seq_be());
+
+    (private_key, public_key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_p256_keys() {
+        let (x, g_x) = p256_generate_key_pair();
+        assert_eq!(x.len(), 32);
+        assert_eq!(g_x.len(), 32);
+
+        let (y, g_y) = p256_generate_key_pair();
+
+        let g_xy = p256_ecdh(&x, &g_y);
+        let g_yx = p256_ecdh(&y, &g_x);
+
+        assert_bytes_eq!(g_xy, g_yx);
+    }
 }
