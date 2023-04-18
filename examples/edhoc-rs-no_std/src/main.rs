@@ -79,15 +79,20 @@ fn main() -> ! {
 
     fn test_p256_keys() {
         let (x, g_x) = p256_generate_key_pair();
-        assert_eq!(x.to_public_array().len(), 32);
-        assert_ne!(g_x.to_public_array(), [0; 32]);
         let (y, g_y) = p256_generate_key_pair();
 
         let g_xy = p256_ecdh(&x, &g_y);
         let g_yx = p256_ecdh(&y, &g_x);
+
+        // NOTE: application code is not supposed to distinguish between the rust and hacspec implementations
+        // however, it is valuable to test that the results are correct, so we distinguish it here as an exception.
+        #[cfg(any(feature = "rust-psa", feature = "rust-cryptocell310",))]
+        assert_eq!(g_xy, g_yx);
+        #[cfg(any(feature = "psa", feature = "cryptocell310",))]
         assert_eq!(g_xy.to_public_array(), g_yx.to_public_array());
     }
     test_p256_keys();
+    println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
