@@ -94,8 +94,7 @@ fn main() -> ! {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let (x, g_x) = p256_generate_key_pair();
-        let (error, message_1) = initiator.prepare_message_1(x, g_x);
+        let (error, message_1) = initiator.prepare_message_1();
         assert!(error == EDHOCError::Success);
     }
 
@@ -124,15 +123,13 @@ fn main() -> ! {
             CRED_R,
         );
 
-        let (x, g_x) = p256_generate_key_pair();
-        let (error, message_1) = initiator.prepare_message_1(x, g_x); // to update the state
+        let (error, message_1) = initiator.prepare_message_1(); // to update the state
         assert!(error == EDHOCError::Success);
 
         let error = responder.process_message_1(&message_1);
         assert!(error == EDHOCError::Success);
 
-        let (y, g_y) = p256_generate_key_pair();
-        let (error, message_2, c_r) = responder.prepare_message_2(y, g_y);
+        let (error, message_2, c_r) = responder.prepare_message_2();
         assert!(error == EDHOCError::Success);
         assert!(c_r != 0xff);
         let (error, _c_r) = initiator.process_message_2(&message_2);

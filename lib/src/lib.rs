@@ -18,8 +18,8 @@ pub use {
     feature = "rust-cryptocell310"
 ))]
 pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*, rust::RustEdhocInitiator as EdhocInitiator,
-    rust::RustEdhocResponder as EdhocResponder,
+    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
+    rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(any(
@@ -109,8 +109,6 @@ mod hacspec {
 
         pub fn prepare_message_2(
             self: &mut HacspecEdhocResponder<'a>,
-            y: BytesP256ElemLen,
-            g_y: BytesP256ElemLen,
         ) -> (EDHOCError, [u8; MESSAGE_2_LEN], u8) {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
@@ -120,6 +118,8 @@ mod hacspec {
 
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
+
+            let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
 
             let (error, state, message_2, c_r) =
                 r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y);
@@ -222,9 +222,8 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
-            x: BytesP256ElemLen,
-            g_x: BytesP256ElemLen,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
             let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state, x, g_x);
             self.state = state;
 
@@ -407,6 +406,7 @@ mod rust {
             let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             let (error, state, message_2, c_r) = r_prepare_message_2(
                 self.state,
@@ -414,6 +414,8 @@ mod rust {
                 &cred_r,
                 self.cred_r.len() / 2,
                 &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
+                x,
+                g_x,
             );
             self.state = state;
 
@@ -487,7 +489,8 @@ mod rust {
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            let (error, state, message_1) = i_prepare_message_1(self.state);
+            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+            let (error, state, message_1) = i_prepare_message_1(self.state, x, g_x);
             self.state = state;
 
             (error, message_1)
@@ -567,8 +570,6 @@ mod test {
     const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
-    const G_X: [u8; 32] = hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-    const X: [u8; 32] = hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 
     const MESSAGE_1_TV: [u8; 37] =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
@@ -587,24 +588,11 @@ mod test {
 
     #[test]
     fn test_prepare_message_1() {
-        // with hardcoded ephemeral key
-        let state: EdhocState = Default::default();
-        let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        let (error, message_1) = initiator.prepare_message_1(
-            BytesP256ElemLen::from_public_slice(&X[..]),
-            BytesP256ElemLen::from_public_slice(&G_X[..]),
-        );
-        assert!(error == EDHOCError::Success);
-        assert_eq!(message_1, MESSAGE_1_TV);
-
-        // with dynamic ephemeral key
         let state: EdhocState = Default::default();
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let (x, g_x) = p256_generate_key_pair();
-        let (error, message_1) = initiator.prepare_message_1(x, g_x);
+        let (error, message_1) = initiator.prepare_message_1();
         assert!(error == EDHOCError::Success);
     }
 
@@ -642,15 +630,13 @@ mod test {
             CRED_R,
         );
 
-        let (x, g_x) = p256_generate_key_pair();
-        let (error, message_1) = initiator.prepare_message_1(x, g_x); // to update the state
+        let (error, message_1) = initiator.prepare_message_1(); // to update the state
         assert!(error == EDHOCError::Success);
 
         let error = responder.process_message_1(&message_1);
         assert!(error == EDHOCError::Success);
 
-        let (y, g_y) = p256_generate_key_pair();
-        let (error, message_2, c_r) = responder.prepare_message_2(y, g_y);
+        let (error, message_2, c_r) = responder.prepare_message_2();
         assert!(error == EDHOCError::Success);
         assert!(c_r != 0xff);
         let (error, _c_r) = initiator.process_message_2(&message_2);
