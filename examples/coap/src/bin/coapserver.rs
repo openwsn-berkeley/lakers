@@ -39,8 +39,8 @@ fn main() {
                         .expect("wrong length"),
                 );
 
-                if error == EDHOCError::Success {
-                    let (_error, message_2, c_r) = responder.prepare_message_2();
+                if error.is_ok() {
+                    let (message_2, c_r) = responder.prepare_message_2().unwrap();
                     response.message.payload = message_2.to_vec();
                     // save state
                     let edhoc_protocol_state = (c_r, responder, state);
@@ -54,14 +54,14 @@ fn main() {
                     lookup_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let (error, _prk_out) = responder.process_message_3(
+                let prk_out = responder.process_message_3(
                     &request.message.payload[1..]
                         .try_into()
                         .expect("wrong length"),
                 );
 
-                if error != EDHOCError::Success {
-                    println!("EDHOC processing error: {:?}", error);
+                if prk_out.is_err() {
+                    println!("EDHOC processing error: {:?}", prk_out);
                     // FIXME remove state from edhoc_connections
                     continue;
                 }
@@ -70,9 +70,9 @@ fn main() {
                 response.message.payload = b"".to_vec();
 
                 println!("EDHOC exchange successfully completed");
-                let (_error, _oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+                let _oscore_secret = responder.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
                 println!("oscore_secret: {:02x?}", _oscore_secret);
-                let (_error, _oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+                let _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
                 println!("oscore_salt: {:02x?}", _oscore_salt);
             }
         }

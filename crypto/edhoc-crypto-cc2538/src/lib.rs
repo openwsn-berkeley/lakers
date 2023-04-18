@@ -39,8 +39,8 @@ pub fn aes_ccm_decrypt_tag_8(
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
     ciphertext: &BytesCiphertext3,
-) -> (EDHOCError, BytesPlaintext3) {
-    (EDHOCError::Success, BytesPlaintext3::new())
+) -> Result<BytesPlaintext3, EDHOCError> {
+    Ok(BytesPlaintext3::new())
 }
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,

@@ -66,9 +66,6 @@ fn main() -> ! {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: [u8; 37] =
-        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
-
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
         let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
@@ -99,8 +96,8 @@ fn main() -> ! {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let (error, message_1) = initiator.prepare_message_1();
-        assert!(error == EDHOCError::Success);
+        let message_1 = initiator.prepare_message_1();
+        assert!(message_1.is_ok());
     }
 
     test_prepare_message_1();
@@ -128,39 +125,43 @@ fn main() -> ! {
             CRED_R,
         );
 
-        let (error, message_1) = initiator.prepare_message_1(); // to update the state
-        assert!(error == EDHOCError::Success);
+        let message_1 = initiator.prepare_message_1(); // to update the state
+        assert!(message_1.is_ok());
 
-        let error = responder.process_message_1(&message_1);
-        assert!(error == EDHOCError::Success);
+        let ret = responder.process_message_1(&message_1.unwrap());
+        assert!(ret.is_ok());
 
-        let (error, message_2, c_r) = responder.prepare_message_2();
-        assert!(error == EDHOCError::Success);
+        let ret = responder.prepare_message_2();
+        assert!(ret.is_ok());
+        let (message_2, c_r) = ret.unwrap();
         assert!(c_r != 0xff);
-        let (error, _c_r) = initiator.process_message_2(&message_2);
-        assert!(error == EDHOCError::Success);
 
-        let (error, message_3, i_prk_out) = initiator.prepare_message_3();
-        assert!(error == EDHOCError::Success);
-        let (error, r_prk_out) = responder.process_message_3(&message_3);
-        assert!(error == EDHOCError::Success);
+        let _c_r = initiator.process_message_2(&message_2);
+        assert!(_c_r.is_ok());
+
+        let ret = initiator.prepare_message_3();
+        assert!(ret.is_ok());
+        let (message_3, i_prk_out) = ret.unwrap();
+
+        let r_prk_out = responder.process_message_3(&message_3);
+        assert!(r_prk_out.is_ok());
 
         // check that prk_out is equal at initiator and responder side
-        assert_eq!(i_prk_out, r_prk_out);
+        assert_eq!(i_prk_out, r_prk_out.unwrap());
 
         // derive OSCORE secret and salt at both sides and compare
-        let (error, i_oscore_secret) = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EDHOCError::Success);
-        let (error, i_oscore_salt) = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EDHOCError::Success);
+        let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(i_oscore_secret.is_ok());
+        let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(i_oscore_salt.is_ok());
 
-        let (error, r_oscore_secret) = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(error == EDHOCError::Success);
-        let (error, r_oscore_salt) = responder.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(error == EDHOCError::Success);
+        let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
+        assert!(r_oscore_secret.is_ok());
+        let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        assert!(r_oscore_salt.is_ok());
 
-        assert_eq!(i_oscore_secret, r_oscore_secret);
-        assert_eq!(i_oscore_salt, r_oscore_salt);
+        assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
+        assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
 
     test_handshake();
