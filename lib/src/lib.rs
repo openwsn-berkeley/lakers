@@ -99,12 +99,16 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &[u8; MESSAGE_1_LEN],
         ) -> Result<(), EDHOCError> {
-            let state = r_process_message_1(
+            match r_process_message_1(
                 self.state,
                 &BytesMessage1::from_public_slice(&message_1[..]),
-            )?;
-            self.state = state;
-            Ok(())
+            ) {
+                Ok(state) => {
+                    self.state = state;
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            }
         }
 
         pub fn prepare_message_2(
@@ -119,16 +123,13 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            let (state, message_2, c_r) =
-                r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r)?;
-            self.state = state;
-
-            let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
-            for i in 0..message_2.len() {
-                message_2_native[i] = message_2[i].declassify();
+            match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r) {
+                Ok((state, message_2, c_r)) => {
+                    self.state = state;
+                    Ok((message_2.to_public_array(), c_r.declassify()))
+                }
+                Err(error) => Err(error),
             }
-
-            Ok((message_2_native, c_r.declassify()))
         }
 
         pub fn process_message_3(
@@ -144,22 +145,20 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let g_i = BytesP256ElemLen::from_hex(self.g_i);
 
-            let (state, prk_out) = r_process_message_3(
+            match r_process_message_3(
                 self.state,
                 &BytesMessage3::from_public_slice(&message_3[..]),
                 &id_cred_i,
                 &cred_i,
                 cred_i_len,
                 &g_i,
-            )?;
-            self.state = state;
-
-            let mut prk_out_native: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
-            for i in 0..prk_out_native.len() {
-                prk_out_native[i] = prk_out[i].declassify();
+            ) {
+                Ok((state, prk_out)) => {
+                    self.state = state;
+                    Ok(prk_out.to_public_array())
+                }
+                Err(error) => Err(error),
             }
-
-            Ok(prk_out_native)
         }
 
         pub fn edhoc_exporter(
@@ -172,23 +171,19 @@ mod hacspec {
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (state, output) = edhoc_exporter(
+            match edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
                 context.len(),
                 length,
-            )?;
-            self.state = state;
-
-            // FIXME use hacspec standard library functions once available
-            let mut output_native: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
-            assert!(output.len() == output_native.len());
-            for i in 0..output.len() {
-                output_native[i] = output[i].declassify();
+            ) {
+                Ok((state, output)) => {
+                    self.state = state;
+                    Ok(output.to_public_array())
+                }
+                Err(error) => Err(error),
             }
-
-            Ok(output_native)
         }
     }
 
@@ -221,18 +216,13 @@ mod hacspec {
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
-            let (state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state)?;
-            self.state = state;
-
-            // convert message_1 into native Rust array
-            let mut message_native: [u8; MESSAGE_1_LEN] = [0; MESSAGE_1_LEN];
-
-            assert!(message_1.len() == message_native.len());
-            for i in 0..message_1.len() {
-                message_native[i] = message_1[i].declassify();
+            match edhoc_hacspec::i_prepare_message_1(self.state) {
+                Ok((state, message_1)) => {
+                    self.state = state;
+                    Ok(message_1.to_public_array())
+                }
+                Err(error) => Err(error),
             }
-
-            Ok(message_native)
         }
 
         pub fn process_message_2(
@@ -254,7 +244,7 @@ mod hacspec {
             // init hacspec struct for message_2
             let message_2_hacspec = BytesMessage2::from_public_slice(&message_2[..]);
 
-            let (state, c_r, _id_cred_r) = edhoc_hacspec::i_process_message_2(
+            match edhoc_hacspec::i_process_message_2(
                 self.state,
                 &message_2_hacspec,
                 &id_cred_r,
@@ -262,10 +252,13 @@ mod hacspec {
                 cred_r_len,
                 &g_r,
                 &i,
-            )?;
-            self.state = state;
-
-            Ok(c_r.declassify())
+            ) {
+                Ok((state, c_r, _id_cred_r)) => {
+                    self.state = state;
+                    Ok(c_r.declassify())
+                }
+                Err(error) => Err(error),
+            }
         }
 
         pub fn prepare_message_3(
@@ -277,25 +270,13 @@ mod hacspec {
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
 
-            let (state, message_3, prk_out) =
-                i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len)?;
-
-            self.state = state;
-
-            // convert message_3 into native Rust array FIXME use hacspec standard library functions once available
-            let mut message_native: [u8; MESSAGE_3_LEN] = [0; MESSAGE_3_LEN];
-            let mut prk_out_native: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
-
-            assert!(message_3.len() == message_native.len());
-            for i in 0..message_3.len() {
-                message_native[i] = message_3[i].declassify();
+            match i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len) {
+                Ok((state, message_3, prk_out)) => {
+                    self.state = state;
+                    Ok((message_3.to_public_array(), prk_out.to_public_array()))
+                }
+                Err(error) => Err(error),
             }
-
-            for i in 0..prk_out.len() {
-                prk_out_native[i] = prk_out[i].declassify();
-            }
-
-            Ok((message_native, prk_out_native))
         }
 
         pub fn edhoc_exporter(
@@ -308,23 +289,19 @@ mod hacspec {
             let mut context_hacspec = BytesMaxContextBuffer::new();
             context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
 
-            let (state, output) = edhoc_exporter(
+            match edhoc_exporter(
                 self.state,
                 U8(label),
                 &context_hacspec,
                 context.len(),
                 length,
-            )?;
-            self.state = state;
-
-            // FIXME use hacspec standard library functions once available
-            let mut output_native: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
-            assert!(output.len() == output_native.len());
-            for i in 0..output.len() {
-                output_native[i] = output[i].declassify();
+            ) {
+                Ok((state, output)) => {
+                    self.state = state;
+                    Ok(output.to_public_array())
+                }
+                Err(error) => Err(error),
             }
-
-            Ok(output_native)
         }
     }
 }
