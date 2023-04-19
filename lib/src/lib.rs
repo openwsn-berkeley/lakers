@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
 #[cfg(any(
-    feature = "hacspec-native",
+    feature = "hacspec-hacspec",
     feature = "hacspec-cc2538",
     feature = "hacspec-psa",
     feature = "hacspec-cryptocell310"
@@ -13,7 +13,7 @@ pub use {
 };
 
 #[cfg(any(
-    feature = "rust-native",
+    feature = "rust-psa",
     feature = "rust-psa-baremetal",
     feature = "rust-cryptocell310"
 ))]
@@ -23,21 +23,21 @@ pub use {
 };
 
 #[cfg(any(
-    feature = "rust-native",
+    feature = "rust-psa",
     feature = "rust-psa-baremetal",
     feature = "rust-cryptocell310"
 ))]
 mod edhoc;
 
 #[cfg(any(
-    feature = "rust-native",
+    feature = "rust-psa",
     feature = "rust-psa-baremetal",
     feature = "rust-cryptocell310"
 ))]
 use edhoc::*;
 
 #[cfg(any(
-    feature = "hacspec-native",
+    feature = "hacspec-hacspec",
     feature = "hacspec-cc2538",
     feature = "hacspec-psa",
     feature = "hacspec-cryptocell310"
@@ -313,7 +313,7 @@ mod hacspec {
 }
 
 #[cfg(any(
-    feature = "rust-native",
+    feature = "rust-psa",
     feature = "rust-psa-baremetal",
     feature = "rust-cryptocell310"
 ))]

@@ -17,11 +17,11 @@ edhoc-consts = { path = "../consts", default-features = false }
 
 [features]
 default = [ ]
-hacspec-native = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec", "edhoc-consts/hacspec" ]
-hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538", "edhoc-consts/hacspec" ]
+hacspec-hacspec = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec", "edhoc-consts/hacspec" ]
+hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538", "edhoc-consts/hacspec" ] # FIXME: stubs
 hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-consts/hacspec" ]
 hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-consts/hacspec" ]
 hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cryptocell310", "edhoc-consts/hacspec" ]
-rust-native = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
+rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]

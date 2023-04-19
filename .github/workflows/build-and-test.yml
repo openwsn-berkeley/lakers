@@ -30,10 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         edhoc_lib: [hacspec, rust]
-        crypto: [psa, cryptocell310]
+        crypto: [hacspec, psa, psa-baremetal, cryptocell310]
         exclude:
           - edhoc_lib: rust
-            crypto: psa
+            crypto: hacspec
 
     steps:
     - name: Checkout repo
@@ -56,10 +56,10 @@ jobs:
       fail-fast: false
       matrix:
         edhoc_lib: [hacspec, rust]
-        crypto: [native, psa]
+        crypto: [hacspec, psa]
         exclude:
           - edhoc_lib: rust
-            crypto: psa
+            crypto: hacspec
 
     steps:
     - name: Checkout repo
@@ -76,7 +76,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config: [psa, rust-psa] # "psa" means hacspec with psa; "rust-psa" means rust with psa.
+        config: [hacspec-psa, rust-psa]
 
     steps:
     - name: Checkout repo
@@ -100,6 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        edhoc_lib: [hacspec, rust]
         crypto: [psa, cryptocell310]
 
     steps:
