@@ -22,8 +22,29 @@ jobs:
     - name: Check if code is well formatted
       run: cargo fmt --check
 
-  build-edhoc:
+  unit-tests: # run before build because it is faster
     needs: check-style
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        edhoc_lib: [hacspec, rust]
+        crypto: [hacspec, psa]
+        exclude:
+          - edhoc_lib: rust
+            crypto: hacspec
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Run unit tests
+      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto ${{ matrix.edhoc_lib == 'hacspec' && '--package edhoc-hacspec' || '' }} --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
+
+
+  build-edhoc-package:
+    needs: unit-tests
     runs-on: ubuntu-latest
 
     strategy:
@@ -48,29 +69,8 @@ jobs:
       run: cargo build --package edhoc-rs --package edhoc-crypto --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --release
 
 
-  unit-tests:
-    needs: build-edhoc
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        edhoc_lib: [hacspec, rust]
-        crypto: [hacspec, psa]
-        exclude:
-          - edhoc_lib: rust
-            crypto: hacspec
-
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-
-    - name: Run unit tests
-      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto ${{ matrix.edhoc_lib == 'hacspec' && '--package edhoc-hacspec' || '' }} --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
-
-
-  run-qemu:
-    needs: build-edhoc
+  run-example-on-qemu:
+    needs: build-edhoc-package
     runs-on: ubuntu-latest
 
     strategy:
@@ -93,8 +93,8 @@ jobs:
       run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}" --release
 
 
-  build-example:
-    needs: build-edhoc
+  build-example-for-cortex-m4:
+    needs: build-edhoc-package
     runs-on: ubuntu-latest
 
     strategy:
@@ -113,4 +113,4 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build example
-      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto }}, rtt" --release
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, rtt" --release
