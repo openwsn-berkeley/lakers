@@ -70,7 +70,7 @@ jobs:
 
 
   run-example-on-qemu:
-    needs: build-edhoc-package
+    needs: unit-tests
     runs-on: ubuntu-latest
 
     strategy:
@@ -83,7 +83,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install arm targets for Rust
-      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+      run: rustup target add thumbv7m-none-eabi
     - name: Install arm gcc
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
     - name: Install QEMU ARM emulator
@@ -94,7 +94,7 @@ jobs:
 
 
   build-example-for-cortex-m4:
-    needs: build-edhoc-package
+    needs: unit-tests
     runs-on: ubuntu-latest
 
     strategy:
@@ -108,7 +108,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install arm targets for Rust
-      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+      run: rustup target add thumbv7em-none-eabihf
     - name: Install arm gcc
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
