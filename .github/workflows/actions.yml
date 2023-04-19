@@ -18,17 +18,83 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # edhoc_lib: [hacspec, rust]
-        edhoc_lib: [hacspec]
+        edhoc_lib: [hacspec, rust]
         crypto: [native, psa]
-        # exclude:
-        #   - edhoc_lib: rust
-        #     crypto: psa
+        exclude:
+          - edhoc_lib: rust
+            crypto: psa
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
 
     - name: Run unit tests
-      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto --package edhoc-hacspec --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
+      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto ${{ matrix.edhoc_lib == 'hacspec' && '--package edhoc-hacspec' || '' }} --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
 
+
+  run-qemu:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [psa, rust-psa] # "psa" means hacspec with psa; "rust-psa" means rust with psa.
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Install arm targets for Rust
+      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+    - name: Install QEMU ARM emulator
+      run: sudo apt-get -y install qemu-system-arm
+
+    - name: Run tests in QEMU
+      run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}" --release
+
+
+  build-edhoc:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        edhoc_lib: [hacspec, rust]
+        crypto: [psa, cryptocell310]
+        exclude:
+          - edhoc_lib: rust
+            crypto: psa
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Install arm targets for Rust
+      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+
+    - name: Build
+      run: cargo build --package edhoc-rs --package edhoc-crypto --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --release
+
+  build-example:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        crypto: [psa, cryptocell310]
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Install arm targets for Rust
+      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+
+    - name: Build example
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto }}, rtt" --release
