@@ -1,0 +1,34 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # edhoc_lib: [hacspec, rust]
+        edhoc_lib: [hacspec]
+        crypto: [native, psa]
+        # exclude:
+        #   - edhoc_lib: rust
+        #     crypto: psa
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Run unit tests
+      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto --package edhoc-hacspec --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
+
