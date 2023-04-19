@@ -405,21 +405,22 @@ pub fn i_process_message_2(
         // decode plaintext_2
         let (kid, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-        if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
-            // verify mac_2
-            let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+        // verify mac_2
+        let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-            prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-            let expected_mac_2 = compute_mac_2(
-                &prk_3e2m,
-                id_cred_r_expected,
-                cred_r_expected,
-                cred_r_len,
-                &th_2,
-            );
+        let expected_mac_2 = compute_mac_2(
+            &prk_3e2m,
+            id_cred_r_expected,
+            cred_r_expected,
+            cred_r_len,
+            &th_2,
+        );
 
-            if mac_2.declassify_eq(&expected_mac_2) {
+        // Check MAC before checking KID
+        if mac_2.declassify_eq(&expected_mac_2) {
+            if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
                 // step is actually from processing of message_3
                 // but we do it here to avoid storing plaintext_2 in State
                 th_3 = compute_th_3(
@@ -450,11 +451,11 @@ pub fn i_process_message_2(
                     th_3,
                 );
             } else {
-                error = EDHOCError::MacVerificationFailed;
+                // Unknown peer
+                error = EDHOCError::UnknownPeer;
             }
         } else {
-            // Unknown peer
-            error = EDHOCError::UnknownPeer;
+            error = EDHOCError::MacVerificationFailed;
         }
     } else {
         error = EDHOCError::WrongState;
