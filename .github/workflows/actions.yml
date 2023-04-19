@@ -12,6 +12,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-style:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+    - name: Install Rust formatter
+      run: rustup component add rustfmt
+    - name: Check if code is well formatted
+      run: cargo fmt --check
+
+
   unit-tests:
     runs-on: ubuntu-latest
 
