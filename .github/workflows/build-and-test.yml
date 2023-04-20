@@ -60,14 +60,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Cache apt packages
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: gcc-arm-none-eabi qemu-system-arm
-        version: 2.0
-
     - name: Install arm targets for Rust
       run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build
       run: cargo build --package edhoc-rs --package edhoc-crypto --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --release
@@ -86,14 +82,12 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Cache apt packages
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: gcc-arm-none-eabi qemu-system-arm
-        version: 2.0
-
     - name: Install arm targets for Rust
       run: rustup target add thumbv7m-none-eabi
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+    - name: Install QEMU ARM emulator
+      run: sudo apt-get -y install qemu-system-arm
 
     - name: Run tests in QEMU
       run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}" --release
@@ -113,14 +107,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Cache apt packages
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: gcc-arm-none-eabi qemu-system-arm
-        version: 2.0
-
     - name: Install arm targets for Rust
       run: rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build example
       run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, rtt" --release
