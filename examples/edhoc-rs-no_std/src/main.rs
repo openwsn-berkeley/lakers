@@ -39,9 +39,9 @@ fn main() -> ! {
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 
-    #[cfg(any(feature = "psa", feature = "rust-psa",))]
+    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(any(feature = "psa", feature = "rust-psa",))]
+    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
     unsafe {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
@@ -85,7 +85,7 @@ fn main() -> ! {
         // however, it is valuable to test that the results are correct, so we distinguish it here as an exception.
         #[cfg(any(feature = "rust-psa", feature = "rust-cryptocell310",))]
         assert_eq!(g_xy, g_yx);
-        #[cfg(any(feature = "psa", feature = "cryptocell310",))]
+        #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
         assert_eq!(g_xy.to_public_array(), g_yx.to_public_array());
     }
     test_p256_keys();

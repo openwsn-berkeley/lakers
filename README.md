@@ -34,19 +34,19 @@ In the output you should find the EDHOC handshake messages and the derived OSCOR
 
 The source code for these examples is at `examples/coap/src/bin`.
 
-## Selecting target / crypto backend
+## Example: flashing a device and selecting lib version / crypto backend
 
 To build an example application that works on the [nrf52840dk](https://www.nordicsemi.com/Products/Development-hardware/nrf52840-dk), do as follows:
 
 ```bash
-# head to the example that configured with `no_std`
+# head to the example `no_std` example
 cd ./examples/edhoc-rs-no_std
 
-# using software-based crypto
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="psa, rtt" --release
+# build using the hacspec version of the lib, and software-based crypto
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="hacspec-psa, rtt" --release
 
-# using hardware-accelerated crypto
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, rtt"
+# build using the rust version of the lib, and hardware-accelerated crypto
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="rust-cryptocell310, rtt"
 ```
 
 To build **and** flash to the board, replace the word `build` with `embed` in the commands above (you may need to `cargo install cargo-embed`).
