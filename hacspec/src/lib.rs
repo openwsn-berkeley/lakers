@@ -426,59 +426,66 @@ pub fn i_process_message_2(
             encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
 
         // decode plaintext_2
-        let (kid, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
+        let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-        // verify mac_2
-        let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+        if plaintext_2_decoded.is_ok() {
+            let (kid, mac_2, _ead_2) = plaintext_2_decoded.unwrap();
 
-        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+            // verify mac_2
+            let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-        let expected_mac_2 = compute_mac_2(
-            &prk_3e2m,
-            id_cred_r_expected,
-            cred_r_expected,
-            cred_r_len,
-            &th_2,
-        );
+            prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-        // Check MAC before checking KID
-        if mac_2.declassify_eq(&expected_mac_2) {
-            if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
-                // step is actually from processing of message_3
-                // but we do it here to avoid storing plaintext_2 in State
-                th_3 = compute_th_3(
-                    &th_2,
-                    &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
-                    cred_r_expected,
-                    cred_r_len,
-                );
-                // message 3 processing
+            let expected_mac_2 = compute_mac_2(
+                &prk_3e2m,
+                id_cred_r_expected,
+                cred_r_expected,
+                cred_r_len,
+                &th_2,
+            );
 
-                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+            // Check MAC before checking KID
+            if mac_2.declassify_eq(&expected_mac_2) {
+                if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
+                {
+                    // step is actually from processing of message_3
+                    // but we do it here to avoid storing plaintext_2 in State
+                    th_3 = compute_th_3(
+                        &th_2,
+                        &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+                        cred_r_expected,
+                        cred_r_len,
+                    );
+                    // message 3 processing
 
-                prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                    let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                error = EDHOCError::Success;
-                current_state = EDHOCState::ProcessedMessage2;
+                    prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
-                state = construct_state(
-                    current_state,
-                    x,
-                    _c_i,
-                    g_y,
-                    prk_3e2m,
-                    prk_4e3m,
-                    _prk_out,
-                    _prk_exporter,
-                    h_message_1,
-                    th_3,
-                );
+                    error = EDHOCError::Success;
+                    current_state = EDHOCState::ProcessedMessage2;
+
+                    state = construct_state(
+                        current_state,
+                        x,
+                        _c_i,
+                        g_y,
+                        prk_3e2m,
+                        prk_4e3m,
+                        _prk_out,
+                        _prk_exporter,
+                        h_message_1,
+                        th_3,
+                    );
+                } else {
+                    // Unknown peer
+                    error = EDHOCError::UnknownPeer;
+                }
             } else {
-                // Unknown peer
-                error = EDHOCError::UnknownPeer;
+                error = EDHOCError::MacVerificationFailed;
             }
         } else {
-            error = EDHOCError::MacVerificationFailed;
+            error = EDHOCError::ParsingError;
         }
     } else {
         error = EDHOCError::WrongState;
@@ -948,15 +955,19 @@ fn compute_mac_2(
 
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
-    _plaintext_2_len: usize,
-) -> (U8, BytesMac2, BytesEad2) {
-    let id_cred_r = plaintext_2[0];
-    // skip cbor byte string byte as we know how long the string is
-    let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
-    // FIXME we don't support ead_2 parsing for now
-    let ead_2 = BytesEad2::new();
+    plaintext_2_len: usize,
+) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
+    if plaintext_2_len == PLAINTEXT_2_LEN {
+        let id_cred_r = plaintext_2[0];
+        // skip cbor byte string byte as we know how long the string is
+        let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
+        // FIXME we don't support ead_2 parsing for now
+        let ead_2 = BytesEad2::new();
 
-    (id_cred_r, mac_2, ead_2)
+        Ok((id_cred_r, mac_2, ead_2))
+    } else {
+        Err(EDHOCError::ParsingError)
+    }
 }
 
 fn encode_plaintext_2(
@@ -1338,10 +1349,15 @@ mod tests {
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
         let ead_2_tv = BytesEad2::new();
 
-        let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
+        assert!(plaintext_2.is_ok());
+        let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(U8::declassify(id_cred_r), U8::declassify(id_cred_r_tv[3]));
         assert_bytes_eq!(mac_2, mac_2_tv);
         assert_bytes_eq!(ead_2, ead_2_tv);
+
+        let plaintext_2_wrong_len = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN + 1);
+        assert_eq!(plaintext_2_wrong_len.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
