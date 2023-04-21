@@ -60,9 +60,9 @@ pub fn r_process_message_1(
         let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
 
         // verify that the method is supported
-        if method.declassify() == EDHOC_METHOD {
+        if method == EDHOC_METHOD {
             // Step 2: verify that the selected cipher suite is supported
-            if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+            if supported_suites[0] == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
                 // Step 3: If EAD is present make it available to the application
                 // TODO we do not support EAD for now
 
@@ -220,7 +220,7 @@ pub fn r_process_message_3(
             let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
 
             // compare the kid received with the kid expected in id_cred_i
-            if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
+            if kid == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
                 // compute salt_4e3m
                 let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                 // TODO compute prk_4e3m
@@ -420,7 +420,7 @@ pub fn i_process_message_2(
 
         // Check MAC before checking KID
         if mac_2.declassify_eq(&expected_mac_2) {
-            if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
+            if kid == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
                 // step is actually from processing of message_3
                 // but we do it here to avoid storing plaintext_2 in State
                 th_3 = compute_th_3(
@@ -571,11 +571,11 @@ pub fn construct_state(
 
 fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
-) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
-    let method = rcvd_message_1[0];
+) -> (u8, [u8; SUPPORTED_SUITES_LEN], BytesP256ElemLen, U8) {
+    let method = (rcvd_message_1[0] as U8).declassify();
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1);
+    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1).to_public_array();
     let g_x = BytesP256ElemLen::from_slice(rcvd_message_1, 4, P256_ELEM_LEN);
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
@@ -717,8 +717,8 @@ fn edhoc_kdf(
     output
 }
 
-fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
-    let kid = plaintext_3[0usize];
+fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (u8, BytesMac3) {
+    let kid = (plaintext_3[0usize] as U8).declassify();
     // skip the CBOR magic byte as we know how long the MAC is
     let mac_3 = BytesMac3::from_slice(plaintext_3, 2, MAC_LENGTH_3);
 
@@ -919,8 +919,8 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     _plaintext_2_len: usize,
-) -> (U8, BytesMac2, BytesEad2) {
-    let id_cred_r = plaintext_2[0];
+) -> (u8, BytesMac2, BytesEad2) {
+    let id_cred_r = (plaintext_2[0] as U8).declassify();
     // skip cbor byte string byte as we know how long the string is
     let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
     // FIXME we don't support ead_2 parsing for now
@@ -1110,14 +1110,14 @@ mod tests {
     fn test_parse_message_1() {
         let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
         let method_tv = METHOD_TV;
-        let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
+        let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV).to_public_array();
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
 
         let (method, supported_suites, g_x, c_i) = parse_message_1(&message_1_tv);
 
-        assert_eq!(method.declassify(), method_tv);
-        assert_bytes_eq!(supported_suites, supported_suites_tv);
+        assert_eq!(method, method_tv);
+        assert_eq!(supported_suites, supported_suites_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
     }
@@ -1309,7 +1309,7 @@ mod tests {
         let ead_2_tv = BytesEad2::new();
 
         let (id_cred_r, mac_2, ead_2) = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
-        assert_eq!(U8::declassify(id_cred_r), U8::declassify(id_cred_r_tv[3]));
+        assert_eq!(id_cred_r, U8::declassify(id_cred_r_tv[3]));
         assert_bytes_eq!(mac_2, mac_2_tv);
         assert_bytes_eq!(ead_2, ead_2_tv);
     }
@@ -1398,6 +1398,6 @@ mod tests {
         let (kid, mac_3) = decode_plaintext_3(&plaintext_3_tv);
 
         assert_bytes_eq!(mac_3, mac_3_tv);
-        assert_eq!(kid.declassify(), kid_tv.declassify());
+        assert_eq!(kid, kid_tv.declassify());
     }
 }
