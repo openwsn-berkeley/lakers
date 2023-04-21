@@ -1,0 +1,36 @@
+name: Generate fstar
+
+on:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout edhoc-rs
+      uses: actions/checkout@v3
+
+    - name: Allow default features
+      run: sed -i -E "s/(edhoc-crypto.*), default-features = false(.*)/\1\2/" hacspec/Cargo.toml
+
+    - name: FIXME
+      run: |
+        echo ${{ github.workspace }}
+        ls ${{ github.workspace }}
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs ubuntu bash -c "cd edhoc-rs/hacspec && cat Cargo.toml"
+
+    - name: Checkout hacspec-v2
+      uses: actions/checkout@v3
+      with:
+        repository: 'hacspec/hacspec-v2'
+        path: hacspec-v2-repo
+
+    - name: Build hacspec-v2 docker image
+      run: docker build -f .docker/Dockerfile . -t hacspec-v2
+      working-directory: hacspec-v2-repo
+
+    - name: Generate fstar
+      run: docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-circus fstar"

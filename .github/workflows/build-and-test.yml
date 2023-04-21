@@ -1,8 +1,9 @@
 name: Build and test
 
 on:
-  push:
-  pull_request:
+  # push:
+  # pull_request:
+  workflow_dispatch: # FIXME this is just a hack while we test the generate-fstar action
 
 env:
   CARGO_TERM_COLOR: always
