@@ -446,7 +446,7 @@ pub fn i_process_message_2(
 
             // Check MAC before checking KID
             if mac_2.declassify_eq(&expected_mac_2) {
-                if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
+                if kid == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
                 {
                     // step is actually from processing of message_3
                     // but we do it here to avoid storing plaintext_2 in State
@@ -958,7 +958,7 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
+) -> Result<(u8, BytesMac2, BytesEad2), EDHOCError> {
     if plaintext_2_len == PLAINTEXT_2_LEN {
         let id_cred_r = (plaintext_2[0] as U8).declassify();
         // skip cbor byte string byte as we know how long the string is
