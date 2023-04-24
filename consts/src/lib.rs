@@ -122,7 +122,7 @@ mod hacspec {
 
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);
-    array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
+    pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
     array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
@@ -145,8 +145,7 @@ mod hacspec {
 
     pub const C_I: U8 = U8(0x37u8);
     pub const C_R: U8 = U8(0x00u8);
-    pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
-        BytesSupportedSuites(secret_bytes!([0x2u8]));
+    pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(

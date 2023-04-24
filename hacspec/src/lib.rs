@@ -62,7 +62,7 @@ pub fn r_process_message_1(
         // verify that the method is supported
         if method == EDHOC_METHOD {
             // Step 2: verify that the selected cipher suite is supported
-            if supported_suites[0] == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+            if supported_suites[0] == EDHOC_SUPPORTED_SUITES[0] {
                 // Step 3: If EAD is present make it available to the application
                 // TODO we do not support EAD for now
 
@@ -571,11 +571,13 @@ pub fn construct_state(
 
 fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
-) -> (u8, [u8; SUPPORTED_SUITES_LEN], BytesP256ElemLen, U8) {
+) -> (u8, BytesSupportedSuites, BytesP256ElemLen, U8) {
     let method = (rcvd_message_1[0] as U8).declassify();
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1).to_public_array();
+    let mut selected_suite: BytesSupportedSuites = BytesSupportedSuites::default();
+    selected_suite[0..SUPPORTED_SUITES_LEN]
+        .copy_from_slice(&rcvd_message_1.to_public_array()[1..2]);
     let g_x = BytesP256ElemLen::from_slice(rcvd_message_1, 4, P256_ELEM_LEN);
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
@@ -591,7 +593,7 @@ fn encode_message_1(
     let mut output = BytesMessage1::new();
 
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
-    output[1] = suites[0];
+    output[1] = U8(suites[0]);
     output[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
     output[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
     output = output.update(4, g_x);
@@ -1041,11 +1043,12 @@ fn compute_prk_2e(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hexlit::hex;
     // test vectors (TV)
 
     const METHOD_TV: u8 = 0x03;
     // manually modified test vector to include a single supported cipher suite
-    const SUITES_I_TV: &str = "02";
+    const SUITES_I_TV: BytesSupportedSuites = hex!("02");
     const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
@@ -1096,7 +1099,7 @@ mod tests {
     #[test]
     fn test_encode_message_1() {
         let method_tv = U8(METHOD_TV);
-        let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
+        let suites_i_tv = SUITES_I_TV;
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
         let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
@@ -1110,7 +1113,7 @@ mod tests {
     fn test_parse_message_1() {
         let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
         let method_tv = METHOD_TV;
-        let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV).to_public_array();
+        let supported_suites_tv = SUITES_I_TV;
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
 
