@@ -121,7 +121,7 @@ mod hacspec {
     use hacspec_lib::*;
 
     array!(BytesEad2, 0, U8);
-    array!(BytesIdCred, ID_CRED_LEN, U8);
+    pub type BytesIdCred = [u8; ID_CRED_LEN];
     pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);

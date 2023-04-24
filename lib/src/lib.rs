@@ -46,6 +46,7 @@ mod hacspec {
     use edhoc_consts::*;
     use edhoc_hacspec::*;
     use hacspec_lib::*;
+    use hex::FromHex;
 
     #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocInitiator<'a> {
@@ -115,7 +116,7 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
         ) -> Result<([u8; MESSAGE_2_LEN], u8), EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
-            let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
+            let id_cred_r = BytesIdCred::from_hex(self.id_cred_r).expect("Decoding failed");
             let mut cred_r = BytesMaxBuffer::new();
             cred_r = cred_r.update(0, &ByteSeq::from_hex(self.cred_r));
             let cred_r_len = self.cred_r.len() / 2;
@@ -140,7 +141,7 @@ mod hacspec {
             message_3: &[u8; MESSAGE_3_LEN],
         ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
-            let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
+            let id_cred_i = BytesIdCred::from_hex(self.id_cred_i).expect("Decoding failed");
             let mut cred_i = BytesMaxBuffer::new();
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
@@ -239,7 +240,7 @@ mod hacspec {
             let i = BytesP256ElemLen::from_hex(self.i);
 
             // init hacspec structs for id_cred_r and cred_r
-            let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
+            let id_cred_r = BytesIdCred::from_hex(self.id_cred_r).expect("Decoding failed");
             let mut cred_r = BytesMaxBuffer::new();
             cred_r = cred_r.update(0, &ByteSeq::from_hex(self.cred_r));
             let cred_r_len = self.cred_r.len() / 2;
@@ -271,7 +272,7 @@ mod hacspec {
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> Result<([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
             // init hacspec structs for id_cred_i and cred_i
-            let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
+            let id_cred_i = BytesIdCred::from_hex(self.id_cred_i).expect("Decoding failed");
             let mut cred_i = BytesMaxBuffer::new();
             cred_i = cred_i.update(0, &ByteSeq::from_hex(self.cred_i));
             let cred_i_len = self.cred_i.len() / 2;
