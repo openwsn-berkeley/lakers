@@ -145,6 +145,17 @@ mod hacspec {
 
     pub const C_I: U8 = U8(0x37u8);
     pub const C_R: U8 = U8(0x00u8);
+
+    // Currently only suite number 2 is supported,
+    // which corresponds to the array 10, -16, 8, 1, -7, 10, -16,
+    // which in turn corresponds to the following:
+    // - AES-CCM-16-64-128 | EDHOC AEAD algorithm
+    // - SHA-256 | EDHOC hash algorithm
+    // - 8 | MAC length in bytes
+    // - P-256 | key exchange algorithm
+    // - ES256 | signature algorithm
+    // - AES-CCM-16-64-128 | Application AEAD algorithm
+    // - SHA-256 | Application hash algorithm
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
     #[derive(Default, Copy, Clone, Debug)]
