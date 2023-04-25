@@ -27,4 +27,4 @@ jobs:
       working-directory: hacspec-v2-repo
 
     - name: Generate fstar
-      run: docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo circus -i "**" fstar"
+      run: docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-circus -i '**' fstar"
