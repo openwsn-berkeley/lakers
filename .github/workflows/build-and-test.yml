@@ -2,6 +2,8 @@ name: Build and test
 
 on:
   push:
+    branches: [main]
+    tags: 'REL-*'
   pull_request:
 
 env:
