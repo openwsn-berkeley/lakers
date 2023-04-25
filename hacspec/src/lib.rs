@@ -903,7 +903,6 @@ fn encode_kdf_context(
     for i in 0..id_cred.len() {
         output[i] = U8(id_cred[i]);
     }
-    // output = output.update(0, id_cred);
     output[id_cred.len()] = U8(CBOR_BYTE_STRING);
     output[id_cred.len() + 1] = U8(SHA256_DIGEST_LEN as u8);
     output = output.update(id_cred.len() + 2, th);
@@ -1297,7 +1296,6 @@ mod tests {
     fn test_compute_mac_3() {
         let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let id_cred_i_tv = ID_CRED_I_TV;
         let cred_i_tv =
             BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_I_TV), 0, CRED_I_TV.len() / 2);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
@@ -1305,7 +1303,7 @@ mod tests {
         let mac_3 = compute_mac_3(
             &prk_4e3m_tv,
             &th_3_tv,
-            &id_cred_i_tv,
+            &ID_CRED_I_TV,
             &cred_i_tv,
             CRED_I_TV.len() / 2, // divide by two to get num of bytes from hex string
         );
@@ -1315,7 +1313,6 @@ mod tests {
     #[test]
     fn test_compute_and_verify_mac_2() {
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
-        let id_cred_r_tv = ID_CRED_R_TV;
         let cred_r_tv =
             BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_R_TV), 0, CRED_R_TV.len() / 2);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
@@ -1323,7 +1320,7 @@ mod tests {
 
         let rcvd_mac_2 = compute_mac_2(
             &prk_3e2m_tv,
-            &id_cred_r_tv,
+            &ID_CRED_R_TV,
             &cred_r_tv,
             CRED_R_TV.len() / 2,
             &th_2_tv,
@@ -1335,10 +1332,9 @@ mod tests {
     #[test]
     fn test_encode_plaintext_2() {
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let id_cred_r_tv = ID_CRED_R_TV;
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &BytesEad2::new());
+        let plaintext_2 = encode_plaintext_2(&ID_CRED_R_TV, &mac_2_tv, &BytesEad2::new());
 
         assert_bytes_eq!(plaintext_2, plaintext_2_tv);
     }
@@ -1350,14 +1346,13 @@ mod tests {
             0,
             PLAINTEXT_2_TV.len() / 2,
         );
-        let id_cred_r_tv = ID_CRED_R_TV;
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
         let ead_2_tv = BytesEad2::new();
 
         let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
         assert!(plaintext_2.is_ok());
         let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
-        assert_eq!(id_cred_r, id_cred_r_tv[3]);
+        assert_eq!(id_cred_r, ID_CRED_R_TV[3]);
         assert_bytes_eq!(mac_2, mac_2_tv);
         assert_bytes_eq!(ead_2, ead_2_tv);
 
@@ -1431,11 +1426,10 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_3() {
-        let id_cred_i_tv = ID_CRED_I_TV;
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
+        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &mac_3_tv);
         assert_bytes_eq!(plaintext_3, plaintext_3_tv);
     }
 
@@ -1443,8 +1437,7 @@ mod tests {
     fn test_decode_plaintext_3() {
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
-        let kid_tv = ID_CRED_I_TV;
-        let kid_tv = kid_tv[kid_tv.len() - 1];
+        let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
 
         let (kid, mac_3) = decode_plaintext_3(&plaintext_3_tv);
 
