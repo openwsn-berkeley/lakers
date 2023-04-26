@@ -24,11 +24,8 @@ pub fn edhoc_exporter(
         _th_3,
     ) = state;
 
-    let mut output = BytesMaxBuffer::new();
-    let mut error = EDHOCError::UnknownError;
-
     if current_state == EDHOCState::Completed {
-        output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
+        let output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
         Ok((state, output))
     } else {
         Err(EDHOCError::WrongState)
@@ -43,17 +40,17 @@ pub fn r_process_message_1(
     let State(
         mut current_state,
         _y,
-        mut c_i,
-        g_x,
+        _c_i,
+        _g_x,
         _prk_3e2m,
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
-        mut h_message_1,
+        _h_message_1,
         _th_3,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let error;
 
     if current_state == EDHOCState::Start {
         // Step 1: decode message_1
@@ -68,7 +65,7 @@ pub fn r_process_message_1(
                 // TODO we do not support EAD for now
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                h_message_1 = sha256_digest(
+                let h_message_1 = sha256_digest(
                     &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
                     message_1.len(),
                 );
@@ -126,15 +123,15 @@ pub fn r_prepare_message_2(
         mut _y,
         _c_i,
         g_x,
-        mut prk_3e2m,
+        _prk_3e2m,
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
         h_message_1,
-        mut th_3,
+        _th_3,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let error;
     let mut message_2 = BytesMessage2::new();
     let mut c_r = U8(0xffu8); // invalid c_r
 
@@ -148,7 +145,7 @@ pub fn r_prepare_message_2(
         // compute prk_3e2m
         let prk_2e = compute_prk_2e(&y, &g_x, &th_2);
         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
-        prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
+        let prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
@@ -158,7 +155,7 @@ pub fn r_prepare_message_2(
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
+        let th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
         let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
             &prk_2e,
@@ -214,14 +211,14 @@ pub fn r_process_message_3(
         _c_i,
         _g_x,
         prk_3e2m,
-        mut prk_4e3m,
+        _prk_4e3m,
         mut prk_out,
         mut prk_exporter,
         _h_message_1,
         th_3,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let mut error;
 
     if current_state == EDHOCState::WaitMessage3 {
         let plaintext_3 = decrypt_message_3(&prk_3e2m, &th_3, message_3);
@@ -235,7 +232,7 @@ pub fn r_process_message_3(
                 // compute salt_4e3m
                 let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                 // compute prk_4e3m
-                prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+                let prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
 
                 // compute mac_3
                 let expected_mac_3 = compute_mac_3(
@@ -329,17 +326,17 @@ pub fn i_prepare_message_1(
     let State(
         mut current_state,
         mut _x,
-        mut c_i,
+        _c_i,
         _g_y,
         _prk_3e2m,
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
-        mut h_message_1,
+        _h_message_1,
         _th_3,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let error;
 
     let mut message_1 = BytesMessage1::new();
 
@@ -348,13 +345,13 @@ pub fn i_prepare_message_1(
         let selected_suites = EDHOC_SUPPORTED_SUITES;
 
         // Choose a connection identifier C_I and store it for the length of the protocol.
-        c_i = C_I;
+        let c_i = C_I;
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(U8(EDHOC_METHOD), &selected_suites, &g_x, c_i);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(
+        let h_message_1 = sha256_digest(
             &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
             message_1.len(),
         );
@@ -399,19 +396,19 @@ pub fn i_process_message_2(
         mut current_state,
         x,
         _c_i,
-        g_y,
-        mut prk_3e2m,
-        mut prk_4e3m,
+        _g_y,
+        _prk_3e2m,
+        _prk_4e3m,
         _prk_out,
         _prk_exporter,
         h_message_1,
-        mut th_3,
+        _th_3,
     ) = state;
 
     // init error
-    let mut error = EDHOCError::UnknownError;
+    let error: EDHOCError;
     let mut c_r = U8(0xffu8); // invalidate c_r
-    let mut kid = U8(0xffu8); // invalidate kid
+    let kid = U8(0xffu8); // invalidate kid
 
     if current_state == EDHOCState::WaitMessage2 {
         let (g_y, ciphertext_2, c_r_2) = parse_message_2(message_2);
@@ -434,7 +431,7 @@ pub fn i_process_message_2(
             // verify mac_2
             let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-            prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+            let prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
             let expected_mac_2 = compute_mac_2(
                 &prk_3e2m,
@@ -450,7 +447,7 @@ pub fn i_process_message_2(
                 {
                     // step is actually from processing of message_3
                     // but we do it here to avoid storing plaintext_2 in State
-                    th_3 = compute_th_3(
+                    let th_3 = compute_th_3(
                         &th_2,
                         &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
                         cred_r_expected,
@@ -460,7 +457,7 @@ pub fn i_process_message_2(
 
                     let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                    prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                    let prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
                     error = EDHOCError::Success;
                     current_state = EDHOCState::ProcessedMessage2;
@@ -524,7 +521,7 @@ pub fn i_prepare_message_3(
         th_3,
     ) = state;
 
-    let mut error = EDHOCError::UnknownError;
+    let error: EDHOCError;
     let mut message_3 = BytesMessage3::new();
 
     if current_state == EDHOCState::ProcessedMessage2 {
@@ -726,7 +723,7 @@ fn edhoc_kdf(
     length: usize,
 ) -> BytesMaxBuffer {
     let mut info = BytesMaxInfoBuffer::new();
-    let mut info_len = 0;
+    let mut info_len;
 
     // construct info with inline cbor encoding
     info[0] = label;
@@ -857,7 +854,7 @@ fn decrypt_message_3(
     th_3: &BytesHashLen,
     message_3: &BytesMessage3,
 ) -> Result<BytesPlaintext3, EDHOCError> {
-    let mut error = EDHOCError::UnknownError;
+    let error: EDHOCError;
     let mut plaintext_3 = BytesPlaintext3::new();
 
     // decode message_3
