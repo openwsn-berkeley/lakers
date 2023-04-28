@@ -32,6 +32,8 @@ fn main() -> ! {
     rtt_init_print!();
 
     // Initialize the allocator BEFORE you use it
+    // The hacspec version does some allocations in the heap
+    #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
     {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 1 << 10;
@@ -39,6 +41,7 @@ fn main() -> ! {
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
 
+    // Memory buffer for mbedtls
     #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
     #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
