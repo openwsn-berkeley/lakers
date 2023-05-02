@@ -33,6 +33,23 @@ mod common {
         UnknownError = 7,
     }
 
+    #[derive(PartialEq, Debug)]
+    pub enum EDHOCSuite {
+        CipherSuite0 = 0,
+        CipherSuite1 = 1,
+        CipherSuite2 = 2,
+        CipherSuite3 = 3,
+        CipherSuite4 = 4,
+        CipherSuite5 = 5,
+        CipherSuite6 = 6,
+        CipherSuite24 = 24,
+        CipherSuite25 = 25,
+        CipherSuitePrivMinus21 = -21,
+        CipherSuitePrivMinus22 = -22,
+        CipherSuitePrivMinus23 = -23,
+        CipherSuitePrivMinus24 = -24,
+    }
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
     pub const MESSAGE_1_LEN: usize = 37;

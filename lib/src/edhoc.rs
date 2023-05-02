@@ -564,12 +564,28 @@ fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
 ) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
     let method = rcvd_message_1[0];
-    // FIXME as we only support a fixed-sized incoming message_1,
-    // we parse directly the selected cipher suite
+    // // FIXME as we only support a fixed-sized incoming message_1,
+    // // we parse directly the selected cipher suite
     let mut selected_suite: BytesSupportedSuites = [0x00; SUPPORTED_SUITES_LEN];
-    selected_suite[..].copy_from_slice(&rcvd_message_1[1..2]);
+
+    let suites_size =
+        match rcvd_message_1[1] {
+            0x00..=0x17 => {
+                selected_suite[..].copy_from_slice(&rcvd_message_1[1..2]);
+                1
+            },
+            0x80..=0x97 => {
+                let suites_size: usize = (rcvd_message_1[1] - 0x80).into();
+                // FIXME: will fail if suites_size > SUPPORTED_SUITES_LEN
+                selected_suite[..].copy_from_slice(&rcvd_message_1[2..2+suites_size]);
+                suites_size + 1
+            },
+            _ => panic!("Invalid CBOR encoding of the selected cipher suite"),
+        };
+    // TODO: check if selected_suite satisfies EDHOC requirements (EDHOCSuite)
+
     let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    g_x.copy_from_slice(&rcvd_message_1[4..4 + P256_ELEM_LEN]);
+    g_x.copy_from_slice(&rcvd_message_1[suites_size + 3..suites_size + 3 + P256_ELEM_LEN]);
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
     (method, selected_suite, g_x, c_i)
@@ -1045,6 +1061,9 @@ mod tests {
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: BytesMessage1 =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    // // manually modified test vector to include a single supported cipher suite, encoded as array
+    // const MESSAGE_1_TV_B: BytesMessage1 =
+    //     hex!("03810258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;
@@ -1112,6 +1131,8 @@ mod tests {
         assert_eq!(supported_suites, SUITES_I_TV);
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
+
+        // let (method, supported_suites, g_x, c_i) = parse_message_1(&MESSAGE_1_TV_B);
     }
 
     #[test]
