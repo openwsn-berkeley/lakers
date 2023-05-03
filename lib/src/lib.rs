@@ -372,7 +372,7 @@ mod rust {
 
         pub fn process_message_1(
             self: &mut RustEdhocResponder<'a>,
-            message_1: &[u8; MAX_MESSAGE_SIZE_LEN],
+            message_1: &BytesMessage1,
         ) -> Result<(), EDHOCError> {
             let state = r_process_message_1(self.state, message_1)?;
             self.state = state;
@@ -604,7 +604,7 @@ mod test {
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&MESSAGE_1_TV.content);
+        let error = responder.process_message_1(&MESSAGE_1_TV);
 
         assert!(error.is_ok());
     }
@@ -634,9 +634,8 @@ mod test {
 
         let result = initiator.prepare_message_1(); // to update the state
         assert!(result.is_ok());
-        let message_1 = result.unwrap();
 
-        let error = responder.process_message_1(&message_1.content);
+        let error = responder.process_message_1(&result.unwrap());
         assert!(error.is_ok());
 
         let ret = responder.prepare_message_2();

@@ -36,7 +36,7 @@ pub fn edhoc_exporter(
 
 pub fn r_process_message_1(
     mut state: State,
-    message_1: &[u8; MAX_MESSAGE_SIZE_LEN],
+    message_1: &BytesMessage1,
 ) -> Result<State, EDHOCError> {
     let State(
         mut current_state,
@@ -67,8 +67,9 @@ pub fn r_process_message_1(
 
                         // hash message_1 and save the hash to the state to avoid saving the whole message
                         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                        message_1_buf[..message_1.len()].copy_from_slice(&message_1[..]);
-                        h_message_1 = sha256_digest(&message_1_buf, message_1.len());
+                        message_1_buf[..message_1.len]
+                            .copy_from_slice(&message_1.content[..message_1.len]);
+                        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
                         error = EDHOCError::Success;
                         current_state = EDHOCState::ProcessedMessage1;
@@ -326,10 +327,10 @@ pub fn i_prepare_message_1(
         message_1 = encode_message_1(EDHOC_METHOD, &selected_suites, &g_x, c_i);
 
         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        message_1_buf[..message_1.content.len()].copy_from_slice(&message_1.content[..]);
+        message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(&message_1_buf, message_1.content.len());
+        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
 
@@ -563,24 +564,24 @@ pub fn construct_state(
 }
 
 fn parse_message_1(
-    rcvd_message_1: &[u8; MAX_MESSAGE_SIZE_LEN],
+    rcvd_message_1: &BytesMessage1,
 ) -> Result<(U8, BytesSupportedSuites, BytesP256ElemLen, U8), EDHOCError> {
-    let method = rcvd_message_1[0];
+    let method = rcvd_message_1.content[0];
 
     let mut proposed_suites: BytesSuites = [0xff; SUITES_LEN];
-    let proposed_suites_len = match rcvd_message_1[1] {
+    let proposed_suites_len = match rcvd_message_1.content[1] {
         0x00..=0x17 => {
-            proposed_suites[0] = rcvd_message_1[1];
+            proposed_suites[0] = rcvd_message_1.content[1];
             1
         }
         0x18 => {
-            proposed_suites[0] = rcvd_message_1[2];
+            proposed_suites[0] = rcvd_message_1.content[2];
             2
         }
         0x80..=0x97 => {
-            let proposed_suites_len: usize = (rcvd_message_1[1] - 0x80).into();
+            let proposed_suites_len: usize = (rcvd_message_1.content[1] - 0x80).into();
             for i in 0..proposed_suites_len {
-                proposed_suites[i] = rcvd_message_1[2 + i];
+                proposed_suites[i] = rcvd_message_1.content[2 + i];
             }
             proposed_suites_len + 1
         }
@@ -601,9 +602,14 @@ fn parse_message_1(
 
     let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
     g_x.copy_from_slice(
-        &rcvd_message_1[3 + proposed_suites_len..3 + proposed_suites_len + P256_ELEM_LEN],
+        &rcvd_message_1.content[3 + proposed_suites_len..3 + proposed_suites_len + P256_ELEM_LEN],
     );
-    let c_i = rcvd_message_1[3 + proposed_suites_len + P256_ELEM_LEN];
+    let c_i = rcvd_message_1.content[3 + proposed_suites_len + P256_ELEM_LEN];
+
+    // check that the message is of the correct length
+    if rcvd_message_1.len != (3 + proposed_suites_len + P256_ELEM_LEN + 1) {
+        return Err(EDHOCError::ParsingError);
+    }
 
     Ok((method, selected_suites, g_x, c_i))
 }
@@ -1153,7 +1159,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_1() {
-        let result = parse_message_1(&MESSAGE_1_TV.content);
+        let result = parse_message_1(&MESSAGE_1_TV);
         assert!(result.is_ok());
         let (method, supported_suites, g_x, c_i) = result.unwrap();
 
@@ -1162,11 +1168,10 @@ mod tests {
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
 
-        let (method, supported_suites, g_x, c_i) =
-            parse_message_1(&MESSAGE_1_TV_B.content).unwrap();
+        let (method, supported_suites, g_x, c_i) = parse_message_1(&MESSAGE_1_TV_B).unwrap();
         assert_eq!(supported_suites, SUITES_I_TV);
 
-        let ret = parse_message_1(&MESSAGE_1_TV_E.content);
+        let ret = parse_message_1(&MESSAGE_1_TV_E);
         assert_eq!(ret, Err(EDHOCError::UnsupportedCipherSuite));
     }
 

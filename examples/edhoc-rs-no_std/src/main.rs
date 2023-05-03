@@ -132,7 +132,7 @@ fn main() -> ! {
         assert!(ret.is_ok());
         let message_1 = ret.unwrap();
 
-        let ret = responder.process_message_1(&message_1.content);
+        let ret = responder.process_message_1(&message_1);
         assert!(ret.is_ok());
 
         let ret = responder.prepare_message_2();
