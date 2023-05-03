@@ -382,7 +382,7 @@ mod rust {
 
         pub fn prepare_message_2(
             self: &mut RustEdhocResponder<'a>,
-        ) -> Result<([u8; MESSAGE_2_LEN], u8), EDHOCError> {
+        ) -> Result<(BytesMessage2, u8), EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
@@ -490,7 +490,7 @@ mod rust {
 
         pub fn process_message_2(
             self: &mut RustEdhocInitiator<'a>,
-            message_2: &[u8; MESSAGE_2_LEN],
+            message_2: &BytesMessage2,
         ) -> Result<u8, EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])

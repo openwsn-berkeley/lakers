@@ -74,6 +74,7 @@ mod common {
 mod rust {
     use super::common::*;
 
+    #[derive(PartialEq, Debug)]
     pub struct EdhocMessageBuffer {
         pub content: [u8; MAX_MESSAGE_SIZE_LEN],
         pub len: usize,
@@ -96,17 +97,17 @@ mod rust {
     pub type Bytes8 = [u8; 8];
     pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
-    pub type BytesPlaintext2 = [u8; PLAINTEXT_2_LEN];
+    pub type BytesPlaintext2 = EdhocMessageBuffer;
     pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
     pub type BytesMessage1 = EdhocMessageBuffer;
     pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
-    pub type BytesCiphertext2 = [u8; CIPHERTEXT_2_LEN];
+    pub type BytesCiphertext2 = EdhocMessageBuffer;
     pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
     pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
     pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
-    pub type BytesMessage2 = [u8; MESSAGE_2_LEN];
+    pub type BytesMessage2 = EdhocMessageBuffer;
     pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
     pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
     pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];

@@ -170,6 +170,7 @@ fn main() -> ! {
 
     test_handshake();
     println!("Test test_handshake passed.");
+    println!("All tests passed.");
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);
