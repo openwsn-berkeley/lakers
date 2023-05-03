@@ -33,24 +33,8 @@ mod common {
         UnknownError = 7,
     }
 
-    #[derive(PartialEq, Debug)]
-    pub enum EDHOCSuite {
-        CipherSuite0 = 0,
-        CipherSuite1 = 1,
-        CipherSuite2 = 2,
-        CipherSuite3 = 3,
-        CipherSuite4 = 4,
-        CipherSuite5 = 5,
-        CipherSuite6 = 6,
-        CipherSuite24 = 24,
-        CipherSuite25 = 25,
-        CipherSuitePrivMinus21 = -21,
-        CipherSuitePrivMinus22 = -22,
-        CipherSuitePrivMinus23 = -23,
-        CipherSuitePrivMinus24 = -24,
-    }
-
     pub const ID_CRED_LEN: usize = 4;
+    pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
     pub const MESSAGE_1_LEN: usize = 37;
     pub const MESSAGE_2_LEN: usize = 45;
@@ -92,6 +76,7 @@ mod rust {
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
+    pub type BytesSuites = [u8; SUITES_LEN];
     pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
     pub type Bytes8 = [u8; 8];
     pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
@@ -115,6 +100,7 @@ mod rust {
 
     pub const C_I: u8 = 0x37u8;
     pub const C_R: u8 = 0x00u8;
+    pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
     #[derive(Default, Copy, Clone, Debug)]

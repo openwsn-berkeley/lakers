@@ -564,31 +564,38 @@ fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
 ) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
     let method = rcvd_message_1[0];
-    // // FIXME as we only support a fixed-sized incoming message_1,
-    // // we parse directly the selected cipher suite
-    let mut selected_suite: BytesSupportedSuites = [0x00; SUPPORTED_SUITES_LEN];
+    let mut selected_suites: BytesSupportedSuites = [0x00; SUPPORTED_SUITES_LEN];
 
     let suites_size =
         match rcvd_message_1[1] {
             0x00..=0x17 => {
-                selected_suite[..].copy_from_slice(&rcvd_message_1[1..2]);
+                selected_suites[..].copy_from_slice(&rcvd_message_1[1..2]);
+                1
+            },
+            0x18 => {
+                selected_suites[..].copy_from_slice(&rcvd_message_1[2..3]);
                 1
             },
             0x80..=0x97 => {
                 let suites_size: usize = (rcvd_message_1[1] - 0x80).into();
                 // FIXME: will fail if suites_size > SUPPORTED_SUITES_LEN
-                selected_suite[..].copy_from_slice(&rcvd_message_1[2..2+suites_size]);
+                selected_suites[..].copy_from_slice(&rcvd_message_1[2..2+suites_size]);
                 suites_size + 1
             },
             _ => panic!("Invalid CBOR encoding of the selected cipher suite"),
         };
-    // TODO: check if selected_suite satisfies EDHOC requirements (EDHOCSuite)
+
+    for selected_suite in selected_suites.iter() {
+        if !EDHOC_SUITES.contains(selected_suite) {
+            panic!("Invalid cipher suite");
+        }
+    }
 
     let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
     g_x.copy_from_slice(&rcvd_message_1[suites_size + 3..suites_size + 3 + P256_ELEM_LEN]);
     let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
 
-    (method, selected_suite, g_x, c_i)
+    (method, selected_suites, g_x, c_i)
 }
 
 fn encode_message_1(
@@ -1062,6 +1069,7 @@ mod tests {
     const MESSAGE_1_TV: BytesMessage1 =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
     // // manually modified test vector to include a single supported cipher suite, encoded as array
+    // // TODO: enable variable size messages so that we can test this
     // const MESSAGE_1_TV_B: BytesMessage1 =
     //     hex!("03810258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
     const G_Y_TV: BytesP256ElemLen =
