@@ -591,7 +591,6 @@ mod test {
         let state: EdhocState = Default::default();
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        // initiator.set_supported_suites(&[2]);
 
         let message_1 = initiator.prepare_message_1();
         assert!(message_1.is_ok());
