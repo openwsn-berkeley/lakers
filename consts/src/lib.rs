@@ -36,6 +36,7 @@ mod common {
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 120;
     pub const MESSAGE_1_LEN: usize = 37;
     pub const MESSAGE_2_LEN: usize = 45;
     pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
@@ -85,7 +86,7 @@ mod rust {
     pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
-    pub type BytesMessage1 = [u8; MESSAGE_1_LEN];
+    pub type BytesMessage1 = [u8; MAX_MESSAGE_SIZE_LEN];
     pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
     pub type BytesCiphertext2 = [u8; CIPHERTEXT_2_LEN];
     pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];

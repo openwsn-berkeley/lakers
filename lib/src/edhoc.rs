@@ -298,7 +298,7 @@ pub fn i_prepare_message_1(
     mut state: State,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
-) -> Result<(State, BytesMessage1), EDHOCError> {
+) -> Result<(State, BytesMessage1, usize), EDHOCError> {
     let State(
         mut current_state,
         mut _x,
@@ -314,7 +314,8 @@ pub fn i_prepare_message_1(
 
     let mut error = EDHOCError::UnknownError;
 
-    let mut message_1: BytesMessage1 = [0x00u8; MESSAGE_1_LEN];
+    let mut message_1: BytesMessage1 = [0x00u8; MAX_MESSAGE_SIZE_LEN];
+    let mut message_1_len: usize = 0;
 
     if current_state == EDHOCState::Start {
         // we only support a single cipher suite which is already CBOR-encoded
@@ -324,7 +325,7 @@ pub fn i_prepare_message_1(
         c_i = C_I;
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-        message_1 = encode_message_1(EDHOC_METHOD, &selected_suites, &g_x, c_i);
+        (message_1, message_1_len) = encode_message_1(EDHOC_METHOD, &selected_suites, &g_x, c_i);
 
         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
         message_1_buf[..message_1.len()].copy_from_slice(&message_1[..]);
@@ -351,7 +352,7 @@ pub fn i_prepare_message_1(
     }
 
     match error {
-        EDHOCError::Success => Ok((state, message_1)),
+        EDHOCError::Success => Ok((state, message_1, message_1_len)),
         _ => Err(error),
     }
 }
@@ -614,8 +615,8 @@ fn encode_message_1(
     suites: &BytesSupportedSuites,
     g_x: &BytesP256ElemLen,
     c_i: U8,
-) -> BytesMessage1 {
-    let mut output: BytesMessage1 = [0x00; MESSAGE_1_LEN];
+) -> (BytesMessage1, usize) {
+    let mut output: BytesMessage1 = [0x00; MAX_MESSAGE_SIZE_LEN];
 
     output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
     output[1] = suites[0];
@@ -624,7 +625,7 @@ fn encode_message_1(
     output[4..4 + P256_ELEM_LEN].copy_from_slice(&g_x[..]);
     output[4 + P256_ELEM_LEN] = c_i;
 
-    output
+    (output, 37) // FIXME: actually calculate the length
 }
 
 fn parse_message_2(rcvd_message_2: &BytesMessage2) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
@@ -1078,7 +1079,7 @@ mod tests {
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: BytesMessage1 =
-        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
     // // manually modified test vector to include a single supported cipher suite, encoded as array
     // // TODO: enable variable size messages so that we can test this
     // const MESSAGE_1_TV_B: BytesMessage1 =
@@ -1137,8 +1138,9 @@ mod tests {
 
     #[test]
     fn test_encode_message_1() {
-        let message_1 = encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV);
+        let (message_1, message_1_len) = encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV);
 
+        assert_eq!(message_1_len, 37);
         assert_eq!(message_1, MESSAGE_1_TV);
     }
 

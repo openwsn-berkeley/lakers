@@ -128,10 +128,11 @@ fn main() -> ! {
             CRED_R,
         );
 
-        let message_1 = initiator.prepare_message_1(); // to update the state
-        assert!(message_1.is_ok());
+        let ret = initiator.prepare_message_1(); // to update the state
+        assert!(ret.is_ok());
+        let (message_1, _len) = ret.unwrap();
 
-        let ret = responder.process_message_1(&message_1.unwrap());
+        let ret = responder.process_message_1(&message_1);
         assert!(ret.is_ok());
 
         let ret = responder.prepare_message_2();

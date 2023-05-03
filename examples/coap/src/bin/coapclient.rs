@@ -22,7 +22,7 @@ fn main() {
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
-    let message_1 = initiator.prepare_message_1().unwrap();
+    let (message_1, message_1_len) = initiator.prepare_message_1().unwrap();
     msg_1_buf.extend_from_slice(&message_1);
 
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
