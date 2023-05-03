@@ -476,13 +476,13 @@ mod rust {
 
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<([u8; MAX_MESSAGE_SIZE_LEN], usize), EDHOCError> {
+        ) -> Result<BytesMessage1, EDHOCError> {
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             match i_prepare_message_1(self.state, x, g_x) {
-                Ok((state, message_1, message_1_len)) => {
+                Ok((state, message_1)) => {
                     self.state = state;
-                    Ok((message_1, message_1_len))
+                    Ok(message_1)
                 }
                 Err(error) => Err(error),
             }
@@ -571,8 +571,10 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: [u8; MAX_MESSAGE_SIZE_LEN] =
-        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+    const MESSAGE_1_TV: BytesMessage1 = BytesMessage1 {
+        content: hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 37,
+    };
 
     #[test]
     fn test_new_initiator() {
@@ -602,7 +604,7 @@ mod test {
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&MESSAGE_1_TV);
+        let error = responder.process_message_1(&MESSAGE_1_TV.content);
 
         assert!(error.is_ok());
     }
@@ -632,9 +634,9 @@ mod test {
 
         let result = initiator.prepare_message_1(); // to update the state
         assert!(result.is_ok());
-        let (message_1, message_1_len) = result.unwrap();
+        let message_1 = result.unwrap();
 
-        let error = responder.process_message_1(&message_1);
+        let error = responder.process_message_1(&message_1.content);
         assert!(error.is_ok());
 
         let ret = responder.prepare_message_2();

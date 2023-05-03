@@ -130,9 +130,9 @@ fn main() -> ! {
 
         let ret = initiator.prepare_message_1(); // to update the state
         assert!(ret.is_ok());
-        let (message_1, _len) = ret.unwrap();
+        let message_1 = ret.unwrap();
 
-        let ret = responder.process_message_1(&message_1);
+        let ret = responder.process_message_1(&message_1.content);
         assert!(ret.is_ok());
 
         let ret = responder.prepare_message_2();

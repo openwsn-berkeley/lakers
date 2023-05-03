@@ -37,7 +37,6 @@ mod common {
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
     pub const MAX_MESSAGE_SIZE_LEN: usize = 120;
-    pub const MESSAGE_1_LEN: usize = 37;
     pub const MESSAGE_2_LEN: usize = 45;
     pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
@@ -74,6 +73,21 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
+
+    pub struct EdhocMessageBuffer {
+        pub content: [u8; MAX_MESSAGE_SIZE_LEN],
+        pub len: usize,
+    }
+
+    impl Default for EdhocMessageBuffer {
+        fn default() -> Self {
+            EdhocMessageBuffer {
+                content: [0u8; MAX_MESSAGE_SIZE_LEN],
+                len: 0,
+            }
+        }
+    }
+
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
@@ -86,7 +100,8 @@ mod rust {
     pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
-    pub type BytesMessage1 = [u8; MAX_MESSAGE_SIZE_LEN];
+    // pub type BytesMessage1 = [u8; MAX_MESSAGE_SIZE_LEN];
+    pub type BytesMessage1 = EdhocMessageBuffer;
     pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
     pub type BytesCiphertext2 = [u8; CIPHERTEXT_2_LEN];
     pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
@@ -123,6 +138,8 @@ mod rust {
 mod hacspec {
     use super::common::*;
     use hacspec_lib::*;
+
+    pub const MESSAGE_1_LEN: usize = 37;
 
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);
