@@ -623,7 +623,7 @@ fn encode_message_1(
     output.content[4..4 + P256_ELEM_LEN].copy_from_slice(&g_x[..]);
     output.content[4 + P256_ELEM_LEN] = c_i;
 
-    output.len = 37; // FIXME: actually calculate the length
+    output.len = 4 + P256_ELEM_LEN + 1;
     output
 }
 
@@ -1081,10 +1081,16 @@ mod tests {
         content: hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
         len: 37,
     };
-    // // manually modified test vector to include a single supported cipher suite, encoded as array
-    // // TODO: enable variable size messages so that we can test this
-    // const MESSAGE_1_TV_B: BytesMessage1 =
-    //     hex!("03810258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    // manually modified test vector to include two supported cipher suites (02 and 03), encoded as array
+    const MESSAGE_1_TV_B: BytesMessage1 = BytesMessage1 {
+        content: hex!("0382020358208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 39,
+    };
+    // manually modified test vector to include a single cipher suite encoded as 0x1818, which is not supported by this implementation
+    const MESSAGE_1_TV_E: BytesMessage1 = BytesMessage1 {
+        content: hex!("03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 38,
+    };
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;
@@ -1155,6 +1161,13 @@ mod tests {
         assert_eq!(supported_suites, SUITES_I_TV);
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
+
+        let (method, supported_suites, g_x, c_i) =
+            parse_message_1(&MESSAGE_1_TV_B.content).unwrap();
+        assert_eq!(supported_suites, SUITES_I_TV);
+
+        let ret = parse_message_1(&MESSAGE_1_TV_E.content);
+        assert_eq!(ret, Err(EDHOCError::UnsupportedCipherSuite));
     }
 
     #[test]
