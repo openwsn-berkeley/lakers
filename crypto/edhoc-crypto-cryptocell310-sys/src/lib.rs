@@ -361,7 +361,7 @@ mod rust {
         ad: &BytesEncStructureLen,
         plaintext: &BytesPlaintext3,
     ) -> BytesCiphertext3 {
-        let mut output = [0x0u8; CIPHERTEXT_3_LEN];
+        let mut output: BytesCiphertext3 = BytesCiphertext3::default();
         let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
@@ -378,14 +378,16 @@ mod rust {
                 ad.len() as u32,
                 plaintext.content.clone().as_mut_ptr(),
                 plaintext.len as u32,
-                output.as_mut_ptr(),
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
                 0 as u32, // CCM
             )
         };
 
-        output[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
+            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.len = plaintext.len + AES_CCM_TAG_LEN;
 
         output
     }
@@ -412,21 +414,22 @@ mod rust {
                 iv.len() as u8,
                 ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                ciphertext.clone().as_mut_ptr(),
-                (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
+                ciphertext.content.clone().as_mut_ptr(),
+                (ciphertext.len - AES_CCM_TAG_LEN) as u32,
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext.clone()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                ciphertext.content.clone()[ciphertext.len - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
                 CRYS_OK => {
-                    output.len = ciphertext.len() - AES_CCM_TAG_LEN;
+                    output.len = ciphertext.len - AES_CCM_TAG_LEN;
                     Ok(output)
-                },
+                }
                 _ => Err(EDHOCError::MacVerificationFailed),
             }
         }
     }
+
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,

@@ -728,7 +728,8 @@ fn compute_th_4(
     message[0] = CBOR_BYTE_STRING;
     message[1] = th_3.len() as u8;
     message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
-    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len].copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
+    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len]
+        .copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
     message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i_len]
         .copy_from_slice(&cred_i[..cred_i_len]);
 
@@ -853,12 +854,9 @@ fn encrypt_message_3(
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    output.content[1..output.len].copy_from_slice(&aes_ccm_encrypt_tag_8(
-        &k_3,
-        &iv_3,
-        &enc_structure,
-        plaintext_3,
-    ));
+    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+
+    output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
 
     output
 }
@@ -872,29 +870,25 @@ fn decrypt_message_3(
     let mut plaintext_3: BytesPlaintext3 = BytesPlaintext3::default();
 
     // decode message_3
-    let len = message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING;
+    let len = (message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING) as usize;
 
-    // compare parsed length with the expected length of the ciphertext
-    if len as usize == CIPHERTEXT_3_LEN {
-        let mut ciphertext_3: BytesCiphertext3 = [0x00; CIPHERTEXT_3_LEN];
-        ciphertext_3[..].copy_from_slice(&message_3.content[1..1 + CIPHERTEXT_3_LEN]);
+    let mut ciphertext_3: BytesCiphertext3 = BytesCiphertext3::default();
+    ciphertext_3.len = len;
+    ciphertext_3.content[..len].copy_from_slice(&message_3.content[1..1 + len]);
 
-        let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-        let enc_structure = encode_enc_structure(th_3);
+    let enc_structure = encode_enc_structure(th_3);
 
-        let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+    let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
-        if p3.is_ok() {
-            error = EDHOCError::Success;
-            let p3 = p3.unwrap();
-            plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
-            plaintext_3.len = p3.len;
-        } else {
-            error = p3.err().expect("error handling error");
-        }
+    if p3.is_ok() {
+        error = EDHOCError::Success;
+        let p3 = p3.unwrap();
+        plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
+        plaintext_3.len = p3.len;
     } else {
-        error = EDHOCError::ParsingError;
+        error = p3.err().expect("error handling error");
     }
 
     match error {
@@ -1138,7 +1132,10 @@ mod tests {
         hex!("9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c");
     const TH_3_TV: BytesHashLen =
         hex!("b778f602331ff68ac402a6511b9de285bedf6eab3e9ed12dfe22a53eeda7de48");
-    const CIPHERTEXT_3_TV: BytesCiphertext3 = hex!("c2b62835dc9b1f53419c1d3a2261eeed3505");
+    const CIPHERTEXT_3_TV: BytesCiphertext2 = BytesCiphertext2 {
+        content: hex!("c2b62835dc9b1f53419c1d3a2261eeed3505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 18,
+    };
     const TH_4_TV: BytesHashLen =
         hex!("1f57dabf8f26da0657d9840c9b1077c1d4c47db243a8b41360a98ec4cb706b70");
     const PRK_2E_TV: BytesP256ElemLen =

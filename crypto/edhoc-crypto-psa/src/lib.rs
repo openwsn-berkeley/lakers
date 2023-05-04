@@ -379,10 +379,19 @@ mod rust {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
+        let mut output_buffer: BytesCiphertext3 = BytesCiphertext3::default();
 
-        aead::encrypt(my_key, alg, iv, ad, &plaintext.content[..plaintext.len], &mut output_buffer).unwrap();
+        aead::encrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            &plaintext.content[..plaintext.len],
+            &mut output_buffer.content,
+        )
+        .unwrap();
 
+        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
         output_buffer
     }
 
@@ -413,14 +422,22 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: BytesPlaintext3 = BytesPlaintext3::default();
 
-        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
+        match aead::decrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            &ciphertext.content[..ciphertext.len],
+            &mut output_buffer.content,
+        ) {
             Ok(_) => {
-                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
+                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
                 Ok(output_buffer)
-            },
+            }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
+
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,

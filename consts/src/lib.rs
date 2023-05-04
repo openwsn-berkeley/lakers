@@ -104,7 +104,7 @@ mod rust {
     pub type BytesMessage1 = EdhocMessageBuffer;
     pub type BytesMessage3 = EdhocMessageBuffer;
     pub type BytesCiphertext2 = EdhocMessageBuffer;
-    pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
+    pub type BytesCiphertext3 = EdhocMessageBuffer;
     pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
     pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
     pub type BytesMessage2 = EdhocMessageBuffer;
