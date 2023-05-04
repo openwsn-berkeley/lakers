@@ -493,7 +493,7 @@ pub fn i_prepare_message_3(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-    let mut message_3: BytesMessage3 = [0x00; MESSAGE_3_LEN];
+    let mut message_3: BytesMessage3 = BytesMessage3::default();
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
@@ -838,20 +838,20 @@ fn compute_k_3_iv_3(
 }
 
 // calculates ciphertext_3 wrapped in a cbor byte string
-// output must hold MESSAGE_3_LEN
 fn encrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
-    let mut output: BytesMessage3 = [0x00; MESSAGE_3_LEN];
-    output[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
+    let mut output: BytesMessage3 = BytesMessage3::default();
+    output.content[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
+    output.len = 1 + PLAINTEXT_3_LEN + AES_CCM_TAG_LEN; // FIXME
 
     let enc_structure = encode_enc_structure(th_3);
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    output[1..].copy_from_slice(&aes_ccm_encrypt_tag_8(
+    output.content[1..output.len].copy_from_slice(&aes_ccm_encrypt_tag_8(
         &k_3,
         &iv_3,
         &enc_structure,
@@ -870,12 +870,12 @@ fn decrypt_message_3(
     let mut plaintext_3: BytesPlaintext3 = [0x00; PLAINTEXT_3_LEN];
 
     // decode message_3
-    let len = message_3[0usize] ^ CBOR_MAJOR_BYTE_STRING;
+    let len = message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING;
 
     // compare parsed length with the expected length of the ciphertext
     if len as usize == CIPHERTEXT_3_LEN {
         let mut ciphertext_3: BytesCiphertext3 = [0x00; CIPHERTEXT_3_LEN];
-        ciphertext_3[..].copy_from_slice(&message_3[1..1 + CIPHERTEXT_3_LEN]);
+        ciphertext_3[..].copy_from_slice(&message_3.content[1..1 + CIPHERTEXT_3_LEN]);
 
         let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
@@ -1146,7 +1146,10 @@ mod tests {
     const MAC_2_TV: BytesMac2 = hex!("d0d1a594797d0aaf");
     const ID_CRED_I_TV: BytesIdCred = hex!("a104412b");
     const MAC_3_TV: BytesMac3 = hex!("ddf106b86fd22fe4");
-    const MESSAGE_3_TV: BytesMessage3 = hex!("52c2b62835dc9b1f53419c1d3a2261eeed3505");
+    const MESSAGE_3_TV: BytesMessage1 = BytesMessage1 {
+        content: hex!("52c2b62835dc9b1f53419c1d3a2261eeed35050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 19,
+    };
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("7d0159bbe45473c9402e0d42dbceb45dca05b744cae1e083e58315b8aa47ceec");
     const CRED_I_TV : [u8; 107] = hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");

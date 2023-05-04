@@ -102,7 +102,7 @@ mod rust {
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
     pub type BytesMessage1 = EdhocMessageBuffer;
-    pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
+    pub type BytesMessage3 = EdhocMessageBuffer;
     pub type BytesCiphertext2 = EdhocMessageBuffer;
     pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
     pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
