@@ -381,7 +381,7 @@ mod rust {
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
 
-        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer).unwrap();
+        aead::encrypt(my_key, alg, iv, ad, &plaintext.content[..plaintext.len], &mut output_buffer).unwrap();
 
         output_buffer
     }
@@ -411,10 +411,13 @@ mod rust {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
+        let mut output_buffer: BytesPlaintext3 = BytesPlaintext3::default();
 
-        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer) {
-            Ok(_) => Ok(output_buffer),
+        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
+            Ok(_) => {
+                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
+                Ok(output_buffer)
+            },
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }

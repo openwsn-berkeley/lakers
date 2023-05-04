@@ -98,7 +98,7 @@ mod rust {
     pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
     pub type BytesPlaintext2 = EdhocMessageBuffer;
-    pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
+    pub type BytesPlaintext3 = EdhocMessageBuffer;
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
     pub type BytesMessage1 = EdhocMessageBuffer;

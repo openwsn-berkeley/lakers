@@ -376,8 +376,8 @@ mod rust {
                 iv.len() as u8,
                 ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.clone().as_mut_ptr(),
-                plaintext.len() as u32,
+                plaintext.content.clone().as_mut_ptr(),
+                plaintext.len as u32,
                 output.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
@@ -396,13 +396,12 @@ mod rust {
         ad: &BytesEncStructureLen,
         ciphertext: &BytesCiphertext3,
     ) -> Result<BytesPlaintext3, EDHOCError> {
-        let mut output = [0x0u8; PLAINTEXT_3_LEN];
+        let mut output: BytesPlaintext3 = BytesPlaintext3::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
 
         let mut err = EDHOCError::MacVerificationFailed;
-        let mut plaintext: BytesPlaintext3 = [0x00u8; PLAINTEXT_3_LEN];
 
         unsafe {
             match CC_AESCCM(
@@ -415,12 +414,15 @@ mod rust {
                 ad.len() as u32,
                 ciphertext.clone().as_mut_ptr(),
                 (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
-                output.as_mut_ptr(),
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 ciphertext.clone()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => Ok(output),
+                CRYS_OK => {
+                    output.len = ciphertext.len() - AES_CCM_TAG_LEN;
+                    Ok(output)
+                },
                 _ => Err(EDHOCError::MacVerificationFailed),
             }
         }

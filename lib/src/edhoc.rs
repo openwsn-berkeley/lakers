@@ -728,11 +728,11 @@ fn compute_th_4(
     message[0] = CBOR_BYTE_STRING;
     message[1] = th_3.len() as u8;
     message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
-    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len()].copy_from_slice(&plaintext_3[..]);
-    message[2 + th_3.len() + plaintext_3.len()..2 + th_3.len() + plaintext_3.len() + cred_i_len]
+    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len].copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
+    message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i_len]
         .copy_from_slice(&cred_i[..cred_i_len]);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
+    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i_len);
 
     output
 }
@@ -774,22 +774,24 @@ fn edhoc_kdf(
 }
 
 fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
-    let kid = plaintext_3[0usize];
+    let kid = plaintext_3.content[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-    mac_3[..].copy_from_slice(&plaintext_3[2..2 + MAC_LENGTH_3]);
+    mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
+    // TODO verify the length of plaintext_3
 
     (kid, mac_3)
 }
 
 fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaintext3 {
-    let mut plaintext_3: BytesPlaintext3 = [0x00; PLAINTEXT_3_LEN];
+    let mut plaintext_3: BytesPlaintext3 = BytesPlaintext3::default();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
-    plaintext_3[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
+    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
+    plaintext_3.content[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
 
+    plaintext_3.len = 2 + mac_3.len();
     plaintext_3
 }
 
@@ -845,7 +847,7 @@ fn encrypt_message_3(
 ) -> BytesMessage3 {
     let mut output: BytesMessage3 = BytesMessage3::default();
     output.content[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
-    output.len = 1 + PLAINTEXT_3_LEN + AES_CCM_TAG_LEN; // FIXME
+    output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -867,7 +869,7 @@ fn decrypt_message_3(
     message_3: &BytesMessage3,
 ) -> Result<BytesPlaintext3, EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut plaintext_3: BytesPlaintext3 = [0x00; PLAINTEXT_3_LEN];
+    let mut plaintext_3: BytesPlaintext3 = BytesPlaintext3::default();
 
     // decode message_3
     let len = message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING;
@@ -885,7 +887,9 @@ fn decrypt_message_3(
 
         if p3.is_ok() {
             error = EDHOCError::Success;
-            plaintext_3[..].copy_from_slice(&p3.unwrap());
+            let p3 = p3.unwrap();
+            plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
+            plaintext_3.len = p3.len;
         } else {
             error = p3.err().expect("error handling error");
         }
@@ -1165,7 +1169,10 @@ mod tests {
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     const G_R_TV: BytesP256ElemLen =
         hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const PLAINTEXT_3_TV: BytesPlaintext3 = hex!("2b48ddf106b86fd22fe4");
+    const PLAINTEXT_3_TV: BytesCiphertext2 = BytesCiphertext2 {
+        content: hex!("2b48ddf106b86fd22fe40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+        len: 10,
+    };
     const SALT_3E2M_TV: BytesHashLen =
         hex!("a4f767b3469a6e6ae5fcbf273839fa87c41f462b03ad1ca7ce8f37c95366d8d1");
     const SALT_4E3M_TV: BytesHashLen =
