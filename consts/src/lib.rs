@@ -37,8 +37,6 @@ mod common {
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
     pub const MAX_MESSAGE_SIZE_LEN: usize = 120;
-    pub const MESSAGE_2_LEN: usize = 45;
-    pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;
@@ -47,11 +45,6 @@ mod common {
     pub const AES_CCM_TAG_LEN: usize = 8;
     pub const MAC_LENGTH_2: usize = 8;
     pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
-    // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-    pub const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
-    pub const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
-    pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
-    pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
     // maximum supported length of connection identifier for R
     pub const MAX_KDF_CONTEXT_LEN: usize = 150;
@@ -140,6 +133,13 @@ mod hacspec {
     use hacspec_lib::*;
 
     pub const MESSAGE_1_LEN: usize = 37;
+    pub const MESSAGE_2_LEN: usize = 45;
+    pub const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
+    pub const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
+    pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
+                                                           // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
+    pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
+    pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);

@@ -357,7 +357,6 @@ pub fn i_prepare_message_1(
     }
 }
 
-// message_3 must hold MESSAGE_3_LEN
 // returns c_r
 pub fn i_process_message_2(
     mut state: State,
@@ -655,7 +654,7 @@ fn parse_message_2(
         &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
     );
 
-    let c_r = rcvd_message_2.content[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN];
+    let c_r = rcvd_message_2.content[2 + P256_ELEM_LEN + ciphertext_2.len];
 
     Ok((g_y, ciphertext_2, c_r))
 }
@@ -668,13 +667,13 @@ fn encode_message_2(
     let mut output: BytesMessage2 = BytesMessage2::default();
 
     output.content[0] = CBOR_BYTE_STRING;
-    output.content[1] = P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8;
+    output.content[1] = P256_ELEM_LEN as u8 + ciphertext_2.len as u8;
     output.content[2..2 + P256_ELEM_LEN].copy_from_slice(&g_y[..]);
-    output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN]
+    output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len]
         .copy_from_slice(&ciphertext_2.content[..ciphertext_2.len]);
-    output.content[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN] = c_r;
+    output.content[2 + P256_ELEM_LEN + ciphertext_2.len] = c_r;
 
-    output.len = 2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN + 1;
+    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len + 1;
     output
 }
 
@@ -847,8 +846,8 @@ fn encrypt_message_3(
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
     let mut output: BytesMessage3 = BytesMessage3::default();
-    output.content[0] = CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8;
     output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
+    output.content[0] = CBOR_MAJOR_BYTE_STRING | (output.len - 1) as u8; // FIXME if output.len-1 > 23, then should use CBOR_BYTE_STRING
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -966,18 +965,14 @@ fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
 ) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
-    if plaintext_2_len == PLAINTEXT_2_LEN {
-        let id_cred_r = plaintext_2[0];
-        // skip cbor byte string byte as we know how long the string is
-        let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-        mac_2[..].copy_from_slice(&plaintext_2[2..2 + MAC_LENGTH_2]);
-        // FIXME we don't support ead_2 parsing for now
-        let ead_2: BytesEad2 = [0x00; 0];
+    let id_cred_r = plaintext_2[0];
+    // skip cbor byte string byte as we know how long the string is
+    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
+    mac_2[..].copy_from_slice(&plaintext_2[2..2 + MAC_LENGTH_2]);
+    // FIXME we don't support ead_2 parsing for now
+    let ead_2: BytesEad2 = [0x00; 0];
 
-        Ok((id_cred_r, mac_2, ead_2))
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
+    Ok((id_cred_r, mac_2, ead_2))
 }
 
 fn encode_plaintext_2(
@@ -1010,7 +1005,7 @@ fn encrypt_decrypt_ciphertext_2(
         0u8,
         &th_2_context,
         SHA256_DIGEST_LEN,
-        CIPHERTEXT_2_LEN,
+        ciphertext_2.len,
     );
 
     let mut plaintext_2: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
@@ -1140,7 +1135,9 @@ mod tests {
         hex!("1f57dabf8f26da0657d9840c9b1077c1d4c47db243a8b41360a98ec4cb706b70");
     const PRK_2E_TV: BytesP256ElemLen =
         hex!("e01fa14dd56e308267a1a812a9d0b95341e394abc7c5c39dd71885f7d4cd5bf3");
-    const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN] = hex!("366c89337ff80c69359a");
+    const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len - P256_ELEM_LEN - 1 - 2;
+    const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
+    const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN_TV] = hex!("366c89337ff80c69359a");
     const PRK_3E2M_TV: BytesP256ElemLen =
         hex!("412d60cdf99dc7490754c969ad4c46b1350b908433ebf3fe063be8627fb35b3b");
     const CONTEXT_INFO_MAC_2_TV: [u8; 133] = hex!("a104413258209d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439ca2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
@@ -1256,7 +1253,7 @@ mod tests {
     fn test_edhoc_kdf() {
         let mut th_2_context_tv: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         th_2_context_tv[..TH_2_TV.len()].copy_from_slice(&TH_2_TV[..]);
-        const LEN_TV: usize = PLAINTEXT_2_LEN;
+        const LEN_TV: usize = PLAINTEXT_2_LEN_TV;
 
         let output = edhoc_kdf(&PRK_2E_TV, 0u8, &th_2_context_tv, SHA256_DIGEST_LEN, LEN_TV);
         for i in 0..KEYSTREAM_2_TV.len() {
@@ -1339,15 +1336,12 @@ mod tests {
             .copy_from_slice(&PLAINTEXT_2_TV.content[..PLAINTEXT_2_TV.len]);
         let ead_2_tv = [0x00u8; 0];
 
-        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN_TV);
         assert!(plaintext_2.is_ok());
         let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(id_cred_r, ID_CRED_R_TV[3]);
         assert_eq!(mac_2, MAC_2_TV);
         assert_eq!(ead_2, ead_2_tv);
-
-        let plaintext_2_wrong_len = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN + 1);
-        assert_eq!(plaintext_2_wrong_len.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
@@ -1356,8 +1350,8 @@ mod tests {
         let (plaintext_2, plaintext_2_len) =
             encrypt_decrypt_ciphertext_2(&PRK_2E_TV, &TH_2_TV, &CIPHERTEXT_2_TV);
 
-        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
-        for i in 0..PLAINTEXT_2_LEN {
+        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN_TV);
+        for i in 0..PLAINTEXT_2_LEN_TV {
             assert_eq!(plaintext_2[i], PLAINTEXT_2_TV.content[i]);
         }
 
@@ -1369,8 +1363,8 @@ mod tests {
         let (ciphertext_2, ciphertext_2_len) =
             encrypt_decrypt_ciphertext_2(&PRK_2E_TV, &TH_2_TV, &plaintext_2_tmp);
 
-        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN);
-        for i in 0..CIPHERTEXT_2_LEN {
+        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN_TV);
+        for i in 0..CIPHERTEXT_2_LEN_TV {
             assert_eq!(ciphertext_2[i], CIPHERTEXT_2_TV.content[i]);
         }
     }
