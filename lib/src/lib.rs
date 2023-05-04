@@ -97,12 +97,9 @@ mod hacspec {
 
         pub fn process_message_1(
             self: &mut HacspecEdhocResponder<'a>,
-            message_1: &[u8; MESSAGE_1_LEN],
+            message_1: &EdhocMessageBuffer,
         ) -> Result<(), EDHOCError> {
-            match r_process_message_1(
-                self.state,
-                &BytesMessage1::from_public_slice(&message_1[..]),
-            ) {
+            match r_process_message_1(self.state, &BytesMessage1::from_public_slice(message_1)) {
                 Ok(state) => {
                     self.state = state;
                     Ok(())
@@ -218,7 +215,7 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
+        ) -> Result<EdhocMessageBuffer, EDHOCError> {
             // Generate ephemeral key pair
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
@@ -571,7 +568,7 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: BytesMessage1 = BytesMessage1 {
+    const MESSAGE_1_TV: EdhocMessageBuffer = EdhocMessageBuffer {
         content: hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
         len: 37,
     };

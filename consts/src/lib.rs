@@ -33,6 +33,21 @@ mod common {
         UnknownError = 7,
     }
 
+    #[derive(PartialEq, Debug)]
+    pub struct EdhocMessageBuffer {
+        pub content: [u8; MAX_MESSAGE_SIZE_LEN],
+        pub len: usize,
+    }
+
+    impl Default for EdhocMessageBuffer {
+        fn default() -> Self {
+            EdhocMessageBuffer {
+                content: [0u8; MAX_MESSAGE_SIZE_LEN],
+                len: 0,
+            }
+        }
+    }
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
@@ -66,21 +81,6 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
-
-    #[derive(PartialEq, Debug)]
-    pub struct EdhocMessageBuffer {
-        pub content: [u8; MAX_MESSAGE_SIZE_LEN],
-        pub len: usize,
-    }
-
-    impl Default for EdhocMessageBuffer {
-        fn default() -> Self {
-            EdhocMessageBuffer {
-                content: [0u8; MAX_MESSAGE_SIZE_LEN],
-                len: 0,
-            }
-        }
-    }
 
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
@@ -141,6 +141,44 @@ mod hacspec {
     pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
     pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
+    array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
+
+    #[derive(Debug)]
+    pub struct EdhocMessageBufferHacspec {
+        pub content: BytesMessageBuffer,
+        pub len: usize,
+    }
+
+    impl Default for EdhocMessageBufferHacspec {
+        fn default() -> Self {
+            EdhocMessageBufferHacspec {
+                content: BytesMessageBuffer::new(),
+                len: 0,
+            }
+        }
+    }
+
+    impl EdhocMessageBufferHacspec {
+        pub fn from_hex(hex: &str, len: usize) -> Self {
+            let mut buffer = EdhocMessageBufferHacspec::default();
+            buffer.len = len;
+            buffer.content = buffer.content.update(0, &BytesMessageBuffer::from_hex(hex));
+            buffer
+        }
+        pub fn from_public_slice(buffer: &EdhocMessageBuffer) -> Self {
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+            hacspec_buffer.len = buffer.len;
+            hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
+            hacspec_buffer
+        }
+        pub fn to_public_array(&self) -> EdhocMessageBuffer {
+            let mut buffer = EdhocMessageBuffer::default();
+            buffer.content = self.content.to_public_array();
+            buffer.len = self.len;
+            buffer
+        }
+    }
+
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
@@ -151,7 +189,7 @@ mod hacspec {
     array!(BytesPlaintext3, PLAINTEXT_3_LEN, U8);
     array!(BytesMac2, MAC_LENGTH_2, U8);
     array!(BytesMac3, MAC_LENGTH_3, U8);
-    array!(BytesMessage1, MESSAGE_1_LEN, U8);
+    pub type BytesMessage1 = EdhocMessageBufferHacspec;
     array!(BytesMessage3, MESSAGE_3_LEN, U8);
     array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
     array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);

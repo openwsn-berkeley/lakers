@@ -69,8 +69,8 @@ pub fn r_process_message_1(
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
                 h_message_1 = sha256_digest(
-                    &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
-                    message_1.len(),
+                    &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+                    message_1.len,
                 );
 
                 error = EDHOCError::Success;
@@ -341,7 +341,7 @@ pub fn i_prepare_message_1(
 
     let mut error = EDHOCError::UnknownError;
 
-    let mut message_1 = BytesMessage1::new();
+    let mut message_1 = BytesMessage1::default();
 
     if current_state == EDHOCState::Start {
         // we only support a single cipher suite which is already CBOR-encoded
@@ -355,8 +355,8 @@ pub fn i_prepare_message_1(
 
         // hash message_1 here to avoid saving the whole message in the state
         h_message_1 = sha256_digest(
-            &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
-            message_1.len(),
+            &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+            message_1.len,
         );
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
@@ -609,12 +609,12 @@ pub fn construct_state(
 fn parse_message_1(
     rcvd_message_1: &BytesMessage1,
 ) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
-    let method = rcvd_message_1[0];
+    let method = rcvd_message_1.content[0];
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1);
-    let g_x = BytesP256ElemLen::from_slice(rcvd_message_1, 4, P256_ELEM_LEN);
-    let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
+    let selected_suite = BytesSupportedSuites::from_slice(&rcvd_message_1.content, 1, 1);
+    let g_x = BytesP256ElemLen::from_slice(&rcvd_message_1.content, 4, P256_ELEM_LEN);
+    let c_i = rcvd_message_1.content[rcvd_message_1.len - 1];
 
     (method, selected_suite, g_x, c_i)
 }
@@ -625,15 +625,16 @@ fn encode_message_1(
     g_x: &BytesP256ElemLen,
     c_i: U8,
 ) -> BytesMessage1 {
-    let mut output = BytesMessage1::new();
+    let mut output = BytesMessage1::default();
 
-    output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
-    output[1] = suites[0];
-    output[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
-    output[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
-    output = output.update(4, g_x);
-    output[4 + P256_ELEM_LEN] = c_i;
+    output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+    output.content[1] = suites[0];
+    output.content[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
+    output.content[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
+    output.content = output.content.update(4, g_x);
+    output.content[4 + P256_ELEM_LEN] = c_i;
 
+    output.len = 4 + P256_ELEM_LEN + 1;
     output
 }
 
@@ -1091,7 +1092,7 @@ mod tests {
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
-        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     const MESSAGE_2_TV: &str =
@@ -1140,16 +1141,16 @@ mod tests {
         let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV, 43);
 
         let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, c_i_tv);
 
-        assert_bytes_eq!(message_1, message_1_tv);
+        assert_bytes_eq!(message_1.content, message_1_tv.content);
     }
 
     #[test]
     fn test_parse_message_1() {
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV, 37);
         let method_tv = METHOD_TV;
         let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
