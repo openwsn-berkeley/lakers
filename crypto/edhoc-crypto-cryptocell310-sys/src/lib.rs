@@ -404,7 +404,7 @@ mod rust {
         ad: &BytesEncStructureLen,
         ciphertext: &BufferCiphertext3,
     ) -> Result<BufferPlaintext3, EDHOCError> {
-        let mut output: BufferPlaintext3 = BufferPlaintext3::default();
+        let mut output: BufferPlaintext3 = BufferPlaintext3::new();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
