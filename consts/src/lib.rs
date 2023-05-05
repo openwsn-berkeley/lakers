@@ -39,18 +39,16 @@ mod common {
         pub len: usize,
     }
 
-    impl Default for EdhocMessageBuffer {
-        fn default() -> Self {
+    impl EdhocMessageBuffer {
+        pub fn new() -> Self {
             EdhocMessageBuffer {
                 content: [0u8; MAX_MESSAGE_SIZE_LEN],
                 len: 0,
             }
         }
-    }
 
-    impl EdhocMessageBuffer {
         pub fn from_hex(hex: &str) -> Self {
-            let mut buffer = EdhocMessageBuffer::default();
+            let mut buffer = EdhocMessageBuffer::new();
             buffer.len = hex.len() / 2;
             for i in (0..hex.len()).step_by(2) {
                 buffer.content[i / 2] = u8::from_str_radix(&hex[i..i + 2], 16).unwrap();
@@ -101,17 +99,17 @@ mod rust {
     pub type Bytes8 = [u8; 8];
     pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
-    pub type BytesPlaintext2 = EdhocMessageBuffer;
-    pub type BytesPlaintext3 = EdhocMessageBuffer;
+    pub type BufferPlaintext2 = EdhocMessageBuffer;
+    pub type BufferPlaintext3 = EdhocMessageBuffer;
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
-    pub type BytesMessage1 = EdhocMessageBuffer;
-    pub type BytesMessage3 = EdhocMessageBuffer;
-    pub type BytesCiphertext2 = EdhocMessageBuffer;
-    pub type BytesCiphertext3 = EdhocMessageBuffer;
+    pub type BufferMessage1 = EdhocMessageBuffer;
+    pub type BufferMessage3 = EdhocMessageBuffer;
+    pub type BufferCiphertext2 = EdhocMessageBuffer;
+    pub type BufferCiphertext3 = EdhocMessageBuffer;
     pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
     pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
-    pub type BytesMessage2 = EdhocMessageBuffer;
+    pub type BufferMessage2 = EdhocMessageBuffer;
     pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
     pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
     pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
@@ -151,39 +149,37 @@ mod hacspec {
         pub len: usize,
     }
 
-    impl Default for EdhocMessageBufferHacspec {
-        fn default() -> Self {
+    impl EdhocMessageBufferHacspec {
+        pub fn new() -> Self {
             EdhocMessageBufferHacspec {
                 content: BytesMessageBuffer::new(),
                 len: 0,
             }
         }
-    }
 
-    impl EdhocMessageBufferHacspec {
         pub fn from_hex(hex: &str) -> Self {
-            let mut buffer = EdhocMessageBufferHacspec::default();
+            let mut buffer = EdhocMessageBufferHacspec::new();
             buffer.len = hex.len() / 2;
             for i in (0..hex.len()).step_by(2) {
                 buffer.content[i / 2] = U8(u8::from_str_radix(&hex[i..i + 2], 16).unwrap());
             }
             buffer
         }
-        pub fn from_public_slice(buffer: &EdhocMessageBuffer) -> Self {
-            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+        pub fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self {
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = buffer.len;
             hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
             hacspec_buffer
         }
         pub fn from_slice_bytes_max(buffer: &BytesMaxBuffer, start: usize, len: usize) -> Self {
             // FIXME: refactor to have EdhocMessageBuffer instead of BytesMaxBuffer, then remove this function
-            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = len;
             hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
             hacspec_buffer
         }
         pub fn from_slice(buffer: &BytesMessageBuffer, start: usize, len: usize) -> Self {
-            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = len;
             hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
             hacspec_buffer
@@ -195,7 +191,7 @@ mod hacspec {
             }
         }
         pub fn to_public_array(&self) -> EdhocMessageBuffer {
-            let mut buffer = EdhocMessageBuffer::default();
+            let mut buffer = EdhocMessageBuffer::new();
             buffer.content = self.content.to_public_array();
             buffer.len = self.len;
             buffer
@@ -208,17 +204,17 @@ mod hacspec {
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
     array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
-    pub type BytesPlaintext2 = EdhocMessageBufferHacspec;
-    pub type BytesPlaintext3 = EdhocMessageBufferHacspec;
+    pub type BufferPlaintext2 = EdhocMessageBufferHacspec;
+    pub type BufferPlaintext3 = EdhocMessageBufferHacspec;
     array!(BytesMac2, MAC_LENGTH_2, U8);
     array!(BytesMac3, MAC_LENGTH_3, U8);
-    pub type BytesMessage1 = EdhocMessageBufferHacspec;
-    pub type BytesMessage3 = EdhocMessageBufferHacspec;
-    pub type BytesCiphertext2 = EdhocMessageBufferHacspec;
-    pub type BytesCiphertext3 = EdhocMessageBufferHacspec;
+    pub type BufferMessage1 = EdhocMessageBufferHacspec;
+    pub type BufferMessage3 = EdhocMessageBufferHacspec;
+    pub type BufferCiphertext2 = EdhocMessageBufferHacspec;
+    pub type BufferCiphertext3 = EdhocMessageBufferHacspec;
     array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
     array!(BytesP256ElemLen, P256_ELEM_LEN, U8);
-    pub type BytesMessage2 = EdhocMessageBufferHacspec;
+    pub type BufferMessage2 = EdhocMessageBufferHacspec;
     array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
     array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
     array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);

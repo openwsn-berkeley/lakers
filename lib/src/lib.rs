@@ -99,7 +99,7 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &EdhocMessageBuffer,
         ) -> Result<(), EDHOCError> {
-            match r_process_message_1(self.state, &BytesMessage1::from_public_slice(message_1)) {
+            match r_process_message_1(self.state, &BufferMessage1::from_public_buffer(message_1)) {
                 Ok(state) => {
                     self.state = state;
                     Ok(())
@@ -147,7 +147,7 @@ mod hacspec {
 
             match r_process_message_3(
                 self.state,
-                &BytesMessage3::from_public_slice(&message_3),
+                &BufferMessage3::from_public_buffer(&message_3),
                 &id_cred_i,
                 &cred_i,
                 cred_i_len,
@@ -245,7 +245,7 @@ mod hacspec {
             let g_r = BytesP256ElemLen::from_hex(self.g_r);
 
             // init hacspec struct for message_2
-            let message_2_hacspec = BytesMessage2::from_public_slice(&message_2);
+            let message_2_hacspec = BufferMessage2::from_public_buffer(&message_2);
 
             match edhoc_hacspec::i_process_message_2(
                 self.state,
@@ -369,7 +369,7 @@ mod rust {
 
         pub fn process_message_1(
             self: &mut RustEdhocResponder<'a>,
-            message_1: &BytesMessage1,
+            message_1: &BufferMessage1,
         ) -> Result<(), EDHOCError> {
             let state = r_process_message_1(self.state, message_1)?;
             self.state = state;
@@ -379,7 +379,7 @@ mod rust {
 
         pub fn prepare_message_2(
             self: &mut RustEdhocResponder<'a>,
-        ) -> Result<(BytesMessage2, u8), EDHOCError> {
+        ) -> Result<(BufferMessage2, u8), EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
@@ -404,7 +404,7 @@ mod rust {
 
         pub fn process_message_3(
             self: &mut RustEdhocResponder<'a>,
-            message_3: &BytesMessage3,
+            message_3: &BufferMessage3,
         ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
             let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
@@ -473,7 +473,7 @@ mod rust {
 
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<BytesMessage1, EDHOCError> {
+        ) -> Result<BufferMessage1, EDHOCError> {
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             match i_prepare_message_1(self.state, x, g_x) {
@@ -487,7 +487,7 @@ mod rust {
 
         pub fn process_message_2(
             self: &mut RustEdhocInitiator<'a>,
-            message_2: &BytesMessage2,
+            message_2: &BufferMessage2,
         ) -> Result<u8, EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
@@ -512,7 +512,7 @@ mod rust {
 
         pub fn prepare_message_3(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<(BytesMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
             let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
                 .expect("Decoding failed");

@@ -29,18 +29,18 @@ pub fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
-    plaintext: &BytesPlaintext3,
-) -> BytesCiphertext3 {
-    BytesCiphertext3::new()
+    plaintext: &BufferPlaintext3,
+) -> BufferCiphertext3 {
+    BufferCiphertext3::new()
 }
 
 pub fn aes_ccm_decrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
-    ciphertext: &BytesCiphertext3,
-) -> Result<BytesPlaintext3, EDHOCError> {
-    Ok(BytesPlaintext3::new())
+    ciphertext: &BufferCiphertext3,
+) -> Result<BufferPlaintext3, EDHOCError> {
+    Ok(BufferPlaintext3::new())
 }
 pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
