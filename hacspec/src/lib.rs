@@ -718,10 +718,10 @@ fn compute_th_4(
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_3.len() as u8);
     message = message.update(2, th_3);
-    message = message.update(2 + th_3.len(), plaintext_3);
-    message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
+    message = message.update_slice(2 + th_3.len(), &plaintext_3.content, 0, plaintext_3.len);
+    message = message.update_slice(2 + th_3.len() + plaintext_3.len, cred_i, 0, cred_i_len);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
+    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i_len);
 
     output
 }
@@ -763,21 +763,22 @@ fn edhoc_kdf(
 }
 
 fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
-    let kid = plaintext_3[0usize];
+    let kid = plaintext_3.content[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
-    let mac_3 = BytesMac3::from_slice(plaintext_3, 2, MAC_LENGTH_3);
+    let mac_3 = BytesMac3::from_slice(&plaintext_3.content, 2, MAC_LENGTH_3);
 
     (kid, mac_3)
 }
 
 fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaintext3 {
-    let mut plaintext_3 = BytesPlaintext3::new();
+    let mut plaintext_3 = BytesPlaintext3::default();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
-    plaintext_3 = plaintext_3.update(2, mac_3);
+    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
+    plaintext_3.content = plaintext_3.content.update(2, mac_3);
 
+    plaintext_3.len = 2 + mac_3.len();
     plaintext_3
 }
 
@@ -839,14 +840,13 @@ fn compute_k_3_iv_3(
 }
 
 // calculates ciphertext_3 wrapped in a cbor byte string
-// output must hold MESSAGE_3_LEN
 fn encrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
     let mut output = BytesMessage3::default();
-    output.len = 1 + plaintext_3.len() + AES_CCM_TAG_LEN;
+    output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
     output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
 
     let enc_structure = encode_enc_structure(th_3);
@@ -857,7 +857,7 @@ fn encrypt_message_3(
 
     output.content = output
         .content
-        .update_slice(1, &ciphertext_3, 0, ciphertext_3.len());
+        .update_slice(1, &ciphertext_3.content, 0, ciphertext_3.len);
 
     output
 }
@@ -868,7 +868,7 @@ fn decrypt_message_3(
     message_3: &BytesMessage3,
 ) -> Result<BytesPlaintext3, EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut plaintext_3 = BytesPlaintext3::new();
+    let mut plaintext_3 = BytesPlaintext3::default();
 
     // decode message_3
     let len = message_3.content[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
@@ -885,7 +885,9 @@ fn decrypt_message_3(
 
         if p3.is_ok() {
             error = EDHOCError::Success;
-            plaintext_3 = plaintext_3.update(0, &p3.unwrap());
+            let p3 = p3.unwrap();
+            plaintext_3.content = plaintext_3.content.update_slice(0, &p3.content, 0, p3.len);
+            plaintext_3.len = p3.len;
         } else {
             error = p3.err().expect("error handling error");
         }
@@ -1299,7 +1301,7 @@ mod tests {
         let plaintext_3 = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
 
         assert!(plaintext_3.is_ok());
-        assert_bytes_eq!(plaintext_3.unwrap(), plaintext_3_tv);
+        assert_bytes_eq!(plaintext_3.unwrap().content, plaintext_3_tv.content);
     }
 
     #[test]
@@ -1446,7 +1448,7 @@ mod tests {
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
 
         let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
-        assert_bytes_eq!(plaintext_3, plaintext_3_tv);
+        assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 
     #[test]

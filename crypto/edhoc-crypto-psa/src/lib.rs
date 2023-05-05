@@ -123,19 +123,20 @@ mod hacspec {
             },
         };
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
-        let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
+        let mut output_buffer = EdhocMessageBuffer::default();
 
         aead::encrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
-            &plaintext.to_public_array(),
-            &mut output_buffer,
+            &plaintext.content.to_public_array()[..plaintext.len],
+            &mut output_buffer.content,
         )
         .unwrap();
 
-        let output = BytesCiphertext3::from_public_slice(&output_buffer[..]);
+        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
+        let output = BytesCiphertext3::from_public_slice(&output_buffer);
         output
     }
 
@@ -164,17 +165,20 @@ mod hacspec {
             },
         };
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
-        let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
+        let mut output_buffer = EdhocMessageBuffer::default();
 
         match aead::decrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
-            &ciphertext.to_public_array(),
-            &mut output_buffer,
+            &ciphertext.content.to_public_array()[..ciphertext.len],
+            &mut output_buffer.content,
         ) {
-            Ok(_) => Ok(BytesPlaintext3::from_public_slice(&output_buffer[..])),
+            Ok(_) => {
+                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                Ok(BytesPlaintext3::from_public_slice(&output_buffer))
+            }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
