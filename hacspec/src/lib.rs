@@ -525,7 +525,7 @@ pub fn i_prepare_message_3(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-    let mut message_3 = BytesMessage3::new();
+    let mut message_3 = BytesMessage3::default();
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
@@ -845,17 +845,19 @@ fn encrypt_message_3(
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
 ) -> BytesMessage3 {
-    let mut output = BytesMessage3::new();
-    output[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
+    let mut output = BytesMessage3::default();
+    output.len = 1 + plaintext_3.len() + AES_CCM_TAG_LEN;
+    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
 
     let enc_structure = encode_enc_structure(th_3);
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    output = output.update(
-        1,
-        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3),
-    );
+    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+
+    output.content = output
+        .content
+        .update_slice(1, &ciphertext_3, 0, ciphertext_3.len());
 
     output
 }
@@ -869,11 +871,11 @@ fn decrypt_message_3(
     let mut plaintext_3 = BytesPlaintext3::new();
 
     // decode message_3
-    let len = message_3[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
+    let len = message_3.content[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
 
     // compare parsed length with the expected length of the ciphertext
     if len.declassify() as usize == CIPHERTEXT_3_LEN {
-        let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
+        let ciphertext_3 = BytesCiphertext3::from_slice(&message_3.content, 1, CIPHERTEXT_3_LEN);
 
         let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
@@ -1284,7 +1286,7 @@ mod tests {
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
         let message_3 = encrypt_message_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
-        assert_bytes_eq!(message_3, message_3_tv);
+        assert_bytes_eq!(message_3.content, message_3_tv.content);
     }
 
     #[test]

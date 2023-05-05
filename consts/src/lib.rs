@@ -201,7 +201,7 @@ mod hacspec {
     array!(BytesMac2, MAC_LENGTH_2, U8);
     array!(BytesMac3, MAC_LENGTH_3, U8);
     pub type BytesMessage1 = EdhocMessageBufferHacspec;
-    array!(BytesMessage3, MESSAGE_3_LEN, U8);
+    pub type BytesMessage3 = EdhocMessageBufferHacspec;
     pub type BytesCiphertext2 = EdhocMessageBufferHacspec;
     array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
     array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
