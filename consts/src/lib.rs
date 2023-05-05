@@ -182,6 +182,12 @@ mod hacspec {
             hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
             hacspec_buffer
         }
+        pub fn from_seq(buffer: &Seq<U8>) -> Self {
+            EdhocMessageBufferHacspec {
+                content: BytesMessageBuffer::from_slice(buffer, 0, buffer.len()),
+                len: buffer.len(),
+            }
+        }
         pub fn to_public_array(&self) -> EdhocMessageBuffer {
             let mut buffer = EdhocMessageBuffer::default();
             buffer.content = self.content.to_public_array();

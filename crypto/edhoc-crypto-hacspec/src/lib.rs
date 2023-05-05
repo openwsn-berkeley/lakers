@@ -50,7 +50,7 @@ pub fn aes_ccm_encrypt_tag_8(
     let output = BytesCiphertext3::from_seq(&encrypt_ccm(
         ByteSeq::from_slice(ad, 0, ad.len()),
         ByteSeq::from_slice(iv, 0, iv.len()),
-        ByteSeq::from_slice(plaintext, 0, plaintext.len()),
+        ByteSeq::from_slice(&plaintext.content, 0, plaintext.len),
         Key128::from_slice(key, 0, key.len()),
         AES_CCM_TAG_LEN,
     ));
@@ -68,8 +68,8 @@ pub fn aes_ccm_decrypt_tag_8(
         ByteSeq::from_slice(ad, 0, ad.len()),
         ByteSeq::from_slice(iv, 0, iv.len()),
         Key128::from_slice(key, 0, key.len()),
-        ByteSeq::from_slice(ciphertext, 0, ciphertext.len()),
-        ciphertext.len(),
+        ByteSeq::from_slice(&ciphertext.content, 0, ciphertext.len),
+        ciphertext.len,
         AES_CCM_TAG_LEN,
     ) {
         Ok(p) => Ok(BytesPlaintext3::from_seq(&p)),
