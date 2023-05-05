@@ -159,10 +159,12 @@ mod hacspec {
     }
 
     impl EdhocMessageBufferHacspec {
-        pub fn from_hex(hex: &str, len: usize) -> Self {
+        pub fn from_hex(hex: &str) -> Self {
             let mut buffer = EdhocMessageBufferHacspec::default();
-            buffer.len = len;
-            buffer.content = buffer.content.update(0, &BytesMessageBuffer::from_hex(hex));
+            buffer.len = hex.len() / 2;
+            for i in (0..hex.len()).step_by(2) {
+                buffer.content[i / 2] = U8(u8::from_str_radix(&hex[i..i + 2], 16).unwrap());
+            }
             buffer
         }
         pub fn from_public_slice(buffer: &EdhocMessageBuffer) -> Self {

@@ -1093,11 +1093,12 @@ mod tests {
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
-        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     const MESSAGE_2_TV: &str =
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    // "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
     const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
     const H_MESSAGE_1_TV: &str = "ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c";
     const TH_2_TV: &str = "9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c";
@@ -1142,7 +1143,7 @@ mod tests {
         let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV, 43);
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
 
         let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, c_i_tv);
 
@@ -1151,7 +1152,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_1() {
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV, 37);
+        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
         let method_tv = METHOD_TV;
         let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
@@ -1167,7 +1168,7 @@ mod tests {
 
     #[test]
     fn test_encode_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV, 45);
+        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);
@@ -1179,7 +1180,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV, 45);
+        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);
