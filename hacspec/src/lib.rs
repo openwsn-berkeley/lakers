@@ -135,7 +135,7 @@ pub fn r_prepare_message_2(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-    let mut message_2 = BytesMessage2::new();
+    let mut message_2 = BytesMessage2::default();
     let mut c_r = U8(0xffu8); // invalid c_r
 
     if current_state == EDHOCState::ProcessedMessage1 {
@@ -640,10 +640,10 @@ fn encode_message_1(
 
 fn parse_message_2(rcvd_message_2: &BytesMessage2) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
     // FIXME decode negative integers as well
-    let g_y = BytesP256ElemLen::from_slice(rcvd_message_2, 2, P256_ELEM_LEN);
+    let g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
     let ciphertext_2 =
-        BytesCiphertext2::from_slice(rcvd_message_2, 2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
-    let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
+        BytesCiphertext2::from_slice(&rcvd_message_2.content, 2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
+    let c_r = rcvd_message_2.content[MESSAGE_2_LEN - 1];
 
     (g_y, ciphertext_2, c_r)
 }
@@ -653,14 +653,15 @@ fn encode_message_2(
     ciphertext_2: &BytesCiphertext2,
     c_r: U8,
 ) -> BytesMessage2 {
-    let mut output = BytesMessage2::new();
+    let mut output = BytesMessage2::default();
 
-    output[0] = U8(CBOR_BYTE_STRING);
-    output[1] = U8(P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8);
-    output = output.update(2, g_y);
-    output = output.update(2 + P256_ELEM_LEN, ciphertext_2);
-    output[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN] = c_r;
+    output.content[0] = U8(CBOR_BYTE_STRING);
+    output.content[1] = U8(P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8);
+    output.content = output.content.update(2, g_y);
+    output.content = output.content.update(2 + P256_ELEM_LEN, ciphertext_2);
+    output.content[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN] = c_r;
 
+    output.len = 2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN + 1;
     output
 }
 
@@ -1096,7 +1097,7 @@ mod tests {
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     const MESSAGE_2_TV: &str =
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
+    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
     const H_MESSAGE_1_TV: &str = "ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c";
     const TH_2_TV: &str = "9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c";
@@ -1166,19 +1167,19 @@ mod tests {
 
     #[test]
     fn test_encode_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
+        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV, 45);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);
 
         let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, c_r_tv);
 
-        assert_bytes_eq!(message_2, message_2_tv);
+        assert_bytes_eq!(message_2.content, message_2_tv.content);
     }
 
     #[test]
     fn test_parse_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
+        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV, 45);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);

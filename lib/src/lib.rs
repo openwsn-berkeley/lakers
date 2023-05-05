@@ -110,7 +110,7 @@ mod hacspec {
 
         pub fn prepare_message_2(
             self: &mut HacspecEdhocResponder<'a>,
-        ) -> Result<([u8; MESSAGE_2_LEN], u8), EDHOCError> {
+        ) -> Result<(EdhocMessageBuffer, u8), EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
             let mut cred_r = BytesMaxBuffer::new();
@@ -230,7 +230,7 @@ mod hacspec {
 
         pub fn process_message_2(
             self: &mut HacspecEdhocInitiator<'a>,
-            message_2: &[u8; MESSAGE_2_LEN],
+            message_2: &EdhocMessageBuffer,
         ) -> Result<u8, EDHOCError> {
             // init hacspec struct for I, I's private static DH key
             let i = BytesP256ElemLen::from_hex(self.i);
@@ -245,7 +245,7 @@ mod hacspec {
             let g_r = BytesP256ElemLen::from_hex(self.g_r);
 
             // init hacspec struct for message_2
-            let message_2_hacspec = BytesMessage2::from_public_slice(&message_2[..]);
+            let message_2_hacspec = BytesMessage2::from_public_slice(&message_2);
 
             match edhoc_hacspec::i_process_message_2(
                 self.state,

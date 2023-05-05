@@ -195,7 +195,7 @@ mod hacspec {
     array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
     array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
     array!(BytesP256ElemLen, P256_ELEM_LEN, U8);
-    array!(BytesMessage2, MESSAGE_2_LEN, U8);
+    pub type BytesMessage2 = EdhocMessageBufferHacspec;
     array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
     array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
     array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
