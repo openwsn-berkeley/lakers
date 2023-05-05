@@ -132,10 +132,6 @@ mod hacspec {
     use super::common::*;
     use hacspec_lib::*;
 
-    pub const MESSAGE_1_LEN: usize = 37;
-    pub const MESSAGE_2_LEN: usize = 45;
-    pub const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
-    pub const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
     pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
                                                            // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
     pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
@@ -173,6 +169,19 @@ mod hacspec {
             hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
             hacspec_buffer
         }
+        pub fn from_slice_bytes_max(buffer: &BytesMaxBuffer, start: usize, len: usize) -> Self {
+            // FIXME: refactor to have EdhocMessageBuffer instead of BytesMaxBuffer, then remove or adjust this function
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+            hacspec_buffer.len = len;
+            hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
+            hacspec_buffer
+        }
+        pub fn from_slice(buffer: &BytesMessageBuffer, start: usize, len: usize) -> Self {
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
+            hacspec_buffer.len = len;
+            hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
+            hacspec_buffer
+        }
         pub fn to_public_array(&self) -> EdhocMessageBuffer {
             let mut buffer = EdhocMessageBuffer::default();
             buffer.content = self.content.to_public_array();
@@ -187,13 +196,13 @@ mod hacspec {
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
     array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
-    array!(BytesPlaintext2, PLAINTEXT_2_LEN, U8);
+    pub type BytesPlaintext2 = EdhocMessageBufferHacspec;
     array!(BytesPlaintext3, PLAINTEXT_3_LEN, U8);
     array!(BytesMac2, MAC_LENGTH_2, U8);
     array!(BytesMac3, MAC_LENGTH_3, U8);
     pub type BytesMessage1 = EdhocMessageBufferHacspec;
     array!(BytesMessage3, MESSAGE_3_LEN, U8);
-    array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
+    pub type BytesCiphertext2 = EdhocMessageBufferHacspec;
     array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
     array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
     array!(BytesP256ElemLen, P256_ELEM_LEN, U8);
