@@ -384,7 +384,6 @@ pub fn i_prepare_message_1(
 }
 
 /// process message_2: parse, decrypt, check mac, check kid
-/// message_3 must hold MESSAGE_3_LEN
 /// returns c_r
 pub fn i_process_message_2(
     mut state: State,
@@ -503,7 +502,6 @@ pub fn i_process_message_2(
 ///   )
 /// Note that the plaintext is:
 ///   PLAINTEXT_3 = ( ID_CRED_I / bstr / -24..23, Signature_or_MAC_3, ? EAD_3 )
-/// Also, note that message_3 must hold MESSAGE_3_LEN.
 /// returns: (state, message_3, prk_out)
 pub fn i_prepare_message_3(
     mut state: State,
@@ -847,7 +845,7 @@ fn encrypt_message_3(
 ) -> BytesMessage3 {
     let mut output = BytesMessage3::default();
     output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
-    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
+    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | (output.len - 1) as u8);
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -871,28 +869,23 @@ fn decrypt_message_3(
     let mut plaintext_3 = BytesPlaintext3::default();
 
     // decode message_3
-    let len = message_3.content[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
+    let len = (message_3.content[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING)).declassify() as usize;
 
-    // compare parsed length with the expected length of the ciphertext
-    if len.declassify() as usize == CIPHERTEXT_3_LEN {
-        let ciphertext_3 = BytesCiphertext3::from_slice(&message_3.content, 1, CIPHERTEXT_3_LEN);
+    let ciphertext_3 = BytesCiphertext3::from_slice(&message_3.content, 1, len);
 
-        let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-        let enc_structure = encode_enc_structure(th_3);
+    let enc_structure = encode_enc_structure(th_3);
 
-        let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+    let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
-        if p3.is_ok() {
-            error = EDHOCError::Success;
-            let p3 = p3.unwrap();
-            plaintext_3.content = plaintext_3.content.update_slice(0, &p3.content, 0, p3.len);
-            plaintext_3.len = p3.len;
-        } else {
-            error = p3.err().expect("error handling error");
-        }
+    if p3.is_ok() {
+        error = EDHOCError::Success;
+        let p3 = p3.unwrap();
+        plaintext_3.content = plaintext_3.content.update_slice(0, &p3.content, 0, p3.len);
+        plaintext_3.len = p3.len;
     } else {
-        error = EDHOCError::ParsingError;
+        error = p3.err().expect("error handling error");
     }
 
     match error {
@@ -1107,7 +1100,6 @@ mod tests {
     pub const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_LEN_TV - P256_ELEM_LEN - 1 - 2;
     pub const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
     const MESSAGE_2_TV: &str =
-    // "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
     const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
     const H_MESSAGE_1_TV: &str = "ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c";

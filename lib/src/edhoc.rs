@@ -471,7 +471,6 @@ pub fn i_process_message_2(
     }
 }
 
-// message_3 must hold MESSAGE_3_LEN
 pub fn i_prepare_message_3(
     mut state: State,
     id_cred_i: &BytesIdCred,
@@ -1109,47 +1108,31 @@ mod tests {
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
-    const MESSAGE_1_TV: BytesMessage1 = BytesMessage1 {
-        // TODO: find a better way so we don't have to manually add all the remaining zeros
-        content: hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 37,
-    };
+    const MESSAGE_1_TV: &str =
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     // manually modified test vector to include two supported cipher suites (02 and 03), encoded as array
-    const MESSAGE_1_TV_B: BytesMessage1 = BytesMessage1 {
-        content: hex!("0382020358208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 39,
-    };
+    const MESSAGE_1_TV_B: &str =
+        "0382020358208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     // manually modified test vector to include a single cipher suite encoded as 0x1818, which is not supported by this implementation
-    const MESSAGE_1_TV_E: BytesMessage1 = BytesMessage1 {
-        content: hex!("03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 38,
-    };
+    const MESSAGE_1_TV_ERR: &str =
+        "03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;
-    const MESSAGE_2_TV: BytesMessage1 = BytesMessage1 {
-        content: hex!("582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 45,
-    };
-    const CIPHERTEXT_2_TV: BytesCiphertext2 = BytesCiphertext2 {
-        content: hex!("042459e2da6c75143f350000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 10,
-    };
+    const MESSAGE_2_TV: &str = "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
+    const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
     const H_MESSAGE_1_TV: BytesHashLen =
         hex!("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
     const TH_2_TV: BytesHashLen =
         hex!("9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c");
     const TH_3_TV: BytesHashLen =
         hex!("b778f602331ff68ac402a6511b9de285bedf6eab3e9ed12dfe22a53eeda7de48");
-    const CIPHERTEXT_3_TV: BytesCiphertext2 = BytesCiphertext2 {
-        content: hex!("c2b62835dc9b1f53419c1d3a2261eeed3505000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 18,
-    };
+    const CIPHERTEXT_3_TV: &str = "c2b62835dc9b1f53419c1d3a2261eeed3505";
     const TH_4_TV: BytesHashLen =
         hex!("1f57dabf8f26da0657d9840c9b1077c1d4c47db243a8b41360a98ec4cb706b70");
     const PRK_2E_TV: BytesP256ElemLen =
         hex!("e01fa14dd56e308267a1a812a9d0b95341e394abc7c5c39dd71885f7d4cd5bf3");
-    const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len - P256_ELEM_LEN - 1 - 2;
+    const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len() / 2 - P256_ELEM_LEN - 1 - 2;
     const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN_TV] = hex!("366c89337ff80c69359a");
     const PRK_3E2M_TV: BytesP256ElemLen =
@@ -1158,29 +1141,20 @@ mod tests {
     const MAC_2_TV: BytesMac2 = hex!("d0d1a594797d0aaf");
     const ID_CRED_I_TV: BytesIdCred = hex!("a104412b");
     const MAC_3_TV: BytesMac3 = hex!("ddf106b86fd22fe4");
-    const MESSAGE_3_TV: BytesMessage1 = BytesMessage1 {
-        content: hex!("52c2b62835dc9b1f53419c1d3a2261eeed35050000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 19,
-    };
+    const MESSAGE_3_TV: &str = "52c2b62835dc9b1f53419c1d3a2261eeed3505";
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("7d0159bbe45473c9402e0d42dbceb45dca05b744cae1e083e58315b8aa47ceec");
     const CRED_I_TV : [u8; 107] = hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const ID_CRED_R_TV: BytesIdCred = hex!("a1044132");
     const CRED_R_TV : [u8; 95] = hex!("A2026B6578616D706C652E65647508A101A501020241322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
-    const PLAINTEXT_2_TV: BytesCiphertext2 = BytesCiphertext2 {
-        content: hex!("3248d0d1a594797d0aaf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 10,
-    };
+    const PLAINTEXT_2_TV: &str = "3248d0d1a594797d0aaf";
     const I_TV: BytesP256ElemLen =
         hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     const G_R_TV: BytesP256ElemLen =
         hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const PLAINTEXT_3_TV: BytesCiphertext2 = BytesCiphertext2 {
-        content: hex!("2b48ddf106b86fd22fe40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 10,
-    };
+    const PLAINTEXT_3_TV: &str = "2b48ddf106b86fd22fe4";
     const SALT_3E2M_TV: BytesHashLen =
         hex!("a4f767b3469a6e6ae5fcbf273839fa87c41f462b03ad1ca7ce8f37c95366d8d1");
     const SALT_4E3M_TV: BytesHashLen =
@@ -1200,12 +1174,12 @@ mod tests {
         let message_1 = encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV);
 
         assert_eq!(message_1.len, 37);
-        assert_eq!(message_1, MESSAGE_1_TV);
+        assert_eq!(message_1, BytesMessage1::from_hex(MESSAGE_1_TV));
     }
 
     #[test]
     fn test_parse_message_1() {
-        let result = parse_message_1(&MESSAGE_1_TV);
+        let result = parse_message_1(&BytesMessage1::from_hex(MESSAGE_1_TV));
         assert!(result.is_ok());
         let (method, supported_suites, g_x, c_i) = result.unwrap();
 
@@ -1214,28 +1188,31 @@ mod tests {
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
 
-        let (method, supported_suites, g_x, c_i) = parse_message_1(&MESSAGE_1_TV_B).unwrap();
+        let (method, supported_suites, g_x, c_i) =
+            parse_message_1(&BytesMessage1::from_hex(MESSAGE_1_TV_B)).unwrap();
         assert_eq!(supported_suites, SUITES_I_TV);
 
-        let ret = parse_message_1(&MESSAGE_1_TV_E);
+        let ret = parse_message_1(&BytesMessage1::from_hex(MESSAGE_1_TV_ERR));
         assert_eq!(ret, Err(EDHOCError::UnsupportedCipherSuite));
     }
 
     #[test]
     fn test_encode_message_2() {
-        let message_2 = encode_message_2(&G_Y_TV, &CIPHERTEXT_2_TV, C_R_TV);
+        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let message_2 = encode_message_2(&G_Y_TV, &ciphertext_2_tv, C_R_TV);
 
-        assert_eq!(message_2, MESSAGE_2_TV);
+        assert_eq!(message_2, BytesMessage2::from_hex(MESSAGE_2_TV));
     }
 
     #[test]
     fn test_parse_message_2() {
-        let ret = parse_message_2(&MESSAGE_2_TV);
+        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let ret = parse_message_2(&BytesMessage2::from_hex(MESSAGE_2_TV));
         assert!(ret.is_ok());
         let (g_y, ciphertext_2, c_r) = ret.unwrap();
 
         assert_eq!(g_y, G_Y_TV);
-        assert_eq!(ciphertext_2, CIPHERTEXT_2_TV);
+        assert_eq!(ciphertext_2, ciphertext_2_tv);
         assert_eq!(c_r, C_R_TV);
     }
 
@@ -1247,19 +1224,21 @@ mod tests {
 
     #[test]
     fn test_compute_th_3() {
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
         let mut cred_r_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
         cred_r_tv[..CRED_R_TV.len()].copy_from_slice(&CRED_R_TV[..]);
 
-        let th_3 = compute_th_3(&TH_2_TV, &PLAINTEXT_2_TV, &cred_r_tv, CRED_R_TV.len());
+        let th_3 = compute_th_3(&TH_2_TV, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len());
         assert_eq!(th_3, TH_3_TV);
     }
 
     #[test]
     fn test_compute_th_4() {
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let mut cred_i_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
         cred_i_tv[..CRED_I_TV.len()].copy_from_slice(&CRED_I_TV[..]);
 
-        let th_4 = compute_th_4(&TH_3_TV, &PLAINTEXT_3_TV, &cred_i_tv, CRED_I_TV.len());
+        let th_4 = compute_th_4(&TH_3_TV, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len());
         assert_eq!(th_4, TH_4_TV);
     }
 
@@ -1293,16 +1272,21 @@ mod tests {
 
     #[test]
     fn test_encrypt_message_3() {
-        let message_3 = encrypt_message_3(&PRK_3E2M_TV, &TH_3_TV, &PLAINTEXT_3_TV);
-        assert_eq!(message_3, MESSAGE_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
+
+        let message_3 = encrypt_message_3(&PRK_3E2M_TV, &TH_3_TV, &plaintext_3_tv);
+        assert_eq!(message_3, message_3_tv);
     }
 
     #[test]
     fn test_decrypt_message_3() {
-        let plaintext_3 = decrypt_message_3(&PRK_3E2M_TV, &TH_3_TV, &MESSAGE_3_TV);
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
+        let plaintext_3 = decrypt_message_3(&PRK_3E2M_TV, &TH_3_TV, &message_3_tv);
         assert!(plaintext_3.is_ok());
-        assert_eq!(plaintext_3.unwrap(), PLAINTEXT_3_TV);
+        assert_eq!(plaintext_3.unwrap(), plaintext_3_tv);
     }
 
     #[test]
@@ -1338,19 +1322,21 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_2() {
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
         let plaintext_2 = encode_plaintext_2(&ID_CRED_R_TV, &MAC_2_TV, &[]);
 
-        assert_eq!(plaintext_2, PLAINTEXT_2_TV);
+        assert_eq!(plaintext_2, plaintext_2_tv);
     }
 
     #[test]
     fn test_decode_plaintext_2() {
-        let mut plaintext_2_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        plaintext_2_tv[..PLAINTEXT_2_TV.len]
-            .copy_from_slice(&PLAINTEXT_2_TV.content[..PLAINTEXT_2_TV.len]);
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        plaintext_2_tv_buffer[..plaintext_2_tv.len]
+            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
         let ead_2_tv = [0x00u8; 0];
 
-        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN_TV);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv_buffer, PLAINTEXT_2_LEN_TV);
         assert!(plaintext_2.is_ok());
         let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(id_cred_r, ID_CRED_R_TV[3]);
@@ -1360,13 +1346,15 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_ciphertext_2() {
+        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let ciphertext_2_tv = BytesPlaintext2::from_hex(CIPHERTEXT_2_TV);
         // test decryption
         let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(&PRK_2E_TV, &TH_2_TV, &CIPHERTEXT_2_TV);
+            encrypt_decrypt_ciphertext_2(&PRK_2E_TV, &TH_2_TV, &ciphertext_2_tv);
 
         assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN_TV);
         for i in 0..PLAINTEXT_2_LEN_TV {
-            assert_eq!(plaintext_2[i], PLAINTEXT_2_TV.content[i]);
+            assert_eq!(plaintext_2[i], plaintext_2_tv.content[i]);
         }
 
         let mut plaintext_2_tmp: BytesCiphertext2 = BytesCiphertext2::default();
@@ -1379,7 +1367,7 @@ mod tests {
 
         assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN_TV);
         for i in 0..CIPHERTEXT_2_LEN_TV {
-            assert_eq!(ciphertext_2[i], CIPHERTEXT_2_TV.content[i]);
+            assert_eq!(ciphertext_2[i], ciphertext_2_tv.content[i]);
         }
     }
 
@@ -1403,15 +1391,17 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_3() {
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV);
-        assert_eq!(plaintext_3, PLAINTEXT_3_TV);
+        assert_eq!(plaintext_3, plaintext_3_tv);
     }
 
     #[test]
     fn test_decode_plaintext_3() {
+        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
 
-        let (kid, mac_3) = decode_plaintext_3(&PLAINTEXT_3_TV);
+        let (kid, mac_3) = decode_plaintext_3(&plaintext_3_tv);
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(kid, kid_tv);

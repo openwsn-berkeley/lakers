@@ -48,6 +48,17 @@ mod common {
         }
     }
 
+    impl EdhocMessageBuffer {
+        pub fn from_hex(hex: &str) -> Self {
+            let mut buffer = EdhocMessageBuffer::default();
+            buffer.len = hex.len() / 2;
+            for i in (0..hex.len()).step_by(2) {
+                buffer.content[i / 2] = u8::from_str_radix(&hex[i..i + 2], 16).unwrap();
+            }
+            buffer
+        }
+    }
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
@@ -132,11 +143,6 @@ mod hacspec {
     use super::common::*;
     use hacspec_lib::*;
 
-    pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
-                                                           // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-    pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
-    pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
-
     array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
 
     #[derive(Debug)]
@@ -170,7 +176,7 @@ mod hacspec {
             hacspec_buffer
         }
         pub fn from_slice_bytes_max(buffer: &BytesMaxBuffer, start: usize, len: usize) -> Self {
-            // FIXME: refactor to have EdhocMessageBuffer instead of BytesMaxBuffer, then remove or adjust this function
+            // FIXME: refactor to have EdhocMessageBuffer instead of BytesMaxBuffer, then remove this function
             let mut hacspec_buffer = EdhocMessageBufferHacspec::default();
             hacspec_buffer.len = len;
             hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
