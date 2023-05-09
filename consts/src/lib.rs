@@ -156,7 +156,6 @@ mod hacspec {
                 len: 0,
             }
         }
-
         pub fn from_hex(hex: &str) -> Self {
             let mut buffer = EdhocMessageBufferHacspec::new();
             buffer.len = hex.len() / 2;
@@ -171,14 +170,10 @@ mod hacspec {
             hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
             hacspec_buffer
         }
-        pub fn from_slice_bytes_max(buffer: &BytesMaxBuffer, start: usize, len: usize) -> Self {
-            // FIXME: refactor to have EdhocMessageBuffer instead of BytesMaxBuffer, then remove this function
-            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
-            hacspec_buffer.len = len;
-            hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
-            hacspec_buffer
-        }
-        pub fn from_slice(buffer: &BytesMessageBuffer, start: usize, len: usize) -> Self {
+        pub fn from_slice<A>(buffer: &A, start: usize, len: usize) -> Self
+        where
+            A: SeqTrait<U8>,
+        {
             let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = len;
             hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);

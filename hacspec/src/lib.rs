@@ -167,15 +167,12 @@ pub fn r_prepare_message_2(
         // but we do it here to avoid storing plaintext_2 in State
         th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
-        let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
-            &prk_2e,
-            &th_2,
-            &BufferCiphertext2::from_slice(&plaintext_2.content, 0, plaintext_2.len),
-        );
+        let (ciphertext_2, ciphertext_2_len) =
+            encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &plaintext_2);
 
         message_2 = encode_message_2(
             &g_y,
-            &BufferCiphertext2::from_slice_bytes_max(&ciphertext_2, 0, ciphertext_2_len),
+            &BufferCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
             c_r,
         );
 
@@ -458,7 +455,7 @@ pub fn i_process_message_2(
                     // but we do it here to avoid storing plaintext_2 in State
                     th_3 = compute_th_3(
                         &th_2,
-                        &BufferPlaintext2::from_slice_bytes_max(&plaintext_2, 0, plaintext_2_len),
+                        &BufferPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
                         cred_r_expected,
                         cred_r_len,
                     );
@@ -1448,8 +1445,7 @@ mod tests {
             );
         }
 
-        let plaintext_2_tmp =
-            BufferCiphertext2::from_slice_bytes_max(&plaintext_2, 0, plaintext_2_len);
+        let plaintext_2_tmp = BufferCiphertext2::from_slice(&plaintext_2, 0, plaintext_2_len);
 
         // test encryption
         let (ciphertext_2, ciphertext_2_len) =
