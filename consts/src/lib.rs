@@ -46,7 +46,6 @@ mod common {
                 len: 0,
             }
         }
-
         pub fn from_hex(hex: &str) -> Self {
             let mut buffer = EdhocMessageBuffer::new();
             buffer.len = hex.len() / 2;
@@ -170,13 +169,13 @@ mod hacspec {
             hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
             hacspec_buffer
         }
-        pub fn from_slice<A>(buffer: &A, start: usize, len: usize) -> Self
+        pub fn from_slice<A>(slice: &A, start: usize, len: usize) -> Self
         where
             A: SeqTrait<U8>,
         {
             let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = len;
-            hacspec_buffer.content = BytesMessageBuffer::from_slice(buffer, start, len);
+            hacspec_buffer.content = BytesMessageBuffer::from_slice(slice, start, len);
             hacspec_buffer
         }
         pub fn from_seq(buffer: &Seq<U8>) -> Self {
@@ -185,7 +184,7 @@ mod hacspec {
                 len: buffer.len(),
             }
         }
-        pub fn to_public_array(&self) -> EdhocMessageBuffer {
+        pub fn to_public_buffer(&self) -> EdhocMessageBuffer {
             let mut buffer = EdhocMessageBuffer::new();
             buffer.content = self.content.to_public_array();
             buffer.len = self.len;

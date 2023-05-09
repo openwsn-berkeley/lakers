@@ -126,7 +126,7 @@ mod hacspec {
             match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y) {
                 Ok((state, message_2, c_r)) => {
                     self.state = state;
-                    Ok((message_2.to_public_array(), c_r.declassify()))
+                    Ok((message_2.to_public_buffer(), c_r.declassify()))
                 }
                 Err(error) => Err(error),
             }
@@ -222,7 +222,7 @@ mod hacspec {
             match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x) {
                 Ok((state, message_1)) => {
                     self.state = state;
-                    Ok(message_1.to_public_array())
+                    Ok(message_1.to_public_buffer())
                 }
                 Err(error) => Err(error),
             }
@@ -276,7 +276,7 @@ mod hacspec {
             match i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len) {
                 Ok((state, message_3, prk_out)) => {
                     self.state = state;
-                    Ok((message_3.to_public_array(), prk_out.to_public_array()))
+                    Ok((message_3.to_public_buffer(), prk_out.to_public_array()))
                 }
                 Err(error) => Err(error),
             }
