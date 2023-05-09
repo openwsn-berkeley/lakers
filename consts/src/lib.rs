@@ -200,6 +200,7 @@ mod hacspec {
 
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);
+    array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
@@ -236,6 +237,7 @@ mod hacspec {
     // - SHA-256 | Application hash algorithm
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
         BytesSupportedSuites(secret_bytes!([0x2u8]));
+    pub const EDHOC_SUITES: BytesSuites = BytesSuites(secret_bytes!([0, 1, 2, 3, 4, 5, 6, 24, 25])); // all but private cipher suites
 
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(
