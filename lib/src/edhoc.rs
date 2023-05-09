@@ -1116,7 +1116,6 @@ mod tests {
     // manually modified test vector to include a single cipher suite encoded as 0x1818, which is not supported by this implementation
     const MESSAGE_1_TV_ERR: &str =
         "03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
-
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;

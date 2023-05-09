@@ -1153,6 +1153,12 @@ mod tests {
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+    // manually modified test vector to include two supported cipher suites (02 and 03), encoded as array
+    const MESSAGE_1_TV_B: &str =
+        "0382020358208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+    // manually modified test vector to include a single cipher suite encoded as 0x1818, which is not supported by this implementation
+    const MESSAGE_1_TV_ERR: &str =
+        "03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     pub const MESSAGE_2_LEN_TV: usize = 45;
@@ -1227,6 +1233,16 @@ mod tests {
         assert_bytes_eq!(supported_suites, supported_suites_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
+
+        let (method, supported_suites, g_x, c_i) =
+            parse_message_1(&BufferMessage1::from_hex(MESSAGE_1_TV_B)).unwrap();
+        assert_bytes_eq!(
+            supported_suites,
+            BytesSupportedSuites::from_hex(SUITES_I_TV)
+        );
+
+        let ret = parse_message_1(&BufferMessage1::from_hex(MESSAGE_1_TV_ERR));
+        assert_eq!(ret.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
     }
 
     #[test]
