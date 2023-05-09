@@ -41,7 +41,7 @@ fn main() {
 
                 if error.is_ok() {
                     let (message_2, c_r) = responder.prepare_message_2().unwrap();
-                    response.message.payload = message_2.to_vec();
+                    response.message.payload = Vec::from(&message_2.content[..message_2.len]);
                     // save state
                     let edhoc_protocol_state = (c_r, responder, state);
                     edhoc_connections.push(edhoc_protocol_state);

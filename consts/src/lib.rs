@@ -56,6 +56,24 @@ mod common {
         }
     }
 
+    impl TryInto<EdhocMessageBuffer> for &[u8] {
+        type Error = ();
+
+        fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
+            if self.len() <= MAX_MESSAGE_SIZE_LEN {
+                let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
+                buffer[..self.len()].copy_from_slice(self);
+
+                Ok(EdhocMessageBuffer {
+                    content: buffer,
+                    len: self.len(),
+                })
+            } else {
+                Err(())
+            }
+        }
+    }
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
