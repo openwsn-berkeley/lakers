@@ -58,48 +58,41 @@ pub fn r_process_message_1(
     if current_state == EDHOCState::Start {
         // Step 1: decode message_1
         // g_x will be saved to the state
-        let res: Result<(U8, BytesSupportedSuites, BytesP256ElemLen, U8), EDHOCError> =
-            parse_message_1(message_1);
+        let (method, supported_suites, g_x, c_i) = parse_message_1(message_1);
 
-        if res.is_ok() {
-            let (method, supported_suites, g_x, c_i) = res.unwrap();
+        // verify that the method is supported
+        if method.declassify() == EDHOC_METHOD {
+            // Step 2: verify that the selected cipher suite is supported
+            if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
+                // Step 3: If EAD is present make it available to the application
+                // TODO we do not support EAD for now
 
-            // verify that the method is supported
-            if method.declassify() == EDHOC_METHOD {
-                // Step 2: verify that the selected cipher suite is supported
-                if supported_suites[0u8].declassify() == EDHOC_SUPPORTED_SUITES[0u8].declassify() {
-                    // Step 3: If EAD is present make it available to the application
-                    // TODO we do not support EAD for now
+                // hash message_1 and save the hash to the state to avoid saving the whole message
+                h_message_1 = sha256_digest(
+                    &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+                    message_1.len,
+                );
 
-                    // hash message_1 and save the hash to the state to avoid saving the whole message
-                    h_message_1 = sha256_digest(
-                        &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
-                        message_1.len,
-                    );
+                error = EDHOCError::Success;
+                current_state = EDHOCState::ProcessedMessage1;
 
-                    error = EDHOCError::Success;
-                    current_state = EDHOCState::ProcessedMessage1;
-
-                    state = construct_state(
-                        current_state,
-                        _y,
-                        c_i,
-                        g_x,
-                        _prk_3e2m,
-                        _prk_4e3m,
-                        _prk_out,
-                        _prk_exporter,
-                        h_message_1,
-                        _th_3,
-                    );
-                } else {
-                    error = EDHOCError::UnsupportedCipherSuite;
-                }
+                state = construct_state(
+                    current_state,
+                    _y,
+                    c_i,
+                    g_x,
+                    _prk_3e2m,
+                    _prk_4e3m,
+                    _prk_out,
+                    _prk_exporter,
+                    h_message_1,
+                    _th_3,
+                );
             } else {
-                error = EDHOCError::UnsupportedMethod;
+                error = EDHOCError::UnsupportedCipherSuite;
             }
         } else {
-            error = res.unwrap_err();
+            error = EDHOCError::UnsupportedMethod;
         }
     } else {
         error = EDHOCError::WrongState;
@@ -610,70 +603,15 @@ pub fn construct_state(
 
 fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
-) -> Result<(U8, BytesSupportedSuites, BytesP256ElemLen, U8), EDHOCError> {
-    let mut error: EDHOCError = EDHOCError::UnknownError;
+) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
     let method = rcvd_message_1.content[0];
-    let mut g_x: BytesP256ElemLen = BytesP256ElemLen::new();
-    let mut proposed_suites: BytesSuites = BytesSuites::from_public_array([0xff; SUITES_LEN]);
-    let mut proposed_suites_len: usize = 0;
-    let mut selected_suites: BytesSupportedSuites = BytesSupportedSuites::new();
-    let mut c_i = U8(0);
+    // FIXME as we only support a fixed-sized incoming message_1,
+    // we parse directly the selected cipher suite
+    let selected_suite = BytesSupportedSuites::from_slice(&rcvd_message_1.content, 1, 1);
+    let g_x = BytesP256ElemLen::from_slice(&rcvd_message_1.content, 4, P256_ELEM_LEN);
+    let c_i = rcvd_message_1.content[rcvd_message_1.len - 1];
 
-    let result = match (rcvd_message_1.content[1] as U8).declassify() {
-        0x00..=0x17 => {
-            proposed_suites[0] = rcvd_message_1.content[1];
-            Ok(1)
-        }
-        0x18 => {
-            proposed_suites[0] = rcvd_message_1.content[2];
-            Ok(2)
-        }
-        0x80..=0x97 => {
-            let proposed_suites_len: U8 = rcvd_message_1.content[1] - U8(0x80);
-            let proposed_suites_len: usize = proposed_suites_len.declassify().into();
-            for i in 0..proposed_suites_len {
-                proposed_suites[i] = rcvd_message_1.content[2 + i];
-            }
-            Ok(proposed_suites_len + 1)
-        }
-        _ => Err(EDHOCError::ParsingError),
-    };
-
-    if result.is_ok() {
-        proposed_suites_len = result.unwrap();
-        let proposed_suites = proposed_suites.to_public_array();
-        let mut selected_suites_len: usize = 0;
-        for i in 0..EDHOC_SUPPORTED_SUITES.len() {
-            if proposed_suites.contains(&EDHOC_SUPPORTED_SUITES[i].declassify()) {
-                selected_suites[selected_suites_len] = EDHOC_SUPPORTED_SUITES[i];
-                selected_suites_len += 1;
-            }
-        }
-        if selected_suites_len > 0 {
-            g_x = BytesP256ElemLen::from_slice(
-                &rcvd_message_1.content,
-                3 + proposed_suites_len,
-                P256_ELEM_LEN,
-            );
-            c_i = rcvd_message_1.content[3 + proposed_suites_len + P256_ELEM_LEN];
-
-            // check that the message is of the correct length
-            if rcvd_message_1.len == (3 + proposed_suites_len + P256_ELEM_LEN + 1) {
-                error = EDHOCError::Success;
-            } else {
-                error = EDHOCError::ParsingError;
-            }
-        } else {
-            error = EDHOCError::UnsupportedCipherSuite;
-        }
-    } else {
-        error = result.unwrap_err();
-    }
-
-    match error {
-        EDHOCError::Success => Ok((method, selected_suites, g_x, c_i)),
-        _ => Err(error),
-    }
+    (method, selected_suite, g_x, c_i)
 }
 
 fn encode_message_1(
@@ -1154,11 +1092,6 @@ mod tests {
     const MESSAGE_1_TV: &str =
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     // manually modified test vector to include two supported cipher suites (02 and 03), encoded as array
-    const MESSAGE_1_TV_B: &str =
-        "0382020358208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
-    // manually modified test vector to include a single cipher suite encoded as 0x1818, which is not supported by this implementation
-    const MESSAGE_1_TV_ERR: &str =
-        "03181858208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     pub const MESSAGE_2_LEN_TV: usize = 45;
@@ -1225,24 +1158,12 @@ mod tests {
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
 
-        let res = parse_message_1(&message_1_tv);
-        assert!(res.is_ok());
-        let (method, supported_suites, g_x, c_i) = res.unwrap();
+        let (method, supported_suites, g_x, c_i) = parse_message_1(&message_1_tv);
 
         assert_eq!(method.declassify(), method_tv);
         assert_bytes_eq!(supported_suites, supported_suites_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
-
-        let (method, supported_suites, g_x, c_i) =
-            parse_message_1(&BufferMessage1::from_hex(MESSAGE_1_TV_B)).unwrap();
-        assert_bytes_eq!(
-            supported_suites,
-            BytesSupportedSuites::from_hex(SUITES_I_TV)
-        );
-
-        let ret = parse_message_1(&BufferMessage1::from_hex(MESSAGE_1_TV_ERR));
-        assert_eq!(ret.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
     }
 
     #[test]
