@@ -102,8 +102,8 @@ mod hacspec {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        plaintext: &BytesPlaintext3,
-    ) -> BytesCiphertext3 {
+        plaintext: &BufferPlaintext3,
+    ) -> BufferCiphertext3 {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -123,19 +123,20 @@ mod hacspec {
             },
         };
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
-        let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
+        let mut output_buffer = EdhocMessageBuffer::new();
 
         aead::encrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
-            &plaintext.to_public_array(),
-            &mut output_buffer,
+            &plaintext.content.to_public_array()[..plaintext.len],
+            &mut output_buffer.content,
         )
         .unwrap();
 
-        let output = BytesCiphertext3::from_public_slice(&output_buffer[..]);
+        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
+        let output = BufferCiphertext3::from_public_buffer(&output_buffer);
         output
     }
 
@@ -143,8 +144,8 @@ mod hacspec {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        ciphertext: &BytesCiphertext3,
-    ) -> Result<BytesPlaintext3, EDHOCError> {
+        ciphertext: &BufferCiphertext3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -164,17 +165,20 @@ mod hacspec {
             },
         };
         let my_key = key_management::import(attributes, None, &key.to_public_array()).unwrap();
-        let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
+        let mut output_buffer = EdhocMessageBuffer::new();
 
         match aead::decrypt(
             my_key,
             alg,
             &iv.to_public_array(),
             &ad.to_public_array(),
-            &ciphertext.to_public_array(),
-            &mut output_buffer,
+            &ciphertext.content.to_public_array()[..ciphertext.len],
+            &mut output_buffer.content,
         ) {
-            Ok(_) => Ok(BytesPlaintext3::from_public_slice(&output_buffer[..])),
+            Ok(_) => {
+                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                Ok(BufferPlaintext3::from_public_buffer(&output_buffer))
+            }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
@@ -358,8 +362,8 @@ mod rust {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        plaintext: &BytesPlaintext3,
-    ) -> BytesCiphertext3 {
+        plaintext: &BufferPlaintext3,
+    ) -> BufferCiphertext3 {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -379,10 +383,19 @@ mod rust {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: [u8; CIPHERTEXT_3_LEN] = [0; CIPHERTEXT_3_LEN];
+        let mut output_buffer: BufferCiphertext3 = BufferCiphertext3::new();
 
-        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer).unwrap();
+        aead::encrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            &plaintext.content[..plaintext.len],
+            &mut output_buffer.content,
+        )
+        .unwrap();
 
+        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
         output_buffer
     }
 
@@ -390,8 +403,8 @@ mod rust {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        ciphertext: &BytesCiphertext3,
-    ) -> Result<BytesPlaintext3, EDHOCError> {
+        ciphertext: &BufferCiphertext3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -411,13 +424,24 @@ mod rust {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: [u8; PLAINTEXT_3_LEN] = [0; PLAINTEXT_3_LEN];
+        let mut output_buffer: BufferPlaintext3 = BufferPlaintext3::new();
 
-        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer) {
-            Ok(_) => Ok(output_buffer),
+        match aead::decrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            &ciphertext.content[..ciphertext.len],
+            &mut output_buffer.content,
+        ) {
+            Ok(_) => {
+                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                Ok(output_buffer)
+            }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
+
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,

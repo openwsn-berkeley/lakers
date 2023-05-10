@@ -82,9 +82,9 @@ mod hacspec {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        plaintext: &BytesPlaintext3,
-    ) -> BytesCiphertext3 {
-        let mut output = [0x0u8; CIPHERTEXT_3_LEN];
+        plaintext: &BufferPlaintext3,
+    ) -> BufferCiphertext3 {
+        let mut output = EdhocMessageBuffer::new();
         let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
@@ -99,33 +99,35 @@ mod hacspec {
                 iv.len() as u8,
                 ad.to_public_array().as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.to_public_array().as_mut_ptr(),
-                plaintext.len() as u32,
-                output.as_mut_ptr(),
+                plaintext.content.to_public_array()[..plaintext.len].as_mut_ptr(),
+                plaintext.len as u32,
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
                 0 as u32, // CCM
             )
         };
 
-        output[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
+            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.len = plaintext.len + AES_CCM_TAG_LEN;
 
-        BytesCiphertext3::from_public_slice(&output)
+        BufferCiphertext3::from_public_buffer(&output)
     }
 
     pub fn aes_ccm_decrypt_tag_8(
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        ciphertext: &BytesCiphertext3,
-    ) -> Result<BytesPlaintext3, EDHOCError> {
-        let mut output = [0x0u8; PLAINTEXT_3_LEN];
+        ciphertext: &BufferCiphertext3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
+        let mut output = EdhocMessageBuffer::new();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key.to_public_array());
 
         let mut err = EDHOCError::MacVerificationFailed;
-        let mut plaintext = BytesPlaintext3::new();
+        let mut plaintext = BufferPlaintext3::new();
 
         unsafe {
             match CC_AESCCM(
@@ -136,14 +138,18 @@ mod hacspec {
                 iv.len() as u8,
                 ad.to_public_array().as_mut_ptr(),
                 ad.len() as u32,
-                ciphertext.to_public_array().as_mut_ptr(),
-                (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
-                output.as_mut_ptr(),
+                ciphertext.content.to_public_array().as_mut_ptr(),
+                (ciphertext.len - AES_CCM_TAG_LEN) as u32,
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext.to_public_array()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                ciphertext.content.to_public_array()[ciphertext.len - AES_CCM_TAG_LEN..]
+                    .as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => Ok(BytesPlaintext3::from_public_slice(&output[..])),
+                CRYS_OK => {
+                    output.len = ciphertext.len - AES_CCM_TAG_LEN;
+                    Ok(BufferPlaintext3::from_public_buffer(&output))
+                }
                 _ => Err(EDHOCError::MacVerificationFailed),
             }
         }
@@ -359,9 +365,9 @@ mod rust {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        plaintext: &BytesPlaintext3,
-    ) -> BytesCiphertext3 {
-        let mut output = [0x0u8; CIPHERTEXT_3_LEN];
+        plaintext: &BufferPlaintext3,
+    ) -> BufferCiphertext3 {
+        let mut output: BufferCiphertext3 = BufferCiphertext3::new();
         let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
@@ -376,16 +382,18 @@ mod rust {
                 iv.len() as u8,
                 ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.clone().as_mut_ptr(),
-                plaintext.len() as u32,
-                output.as_mut_ptr(),
+                plaintext.content.clone().as_mut_ptr(),
+                plaintext.len as u32,
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
                 0 as u32, // CCM
             )
         };
 
-        output[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
+            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
+        output.len = plaintext.len + AES_CCM_TAG_LEN;
 
         output
     }
@@ -394,15 +402,14 @@ mod rust {
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
-        ciphertext: &BytesCiphertext3,
-    ) -> Result<BytesPlaintext3, EDHOCError> {
-        let mut output = [0x0u8; PLAINTEXT_3_LEN];
+        ciphertext: &BufferCiphertext3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
+        let mut output: BufferPlaintext3 = BufferPlaintext3::new();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
 
         let mut err = EDHOCError::MacVerificationFailed;
-        let mut plaintext: BytesPlaintext3 = [0x00u8; PLAINTEXT_3_LEN];
 
         unsafe {
             match CC_AESCCM(
@@ -413,18 +420,22 @@ mod rust {
                 iv.len() as u8,
                 ad.clone().as_mut_ptr(),
                 ad.len() as u32,
-                ciphertext.clone().as_mut_ptr(),
-                (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
-                output.as_mut_ptr(),
+                ciphertext.content.clone().as_mut_ptr(),
+                (ciphertext.len - AES_CCM_TAG_LEN) as u32,
+                output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext.clone()[CIPHERTEXT_3_LEN - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                ciphertext.content.clone()[ciphertext.len - AES_CCM_TAG_LEN..].as_mut_ptr(),
                 0 as u32, // CCM
             ) {
-                CRYS_OK => Ok(output),
+                CRYS_OK => {
+                    output.len = ciphertext.len - AES_CCM_TAG_LEN;
+                    Ok(output)
+                }
                 _ => Err(EDHOCError::MacVerificationFailed),
             }
         }
     }
+
     pub fn p256_ecdh(
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,

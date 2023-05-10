@@ -38,7 +38,7 @@ pub fn edhoc_exporter(
 /// process message_2: parse, check method, check cipher suite
 pub fn r_process_message_1(
     mut state: State,
-    message_1: &BytesMessage1,
+    message_1: &BufferMessage1,
 ) -> Result<State, EDHOCError> {
     let State(
         mut current_state,
@@ -69,8 +69,8 @@ pub fn r_process_message_1(
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
                 h_message_1 = sha256_digest(
-                    &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
-                    message_1.len(),
+                    &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+                    message_1.len,
                 );
 
                 error = EDHOCError::Success;
@@ -120,7 +120,7 @@ pub fn r_prepare_message_2(
     r: &BytesP256ElemLen,  // R's static private DH key
     y: BytesP256ElemLen,   // R's ephemeral private DH key
     g_y: BytesP256ElemLen, // R's ephemeral public DH key
-) -> Result<(State, BytesMessage2, U8), EDHOCError> {
+) -> Result<(State, BufferMessage2, U8), EDHOCError> {
     let State(
         mut current_state,
         mut _y,
@@ -135,7 +135,7 @@ pub fn r_prepare_message_2(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-    let mut message_2 = BytesMessage2::new();
+    let mut message_2 = BufferMessage2::new();
     let mut c_r = U8(0xffu8); // invalid c_r
 
     if current_state == EDHOCState::ProcessedMessage1 {
@@ -160,15 +160,12 @@ pub fn r_prepare_message_2(
         // but we do it here to avoid storing plaintext_2 in State
         th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
 
-        let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
-            &prk_2e,
-            &th_2,
-            &BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2.len()),
-        );
+        let (ciphertext_2, ciphertext_2_len) =
+            encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &plaintext_2);
 
         message_2 = encode_message_2(
             &g_y,
-            &BytesCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
+            &BufferCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
             c_r,
         );
 
@@ -202,7 +199,7 @@ pub fn r_prepare_message_2(
 // FIXME fetch ID_CRED_I and CRED_I based on kid
 pub fn r_process_message_3(
     mut state: State,
-    message_3: &BytesMessage3,
+    message_3: &BufferMessage3,
     id_cred_i_expected: &BytesIdCred,
     cred_i_expected: &BytesMaxBuffer,
     cred_i_len: usize,
@@ -297,7 +294,7 @@ pub fn r_process_message_3(
             }
         } else {
             // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
-            error = plaintext_3.err().expect("error handling error");
+            error = plaintext_3.unwrap_err();
         }
     } else {
         error = EDHOCError::WrongState;
@@ -325,7 +322,7 @@ pub fn i_prepare_message_1(
     mut state: State,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
-) -> Result<(State, BytesMessage1), EDHOCError> {
+) -> Result<(State, BufferMessage1), EDHOCError> {
     let State(
         mut current_state,
         mut _x,
@@ -341,7 +338,7 @@ pub fn i_prepare_message_1(
 
     let mut error = EDHOCError::UnknownError;
 
-    let mut message_1 = BytesMessage1::new();
+    let mut message_1 = BufferMessage1::new();
 
     if current_state == EDHOCState::Start {
         // we only support a single cipher suite which is already CBOR-encoded
@@ -355,8 +352,8 @@ pub fn i_prepare_message_1(
 
         // hash message_1 here to avoid saving the whole message in the state
         h_message_1 = sha256_digest(
-            &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
-            message_1.len(),
+            &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+            message_1.len,
         );
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
@@ -384,11 +381,10 @@ pub fn i_prepare_message_1(
 }
 
 /// process message_2: parse, decrypt, check mac, check kid
-/// message_3 must hold MESSAGE_3_LEN
 /// returns c_r
 pub fn i_process_message_2(
     mut state: State,
-    message_2: &BytesMessage2,
+    message_2: &BufferMessage2,
     id_cred_r_expected: &BytesIdCred,
     cred_r_expected: &BytesMaxBuffer,
     cred_r_len: usize,
@@ -452,7 +448,7 @@ pub fn i_process_message_2(
                     // but we do it here to avoid storing plaintext_2 in State
                     th_3 = compute_th_3(
                         &th_2,
-                        &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+                        &BufferPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
                         cred_r_expected,
                         cred_r_len,
                     );
@@ -503,14 +499,13 @@ pub fn i_process_message_2(
 ///   )
 /// Note that the plaintext is:
 ///   PLAINTEXT_3 = ( ID_CRED_I / bstr / -24..23, Signature_or_MAC_3, ? EAD_3 )
-/// Also, note that message_3 must hold MESSAGE_3_LEN.
 /// returns: (state, message_3, prk_out)
 pub fn i_prepare_message_3(
     mut state: State,
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
-) -> Result<(State, BytesMessage3, BytesHashLen), EDHOCError> {
+) -> Result<(State, BufferMessage3, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
         _x,
@@ -525,7 +520,7 @@ pub fn i_prepare_message_3(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-    let mut message_3 = BytesMessage3::new();
+    let mut message_3 = BufferMessage3::new();
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
@@ -607,14 +602,14 @@ pub fn construct_state(
 }
 
 fn parse_message_1(
-    rcvd_message_1: &BytesMessage1,
+    rcvd_message_1: &BufferMessage1,
 ) -> (U8, BytesSupportedSuites, BytesP256ElemLen, U8) {
-    let method = rcvd_message_1[0];
+    let method = rcvd_message_1.content[0];
     // FIXME as we only support a fixed-sized incoming message_1,
     // we parse directly the selected cipher suite
-    let selected_suite = BytesSupportedSuites::from_slice(rcvd_message_1, 1, 1);
-    let g_x = BytesP256ElemLen::from_slice(rcvd_message_1, 4, P256_ELEM_LEN);
-    let c_i = rcvd_message_1[MESSAGE_1_LEN - 1];
+    let selected_suite = BytesSupportedSuites::from_slice(&rcvd_message_1.content, 1, 1);
+    let g_x = BytesP256ElemLen::from_slice(&rcvd_message_1.content, 4, P256_ELEM_LEN);
+    let c_i = rcvd_message_1.content[rcvd_message_1.len - 1];
 
     (method, selected_suite, g_x, c_i)
 }
@@ -624,42 +619,50 @@ fn encode_message_1(
     suites: &BytesSupportedSuites,
     g_x: &BytesP256ElemLen,
     c_i: U8,
-) -> BytesMessage1 {
-    let mut output = BytesMessage1::new();
+) -> BufferMessage1 {
+    let mut output = BufferMessage1::new();
 
-    output[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
-    output[1] = suites[0];
-    output[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
-    output[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
-    output = output.update(4, g_x);
-    output[4 + P256_ELEM_LEN] = c_i;
+    output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+    output.content[1] = suites[0];
+    output.content[2] = U8(CBOR_BYTE_STRING); // CBOR byte string magic number
+    output.content[3] = U8(P256_ELEM_LEN as u8); // length of the byte string
+    output.content = output.content.update(4, g_x);
+    output.content[4 + P256_ELEM_LEN] = c_i;
 
+    output.len = 4 + P256_ELEM_LEN + 1;
     output
 }
 
-fn parse_message_2(rcvd_message_2: &BytesMessage2) -> (BytesP256ElemLen, BytesCiphertext2, U8) {
+fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, BufferCiphertext2, U8) {
     // FIXME decode negative integers as well
-    let g_y = BytesP256ElemLen::from_slice(rcvd_message_2, 2, P256_ELEM_LEN);
+    let g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
+    let ciphertext_2_len = rcvd_message_2.len - 1 - P256_ELEM_LEN - 2; // len - cr_len - gy_len - 2
     let ciphertext_2 =
-        BytesCiphertext2::from_slice(rcvd_message_2, 2 + P256_ELEM_LEN, CIPHERTEXT_2_LEN);
-    let c_r = rcvd_message_2[MESSAGE_2_LEN - 1];
+        BufferCiphertext2::from_slice(&rcvd_message_2.content, 2 + P256_ELEM_LEN, ciphertext_2_len);
+    let c_r = rcvd_message_2.content[2 + P256_ELEM_LEN + ciphertext_2.len];
 
     (g_y, ciphertext_2, c_r)
 }
 
 fn encode_message_2(
     g_y: &BytesP256ElemLen,
-    ciphertext_2: &BytesCiphertext2,
+    ciphertext_2: &BufferCiphertext2,
     c_r: U8,
-) -> BytesMessage2 {
-    let mut output = BytesMessage2::new();
+) -> BufferMessage2 {
+    let mut output = BufferMessage2::new();
 
-    output[0] = U8(CBOR_BYTE_STRING);
-    output[1] = U8(P256_ELEM_LEN as u8 + CIPHERTEXT_2_LEN as u8);
-    output = output.update(2, g_y);
-    output = output.update(2 + P256_ELEM_LEN, ciphertext_2);
-    output[2 + P256_ELEM_LEN + CIPHERTEXT_2_LEN] = c_r;
+    output.content[0] = U8(CBOR_BYTE_STRING);
+    output.content[1] = U8(P256_ELEM_LEN as u8 + ciphertext_2.len as u8);
+    output.content = output.content.update(2, g_y);
+    output.content = output.content.update_slice(
+        2 + P256_ELEM_LEN,
+        &ciphertext_2.content,
+        0,
+        ciphertext_2.len,
+    );
+    output.content[2 + P256_ELEM_LEN + ciphertext_2.len] = c_r;
 
+    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len + 1;
     output
 }
 
@@ -682,7 +685,7 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
 
 fn compute_th_3(
     th_2: &BytesHashLen,
-    plaintext_2: &BytesPlaintext2,
+    plaintext_2: &BufferPlaintext2,
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
 ) -> BytesHashLen {
@@ -691,17 +694,17 @@ fn compute_th_3(
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_2.len() as u8);
     message = message.update(2, th_2);
-    message = message.update(2 + th_2.len(), plaintext_2);
-    message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
+    message = message.update_slice(2 + th_2.len(), &plaintext_2.content, 0, plaintext_2.len);
+    message = message.update_slice(2 + th_2.len() + plaintext_2.len, cred_r, 0, cred_r_len);
 
-    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len() + cred_r_len);
+    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r_len);
 
     output
 }
 
 fn compute_th_4(
     th_3: &BytesHashLen,
-    plaintext_3: &BytesPlaintext3,
+    plaintext_3: &BufferPlaintext3,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
 ) -> BytesHashLen {
@@ -710,10 +713,10 @@ fn compute_th_4(
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(th_3.len() as u8);
     message = message.update(2, th_3);
-    message = message.update(2 + th_3.len(), plaintext_3);
-    message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
+    message = message.update_slice(2 + th_3.len(), &plaintext_3.content, 0, plaintext_3.len);
+    message = message.update_slice(2 + th_3.len() + plaintext_3.len, cred_i, 0, cred_i_len);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
+    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i_len);
 
     output
 }
@@ -754,22 +757,23 @@ fn edhoc_kdf(
     output
 }
 
-fn decode_plaintext_3(plaintext_3: &BytesPlaintext3) -> (U8, BytesMac3) {
-    let kid = plaintext_3[0usize];
+fn decode_plaintext_3(plaintext_3: &BufferPlaintext3) -> (U8, BytesMac3) {
+    let kid = plaintext_3.content[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
-    let mac_3 = BytesMac3::from_slice(plaintext_3, 2, MAC_LENGTH_3);
+    let mac_3 = BytesMac3::from_slice(&plaintext_3.content, 2, MAC_LENGTH_3);
 
     (kid, mac_3)
 }
 
-fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BytesPlaintext3 {
-    let mut plaintext_3 = BytesPlaintext3::new();
+fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BufferPlaintext3 {
+    let mut plaintext_3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
-    plaintext_3 = plaintext_3.update(2, mac_3);
+    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
+    plaintext_3.content = plaintext_3.content.update(2, mac_3);
 
+    plaintext_3.len = 2 + mac_3.len();
     plaintext_3
 }
 
@@ -831,23 +835,24 @@ fn compute_k_3_iv_3(
 }
 
 // calculates ciphertext_3 wrapped in a cbor byte string
-// output must hold MESSAGE_3_LEN
 fn encrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
-    plaintext_3: &BytesPlaintext3,
-) -> BytesMessage3 {
-    let mut output = BytesMessage3::new();
-    output[0] = U8(CBOR_MAJOR_BYTE_STRING | CIPHERTEXT_3_LEN as u8);
+    plaintext_3: &BufferPlaintext3,
+) -> BufferMessage3 {
+    let mut output = BufferMessage3::new();
+    output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
+    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8);
 
     let enc_structure = encode_enc_structure(th_3);
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    output = output.update(
-        1,
-        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3),
-    );
+    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+
+    output.content = output
+        .content
+        .update_slice(1, &ciphertext_3.content, 0, ciphertext_3.len);
 
     output
 }
@@ -855,32 +860,29 @@ fn encrypt_message_3(
 fn decrypt_message_3(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
-    message_3: &BytesMessage3,
-) -> Result<BytesPlaintext3, EDHOCError> {
+    message_3: &BufferMessage3,
+) -> Result<BufferPlaintext3, EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut plaintext_3 = BytesPlaintext3::new();
+    let mut plaintext_3 = BufferPlaintext3::new();
 
     // decode message_3
-    let len = message_3[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING);
+    let len = (message_3.content[0usize] ^ U8(CBOR_MAJOR_BYTE_STRING)).declassify() as usize;
 
-    // compare parsed length with the expected length of the ciphertext
-    if len.declassify() as usize == CIPHERTEXT_3_LEN {
-        let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
+    let ciphertext_3 = BufferCiphertext3::from_slice(&message_3.content, 1, len);
 
-        let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-        let enc_structure = encode_enc_structure(th_3);
+    let enc_structure = encode_enc_structure(th_3);
 
-        let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+    let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
-        if p3.is_ok() {
-            error = EDHOCError::Success;
-            plaintext_3 = plaintext_3.update(0, &p3.unwrap());
-        } else {
-            error = p3.err().expect("error handling error");
-        }
+    if p3.is_ok() {
+        error = EDHOCError::Success;
+        let p3 = p3.unwrap();
+        plaintext_3.content = plaintext_3.content.update_slice(0, &p3.content, 0, p3.len);
+        plaintext_3.len = p3.len;
     } else {
-        error = EDHOCError::ParsingError;
+        error = p3.unwrap_err();
     }
 
     match error {
@@ -957,37 +959,34 @@ fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
 ) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
-    if plaintext_2_len == PLAINTEXT_2_LEN {
-        let id_cred_r = plaintext_2[0];
-        // skip cbor byte string byte as we know how long the string is
-        let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
-        // FIXME we don't support ead_2 parsing for now
-        let ead_2 = BytesEad2::new();
+    let id_cred_r = plaintext_2[0];
+    // skip cbor byte string byte as we know how long the string is
+    let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
+    // FIXME we don't support ead_2 parsing for now
+    let ead_2 = BytesEad2::new();
 
-        Ok((id_cred_r, mac_2, ead_2))
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
+    Ok((id_cred_r, mac_2, ead_2))
 }
 
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
     ead_2: &BytesEad2,
-) -> BytesPlaintext2 {
-    let mut plaintext_2 = BytesPlaintext2::new();
-    plaintext_2[0] = id_cred_r[id_cred_r.len() - 1];
-    plaintext_2[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
-    plaintext_2 = plaintext_2.update(2, mac_2);
-    plaintext_2 = plaintext_2.update(2 + mac_2.len(), ead_2);
+) -> BufferPlaintext2 {
+    let mut plaintext_2 = BufferPlaintext2::new();
+    plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
+    plaintext_2.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
+    plaintext_2.content = plaintext_2.content.update(2, mac_2);
+    plaintext_2.content = plaintext_2.content.update(2 + mac_2.len(), ead_2);
 
+    plaintext_2.len = 2 + mac_2.len() + ead_2.len();
     plaintext_2
 }
 
 fn encrypt_decrypt_ciphertext_2(
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
-    ciphertext_2: &BytesCiphertext2,
+    ciphertext_2: &BufferCiphertext2,
 ) -> (BytesMaxBuffer, usize) {
     // convert the transcript hash th_2 to BytesMaxContextBuffer type
     let th_2_context = BytesMaxContextBuffer::from_slice(th_2, 0, th_2.len());
@@ -998,16 +997,16 @@ fn encrypt_decrypt_ciphertext_2(
         U8(0 as u8),
         &th_2_context,
         SHA256_DIGEST_LEN,
-        CIPHERTEXT_2_LEN,
+        ciphertext_2.len,
     );
 
     let mut plaintext_2 = BytesMaxBuffer::new();
     // decrypt/encrypt ciphertext_2
-    for i in 0..CIPHERTEXT_2_LEN {
-        plaintext_2[i] = ciphertext_2[i] ^ keystream_2[i];
+    for i in 0..ciphertext_2.len {
+        plaintext_2[i] = ciphertext_2.content[i] ^ keystream_2[i];
     }
 
-    (plaintext_2, CIPHERTEXT_2_LEN)
+    (plaintext_2, ciphertext_2.len)
 }
 
 fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashLen {
@@ -1094,6 +1093,9 @@ mod tests {
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
+    pub const MESSAGE_2_LEN_TV: usize = 45;
+    pub const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_LEN_TV - P256_ELEM_LEN - 1 - 2;
+    pub const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
     const MESSAGE_2_TV: &str =
     "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
     const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
@@ -1140,16 +1142,16 @@ mod tests {
         let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
 
         let message_1 = encode_message_1(method_tv, &suites_i_tv, &g_x_tv, c_i_tv);
 
-        assert_bytes_eq!(message_1, message_1_tv);
+        assert_bytes_eq!(message_1.content, message_1_tv.content);
     }
 
     #[test]
     fn test_parse_message_1() {
-        let message_1_tv = BytesMessage1::from_hex(MESSAGE_1_TV);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let method_tv = METHOD_TV;
         let supported_suites_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
@@ -1165,27 +1167,27 @@ mod tests {
 
     #[test]
     fn test_encode_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);
 
         let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, c_r_tv);
 
-        assert_bytes_eq!(message_2, message_2_tv);
+        assert_bytes_eq!(message_2.content, message_2_tv.content);
     }
 
     #[test]
     fn test_parse_message_2() {
-        let message_2_tv = BytesMessage2::from_hex(MESSAGE_2_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
         let c_r_tv = U8(C_R_TV);
 
         let (g_y, ciphertext_2, c_r) = parse_message_2(&message_2_tv);
 
         assert_bytes_eq!(g_y, g_y_tv);
-        assert_bytes_eq!(ciphertext_2, ciphertext_2_tv);
+        assert_bytes_eq!(ciphertext_2.content, ciphertext_2_tv.content);
         assert_eq!(c_r.declassify(), c_r_tv.declassify());
     }
 
@@ -1204,7 +1206,7 @@ mod tests {
     fn test_compute_th_3() {
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
         let cred_r_tv =
             BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_R_TV), 0, CRED_R_TV.len() / 2);
 
@@ -1215,7 +1217,7 @@ mod tests {
     #[test]
     fn test_compute_th_4() {
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
         let cred_i_tv =
             BytesMaxBuffer::from_slice(&ByteSeq::from_hex(CRED_I_TV), 0, CRED_I_TV.len() / 2);
@@ -1229,8 +1231,8 @@ mod tests {
         let th_2_context_tv =
             BytesMaxContextBuffer::from_slice(&ByteSeq::from_hex(TH_2_TV), 0, TH_2_TV.len() / 2);
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
-        let keystream_2_tv = BytesPlaintext2::from_hex(KEYSTREAM_2_TV);
-        const LEN_TV: usize = PLAINTEXT_2_LEN;
+        let keystream_2_tv = BufferPlaintext2::from_hex(KEYSTREAM_2_TV);
+        const LEN_TV: usize = PLAINTEXT_2_LEN_TV;
 
         let output = edhoc_kdf(
             &prk_2e_tv,
@@ -1239,8 +1241,11 @@ mod tests {
             SHA256_DIGEST_LEN,
             LEN_TV,
         );
-        for i in 0..keystream_2_tv.len() {
-            assert_eq!(keystream_2_tv[i].declassify(), output[i].declassify());
+        for i in 0..keystream_2_tv.len {
+            assert_eq!(
+                keystream_2_tv.content[i].declassify(),
+                output[i].declassify()
+            );
         }
 
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
@@ -1268,24 +1273,24 @@ mod tests {
     fn test_encrypt_message_3() {
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
+        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let message_3_tv = BufferMessage3::from_hex(MESSAGE_3_TV);
 
         let message_3 = encrypt_message_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
-        assert_bytes_eq!(message_3, message_3_tv);
+        assert_bytes_eq!(message_3.content, message_3_tv.content);
     }
 
     #[test]
     fn test_decrypt_message_3() {
-        let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
+        let message_3_tv = BufferMessage3::from_hex(MESSAGE_3_TV);
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
-        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
         let plaintext_3 = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
 
         assert!(plaintext_3.is_ok());
-        assert_bytes_eq!(plaintext_3.unwrap(), plaintext_3_tv);
+        assert_bytes_eq!(plaintext_3.unwrap().content, plaintext_3_tv.content);
     }
 
     #[test]
@@ -1329,13 +1334,13 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_2() {
-        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
         let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &BytesEad2::new());
 
-        assert_bytes_eq!(plaintext_2, plaintext_2_tv);
+        assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
 
     #[test]
@@ -1349,44 +1354,44 @@ mod tests {
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
         let ead_2_tv = BytesEad2::new();
 
-        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN_TV);
         assert!(plaintext_2.is_ok());
         let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(U8::declassify(id_cred_r), U8::declassify(id_cred_r_tv[3]));
         assert_bytes_eq!(mac_2, mac_2_tv);
         assert_bytes_eq!(ead_2, ead_2_tv);
-
-        let plaintext_2_wrong_len = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN + 1);
-        assert_eq!(plaintext_2_wrong_len.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
     fn test_encrypt_decrypt_ciphertext_2() {
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
-        let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
 
         // test decryption
         let (plaintext_2, plaintext_2_len) =
             encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &ciphertext_2_tv);
 
-        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
-        for i in 0..PLAINTEXT_2_LEN {
-            assert_eq!(plaintext_2[i].declassify(), plaintext_2_tv[i].declassify());
+        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN_TV);
+        for i in 0..PLAINTEXT_2_LEN_TV {
+            assert_eq!(
+                plaintext_2[i].declassify(),
+                plaintext_2_tv.content[i].declassify()
+            );
         }
 
-        let plaintext_2_tmp = BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2_len);
+        let plaintext_2_tmp = BufferCiphertext2::from_slice(&plaintext_2, 0, plaintext_2_len);
 
         // test encryption
         let (ciphertext_2, ciphertext_2_len) =
             encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &plaintext_2_tmp);
 
-        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN);
-        for i in 0..CIPHERTEXT_2_LEN {
+        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN_TV);
+        for i in 0..CIPHERTEXT_2_LEN_TV {
             assert_eq!(
                 ciphertext_2[i].declassify(),
-                ciphertext_2_tv[i].declassify()
+                ciphertext_2_tv.content[i].declassify()
             );
         }
     }
@@ -1428,15 +1433,15 @@ mod tests {
     fn test_encode_plaintext_3() {
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
-        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
         let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
-        assert_bytes_eq!(plaintext_3, plaintext_3_tv);
+        assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 
     #[test]
     fn test_decode_plaintext_3() {
-        let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
+        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let kid_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
         let kid_tv = kid_tv[kid_tv.len() - 1];

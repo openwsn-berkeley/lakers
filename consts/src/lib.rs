@@ -33,11 +33,51 @@ mod common {
         UnknownError = 7,
     }
 
+    #[derive(PartialEq, Debug)]
+    pub struct EdhocMessageBuffer {
+        pub content: [u8; MAX_MESSAGE_SIZE_LEN],
+        pub len: usize,
+    }
+
+    impl EdhocMessageBuffer {
+        pub fn new() -> Self {
+            EdhocMessageBuffer {
+                content: [0u8; MAX_MESSAGE_SIZE_LEN],
+                len: 0,
+            }
+        }
+        pub fn from_hex(hex: &str) -> Self {
+            let mut buffer = EdhocMessageBuffer::new();
+            buffer.len = hex.len() / 2;
+            for i in (0..hex.len()).step_by(2) {
+                buffer.content[i / 2] = u8::from_str_radix(&hex[i..i + 2], 16).unwrap();
+            }
+            buffer
+        }
+    }
+
+    impl TryInto<EdhocMessageBuffer> for &[u8] {
+        type Error = ();
+
+        fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
+            if self.len() <= MAX_MESSAGE_SIZE_LEN {
+                let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
+                buffer[..self.len()].copy_from_slice(self);
+
+                Ok(EdhocMessageBuffer {
+                    content: buffer,
+                    len: self.len(),
+                })
+            } else {
+                Err(())
+            }
+        }
+    }
+
     pub const ID_CRED_LEN: usize = 4;
+    pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
-    pub const MESSAGE_1_LEN: usize = 37;
-    pub const MESSAGE_2_LEN: usize = 45;
-    pub const MESSAGE_3_LEN: usize = CIPHERTEXT_3_LEN + 1; // 1 to wrap ciphertext into a cbor byte string
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;
@@ -46,11 +86,6 @@ mod common {
     pub const AES_CCM_TAG_LEN: usize = 8;
     pub const MAC_LENGTH_2: usize = 8;
     pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
-    // ciphertext is message_len -1 for c_r, -2 for cbor magic numbers
-    pub const CIPHERTEXT_2_LEN: usize = MESSAGE_2_LEN - P256_ELEM_LEN - 1 - 2;
-    pub const PLAINTEXT_2_LEN: usize = CIPHERTEXT_2_LEN;
-    pub const PLAINTEXT_3_LEN: usize = MAC_LENGTH_3 + 2; // support for kid auth only
-    pub const CIPHERTEXT_3_LEN: usize = PLAINTEXT_3_LEN + AES_CCM_TAG_LEN;
 
     // maximum supported length of connection identifier for R
     pub const MAX_KDF_CONTEXT_LEN: usize = 150;
@@ -72,24 +107,26 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
+
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
+    pub type BytesSuites = [u8; SUITES_LEN];
     pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
     pub type Bytes8 = [u8; 8];
     pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
-    pub type BytesPlaintext2 = [u8; PLAINTEXT_2_LEN];
-    pub type BytesPlaintext3 = [u8; PLAINTEXT_3_LEN];
+    pub type BufferPlaintext2 = EdhocMessageBuffer;
+    pub type BufferPlaintext3 = EdhocMessageBuffer;
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
-    pub type BytesMessage1 = [u8; MESSAGE_1_LEN];
-    pub type BytesMessage3 = [u8; MESSAGE_3_LEN];
-    pub type BytesCiphertext2 = [u8; CIPHERTEXT_2_LEN];
-    pub type BytesCiphertext3 = [u8; CIPHERTEXT_3_LEN];
+    pub type BufferMessage1 = EdhocMessageBuffer;
+    pub type BufferMessage3 = EdhocMessageBuffer;
+    pub type BufferCiphertext2 = EdhocMessageBuffer;
+    pub type BufferCiphertext3 = EdhocMessageBuffer;
     pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
     pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
-    pub type BytesMessage2 = [u8; MESSAGE_2_LEN];
+    pub type BufferMessage2 = EdhocMessageBuffer;
     pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
     pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
     pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
@@ -98,6 +135,7 @@ mod rust {
 
     pub const C_I: u8 = 0x37u8;
     pub const C_R: u8 = 0x00u8;
+    pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
     #[derive(Default, Copy, Clone, Debug)]
@@ -120,23 +158,76 @@ mod hacspec {
     use super::common::*;
     use hacspec_lib::*;
 
+    array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
+
+    #[derive(Debug)]
+    pub struct EdhocMessageBufferHacspec {
+        pub content: BytesMessageBuffer,
+        pub len: usize,
+    }
+
+    impl EdhocMessageBufferHacspec {
+        pub fn new() -> Self {
+            EdhocMessageBufferHacspec {
+                content: BytesMessageBuffer::new(),
+                len: 0,
+            }
+        }
+        pub fn from_hex(hex: &str) -> Self {
+            let mut buffer = EdhocMessageBufferHacspec::new();
+            buffer.len = hex.len() / 2;
+            for i in (0..hex.len()).step_by(2) {
+                buffer.content[i / 2] = U8(u8::from_str_radix(&hex[i..i + 2], 16).unwrap());
+            }
+            buffer
+        }
+        pub fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self {
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
+            hacspec_buffer.len = buffer.len;
+            hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
+            hacspec_buffer
+        }
+        pub fn from_slice<A>(slice: &A, start: usize, len: usize) -> Self
+        where
+            A: SeqTrait<U8>,
+        {
+            let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
+            hacspec_buffer.len = len;
+            hacspec_buffer.content = BytesMessageBuffer::from_slice(slice, start, len);
+            hacspec_buffer
+        }
+        pub fn from_seq(buffer: &Seq<U8>) -> Self {
+            EdhocMessageBufferHacspec {
+                content: BytesMessageBuffer::from_slice(buffer, 0, buffer.len()),
+                len: buffer.len(),
+            }
+        }
+        pub fn to_public_buffer(&self) -> EdhocMessageBuffer {
+            let mut buffer = EdhocMessageBuffer::new();
+            buffer.content = self.content.to_public_array();
+            buffer.len = self.len;
+            buffer
+        }
+    }
+
     array!(BytesEad2, 0, U8);
     array!(BytesIdCred, ID_CRED_LEN, U8);
+    array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
     array!(Bytes8, 8, U8);
     array!(BytesCcmKeyLen, AES_CCM_KEY_LEN, U8);
     array!(BytesCcmIvLen, AES_CCM_IV_LEN, U8);
-    array!(BytesPlaintext2, PLAINTEXT_2_LEN, U8);
-    array!(BytesPlaintext3, PLAINTEXT_3_LEN, U8);
+    pub type BufferPlaintext2 = EdhocMessageBufferHacspec;
+    pub type BufferPlaintext3 = EdhocMessageBufferHacspec;
     array!(BytesMac2, MAC_LENGTH_2, U8);
     array!(BytesMac3, MAC_LENGTH_3, U8);
-    array!(BytesMessage1, MESSAGE_1_LEN, U8);
-    array!(BytesMessage3, MESSAGE_3_LEN, U8);
-    array!(BytesCiphertext2, CIPHERTEXT_2_LEN, U8);
-    array!(BytesCiphertext3, CIPHERTEXT_3_LEN, U8);
+    pub type BufferMessage1 = EdhocMessageBufferHacspec;
+    pub type BufferMessage3 = EdhocMessageBufferHacspec;
+    pub type BufferCiphertext2 = EdhocMessageBufferHacspec;
+    pub type BufferCiphertext3 = EdhocMessageBufferHacspec;
     array!(BytesHashLen, SHA256_DIGEST_LEN, U8);
     array!(BytesP256ElemLen, P256_ELEM_LEN, U8);
-    array!(BytesMessage2, MESSAGE_2_LEN, U8);
+    pub type BufferMessage2 = EdhocMessageBufferHacspec;
     array!(BytesMaxBuffer, MAX_BUFFER_LEN, U8);
     array!(BytesMaxContextBuffer, MAX_KDF_CONTEXT_LEN, U8);
     array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
@@ -158,6 +249,7 @@ mod hacspec {
     // - SHA-256 | Application hash algorithm
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
         BytesSupportedSuites(secret_bytes!([0x2u8]));
+    pub const EDHOC_SUITES: BytesSuites = BytesSuites(secret_bytes!([0, 1, 2, 3, 4, 5, 6, 24, 25])); // all but private cipher suites
 
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(

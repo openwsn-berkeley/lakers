@@ -23,18 +23,21 @@ fn main() {
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
     let message_1 = initiator.prepare_message_1().unwrap();
-    msg_1_buf.extend_from_slice(&message_1);
+    msg_1_buf.extend_from_slice(&message_1.content[..message_1.len]);
 
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
     println!("response_vec = {:02x?}", response.message.payload);
 
-    let c_r =
-        initiator.process_message_2(&response.message.payload.try_into().expect("wrong length"));
+    let c_r = initiator.process_message_2(
+        &response.message.payload[..]
+            .try_into()
+            .expect("wrong length"),
+    );
 
     if c_r.is_ok() {
         let mut msg_3 = Vec::from([c_r.unwrap()]);
         let (message_3, _prk_out) = initiator.prepare_message_3().unwrap();
-        msg_3.extend_from_slice(&message_3);
+        msg_3.extend_from_slice(&message_3.content[..message_3.len]);
 
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
         // we don't care about the response to message_3 for now

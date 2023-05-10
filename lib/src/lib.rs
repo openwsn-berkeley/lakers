@@ -97,12 +97,9 @@ mod hacspec {
 
         pub fn process_message_1(
             self: &mut HacspecEdhocResponder<'a>,
-            message_1: &[u8; MESSAGE_1_LEN],
+            message_1: &EdhocMessageBuffer,
         ) -> Result<(), EDHOCError> {
-            match r_process_message_1(
-                self.state,
-                &BytesMessage1::from_public_slice(&message_1[..]),
-            ) {
+            match r_process_message_1(self.state, &BufferMessage1::from_public_buffer(message_1)) {
                 Ok(state) => {
                     self.state = state;
                     Ok(())
@@ -113,7 +110,7 @@ mod hacspec {
 
         pub fn prepare_message_2(
             self: &mut HacspecEdhocResponder<'a>,
-        ) -> Result<([u8; MESSAGE_2_LEN], u8), EDHOCError> {
+        ) -> Result<(EdhocMessageBuffer, u8), EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_r = BytesIdCred::from_hex(self.id_cred_r);
             let mut cred_r = BytesMaxBuffer::new();
@@ -129,7 +126,7 @@ mod hacspec {
             match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y) {
                 Ok((state, message_2, c_r)) => {
                     self.state = state;
-                    Ok((message_2.to_public_array(), c_r.declassify()))
+                    Ok((message_2.to_public_buffer(), c_r.declassify()))
                 }
                 Err(error) => Err(error),
             }
@@ -137,7 +134,7 @@ mod hacspec {
 
         pub fn process_message_3(
             self: &mut HacspecEdhocResponder<'a>,
-            message_3: &[u8; MESSAGE_3_LEN],
+            message_3: &EdhocMessageBuffer,
         ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
             // init hacspec structs for id_cred_r and cred_r
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
@@ -150,7 +147,7 @@ mod hacspec {
 
             match r_process_message_3(
                 self.state,
-                &BytesMessage3::from_public_slice(&message_3[..]),
+                &BufferMessage3::from_public_buffer(&message_3),
                 &id_cred_i,
                 &cred_i,
                 cred_i_len,
@@ -218,14 +215,14 @@ mod hacspec {
 
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
+        ) -> Result<EdhocMessageBuffer, EDHOCError> {
             // Generate ephemeral key pair
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x) {
                 Ok((state, message_1)) => {
                     self.state = state;
-                    Ok(message_1.to_public_array())
+                    Ok(message_1.to_public_buffer())
                 }
                 Err(error) => Err(error),
             }
@@ -233,7 +230,7 @@ mod hacspec {
 
         pub fn process_message_2(
             self: &mut HacspecEdhocInitiator<'a>,
-            message_2: &[u8; MESSAGE_2_LEN],
+            message_2: &EdhocMessageBuffer,
         ) -> Result<u8, EDHOCError> {
             // init hacspec struct for I, I's private static DH key
             let i = BytesP256ElemLen::from_hex(self.i);
@@ -248,7 +245,7 @@ mod hacspec {
             let g_r = BytesP256ElemLen::from_hex(self.g_r);
 
             // init hacspec struct for message_2
-            let message_2_hacspec = BytesMessage2::from_public_slice(&message_2[..]);
+            let message_2_hacspec = BufferMessage2::from_public_buffer(&message_2);
 
             match edhoc_hacspec::i_process_message_2(
                 self.state,
@@ -269,7 +266,7 @@ mod hacspec {
 
         pub fn prepare_message_3(
             self: &mut HacspecEdhocInitiator<'a>,
-        ) -> Result<([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        ) -> Result<(EdhocMessageBuffer, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
             // init hacspec structs for id_cred_i and cred_i
             let id_cred_i = BytesIdCred::from_hex(self.id_cred_i);
             let mut cred_i = BytesMaxBuffer::new();
@@ -279,7 +276,7 @@ mod hacspec {
             match i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len) {
                 Ok((state, message_3, prk_out)) => {
                     self.state = state;
-                    Ok((message_3.to_public_array(), prk_out.to_public_array()))
+                    Ok((message_3.to_public_buffer(), prk_out.to_public_array()))
                 }
                 Err(error) => Err(error),
             }
@@ -372,7 +369,7 @@ mod rust {
 
         pub fn process_message_1(
             self: &mut RustEdhocResponder<'a>,
-            message_1: &[u8; MESSAGE_1_LEN],
+            message_1: &BufferMessage1,
         ) -> Result<(), EDHOCError> {
             let state = r_process_message_1(self.state, message_1)?;
             self.state = state;
@@ -382,7 +379,7 @@ mod rust {
 
         pub fn prepare_message_2(
             self: &mut RustEdhocResponder<'a>,
-        ) -> Result<([u8; MESSAGE_2_LEN], u8), EDHOCError> {
+        ) -> Result<(BufferMessage2, u8), EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
@@ -407,7 +404,7 @@ mod rust {
 
         pub fn process_message_3(
             self: &mut RustEdhocResponder<'a>,
-            message_3: &[u8; MESSAGE_3_LEN],
+            message_3: &BufferMessage3,
         ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
             let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
@@ -476,7 +473,7 @@ mod rust {
 
         pub fn prepare_message_1(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<[u8; MESSAGE_1_LEN], EDHOCError> {
+        ) -> Result<BufferMessage1, EDHOCError> {
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
             match i_prepare_message_1(self.state, x, g_x) {
@@ -490,7 +487,7 @@ mod rust {
 
         pub fn process_message_2(
             self: &mut RustEdhocInitiator<'a>,
-            message_2: &[u8; MESSAGE_2_LEN],
+            message_2: &BufferMessage2,
         ) -> Result<u8, EDHOCError> {
             let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
@@ -515,7 +512,7 @@ mod rust {
 
         pub fn prepare_message_3(
             self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<([u8; MESSAGE_3_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
             let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
             hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
                 .expect("Decoding failed");
@@ -571,8 +568,8 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: [u8; 37] =
-        hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
+    const MESSAGE_1_TV: &str =
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
 
     #[test]
     fn test_new_initiator() {
@@ -598,11 +595,12 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
+        let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&MESSAGE_1_TV);
+        let error = responder.process_message_1(&message_1_tv);
 
         assert!(error.is_ok());
     }
@@ -630,10 +628,10 @@ mod test {
             CRED_R,
         );
 
-        let message_1 = initiator.prepare_message_1(); // to update the state
-        assert!(message_1.is_ok());
+        let result = initiator.prepare_message_1(); // to update the state
+        assert!(result.is_ok());
 
-        let error = responder.process_message_1(&message_1.unwrap());
+        let error = responder.process_message_1(&result.unwrap());
         assert!(error.is_ok());
 
         let ret = responder.prepare_message_2();
