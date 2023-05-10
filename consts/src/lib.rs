@@ -77,7 +77,7 @@ mod common {
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
-    pub const MAX_MESSAGE_SIZE_LEN: usize = 120;
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;

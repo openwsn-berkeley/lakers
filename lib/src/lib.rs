@@ -568,10 +568,8 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    const MESSAGE_1_TV: EdhocMessageBuffer = EdhocMessageBuffer {
-        content: hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-        len: 37,
-    };
+    const MESSAGE_1_TV: &str =
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
 
     #[test]
     fn test_new_initiator() {
@@ -597,11 +595,12 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
+        let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&MESSAGE_1_TV);
+        let error = responder.process_message_1(&message_1_tv);
 
         assert!(error.is_ok());
     }

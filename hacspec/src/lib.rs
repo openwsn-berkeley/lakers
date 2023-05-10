@@ -294,7 +294,7 @@ pub fn r_process_message_3(
             }
         } else {
             // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
-            error = plaintext_3.err().expect("error handling error");
+            error = plaintext_3.unwrap_err();
         }
     } else {
         error = EDHOCError::WrongState;
@@ -842,7 +842,7 @@ fn encrypt_message_3(
 ) -> BufferMessage3 {
     let mut output = BufferMessage3::new();
     output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
-    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | (output.len - 1) as u8);
+    output.content[0] = U8(CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8);
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -882,7 +882,7 @@ fn decrypt_message_3(
         plaintext_3.content = plaintext_3.content.update_slice(0, &p3.content, 0, p3.len);
         plaintext_3.len = p3.len;
     } else {
-        error = p3.err().expect("error handling error");
+        error = p3.unwrap_err();
     }
 
     match error {
@@ -1091,7 +1091,6 @@ mod tests {
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
-    // manually modified test vector to include two supported cipher suites (02 and 03), encoded as array
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     pub const MESSAGE_2_LEN_TV: usize = 45;

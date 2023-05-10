@@ -279,7 +279,7 @@ pub fn r_process_message_3(
             }
         } else {
             // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
-            error = plaintext_3.err().expect("error handling error");
+            error = plaintext_3.unwrap_err();
         }
     } else {
         error = EDHOCError::WrongState;
@@ -806,7 +806,7 @@ fn encrypt_message_3(
 ) -> BufferMessage3 {
     let mut output: BufferMessage3 = BufferMessage3::new();
     output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
-    output.content[0] = CBOR_MAJOR_BYTE_STRING | (output.len - 1) as u8; // FIXME if output.len-1 > 23, then should use CBOR_BYTE_STRING
+    output.content[0] = CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8; // FIXME if plaintext_3.len + AES_CCM_TAG_LEN > 23, then should use CBOR_BYTE_STRING
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -846,7 +846,7 @@ fn decrypt_message_3(
         plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
         plaintext_3.len = p3.len;
     } else {
-        error = p3.err().expect("error handling error");
+        error = p3.unwrap_err();
     }
 
     match error {
