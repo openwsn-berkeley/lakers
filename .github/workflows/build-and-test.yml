@@ -113,9 +113,25 @@ jobs:
     - name: Build example
       run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, rtt" --release
 
+
+  build-coap-example:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Build server
+      run: cargo build --bin coapserver
+
+    - name: Build client
+      run: cargo build --bin coapclient
+
+
   release:
     runs-on: ubuntu-latest
-    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4]
+    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
