@@ -1196,7 +1196,7 @@ mod tests {
     // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
         "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
-    // below are 3 truncated messages for the purpose of testing cipher suites
+    // below are a few truncated messages for the purpose of testing cipher suites
     // message with one cipher suite (23..=255)
     const MESSAGE_1_TV_SUITE_ONLY_A: &str = "031818";
     // message with an array having two cipher suites with small values (0..=23)
@@ -1295,7 +1295,6 @@ mod tests {
     #[test]
     fn test_parse_message_1() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-        let method_tv = METHOD_TV;
         let suites_i_tv = BytesSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
@@ -1304,7 +1303,7 @@ mod tests {
         assert!(res.is_ok());
         let (method, suites_i, suites_i_len, g_x, c_i) = res.unwrap();
 
-        assert_eq!(method.declassify(), method_tv);
+        assert_eq!(method.declassify(), METHOD_TV);
         assert_bytes_eq!(suites_i, suites_i_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
