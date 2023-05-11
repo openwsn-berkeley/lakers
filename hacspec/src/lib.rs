@@ -614,6 +614,61 @@ fn parse_message_1(
     (method, selected_suite, g_x, c_i)
 }
 
+fn encode_ead_1_voucher_info(voucher_info: &Ead1AuthzVoucherInfo) -> EdhocMessageBufferHacspec {
+    let Ead1AuthzVoucherInfo { loc_w, enc_id } = voucher_info;
+    let mut output = EdhocMessageBufferHacspec::new();
+
+    output.content[0] = U8(CBOR_BYTE_STRING);
+    output.content[1] = U8(CBOR_TEXT_STRING);
+    output.content[2] = U8(loc_w.len as u8);
+    output.content = output.content.update_slice(3, &loc_w.content, 0, loc_w.len);
+    output.content[3 + loc_w.len] = U8(CBOR_BYTE_STRING);
+    output.content[4 + loc_w.len] = U8(enc_id.len as u8);
+    output.content = output
+        .content
+        .update_slice(5 + loc_w.len, &enc_id.content, 0, enc_id.len);
+
+    output.len = 5 + loc_w.len + enc_id.len;
+    output
+}
+
+fn parse_ead_1_voucher_info(
+    rcvd_message_1: &BufferMessage1,
+    offset: usize,
+) -> Result<Ead1AuthzVoucherInfo, EDHOCError> {
+    let mut error = EDHOCError::UnknownError;
+    let mut output = Ead1AuthzVoucherInfo::new();
+
+    if rcvd_message_1.content[offset].declassify() == CBOR_BYTE_STRING
+        && rcvd_message_1.content[offset + 1].declassify() == CBOR_TEXT_STRING
+    {
+        let loc_w_len: usize = rcvd_message_1.content[offset + 2].into();
+        output.loc_w =
+            EdhocMessageBufferHacspec::from_slice(&rcvd_message_1.content, offset + 3, loc_w_len);
+
+        if rcvd_message_1.content[offset + 3 + loc_w_len].declassify() == CBOR_BYTE_STRING {
+            let enc_id_len: usize = rcvd_message_1.content[offset + 4 + loc_w_len].into();
+            output.enc_id = EdhocMessageBufferHacspec::from_slice(
+                &rcvd_message_1.content,
+                offset + 5 + loc_w_len,
+                enc_id_len,
+            );
+
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::ParsingError;
+        }
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok(output),
+        _ => Err(error),
+    }
+}
+
 fn encode_message_1(
     method: U8,
     suites: &BytesSupportedSuites,
@@ -1125,6 +1180,18 @@ mod tests {
     const SALT_4E3M_TV: &str = "8c60d4357fba5f694a81482c4d38a1000bc3e3e2a29406d18153ffc3595c17ba";
     const G_XY_TV: &str = "2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba";
 
+    // test vectors for lake-authz's EAD
+    const LOC_W_TV: &str = "72636F61703A2F2F6578616D706C652E636F6D"; // "coap://example.com",
+    const ENC_ID_DUMMY_TV: &str = "000102030405060708090A0B0C0D0E0F10111213141516171819"; // dummy value while the crypto stuff is not implemented
+    const EAD_1_TV: &str = "58\
+        7813\
+        72636F61703A2F2F6578616D706C652E636F6D\
+        581A\
+        000102030405060708090A0B0C0D0E0F10111213141516171819";
+    const MESSAGE_1_TV_WITH_EAD: &str =
+        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637\
+         58781372636F61703A2F2F6578616D706C652E636F6D581A000102030405060708090A0B0C0D0E0F10111213141516171819";
+
     #[test]
     fn test_ecdh() {
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
@@ -1134,6 +1201,39 @@ mod tests {
         let g_xy = p256_ecdh(&x_tv, &g_y_tv);
 
         assert_bytes_eq!(g_xy, g_xy_tv);
+    }
+
+    #[test]
+    fn test_encode_ead_1_authz() {
+        let ead_1_tv = EdhocMessageBufferHacspec::from_hex(EAD_1_TV);
+
+        let ead_1_tv_struct = Ead1AuthzVoucherInfo {
+            loc_w: EdhocMessageBufferHacspec::from_hex(LOC_W_TV),
+            enc_id: EdhocMessageBufferHacspec::from_hex(ENC_ID_DUMMY_TV),
+        };
+
+        let ead_1_authz = encode_ead_1_voucher_info(&ead_1_tv_struct);
+
+        assert_bytes_eq!(ead_1_authz.content, ead_1_tv.content);
+    }
+
+    #[test]
+    fn test_decode_ead_1_authz() {
+        let ead_1_tv = EdhocMessageBufferHacspec::from_hex(EAD_1_TV);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
+        let message_1_tv_with_ead_1 = EdhocMessageBufferHacspec::from_hex(MESSAGE_1_TV_WITH_EAD);
+
+        let ead_1_tv_struct = Ead1AuthzVoucherInfo {
+            loc_w: EdhocMessageBufferHacspec::from_hex(LOC_W_TV),
+            enc_id: EdhocMessageBufferHacspec::from_hex(ENC_ID_DUMMY_TV),
+        };
+
+        let res = parse_ead_1_voucher_info(&message_1_tv_with_ead_1, message_1_tv.len);
+        assert!(res.is_ok());
+        let ead_1_authz = res.unwrap();
+
+        assert_bytes_eq!(ead_1_authz.loc_w.content, ead_1_tv_struct.loc_w.content);
+        assert_bytes_eq!(ead_1_authz.enc_id.content, ead_1_tv_struct.enc_id.content);
     }
 
     #[test]
