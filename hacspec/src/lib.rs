@@ -61,11 +61,11 @@ pub fn r_process_message_1(
         let res = parse_message_1(message_1);
 
         if res.is_ok() {
-            let (method, proposed_suites, g_x, c_i) = res.unwrap();
+            let (method, suites_i, suites_i_len, g_x, c_i) = res.unwrap();
             // verify that the method is supported
             if method.declassify() == EDHOC_METHOD {
                 // Step 2: verify that the selected cipher suite is supported
-                if proposed_suites.content[0u8].declassify()
+                if suites_i[suites_i_len - 1].declassify()
                     == EDHOC_SUPPORTED_SUITES[0u8].declassify()
                 {
                     // Step 3: If EAD is present make it available to the application
@@ -608,33 +608,34 @@ pub fn construct_state(
     )
 }
 
-fn parse_cipher_suites(
+fn parse_suites_i(
     rcvd_message_1: &BufferMessage1,
-) -> Result<(EdhocMessageBufferHacspec, usize), EDHOCError> {
+) -> Result<(BytesSuites, usize, usize), EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
     let mut raw_suites_len = 0;
-    let mut proposed_suites = EdhocMessageBufferHacspec::new();
+    let mut suites_i = BytesSuites::new();
+    let mut suites_i_len: usize = 0;
 
     // match based on first byte of SUITES_I, which can be either an int or an array
     match (rcvd_message_1.content[1] as U8).declassify() {
-        // CBOR unsigned integer (0..23)
+        // CBOR unsigned integer (0..=23)
         0x00..=0x17 => {
-            proposed_suites.content[0] = rcvd_message_1.content[1];
-            proposed_suites.len = 1;
+            suites_i[0] = rcvd_message_1.content[1];
+            suites_i_len = 1;
             raw_suites_len = 1;
             error = EDHOCError::Success;
         }
         // CBOR unsigned integer (one-byte uint8_t follows)
         0x18 => {
-            proposed_suites.content[0] = rcvd_message_1.content[2];
-            proposed_suites.len = 1;
+            suites_i[0] = rcvd_message_1.content[2];
+            suites_i_len = 1;
             raw_suites_len = 2;
             error = EDHOCError::Success;
         }
         // CBOR array (0..=23 data items follow)
         0x80..=0x97 => {
             // the CBOR array length is encoded in the first byte, so we extract it
-            let suites_len: U8 = rcvd_message_1.content[1] - U8(0x80);
+            let suites_len: U8 = rcvd_message_1.content[1] - U8(CBOR_MAJOR_ARRAY);
             let suites_len: usize = suites_len.declassify().into();
             if suites_len <= EDHOC_SUITES.len() {
                 let mut i: usize = 0; // index for addressing raw bytes (and not necessarily CBOR integers)
@@ -644,14 +645,14 @@ fn parse_cipher_suites(
                     match (rcvd_message_1.content[2 + i] as U8).declassify() {
                         // CBOR unsigned integer (0..23)
                         0x00..=0x17 => {
-                            proposed_suites.content[j] = rcvd_message_1.content[2 + i];
-                            proposed_suites.len += 1;
+                            suites_i[j] = rcvd_message_1.content[2 + i];
+                            suites_i_len += 1;
                         }
                         // CBOR unsigned integer (one-byte uint8_t follows)
                         0x18 => {
                             i += 1; // account for the 0x18 tag byte
-                            proposed_suites.content[j] = rcvd_message_1.content[2 + i];
-                            proposed_suites.len += 1;
+                            suites_i[j] = rcvd_message_1.content[2 + i];
+                            suites_i_len += 1;
                         }
                         _ => {
                             error = EDHOCError::ParsingError;
@@ -671,26 +672,27 @@ fn parse_cipher_suites(
     };
 
     match error {
-        EDHOCError::Success => Ok((proposed_suites, raw_suites_len)),
+        EDHOCError::Success => Ok((suites_i, suites_i_len, raw_suites_len)),
         _ => Err(error),
     }
 }
 
 fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
-) -> Result<(U8, EdhocMessageBufferHacspec, BytesP256ElemLen, U8), EDHOCError> {
+) -> Result<(U8, BytesSuites, usize, BytesP256ElemLen, U8), EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
     let mut g_x: BytesP256ElemLen = BytesP256ElemLen::new();
-    let mut proposed_suites = EdhocMessageBufferHacspec::new();
+    let mut suites_i = BytesSuites::new();
+    let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
 
     let method = rcvd_message_1.content[0];
 
-    let res_suites = parse_cipher_suites(rcvd_message_1);
+    let res_suites = parse_suites_i(rcvd_message_1);
 
     if res_suites.is_ok() {
-        (proposed_suites, raw_suites_len) = res_suites.unwrap();
+        (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
 
         g_x = BytesP256ElemLen::from_slice(
             &rcvd_message_1.content,
@@ -711,7 +713,7 @@ fn parse_message_1(
     }
 
     match error {
-        EDHOCError::Success => Ok((method, proposed_suites, g_x, c_i)),
+        EDHOCError::Success => Ok((method, suites_i, suites_i_len, g_x, c_i)),
         _ => Err(error),
     }
 }
@@ -1187,7 +1189,8 @@ mod tests {
 
     const METHOD_TV: u8 = 0x03;
     // manually modified test vector to include a single supported cipher suite
-    const SUITES_I_TV: &str = "02";
+    const SUPPORTED_SUITES_I_TV: &str = "02";
+    const SUITES_I_TV: &str = "020000000000000000";
     const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
     const C_I_TV: u8 = 0x37;
     // manually modified test vector to include a single supported cipher suite
@@ -1250,7 +1253,7 @@ mod tests {
     #[test]
     fn test_encode_message_1() {
         let method_tv = U8(METHOD_TV);
-        let suites_i_tv = BytesSupportedSuites::from_hex(SUITES_I_TV);
+        let suites_i_tv = BytesSupportedSuites::from_hex(SUPPORTED_SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
@@ -1261,31 +1264,31 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_cipher_suites() {
+    fn test_parse_suites_i() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-        let supported_suites_tv = EdhocMessageBufferHacspec::from_hex(SUITES_I_TV);
+        let suites_i_tv = BytesSuites::from_hex(SUITES_I_TV);
 
-        let res = parse_cipher_suites(&message_1_tv);
+        let res = parse_suites_i(&message_1_tv);
         assert!(res.is_ok());
-        let (supported_suites, raw_suites_len) = res.unwrap();
-        assert_bytes_eq!(supported_suites.content, supported_suites_tv.content);
+        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        assert_bytes_eq!(suites_i, suites_i_tv);
 
-        let res = parse_cipher_suites(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A));
+        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A));
         assert!(res.is_ok());
-        let (supported_suites, raw_suites_len) = res.unwrap();
-        assert_eq!((supported_suites.content[0] as U8).declassify(), 0x18);
+        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        assert_eq!((suites_i[0] as U8).declassify(), 0x18);
 
-        let (supported_suites, raw_suites_len) =
-            parse_cipher_suites(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
-        assert_eq!((supported_suites.content[0] as U8).declassify(), 0x02);
-        assert_eq!((supported_suites.content[1] as U8).declassify(), 0x01);
+        let (suites_i, suites_i_len, raw_suites_len) =
+            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
+        assert_eq!((suites_i[0] as U8).declassify(), 0x02);
+        assert_eq!((suites_i[1] as U8).declassify(), 0x01);
 
-        let (supported_suites, raw_suites_len) =
-            parse_cipher_suites(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C)).unwrap();
-        assert_eq!((supported_suites.content[0] as U8).declassify(), 0x02);
-        assert_eq!((supported_suites.content[1] as U8).declassify(), 0x19);
+        let (suites_i, suites_i_len, raw_suites_len) =
+            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C)).unwrap();
+        assert_eq!((suites_i[0] as U8).declassify(), 0x02);
+        assert_eq!((suites_i[1] as U8).declassify(), 0x19);
 
-        let res = parse_cipher_suites(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
+        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
 
@@ -1293,16 +1296,16 @@ mod tests {
     fn test_parse_message_1() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let method_tv = METHOD_TV;
-        let supported_suites_tv = EdhocMessageBufferHacspec::from_hex(SUITES_I_TV);
+        let suites_i_tv = BytesSuites::from_hex(SUITES_I_TV);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
 
         let res = parse_message_1(&message_1_tv);
         assert!(res.is_ok());
-        let (method, supported_suites, g_x, c_i) = res.unwrap();
+        let (method, suites_i, suites_i_len, g_x, c_i) = res.unwrap();
 
         assert_eq!(method.declassify(), method_tv);
-        assert_bytes_eq!(supported_suites.content, supported_suites_tv.content);
+        assert_bytes_eq!(suites_i, suites_i_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
     }
