@@ -349,13 +349,20 @@ pub fn i_prepare_message_1(
 
     if current_state == EDHOCState::Start {
         // we only support a single cipher suite which is already CBOR-encoded
-        let suites_i = BytesSuites::from_slice(&EDHOC_SUPPORTED_SUITES, 0, EDHOC_SUPPORTED_SUITES.len());
+        let suites_i =
+            BytesSuites::from_slice(&EDHOC_SUPPORTED_SUITES, 0, EDHOC_SUPPORTED_SUITES.len());
 
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-        message_1 = encode_message_1(U8(EDHOC_METHOD), &suites_i, EDHOC_SUPPORTED_SUITES.len(), &g_x, c_i);
+        message_1 = encode_message_1(
+            U8(EDHOC_METHOD),
+            &suites_i,
+            EDHOC_SUPPORTED_SUITES.len(),
+            &g_x,
+            c_i,
+        );
 
         // hash message_1 here to avoid saving the whole message in the state
         h_message_1 = sha256_digest(

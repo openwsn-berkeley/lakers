@@ -328,7 +328,13 @@ pub fn i_prepare_message_1(
         c_i = C_I;
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-        message_1 = encode_message_1(EDHOC_METHOD, &suites_i, EDHOC_SUPPORTED_SUITES.len(), &g_x, c_i);
+        message_1 = encode_message_1(
+            EDHOC_METHOD,
+            &suites_i,
+            EDHOC_SUPPORTED_SUITES.len(),
+            &g_x,
+            c_i,
+        );
 
         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
         message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
@@ -720,7 +726,8 @@ fn encode_message_1(
 
     output.content[1 + raw_suites_len] = CBOR_BYTE_STRING; // CBOR byte string magic number
     output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
-    output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN].copy_from_slice(&g_x[..]);
+    output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
+        .copy_from_slice(&g_x[..]);
     output.content[3 + raw_suites_len + P256_ELEM_LEN] = c_i;
 
     output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
