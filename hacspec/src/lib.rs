@@ -728,6 +728,7 @@ fn encode_message_1(
     let mut raw_suites_len: usize = 0;
 
     output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+
     if suites_len == 1 {
         // only one suite, will be encoded as a single integer
         if (suites[0] as U8).declassify() <= CBOR_UINT_1BYTE {
@@ -1221,7 +1222,6 @@ mod tests {
     const SUITES_I_TV: &str = "060200000000000000";
     const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
     const C_I_TV: u8 = 0x37;
-    // manually modified test vector to include a single supported cipher suite
     const MESSAGE_1_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     // below are a few truncated messages for the purpose of testing cipher suites
