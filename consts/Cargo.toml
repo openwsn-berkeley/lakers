@@ -13,3 +13,5 @@ hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = t
 default = [ ]
 hacspec = [ "hacspec-lib/alloc" ]
 rust = [ ]
+ead-none = [ ]
+ead-zeroconf = [ ]

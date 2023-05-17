@@ -213,6 +213,14 @@ mod hacspec {
             }
         }
 
+        #[cfg(feature = "ead-zeroconf")]
+        pub fn register_ead_handler(
+            self: &mut HacspecEdhocInitiator<'a>,
+            ead_handler: EADInitiatorZeroConfHandler,
+        ) {
+            self.state.10 = Some(ead_handler);
+        }
+
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> Result<EdhocMessageBuffer, EDHOCError> {
@@ -668,4 +676,66 @@ mod test {
         assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
+
+    #[test]
+    fn test_ead_3() {
+        /// using an enum to wrap a generic struct that holds functions & state
+        /// ISSUE (compiles, but is not ideal): all EAD structs must be knonw beforehand
+
+        #[derive(Copy, Clone, Debug)]
+        pub struct EADInitiatorZeroConfState {
+            pub foo: u8,
+        }
+
+        #[derive(Copy, Clone, Debug)]
+        pub struct EADInitiatorHandler {
+            pub label: u8,
+            pub state: EADInitiatorZeroConfState,
+            pub prepare_ead1_fn: fn(EdhocMessageBufferHacspec, EADInitiatorZeroConfState) -> (EdhocMessageBufferHacspec, EADInitiatorZeroConfState),
+        }
+
+        fn i_prepare_ead_zeroconf(
+            buffer: EdhocMessageBufferHacspec,
+            state: EADInitiatorZeroConfState
+        ) -> (EdhocMessageBufferHacspec, EADInitiatorZeroConfState) {
+            // ...
+            (buffer, state)
+        }
+
+        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let mut responder = EdhocResponder::new(EdhocState::default(), R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+
+        let i_ead_zeroconf = EADInitiatorHandler {
+            label: 0,
+            state: EADInitiatorZeroConfState { foo: 0x1 },
+            prepare_ead1_fn: i_prepare_ead_zeroconf,
+        };
+
+        let ead_item: Option<EADInitiatorHandler> = Some(i_ead_zeroconf);
+    }
+
+    #[cfg(feature = "ead-zeroconf")]
+    #[test]
+    fn test_ead_4() {
+        /// using ...
+
+        fn i_prepare_ead_zeroconf(
+            buffer: EdhocMessageBuffer,
+            state: EADInitiatorZeroConfState
+        ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
+            // ...
+            (buffer, state)
+        }
+
+        let i_ead_zeroconf = EADInitiatorHandler {
+            label: 0,
+            state: EADInitiatorZeroConfState { foo: 0x1 },
+            prepare_ead1_cb: i_prepare_ead_zeroconf,
+        };
+
+        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+
+        initiator.register_ead_handler(i_ead_zeroconf);
+    }
+
 }

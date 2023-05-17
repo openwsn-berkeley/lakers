@@ -22,6 +22,7 @@ pub fn edhoc_exporter(
         prk_exporter,
         _h_message_1,
         _th_3,
+        _ead_init_handler,
     ) = state;
 
     let mut output = BytesMaxBuffer::new();
@@ -51,6 +52,7 @@ pub fn r_process_message_1(
         _prk_exporter,
         mut h_message_1,
         _th_3,
+        _ead_init_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -91,6 +93,7 @@ pub fn r_process_message_1(
                         _prk_exporter,
                         h_message_1,
                         _th_3,
+                        _ead_init_handler
                     );
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;
@@ -139,6 +142,7 @@ pub fn r_prepare_message_2(
         _prk_exporter,
         h_message_1,
         mut th_3,
+        _ead_init_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -190,6 +194,7 @@ pub fn r_prepare_message_2(
             _prk_exporter,
             h_message_1,
             th_3,
+            _ead_init_handler
         );
     } else {
         error = EDHOCError::WrongState;
@@ -223,6 +228,7 @@ pub fn r_process_message_3(
         mut prk_exporter,
         _h_message_1,
         th_3,
+        _ead_init_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -292,6 +298,7 @@ pub fn r_process_message_3(
                         prk_exporter,
                         _h_message_1,
                         th_3,
+                        _ead_init_handler
                     );
                 } else {
                     error = EDHOCError::MacVerificationFailed;
@@ -341,6 +348,7 @@ pub fn i_prepare_message_1(
         _prk_exporter,
         mut h_message_1,
         _th_3,
+        ead_init_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -364,6 +372,12 @@ pub fn i_prepare_message_1(
             c_i,
         );
 
+        if let Some(mut ead_init_handler) = ead_init_handler {
+            let (message_1_public, state) = (ead_init_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_init_handler.state);
+            message_1 = EdhocMessageBufferHacspec::from_public_buffer(&message_1_public);
+            ead_init_handler.state = state;
+        }
+
         // hash message_1 here to avoid saving the whole message in the state
         h_message_1 = sha256_digest(
             &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
@@ -383,6 +397,7 @@ pub fn i_prepare_message_1(
             _prk_exporter,
             h_message_1,
             _th_3,
+            ead_init_handler
         );
     } else {
         error = EDHOCError::WrongState;
@@ -416,6 +431,7 @@ pub fn i_process_message_2(
         _prk_exporter,
         h_message_1,
         mut th_3,
+        _ead_init_handler,
     ) = state;
 
     // init error
@@ -486,6 +502,7 @@ pub fn i_process_message_2(
                         _prk_exporter,
                         h_message_1,
                         th_3,
+                        _ead_init_handler
                     );
                 } else {
                     // Unknown peer
@@ -531,6 +548,7 @@ pub fn i_prepare_message_3(
         mut prk_exporter,
         _h_message_1,
         th_3,
+        _ead_init_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -578,6 +596,7 @@ pub fn i_prepare_message_3(
             prk_exporter,
             _h_message_1,
             th_3,
+            _ead_init_handler
         );
     } else {
         error = EDHOCError::WrongState;
@@ -600,6 +619,7 @@ pub fn construct_state(
     prk_exporter: BytesHashLen,
     h_message_1: BytesHashLen,
     th_3: BytesHashLen,
+    ead_init_handler: Option<EADInitiatorZeroConfHandler>,
 ) -> State {
     State(
         state,
@@ -612,6 +632,7 @@ pub fn construct_state(
         prk_exporter,
         h_message_1,
         th_3,
+        ead_init_handler,
     )
 }
 

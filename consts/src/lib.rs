@@ -8,6 +8,9 @@ pub use hacspec::*;
 #[cfg(feature = "rust")]
 pub use rust::*;
 
+#[cfg(feature = "ead-zeroconf")]
+pub use ead_zeroconf::*;
+
 mod common {
 
     #[derive(Default, PartialEq, Copy, Clone, Debug)]
@@ -158,6 +161,9 @@ mod hacspec {
     use super::common::*;
     use hacspec_lib::*;
 
+    #[cfg(feature = "ead-zeroconf")]
+    use super::ead_zeroconf::*;
+
     array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
 
     #[derive(Debug)]
@@ -263,5 +269,64 @@ mod hacspec {
         pub BytesHashLen,     // prk_exporter
         pub BytesHashLen,     // h_message_1
         pub BytesHashLen,     // th_3
+        #[cfg(feature = "ead-zeroconf")]
+        pub Option<EADInitiatorZeroConfHandler>,
+        #[cfg(feature = "ead-none")]
+        pub Option<EADInitiatorNoneHandler>,
     );
+
+}
+
+#[cfg(feature = "ead-zeroconf")]
+mod ead_zeroconf {
+    use super::common::*;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADInitiatorZeroConfState {
+        pub foo: u8,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADInitiatorZeroConfHandler {
+        pub label: u8,
+        pub state: EADInitiatorZeroConfState,
+        pub prepare_ead1_cb: fn(EdhocMessageBuffer, EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
+    }
+
+    impl Default for EADInitiatorZeroConfHandler {
+        fn default() -> Self {
+            EADInitiatorZeroConfHandler {
+                label: 0,
+                state: EADInitiatorZeroConfState { foo: 0 },
+                prepare_ead1_cb: |ead1, state| (ead1, state),
+            }
+        }
+    }
+}
+
+#[cfg(feature = "ead-none")]
+mod ead_none {
+    use super::common::*;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADInitiatorNoneState {
+        pub foo: u8,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADInitiatorZeroConfHandler {
+        pub label: u8,
+        pub state: EADInitiatorNoneState,
+        pub prepare_ead1_cb: fn(EdhocMessageBuffer, EADInitiatorNoneState) -> (EdhocMessageBuffer, EADInitiatorNoneState),
+    }
+
+    impl Default for EADInitiatorZeroConfHandler {
+        fn default() -> Self {
+            EADInitiatorZeroConfHandler {
+                label: 0,
+                state: EADInitiatorNoneState { foo: 0 },
+                prepare_ead1_cb: |ead1, state| (ead1, state),
+            }
+        }
+    }
 }
