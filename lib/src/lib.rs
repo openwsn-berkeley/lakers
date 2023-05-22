@@ -717,17 +717,20 @@ mod test {
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_4() {
-        /// using ...
+        /// using ead = zeroconf
 
         fn i_prepare_ead_zeroconf(
-            buffer: EdhocMessageBuffer,
-            state: EADInitiatorZeroConfState
+            mut buffer: EdhocMessageBuffer,
+            mut state: EADInitiatorZeroConfState
         ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
             // ...
+            buffer.content[buffer.len] = 0xfe;
+            buffer.len += 1;
+            state.foo = 0x9;
             (buffer, state)
         }
 
-        let i_ead_zeroconf = EADInitiatorHandler {
+        let i_ead_zeroconf = EADInitiatorZeroConfHandler {
             label: 0,
             state: EADInitiatorZeroConfState { foo: 0x1 },
             prepare_ead1_cb: i_prepare_ead_zeroconf,
@@ -736,6 +739,19 @@ mod test {
         let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
         initiator.register_ead_handler(i_ead_zeroconf);
+
+        let message_1 = initiator.prepare_message_1().unwrap();
+        assert_eq!(message_1.content[message_1.len-1], 0xfe);
+
+    }
+
+    #[cfg(feature = "ead-none")]
+    #[test]
+    fn test_ead_4() {
+        /// using ead = none
+        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let message_1 = initiator.prepare_message_1().unwrap();
+        assert_eq!(message_1.content[message_1.len-1], 0x37);
     }
 
 }

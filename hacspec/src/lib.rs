@@ -372,10 +372,10 @@ pub fn i_prepare_message_1(
             c_i,
         );
 
-        if let Some(mut ead_init_handler) = ead_init_handler {
-            let (message_1_public, state) = (ead_init_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_init_handler.state);
+        if let Some(mut ead_handler) = ead_init_handler {
+            let (message_1_public, state) = (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
             message_1 = EdhocMessageBufferHacspec::from_public_buffer(&message_1_public);
-            ead_init_handler.state = state;
+            ead_init_handler.unwrap().state = state;
         }
 
         // hash message_1 here to avoid saving the whole message in the state
@@ -619,7 +619,10 @@ pub fn construct_state(
     prk_exporter: BytesHashLen,
     h_message_1: BytesHashLen,
     th_3: BytesHashLen,
+    #[cfg(feature = "ead-zeroconf")]
     ead_init_handler: Option<EADInitiatorZeroConfHandler>,
+    #[cfg(feature = "ead-none")]
+    ead_init_handler: Option<EADInitiatorNoneHandler>,
 ) -> State {
     State(
         state,

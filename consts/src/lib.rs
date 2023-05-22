@@ -11,6 +11,9 @@ pub use rust::*;
 #[cfg(feature = "ead-zeroconf")]
 pub use ead_zeroconf::*;
 
+#[cfg(feature = "ead-none")]
+pub use ead_none::*;
+
 mod common {
 
     #[derive(Default, PartialEq, Copy, Clone, Debug)]
@@ -164,6 +167,9 @@ mod hacspec {
     #[cfg(feature = "ead-zeroconf")]
     use super::ead_zeroconf::*;
 
+    #[cfg(feature = "ead-none")]
+    use super::ead_none::*;
+
     array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
 
     #[derive(Debug)]
@@ -309,22 +315,15 @@ mod ead_none {
     use super::common::*;
 
     #[derive(Copy, Clone, Debug)]
-    pub struct EADInitiatorNoneState {
-        pub foo: u8,
+    pub struct EADInitiatorNoneHandler {
+        pub state: u8,
+        pub prepare_ead1_cb: fn(EdhocMessageBuffer, u8) -> (EdhocMessageBuffer, u8),
     }
 
-    #[derive(Copy, Clone, Debug)]
-    pub struct EADInitiatorZeroConfHandler {
-        pub label: u8,
-        pub state: EADInitiatorNoneState,
-        pub prepare_ead1_cb: fn(EdhocMessageBuffer, EADInitiatorNoneState) -> (EdhocMessageBuffer, EADInitiatorNoneState),
-    }
-
-    impl Default for EADInitiatorZeroConfHandler {
+    impl Default for EADInitiatorNoneHandler {
         fn default() -> Self {
-            EADInitiatorZeroConfHandler {
-                label: 0,
-                state: EADInitiatorNoneState { foo: 0 },
+            EADInitiatorNoneHandler {
+                state: 0,
                 prepare_ead1_cb: |ead1, state| (ead1, state),
             }
         }
