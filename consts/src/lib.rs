@@ -9,7 +9,7 @@ pub use hacspec::*;
 pub use rust::*;
 
 #[cfg(feature = "ead-zeroconf")]
-pub use ead_zeroconf::*;
+pub use structs_ead_zeroconf::*;
 
 #[cfg(feature = "ead-none")]
 pub use ead_none::*;
@@ -108,6 +108,8 @@ mod common {
 						    1; // length as u8
 
     pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
+
+    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
 }
 
 #[cfg(feature = "rust")]
@@ -165,7 +167,7 @@ mod hacspec {
     use hacspec_lib::*;
 
     #[cfg(feature = "ead-zeroconf")]
-    use super::ead_zeroconf::*;
+    use super::structs_ead_zeroconf::*;
 
     #[cfg(feature = "ead-none")]
     use super::ead_none::*;
@@ -279,22 +281,35 @@ mod hacspec {
         pub Option<EADInitiatorZeroConfHandler>,
         #[cfg(feature = "ead-none")]
         pub Option<EADInitiatorNoneHandler>,
+        #[cfg(feature = "ead-zeroconf")]
+        pub Option<EADResponderZeroConfHandler>,
+        #[cfg(feature = "ead-none")]
+        pub Option<EADResponderNoneHandler>,
     );
 
 }
 
 #[cfg(feature = "ead-zeroconf")]
-mod ead_zeroconf {
+mod structs_ead_zeroconf {
     use super::common::*;
+
+    #[derive(Default, PartialEq, Copy, Clone, Debug)]
+    pub enum EADInitiatorProtocolState {
+        #[default]
+        Start,
+        WaitEAD2,
+        ProcessedEAD2,
+        Completed,
+    }
 
     #[derive(Copy, Clone, Debug)]
     pub struct EADInitiatorZeroConfState {
-        pub foo: u8,
+        pub label: u8,
+        pub ead_state: EADInitiatorProtocolState,
     }
 
     #[derive(Copy, Clone, Debug)]
     pub struct EADInitiatorZeroConfHandler {
-        pub label: u8,
         pub state: EADInitiatorZeroConfState,
         pub prepare_ead1_cb: fn(EdhocMessageBuffer, EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
     }
@@ -302,9 +317,41 @@ mod ead_zeroconf {
     impl Default for EADInitiatorZeroConfHandler {
         fn default() -> Self {
             EADInitiatorZeroConfHandler {
-                label: 0,
-                state: EADInitiatorZeroConfState { foo: 0 },
+                state: EADInitiatorZeroConfState {
+                    label: EAD_ZEROCONF_LABEL,
+                    ead_state: EADInitiatorProtocolState::Start,
+                },
                 prepare_ead1_cb: |ead1, state| (ead1, state),
+            }
+        }
+    }
+
+    #[derive(Default, PartialEq, Copy, Clone, Debug)]
+    pub enum EADResponderProtocolState {
+        #[default]
+        Start,
+        ProcessedEAD1,
+        WaitMessage3,
+        Completed,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADResponderZeroConfState {
+        pub label: u8,
+        pub ead_state: EADResponderProtocolState,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADResponderZeroConfHandler {
+        pub state: EADResponderZeroConfState,
+        pub process_ead1_cb: fn(EdhocMessageBuffer, EADResponderZeroConfState) -> (EdhocMessageBuffer, EADResponderZeroConfState),
+    }
+
+    impl Default for EADResponderZeroConfHandler {
+        fn default() -> Self {
+            EADResponderZeroConfHandler {
+                state: EADResponderZeroConfState { label: EAD_ZEROCONF_LABEL, ead_state: EADResponderProtocolState::Start },
+                process_ead1_cb: |ead1, state| (ead1, state),
             }
         }
     }
@@ -323,6 +370,21 @@ mod ead_none {
     impl Default for EADInitiatorNoneHandler {
         fn default() -> Self {
             EADInitiatorNoneHandler {
+                state: 0,
+                prepare_ead1_cb: |ead1, state| (ead1, state),
+            }
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct EADResponderNoneHandler {
+        pub state: u8,
+        pub prepare_ead1_cb: fn(EdhocMessageBuffer, u8) -> (EdhocMessageBuffer, u8),
+    }
+
+    impl Default for EADResponderNoneHandler {
+        fn default() -> Self {
+            EADResponderNoneHandler {
                 state: 0,
                 prepare_ead1_cb: |ead1, state| (ead1, state),
             }

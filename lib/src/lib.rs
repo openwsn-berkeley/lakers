@@ -29,6 +29,9 @@ pub use {
 ))]
 mod edhoc;
 
+#[cfg(feature = "ead-zeroconf")]
+pub mod ead_zeroconf;
+
 #[cfg(any(
     feature = "rust-psa",
     feature = "rust-psa-baremetal",
@@ -93,6 +96,14 @@ mod hacspec {
                 id_cred_r: id_cred_r,
                 cred_r: cred_r,
             }
+        }
+
+        #[cfg(feature = "ead-zeroconf")]
+        pub fn register_ead_handler(
+            self: &mut HacspecEdhocResponder<'a>,
+            ead_handler: EADResponderZeroConfHandler,
+        ) {
+            self.state.11 = Some(ead_handler);
         }
 
         pub fn process_message_1(
@@ -219,6 +230,11 @@ mod hacspec {
             ead_handler: EADInitiatorZeroConfHandler,
         ) {
             self.state.10 = Some(ead_handler);
+        }
+
+        #[cfg(test)]
+        pub fn get_state(self: &mut HacspecEdhocInitiator<'a>) -> State {
+            self.state
         }
 
         pub fn prepare_message_1(
@@ -677,71 +693,42 @@ mod test {
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
 
-    #[test]
-    fn test_ead_3() {
-        /// using an enum to wrap a generic struct that holds functions & state
-        /// ISSUE (compiles, but is not ideal): all EAD structs must be knonw beforehand
-
-        #[derive(Copy, Clone, Debug)]
-        pub struct EADInitiatorZeroConfState {
-            pub foo: u8,
-        }
-
-        #[derive(Copy, Clone, Debug)]
-        pub struct EADInitiatorHandler {
-            pub label: u8,
-            pub state: EADInitiatorZeroConfState,
-            pub prepare_ead1_fn: fn(EdhocMessageBufferHacspec, EADInitiatorZeroConfState) -> (EdhocMessageBufferHacspec, EADInitiatorZeroConfState),
-        }
-
-        fn i_prepare_ead_zeroconf(
-            buffer: EdhocMessageBufferHacspec,
-            state: EADInitiatorZeroConfState
-        ) -> (EdhocMessageBufferHacspec, EADInitiatorZeroConfState) {
-            // ...
-            (buffer, state)
-        }
-
-        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        let mut responder = EdhocResponder::new(EdhocState::default(), R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-
-        let i_ead_zeroconf = EADInitiatorHandler {
-            label: 0,
-            state: EADInitiatorZeroConfState { foo: 0x1 },
-            prepare_ead1_fn: i_prepare_ead_zeroconf,
-        };
-
-        let ead_item: Option<EADInitiatorHandler> = Some(i_ead_zeroconf);
-    }
-
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_4() {
         /// using ead = zeroconf
+        use ead_zeroconf::*;
 
-        fn i_prepare_ead_zeroconf(
-            mut buffer: EdhocMessageBuffer,
-            mut state: EADInitiatorZeroConfState
-        ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
-            // ...
-            buffer.content[buffer.len] = 0xfe;
-            buffer.len += 1;
-            state.foo = 0x9;
-            (buffer, state)
-        }
+        let state_initiator: EdhocState = Default::default();
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            I,
+            G_R,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let state_responder: EdhocState = Default::default();
+        let mut responder = EdhocResponder::new(
+            state_responder,
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
 
-        let i_ead_zeroconf = EADInitiatorZeroConfHandler {
-            label: 0,
-            state: EADInitiatorZeroConfState { foo: 0x1 },
-            prepare_ead1_cb: i_prepare_ead_zeroconf,
-        };
+        let i_zeroconf_handler = ead_zeroconf_initiator::new_handler();
+        initiator.register_ead_handler(i_zeroconf_handler);
 
-        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-
-        initiator.register_ead_handler(i_ead_zeroconf);
+        let r_zeroconf_handler = ead_zeroconf_receiver::new_handler();
+        responder.register_ead_handler(r_zeroconf_handler);
 
         let message_1 = initiator.prepare_message_1().unwrap();
-        assert_eq!(message_1.content[message_1.len-1], 0xfe);
+        assert_eq!(message_1.content[message_1.len-1], EAD_ZEROCONF_LABEL);
+        // assert_eq!(initiator.get_state().10.unwrap().state.ead_state, EADInitiatorProtocolState::WaitEAD2);
 
     }
 
