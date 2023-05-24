@@ -344,14 +344,14 @@ mod structs_ead_zeroconf {
     #[derive(Copy, Clone, Debug)]
     pub struct EADResponderZeroConfHandler {
         pub state: EADResponderZeroConfState,
-        pub process_ead1_cb: fn(EdhocMessageBuffer, EADResponderZeroConfState) -> (EdhocMessageBuffer, EADResponderZeroConfState),
+        pub process_ead1_cb: fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
     }
 
     impl Default for EADResponderZeroConfHandler {
         fn default() -> Self {
             EADResponderZeroConfHandler {
                 state: EADResponderZeroConfState { label: EAD_ZEROCONF_LABEL, ead_state: EADResponderProtocolState::Start },
-                process_ead1_cb: |ead1, state| (ead1, state),
+                process_ead1_cb: |_ead1, state| state,
             }
         }
     }

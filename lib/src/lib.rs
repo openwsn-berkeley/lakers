@@ -106,6 +106,11 @@ mod hacspec {
             self.state.11 = Some(ead_handler);
         }
 
+        #[cfg(test)]
+        pub fn get_state(self: &mut HacspecEdhocResponder<'a>) -> State {
+            self.state
+        }
+
         pub fn process_message_1(
             self: &mut HacspecEdhocResponder<'a>,
             message_1: &EdhocMessageBuffer,
@@ -723,12 +728,25 @@ mod test {
         let i_zeroconf_handler = ead_zeroconf_initiator::new_handler();
         initiator.register_ead_handler(i_zeroconf_handler);
 
-        let r_zeroconf_handler = ead_zeroconf_receiver::new_handler();
+        let r_zeroconf_handler = ead_zeroconf_responder::new_handler();
         responder.register_ead_handler(r_zeroconf_handler);
 
         let message_1 = initiator.prepare_message_1().unwrap();
-        assert_eq!(message_1.content[message_1.len-1], EAD_ZEROCONF_LABEL);
-        // assert_eq!(initiator.get_state().10.unwrap().state.ead_state, EADInitiatorProtocolState::WaitEAD2);
+        assert_eq!(initiator.get_state().10.unwrap().state.ead_state, EADInitiatorProtocolState::WaitEAD2);
+
+        responder.process_message_1(&message_1).unwrap();
+        assert_eq!(responder.get_state().11.unwrap().state.ead_state, EADResponderProtocolState::ProcessedEAD1);
+
+        // let (message_2, c_r) = responder.prepare_message_2().unwrap();
+        // assert_eq!(responder.get_state().11.unwrap().state.ead_state, EADResponderProtocolState::WaitMessage3);
+
+        // let _c_r = initiator.process_message_2(&message_2);
+
+        // let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        // assert!(ret.is_ok());
+
+        // let r_prk_out = responder.process_message_3(&message_3);
+        // assert!(r_prk_out.is_ok());
 
     }
 

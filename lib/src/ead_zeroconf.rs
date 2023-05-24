@@ -14,16 +14,20 @@ pub mod ead_zeroconf_initiator {
         mut buffer: EdhocMessageBuffer,
         mut state: EADInitiatorZeroConfState
     ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
-        // TODO: actually implement the zeroconf ead stuff
-        buffer.content[buffer.len] = state.label;
-        buffer.len += 1;
+        // TODO: append the label to the buffer
+        // buffer.content[buffer.len] = state.label;
+        // buffer.len += 1;
+
+        // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
+
         state.ead_state = EADInitiatorProtocolState::WaitEAD2;
+
         (buffer, state)
     }
 
 }
 
-pub mod ead_zeroconf_receiver {
+pub mod ead_zeroconf_responder {
     use edhoc_consts::*;
 
     pub fn new_handler() -> EADResponderZeroConfHandler {
@@ -34,14 +38,14 @@ pub mod ead_zeroconf_receiver {
     }
 
     pub fn process_ead_1(
-        mut buffer: EdhocMessageBuffer,
+        buffer: EdhocMessageBuffer,
         mut state: EADResponderZeroConfState
-    ) -> (EdhocMessageBuffer, EADResponderZeroConfState) {
-        // TODO: actually implement the zeroconf ead stuff
-        buffer.content[buffer.len] = state.label;
-        buffer.len += 1;
+    ) -> EADResponderZeroConfState {
+        // TODO: trigger the voucher request to W
+
         state.ead_state = EADResponderProtocolState::ProcessedEAD1;
-        (buffer, state)
+
+        state
     }
 
 }

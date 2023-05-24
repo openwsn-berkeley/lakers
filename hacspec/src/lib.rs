@@ -54,7 +54,7 @@ pub fn r_process_message_1(
         mut h_message_1,
         _th_3,
         _ead_init_handler,
-        _ead_rcvr_handler,
+        mut ead_resp_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -73,7 +73,10 @@ pub fn r_process_message_1(
                     == EDHOC_SUPPORTED_SUITES[0u8].declassify()
                 {
                     // Step 3: If EAD is present make it available to the application
-                    // TODO we do not support EAD for now
+                    if let Some(mut ead_handler) = ead_resp_handler {
+                        ead_handler.state = (ead_handler.process_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
+                        ead_resp_handler = Some(ead_handler);
+                    }
 
                     // hash message_1 and save the hash to the state to avoid saving the whole message
                     h_message_1 = sha256_digest(
@@ -96,7 +99,7 @@ pub fn r_process_message_1(
                         h_message_1,
                         _th_3,
                         _ead_init_handler,
-                        _ead_rcvr_handler,
+                        ead_resp_handler,
                     );
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;
@@ -381,15 +384,10 @@ pub fn i_prepare_message_1(
         );
 
         if let Some(mut ead_handler) = ead_init_handler {
-            let (message_1_public, state) = (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
+            let (message_1_public, ead_state) = (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
             message_1 = EdhocMessageBufferHacspec::from_public_buffer(&message_1_public);
-            // ead_init_handler.unwrap().state = state;
-            // ead_init_handler.unwrap().state.ead_state = EADInitiatorProtocolState::WaitEAD2;
-            // ead_init_handler = Some(EADInitiatorZeroConfHandler {
-            //     state,
-            //     ..ead_init_handler.unwrap()
-            // });
-            ead_handler.state = state;
+            ead_handler.state = ead_state;
+            ead_init_handler = Some(ead_handler);
         }
 
         // hash message_1 here to avoid saving the whole message in the state
@@ -643,9 +641,9 @@ pub fn construct_state(
     #[cfg(feature = "ead-none")]
     ead_init_handler: Option<EADInitiatorNoneHandler>,
     #[cfg(feature = "ead-zeroconf")]
-    ead_rcvr_handler: Option<EADResponderZeroConfHandler>,
+    ead_resp_handler: Option<EADResponderZeroConfHandler>,
     #[cfg(feature = "ead-none")]
-    ead_rcvr_handler: Option<EADResponderNoneHandler>,
+    ead_resp_handler: Option<EADResponderNoneHandler>,
 ) -> State {
     State(
         state,
@@ -659,7 +657,7 @@ pub fn construct_state(
         h_message_1,
         th_3,
         ead_init_handler,
-        ead_rcvr_handler,
+        ead_resp_handler,
     )
 }
 
