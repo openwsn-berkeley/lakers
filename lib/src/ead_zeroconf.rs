@@ -5,22 +5,27 @@ pub mod ead_zeroconf_initiator {
 
     pub fn new_handler() -> EADInitiatorZeroConfHandler {
         EADInitiatorZeroConfHandler {
-            prepare_ead1_cb: prepare_ead_1,
-            process_ead2_cb: process_ead_2,
+            prepare_ead_1_cb: prepare_ead_1,
+            process_ead_2_cb: process_ead_2,
             ..Default::default()
         }
     }
 
     pub fn prepare_ead_1(
-        mut buffer: EdhocMessageBuffer,
         mut state: EADInitiatorZeroConfState,
     ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
-        // TODO: append the label to the buffer
+        let mut ead_1 = EdhocMessageBuffer::new();
+
+        // add the label to the buffer
+        // since in this case it is critical, it is encoded as a CBOR negative integer
+        ead_1.content[0] = CBOR_NEG_INT_RANGE_START + EAD_ZEROCONF_LABEL;
+        ead_1.len = 1;
+
         // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
 
         state.ead_state = EADInitiatorProtocolState::WaitEAD2;
 
-        (buffer, state)
+        (ead_1, state)
     }
 
     pub fn process_ead_2(
@@ -41,9 +46,9 @@ pub mod ead_zeroconf_responder {
 
     pub fn new_handler() -> EADResponderZeroConfHandler {
         EADResponderZeroConfHandler {
-            process_ead1_cb: process_ead_1,
-            prepare_ead2_cb: prepare_ead_2,
-            process_ead3_cb: process_ead_3,
+            process_ead_1_cb: process_ead_1,
+            prepare_ead_2_cb: prepare_ead_2,
+            process_ead_3_cb: process_ead_3,
             ..Default::default()
         }
     }

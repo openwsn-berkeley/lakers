@@ -74,7 +74,7 @@ pub fn r_process_message_1(
                 {
                     // Step 3: If EAD is present make it available to the application
                     if let Some(mut ead_handler) = ead_resp_handler {
-                        ead_handler.state = (ead_handler.process_ead1_cb)(
+                        ead_handler.state = (ead_handler.process_ead_1_cb)(
                             message_1.to_public_buffer(),
                             ead_handler.state,
                         );
@@ -175,14 +175,23 @@ pub fn r_prepare_message_2(
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
         if let Some(mut ead_handler) = ead_resp_handler {
-            let (_ead_2, ead_state) = (ead_handler.prepare_ead2_cb)(ead_handler.state);
+            let (_ead_2, ead_state) = (ead_handler.prepare_ead_2_cb)(ead_handler.state);
             // TODO: add ead_2 to the plaintext
             ead_handler.state = ead_state;
             ead_resp_handler = Some(ead_handler);
         }
 
+        let ead_2 = if let Some(mut ead_handler) = ead_resp_handler {
+            let (ead_2, ead_state) = (ead_handler.prepare_ead_2_cb)(ead_handler.state);
+            ead_handler.state = ead_state;
+            ead_resp_handler = Some(ead_handler);
+            Some(BytesEad2New::from_public_buffer(&ead_2))
+        } else {
+            None
+        };
+
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &BytesEad2::new());
+        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &ead_2);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -262,7 +271,7 @@ pub fn r_process_message_3(
             if let Some(mut ead_handler) = ead_resp_handler {
                 // TODO: actually process ead_3
                 ead_handler.state =
-                    (ead_handler.process_ead3_cb)(EdhocMessageBuffer::new(), ead_handler.state);
+                    (ead_handler.process_ead_3_cb)(EdhocMessageBuffer::new(), ead_handler.state);
                 ead_resp_handler = Some(ead_handler);
             }
 
@@ -380,7 +389,6 @@ pub fn i_prepare_message_1(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
-
     let mut message_1 = BufferMessage1::new();
 
     if current_state == EDHOCState::Start {
@@ -391,6 +399,15 @@ pub fn i_prepare_message_1(
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;
 
+        let ead_1 = if let Some(mut ead_handler) = ead_init_handler {
+            let (ead_1, ead_state) = (ead_handler.prepare_ead_1_cb)(ead_handler.state);
+            ead_handler.state = ead_state;
+            ead_init_handler = Some(ead_handler);
+            Some(EdhocMessageBufferHacspec::from_public_buffer(&ead_1))
+        } else {
+            None
+        };
+
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(
             U8(EDHOC_METHOD),
@@ -398,15 +415,8 @@ pub fn i_prepare_message_1(
             EDHOC_SUPPORTED_SUITES.len(),
             &g_x,
             c_i,
+            &ead_1,
         );
-
-        if let Some(mut ead_handler) = ead_init_handler {
-            let (message_1_public, ead_state) =
-                (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
-            message_1 = EdhocMessageBufferHacspec::from_public_buffer(&message_1_public);
-            ead_handler.state = ead_state;
-            ead_init_handler = Some(ead_handler);
-        }
 
         // hash message_1 here to avoid saving the whole message in the state
         h_message_1 = sha256_digest(
@@ -493,7 +503,7 @@ pub fn i_process_message_2(
             if let Some(mut ead_handler) = ead_init_handler {
                 // TODO: actually pass _ead_2 to the EAD handler
                 ead_handler.state =
-                    (ead_handler.process_ead2_cb)(EdhocMessageBuffer::new(), ead_handler.state);
+                    (ead_handler.process_ead_2_cb)(EdhocMessageBuffer::new(), ead_handler.state);
                 ead_init_handler = Some(ead_handler);
             }
 
@@ -599,14 +609,16 @@ pub fn i_prepare_message_3(
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
 
-        if let Some(mut ead_handler) = ead_init_handler {
-            // TODO: actually use _ead3
-            let (_ead3, ead_state) = (ead_handler.prepare_ead3_cb)(ead_handler.state);
+        let ead_3 = if let Some(mut ead_handler) = ead_init_handler {
+            let (ead_3, ead_state) = (ead_handler.prepare_ead_3_cb)(ead_handler.state);
             ead_handler.state = ead_state;
             ead_init_handler = Some(ead_handler);
-        }
+            Some(EdhocMessageBufferHacspec::from_public_buffer(&ead_3))
+        } else {
+            None
+        };
 
-        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
+        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
@@ -784,12 +796,13 @@ fn parse_message_1(
 
         c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
 
-        // check that the message is of the correct length
-        if rcvd_message_1.len == (3 + raw_suites_len + P256_ELEM_LEN + 1) {
-            error = EDHOCError::Success;
-        } else {
-            error = EDHOCError::ParsingError;
-        }
+        error = EDHOCError::Success;
+        // // check that the message is of the correct length
+        // if rcvd_message_1.len == (3 + raw_suites_len + P256_ELEM_LEN + 1) {
+        //     error = EDHOCError::Success;
+        // } else {
+        //     error = EDHOCError::ParsingError;
+        // }
     } else {
         error = res_suites.unwrap_err();
     }
@@ -806,6 +819,7 @@ fn encode_message_1(
     suites_len: usize,
     g_x: &BytesP256ElemLen,
     c_i: U8,
+    ead_1: &Option<EdhocMessageBufferHacspec>,
 ) -> BufferMessage1 {
     let mut output = BufferMessage1::new();
     let mut raw_suites_len: usize = 0;
@@ -845,7 +859,18 @@ fn encode_message_1(
     output.content = output.content.update(3 + raw_suites_len, g_x);
     output.content[3 + raw_suites_len + P256_ELEM_LEN] = c_i;
 
-    output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
+    if let Some(ead_1) = ead_1 {
+        output.content = output.content.update_slice(
+            4 + raw_suites_len + P256_ELEM_LEN,
+            &ead_1.content,
+            0,
+            ead_1.len,
+        );
+        output.len = 4 + raw_suites_len + P256_ELEM_LEN + ead_1.len;
+    } else {
+        output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
+    }
+
     output
 }
 
@@ -981,7 +1006,7 @@ fn decode_plaintext_3(plaintext_3: &BufferPlaintext3) -> (U8, BytesMac3) {
     (kid, mac_3)
 }
 
-fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BufferPlaintext3 {
+fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3, ead_3: &Option<EdhocMessageBufferHacspec>) -> BufferPlaintext3 {
     let mut plaintext_3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
@@ -989,7 +1014,13 @@ fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BufferPlain
     plaintext_3.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
     plaintext_3.content = plaintext_3.content.update(2, mac_3);
 
-    plaintext_3.len = 2 + mac_3.len();
+    if let Some(ead_3) = ead_3 {
+        plaintext_3.content = plaintext_3.content.update_slice(2 + mac_3.len(), &ead_3.content, 0, ead_3.len);
+        plaintext_3.len = 2 + mac_3.len() + ead_3.len;
+    } else {
+        plaintext_3.len = 2 + mac_3.len();
+    }
+
     plaintext_3
 }
 
@@ -1187,15 +1218,20 @@ fn decode_plaintext_2(
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &BytesEad2,
+    ead_2: &Option<BytesEad2New>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
     plaintext_2.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
     plaintext_2.content = plaintext_2.content.update(2, mac_2);
-    plaintext_2.content = plaintext_2.content.update(2 + mac_2.len(), ead_2);
 
-    plaintext_2.len = 2 + mac_2.len() + ead_2.len();
+    if let Some(ead_2) = ead_2 {
+        plaintext_2.content = plaintext_2.content.update_slice(2 + mac_2.len(), &ead_2.content, 0, ead_2.len);
+        plaintext_2.len = 2 + mac_2.len() + ead_2.len;
+    } else {
+        plaintext_2.len = 2 + mac_2.len();
+    }
+
     plaintext_2
 }
 
@@ -1370,7 +1406,14 @@ mod tests {
         let c_i_tv = U8(C_I_TV);
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
 
-        let message_1 = encode_message_1(method_tv, &suites_i_tv, suites_i_tv_len, &g_x_tv, c_i_tv);
+        let message_1 = encode_message_1(
+            method_tv,
+            &suites_i_tv,
+            suites_i_tv_len,
+            &g_x_tv,
+            c_i_tv,
+            &None::<EdhocMessageBufferHacspec>,
+        );
 
         assert_bytes_eq!(message_1.content, message_1_tv.content);
     }
@@ -1598,7 +1641,7 @@ mod tests {
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &BytesEad2::new());
+        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<BytesEad2New>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
@@ -1695,7 +1738,7 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv);
+        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EdhocMessageBufferHacspec>);
         assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 

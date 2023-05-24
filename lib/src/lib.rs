@@ -700,7 +700,7 @@ mod test {
 
     #[cfg(feature = "ead-zeroconf")]
     #[test]
-    fn test_ead_4() {
+    fn test_ead() {
         use ead_zeroconf::*;
 
         let state_initiator: EdhocState = Default::default();
