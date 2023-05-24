@@ -23,7 +23,7 @@ pub fn edhoc_exporter(
         _h_message_1,
         _th_3,
         _ead_init_handler,
-        _ead_rcvr_handler,
+        ead_resp_handler,
     ) = state;
 
     let mut output = BytesMaxBuffer::new();
@@ -74,7 +74,10 @@ pub fn r_process_message_1(
                 {
                     // Step 3: If EAD is present make it available to the application
                     if let Some(mut ead_handler) = ead_resp_handler {
-                        ead_handler.state = (ead_handler.process_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
+                        ead_handler.state = (ead_handler.process_ead1_cb)(
+                            message_1.to_public_buffer(),
+                            ead_handler.state,
+                        );
                         ead_resp_handler = Some(ead_handler);
                     }
 
@@ -149,7 +152,7 @@ pub fn r_prepare_message_2(
         h_message_1,
         mut th_3,
         _ead_init_handler,
-        _ead_rcvr_handler,
+        mut ead_resp_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -170,6 +173,13 @@ pub fn r_prepare_message_2(
 
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
+
+        if let Some(mut ead_handler) = ead_resp_handler {
+            let (_ead_2, ead_state) = (ead_handler.prepare_ead2_cb)(ead_handler.state);
+            // TODO: add ead_2 to the plaintext
+            ead_handler.state = ead_state;
+            ead_resp_handler = Some(ead_handler);
+        }
 
         // compute ciphertext_2
         let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &BytesEad2::new());
@@ -202,7 +212,7 @@ pub fn r_prepare_message_2(
             h_message_1,
             th_3,
             _ead_init_handler,
-            _ead_rcvr_handler,
+            ead_resp_handler,
         );
     } else {
         error = EDHOCError::WrongState;
@@ -237,7 +247,7 @@ pub fn r_process_message_3(
         _h_message_1,
         th_3,
         _ead_init_handler,
-        _ead_rcvr_handler,
+        mut ead_resp_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -248,6 +258,13 @@ pub fn r_process_message_3(
         if plaintext_3.is_ok() {
             let plaintext_3 = plaintext_3.unwrap();
             let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
+
+            if let Some(mut ead_handler) = ead_resp_handler {
+                // TODO: actually process ead_3
+                ead_handler.state =
+                    (ead_handler.process_ead3_cb)(EdhocMessageBuffer::new(), ead_handler.state);
+                ead_resp_handler = Some(ead_handler);
+            }
 
             // compare the kid received with the kid expected in id_cred_i
             if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
@@ -308,7 +325,7 @@ pub fn r_process_message_3(
                         _h_message_1,
                         th_3,
                         _ead_init_handler,
-                        _ead_rcvr_handler,
+                        ead_resp_handler,
                     );
                 } else {
                     error = EDHOCError::MacVerificationFailed;
@@ -359,7 +376,7 @@ pub fn i_prepare_message_1(
         mut h_message_1,
         _th_3,
         mut ead_init_handler,
-        _ead_rcvr_handler,
+        ead_resp_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -384,7 +401,8 @@ pub fn i_prepare_message_1(
         );
 
         if let Some(mut ead_handler) = ead_init_handler {
-            let (message_1_public, ead_state) = (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
+            let (message_1_public, ead_state) =
+                (ead_handler.prepare_ead1_cb)(message_1.to_public_buffer(), ead_handler.state);
             message_1 = EdhocMessageBufferHacspec::from_public_buffer(&message_1_public);
             ead_handler.state = ead_state;
             ead_init_handler = Some(ead_handler);
@@ -410,7 +428,7 @@ pub fn i_prepare_message_1(
             h_message_1,
             _th_3,
             ead_init_handler,
-            _ead_rcvr_handler,
+            ead_resp_handler,
         );
     } else {
         error = EDHOCError::WrongState;
@@ -444,8 +462,8 @@ pub fn i_process_message_2(
         _prk_exporter,
         h_message_1,
         mut th_3,
-        _ead_init_handler,
-        _ead_rcvr_handler,
+        mut ead_init_handler,
+        _ead_resp_handler,
     ) = state;
 
     // init error
@@ -470,6 +488,14 @@ pub fn i_process_message_2(
 
         if plaintext_2_decoded.is_ok() {
             let (kid, mac_2, _ead_2) = plaintext_2_decoded.unwrap();
+
+            // processing of EAD_2
+            if let Some(mut ead_handler) = ead_init_handler {
+                // TODO: actually pass _ead_2 to the EAD handler
+                ead_handler.state =
+                    (ead_handler.process_ead2_cb)(EdhocMessageBuffer::new(), ead_handler.state);
+                ead_init_handler = Some(ead_handler);
+            }
 
             // verify mac_2
             let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
@@ -516,8 +542,8 @@ pub fn i_process_message_2(
                         _prk_exporter,
                         h_message_1,
                         th_3,
-                        _ead_init_handler,
-                        _ead_rcvr_handler,
+                        ead_init_handler,
+                        _ead_resp_handler,
                     );
                 } else {
                     // Unknown peer
@@ -563,8 +589,8 @@ pub fn i_prepare_message_3(
         mut prk_exporter,
         _h_message_1,
         th_3,
-        _ead_init_handler,
-        _ead_rcvr_handler,
+        mut ead_init_handler,
+        ead_resp_handler,
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
@@ -572,6 +598,14 @@ pub fn i_prepare_message_3(
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
+
+        if let Some(mut ead_handler) = ead_init_handler {
+            // TODO: actually use _ead3
+            let (_ead3, ead_state) = (ead_handler.prepare_ead3_cb)(ead_handler.state);
+            ead_handler.state = ead_state;
+            ead_init_handler = Some(ead_handler);
+        }
+
         let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
@@ -612,8 +646,8 @@ pub fn i_prepare_message_3(
             prk_exporter,
             _h_message_1,
             th_3,
-            _ead_init_handler,
-            _ead_rcvr_handler,
+            ead_init_handler,
+            ead_resp_handler,
         );
     } else {
         error = EDHOCError::WrongState;
@@ -636,14 +670,10 @@ pub fn construct_state(
     prk_exporter: BytesHashLen,
     h_message_1: BytesHashLen,
     th_3: BytesHashLen,
-    #[cfg(feature = "ead-zeroconf")]
-    ead_init_handler: Option<EADInitiatorZeroConfHandler>,
-    #[cfg(feature = "ead-none")]
-    ead_init_handler: Option<EADInitiatorNoneHandler>,
-    #[cfg(feature = "ead-zeroconf")]
-    ead_resp_handler: Option<EADResponderZeroConfHandler>,
-    #[cfg(feature = "ead-none")]
-    ead_resp_handler: Option<EADResponderNoneHandler>,
+    #[cfg(feature = "ead-zeroconf")] ead_init_handler: Option<EADInitiatorZeroConfHandler>,
+    #[cfg(feature = "ead-none")] ead_init_handler: Option<EADInitiatorNoneHandler>,
+    #[cfg(feature = "ead-zeroconf")] ead_resp_handler: Option<EADResponderZeroConfHandler>,
+    #[cfg(feature = "ead-none")] ead_resp_handler: Option<EADResponderNoneHandler>,
 ) -> State {
     State(
         state,

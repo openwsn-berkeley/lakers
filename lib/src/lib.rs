@@ -701,7 +701,6 @@ mod test {
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_4() {
-        /// using ead = zeroconf
         use ead_zeroconf::*;
 
         let state_initiator: EdhocState = Default::default();
@@ -732,31 +731,40 @@ mod test {
         responder.register_ead_handler(r_zeroconf_handler);
 
         let message_1 = initiator.prepare_message_1().unwrap();
-        assert_eq!(initiator.get_state().10.unwrap().state.ead_state, EADInitiatorProtocolState::WaitEAD2);
+        assert_eq!(
+            initiator.get_state().10.unwrap().state.ead_state,
+            EADInitiatorProtocolState::WaitEAD2
+        );
 
         responder.process_message_1(&message_1).unwrap();
-        assert_eq!(responder.get_state().11.unwrap().state.ead_state, EADResponderProtocolState::ProcessedEAD1);
+        assert_eq!(
+            responder.get_state().11.unwrap().state.ead_state,
+            EADResponderProtocolState::ProcessedEAD1
+        );
 
-        // let (message_2, c_r) = responder.prepare_message_2().unwrap();
-        // assert_eq!(responder.get_state().11.unwrap().state.ead_state, EADResponderProtocolState::WaitMessage3);
+        let (message_2, c_r) = responder.prepare_message_2().unwrap();
+        assert_eq!(
+            responder.get_state().11.unwrap().state.ead_state,
+            EADResponderProtocolState::WaitMessage3
+        );
 
-        // let _c_r = initiator.process_message_2(&message_2);
+        let _c_r = initiator.process_message_2(&message_2);
+        assert_eq!(
+            initiator.get_state().10.unwrap().state.ead_state,
+            EADInitiatorProtocolState::Completed
+        );
 
-        // let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
-        // assert!(ret.is_ok());
+        let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        assert_eq!(
+            initiator.get_state().10.unwrap().state.ead_state,
+            EADInitiatorProtocolState::Completed
+        );
 
-        // let r_prk_out = responder.process_message_3(&message_3);
-        // assert!(r_prk_out.is_ok());
-
+        let r_prk_out = responder.process_message_3(&message_3);
+        assert!(r_prk_out.is_ok());
+        assert_eq!(
+            responder.get_state().11.unwrap().state.ead_state,
+            EADResponderProtocolState::Completed
+        );
     }
-
-    #[cfg(feature = "ead-none")]
-    #[test]
-    fn test_ead_4() {
-        /// using ead = none
-        let mut initiator = EdhocInitiator::new(EdhocState::default(), I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        let message_1 = initiator.prepare_message_1().unwrap();
-        assert_eq!(message_1.content[message_1.len-1], 0x37);
-    }
-
 }

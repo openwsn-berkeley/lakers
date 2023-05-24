@@ -277,16 +277,11 @@ mod hacspec {
         pub BytesHashLen,     // prk_exporter
         pub BytesHashLen,     // h_message_1
         pub BytesHashLen,     // th_3
-        #[cfg(feature = "ead-zeroconf")]
-        pub Option<EADInitiatorZeroConfHandler>,
-        #[cfg(feature = "ead-none")]
-        pub Option<EADInitiatorNoneHandler>,
-        #[cfg(feature = "ead-zeroconf")]
-        pub Option<EADResponderZeroConfHandler>,
-        #[cfg(feature = "ead-none")]
-        pub Option<EADResponderNoneHandler>,
+        #[cfg(feature = "ead-zeroconf")] pub Option<EADInitiatorZeroConfHandler>,
+        #[cfg(feature = "ead-none")] pub Option<EADInitiatorNoneHandler>,
+        #[cfg(feature = "ead-zeroconf")] pub Option<EADResponderZeroConfHandler>,
+        #[cfg(feature = "ead-none")] pub Option<EADResponderNoneHandler>,
     );
-
 }
 
 #[cfg(feature = "ead-zeroconf")]
@@ -298,7 +293,6 @@ mod structs_ead_zeroconf {
         #[default]
         Start,
         WaitEAD2,
-        ProcessedEAD2,
         Completed,
     }
 
@@ -311,7 +305,14 @@ mod structs_ead_zeroconf {
     #[derive(Copy, Clone, Debug)]
     pub struct EADInitiatorZeroConfHandler {
         pub state: EADInitiatorZeroConfState,
-        pub prepare_ead1_cb: fn(EdhocMessageBuffer, EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
+        pub prepare_ead1_cb: fn(
+            EdhocMessageBuffer,
+            EADInitiatorZeroConfState,
+        ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
+        pub process_ead2_cb:
+            fn(EdhocMessageBuffer, EADInitiatorZeroConfState) -> EADInitiatorZeroConfState,
+        pub prepare_ead3_cb:
+            fn(EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
     }
 
     impl Default for EADInitiatorZeroConfHandler {
@@ -321,7 +322,9 @@ mod structs_ead_zeroconf {
                     label: EAD_ZEROCONF_LABEL,
                     ead_state: EADInitiatorProtocolState::Start,
                 },
-                prepare_ead1_cb: |ead1, state| (ead1, state),
+                prepare_ead1_cb: |msg1, state| (msg1, state),
+                process_ead2_cb: |_msg2, state| state,
+                prepare_ead3_cb: |state| (EdhocMessageBuffer::new(), state),
             }
         }
     }
@@ -344,14 +347,24 @@ mod structs_ead_zeroconf {
     #[derive(Copy, Clone, Debug)]
     pub struct EADResponderZeroConfHandler {
         pub state: EADResponderZeroConfState,
-        pub process_ead1_cb: fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
+        pub process_ead1_cb:
+            fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
+        pub prepare_ead2_cb:
+            fn(EADResponderZeroConfState) -> (EdhocMessageBuffer, EADResponderZeroConfState),
+        pub process_ead3_cb:
+            fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
     }
 
     impl Default for EADResponderZeroConfHandler {
         fn default() -> Self {
             EADResponderZeroConfHandler {
-                state: EADResponderZeroConfState { label: EAD_ZEROCONF_LABEL, ead_state: EADResponderProtocolState::Start },
-                process_ead1_cb: |_ead1, state| state,
+                state: EADResponderZeroConfState {
+                    label: EAD_ZEROCONF_LABEL,
+                    ead_state: EADResponderProtocolState::Start,
+                },
+                process_ead1_cb: |_msg1, state| state,
+                prepare_ead2_cb: |state| (EdhocMessageBuffer::new(), state),
+                process_ead3_cb: |_ead3, state| state,
             }
         }
     }
