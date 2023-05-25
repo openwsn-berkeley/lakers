@@ -197,7 +197,7 @@ pub fn r_prepare_message_2(
             let (ead_2, ead_state) = (ead_handler.prepare_ead_2_cb)(ead_handler.state);
             ead_handler.state = ead_state;
             ead_resp_handler = Some(ead_handler);
-            Some(BytesEad2New::from_public_buffer(&ead_2))
+            Some(BufferEad2::from_public_buffer(&ead_2))
         } else {
             None
         };
@@ -283,7 +283,7 @@ pub fn r_process_message_3(
             if decoded_p3_res.is_ok() {
                 let (kid, mac_3, ead_3) = decoded_p3_res.unwrap();
 
-                // TODO: address code repetition in this block (see other *_process_message_* functions)
+                // TODO[ead]: address code repetition in this block (see other *_process_message_* functions)
                 let ead_3_res = if let Some(ead_3) = ead_3 {
                     if let Some(mut ead_handler) = ead_resp_handler {
                         let (ead_res, ead_state) = (ead_handler.process_ead_3_cb)(
@@ -449,7 +449,7 @@ pub fn i_prepare_message_1(
             let (ead_1, ead_state) = (ead_handler.prepare_ead_1_cb)(ead_handler.state);
             ead_handler.state = ead_state;
             ead_init_handler = Some(ead_handler);
-            Some(EdhocMessageBufferHacspec::from_public_buffer(&ead_1))
+            Some(BufferEad1::from_public_buffer(&ead_1))
         } else {
             None
         };
@@ -545,7 +545,7 @@ pub fn i_process_message_2(
         if plaintext_2_decoded.is_ok() {
             let (kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
 
-            // TODO: address code repetition in this block (see other *_process_message_* functions)
+            // TODO[ead]: address code repetition in this block (see other *_process_message_* functions)
             let ead_2_res = if let Some(ead_2) = ead_2 {
                 if let Some(mut ead_handler) = ead_init_handler {
                     let (ead_res, ead_state) =
@@ -678,7 +678,7 @@ pub fn i_prepare_message_3(
             let (ead_3, ead_state) = (ead_handler.prepare_ead_3_cb)(ead_handler.state);
             ead_handler.state = ead_state;
             ead_init_handler = Some(ead_handler);
-            Some(EdhocMessageBufferHacspec::from_public_buffer(&ead_3))
+            Some(BufferEad3::from_public_buffer(&ead_3))
         } else {
             None
         };
@@ -845,7 +845,7 @@ fn parse_message_1(
         usize,
         BytesP256ElemLen,
         U8,
-        Option<BytesEad1>,
+        Option<BufferEad1>,
     ),
     EDHOCError,
 > {
@@ -855,7 +855,7 @@ fn parse_message_1(
     let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
-    let mut ead_1 = None::<BytesEad1>;
+    let mut ead_1 = None::<BufferEad1>;
 
     let method = rcvd_message_1.content[0];
 
@@ -874,7 +874,7 @@ fn parse_message_1(
 
         // if there is still more to parse, the rest will be the EAD_1
         if rcvd_message_1.len > (3 + raw_suites_len + P256_ELEM_LEN + 1) {
-            let buffer = BytesEad1::from_slice(
+            let buffer = BufferEad1::from_slice(
                 &rcvd_message_1.content,
                 3 + raw_suites_len + P256_ELEM_LEN + 1,
                 rcvd_message_1.len - (3 + raw_suites_len + P256_ELEM_LEN + 1),
@@ -902,7 +902,7 @@ fn encode_message_1(
     suites_len: usize,
     g_x: &BytesP256ElemLen,
     c_i: U8,
-    ead_1: &Option<EdhocMessageBufferHacspec>,
+    ead_1: &Option<BufferEad1>,
 ) -> BufferMessage1 {
     let mut output = BufferMessage1::new();
     let mut raw_suites_len: usize = 0;
@@ -1083,8 +1083,8 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(U8, BytesMac3, Option<BytesEad3>), EDHOCError> {
-    let mut ead_3 = None::<BytesEad3>;
+) -> Result<(U8, BytesMac3, Option<BufferEad3>), EDHOCError> {
+    let mut ead_3 = None::<BufferEad3>;
     let mut error = EDHOCError::UnknownError;
 
     let kid = plaintext_3.content[0usize];
@@ -1093,7 +1093,7 @@ fn decode_plaintext_3(
 
     // if there is still more to parse, the rest will be the EAD_2
     if plaintext_3.len > (2 + MAC_LENGTH_3) {
-        let buffer = BytesEad3::from_slice(
+        let buffer = BufferEad3::from_slice(
             &plaintext_3.content,
             2 + MAC_LENGTH_3,
             plaintext_3.len - (2 + MAC_LENGTH_3),
@@ -1115,7 +1115,7 @@ fn decode_plaintext_3(
 fn encode_plaintext_3(
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
-    ead_3: &Option<EdhocMessageBufferHacspec>,
+    ead_3: &Option<BufferEad3>,
 ) -> BufferPlaintext3 {
     let mut plaintext_3 = BufferPlaintext3::new();
 
@@ -1318,9 +1318,9 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, Option<BytesEad2New>), EDHOCError> {
+) -> Result<(U8, BytesMac2, Option<BufferEad2>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut ead_2 = None::<BytesEad2New>;
+    let mut ead_2 = None::<BufferEad2>;
 
     let id_cred_r = plaintext_2[0];
     // NOTE: skipping cbor byte string byte as we know how long the string is
@@ -1328,7 +1328,7 @@ fn decode_plaintext_2(
 
     // if there is still more to parse, the rest will be the EAD_2
     if plaintext_2_len > (2 + MAC_LENGTH_2) {
-        let buffer = BytesEad2New::from_slice(
+        let buffer = BufferEad2::from_slice(
             plaintext_2,
             2 + MAC_LENGTH_2,
             plaintext_2_len - (2 + MAC_LENGTH_2),
@@ -1350,7 +1350,7 @@ fn decode_plaintext_2(
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &Option<BytesEad2New>,
+    ead_2: &Option<BufferEad2>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
@@ -1547,7 +1547,7 @@ mod tests {
             suites_i_tv_len,
             &g_x_tv,
             c_i_tv,
-            &None::<EdhocMessageBufferHacspec>,
+            &None::<BufferEad1>,
         );
 
         assert_bytes_eq!(message_1.content, message_1_tv.content);
@@ -1776,7 +1776,7 @@ mod tests {
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<BytesEad2New>);
+        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<BufferEad2>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
@@ -1872,8 +1872,7 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 =
-            encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EdhocMessageBufferHacspec>);
+        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<BufferEad3>);
         assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 

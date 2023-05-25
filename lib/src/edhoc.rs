@@ -1058,13 +1058,13 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
+) -> Result<(U8, BytesMac2, BufferEad2), EDHOCError> {
     let id_cred_r = plaintext_2[0];
     // skip cbor byte string byte as we know how long the string is
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
     mac_2[..].copy_from_slice(&plaintext_2[2..2 + MAC_LENGTH_2]);
     // FIXME we don't support ead_2 parsing for now
-    let ead_2: BytesEad2 = [0x00; 0];
+    let ead_2: BufferEad2 = [0x00; 0];
 
     Ok((id_cred_r, mac_2, ead_2))
 }
@@ -1072,7 +1072,7 @@ fn decode_plaintext_2(
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &BytesEad2,
+    ead_2: &BufferEad2,
 ) -> BufferPlaintext2 {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];

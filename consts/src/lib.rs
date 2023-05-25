@@ -229,10 +229,10 @@ mod hacspec {
         }
     }
 
-    array!(BytesEad2, 0, U8);
-    pub type BytesEad2New = EdhocMessageBufferHacspec;
-    pub type BytesEad1 = EdhocMessageBufferHacspec;
-    pub type BytesEad3 = EdhocMessageBufferHacspec;
+    // TODO[ead]: have adjustable (smaller) length for these buffers
+    pub type BufferEad1 = EdhocMessageBufferHacspec;
+    pub type BufferEad2 = EdhocMessageBufferHacspec;
+    pub type BufferEad3 = EdhocMessageBufferHacspec;
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
@@ -301,7 +301,7 @@ mod structs_ead_zeroconf {
         #[default]
         Start,
         WaitEAD2,
-        Completed, // TODO: check if it is really ok to consider Completed after processing EAD_2
+        Completed, // TODO[ead]: check if it is really ok to consider Completed after processing EAD_2
     }
 
     #[derive(Copy, Clone, Debug)]
@@ -313,7 +313,7 @@ mod structs_ead_zeroconf {
     #[derive(Copy, Clone, Debug)]
     pub struct EADInitiatorZeroConfHandler {
         pub state: EADInitiatorZeroConfState,
-        // TODO: use a smaller buffer for EAD items (and check if hacspec-v2 supports `const generics`)
+        // TODO[ead]: use a smaller buffer for EAD items (and check if hacspec-v2 supports `const generics`)
         pub prepare_ead_1_cb:
             fn(EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
         pub process_ead_2_cb: fn(

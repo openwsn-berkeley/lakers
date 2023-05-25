@@ -29,7 +29,7 @@ pub mod ead_zeroconf_initiator {
     }
 
     pub fn process_ead_2(
-        buffer: EdhocMessageBuffer,
+        ead_2: EdhocMessageBuffer,
         mut state: EADInitiatorZeroConfState,
     ) -> (Result<(), ()>, EADInitiatorZeroConfState) {
         // TODO: verify the label
@@ -54,7 +54,7 @@ pub mod ead_zeroconf_responder {
     }
 
     pub fn process_ead_1(
-        buffer: EdhocMessageBuffer,
+        ead_1: EdhocMessageBuffer,
         mut state: EADResponderZeroConfState,
     ) -> (Result<(), ()>, EADResponderZeroConfState) {
         // TODO: parse and verify the label
@@ -84,7 +84,7 @@ pub mod ead_zeroconf_responder {
     }
 
     pub fn process_ead_3(
-        buffer: EdhocMessageBuffer,
+        ead_3: EdhocMessageBuffer,
         mut state: EADResponderZeroConfState,
     ) -> (Result<(), ()>, EADResponderZeroConfState) {
         // TODO: maybe retrive CRED_U from a Credential Database

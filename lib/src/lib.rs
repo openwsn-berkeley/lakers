@@ -103,7 +103,7 @@ mod hacspec {
             self: &mut HacspecEdhocResponder<'a>,
             ead_handler: EADResponderZeroConfHandler,
         ) {
-            self.state.11 = Some(ead_handler);
+            self.state.11 = Some(ead_handler); // TODO[ead]: improve after refactoring state to a named struct
         }
 
         #[cfg(test)]
@@ -234,7 +234,7 @@ mod hacspec {
             self: &mut HacspecEdhocInitiator<'a>,
             ead_handler: EADInitiatorZeroConfHandler,
         ) {
-            self.state.10 = Some(ead_handler);
+            self.state.10 = Some(ead_handler); // TODO[ead]: improve after refactoring state to a named struct
         }
 
         #[cfg(test)]
