@@ -65,45 +65,64 @@ pub fn r_process_message_1(
         let res = parse_message_1(message_1);
 
         if res.is_ok() {
-            let (method, suites_i, suites_i_len, g_x, c_i) = res.unwrap();
+            let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
             // verify that the method is supported
             if method.declassify() == EDHOC_METHOD {
                 // Step 2: verify that the selected cipher suite is supported
                 if suites_i[suites_i_len - 1].declassify()
                     == EDHOC_SUPPORTED_SUITES[0u8].declassify()
                 {
-                    // Step 3: If EAD is present make it available to the application
-                    if let Some(mut ead_handler) = ead_resp_handler {
-                        ead_handler.state = (ead_handler.process_ead_1_cb)(
-                            message_1.to_public_buffer(),
-                            ead_handler.state,
+                    // Step 3: If EAD is present then make it available to the application
+                    let ead_1_res = if let Some(ead_1) = ead_1 {
+                        if let Some(mut ead_handler) = ead_resp_handler {
+                            let (ead_res, ead_state) = (ead_handler.process_ead_1_cb)(
+                                ead_1.to_public_buffer(),
+                                ead_handler.state,
+                            );
+                            ead_handler.state = ead_state;
+                            ead_resp_handler = Some(ead_handler);
+                            ead_res
+                        } else {
+                            // there was no handler available
+                            let is_critical = (CBOR_NEG_INT_RANGE_START..=CBOR_NEG_INT_RANGE_END)
+                                .contains(&(ead_1.content[0] as U8).declassify());
+                            if is_critical {
+                                Err(())
+                            } else {
+                                Ok(())
+                            }
+                        }
+                    } else {
+                        Ok(()) // no EAD present
+                    };
+
+                    if ead_1_res.is_ok() {
+                        // hash message_1 and save the hash to the state to avoid saving the whole message
+                        h_message_1 = sha256_digest(
+                            &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+                            message_1.len,
                         );
-                        ead_resp_handler = Some(ead_handler);
+
+                        error = EDHOCError::Success;
+                        current_state = EDHOCState::ProcessedMessage1;
+
+                        state = construct_state(
+                            current_state,
+                            _y,
+                            c_i,
+                            g_x,
+                            _prk_3e2m,
+                            _prk_4e3m,
+                            _prk_out,
+                            _prk_exporter,
+                            h_message_1,
+                            _th_3,
+                            _ead_init_handler,
+                            ead_resp_handler,
+                        );
+                    } else {
+                        error = EDHOCError::EADHandlingFailed;
                     }
-
-                    // hash message_1 and save the hash to the state to avoid saving the whole message
-                    h_message_1 = sha256_digest(
-                        &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
-                        message_1.len,
-                    );
-
-                    error = EDHOCError::Success;
-                    current_state = EDHOCState::ProcessedMessage1;
-
-                    state = construct_state(
-                        current_state,
-                        _y,
-                        c_i,
-                        g_x,
-                        _prk_3e2m,
-                        _prk_4e3m,
-                        _prk_out,
-                        _prk_exporter,
-                        h_message_1,
-                        _th_3,
-                        _ead_init_handler,
-                        ead_resp_handler,
-                    );
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;
                 }
@@ -773,13 +792,24 @@ fn parse_suites_i(
 
 fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
-) -> Result<(U8, BytesSuites, usize, BytesP256ElemLen, U8), EDHOCError> {
+) -> Result<
+    (
+        U8,
+        BytesSuites,
+        usize,
+        BytesP256ElemLen,
+        U8,
+        Option<BytesEad1>,
+    ),
+    EDHOCError,
+> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
     let mut g_x: BytesP256ElemLen = BytesP256ElemLen::new();
     let mut suites_i = BytesSuites::new();
     let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
+    let mut ead_1 = None::<BytesEad1>;
 
     let method = rcvd_message_1.content[0];
 
@@ -796,19 +826,27 @@ fn parse_message_1(
 
         c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
 
-        error = EDHOCError::Success;
-        // // check that the message is of the correct length
-        // if rcvd_message_1.len == (3 + raw_suites_len + P256_ELEM_LEN + 1) {
-        //     error = EDHOCError::Success;
-        // } else {
-        //     error = EDHOCError::ParsingError;
-        // }
+        // if there is still more to parse, the rest will be the EAD_1
+        if rcvd_message_1.len > (3 + raw_suites_len + P256_ELEM_LEN + 1) {
+            // process EAD_1
+            let buffer = BytesEad1::from_slice(
+                &rcvd_message_1.content,
+                3 + raw_suites_len + P256_ELEM_LEN + 1,
+                rcvd_message_1.len - (3 + raw_suites_len + P256_ELEM_LEN + 1),
+            );
+            ead_1 = Some(buffer);
+            error = EDHOCError::Success;
+        } else if rcvd_message_1.len == (3 + raw_suites_len + P256_ELEM_LEN + 1) {
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::ParsingError;
+        }
     } else {
         error = res_suites.unwrap_err();
     }
 
     match error {
-        EDHOCError::Success => Ok((method, suites_i, suites_i_len, g_x, c_i)),
+        EDHOCError::Success => Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)),
         _ => Err(error),
     }
 }
@@ -1006,7 +1044,11 @@ fn decode_plaintext_3(plaintext_3: &BufferPlaintext3) -> (U8, BytesMac3) {
     (kid, mac_3)
 }
 
-fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3, ead_3: &Option<EdhocMessageBufferHacspec>) -> BufferPlaintext3 {
+fn encode_plaintext_3(
+    id_cred_i: &BytesIdCred,
+    mac_3: &BytesMac3,
+    ead_3: &Option<EdhocMessageBufferHacspec>,
+) -> BufferPlaintext3 {
     let mut plaintext_3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
@@ -1015,7 +1057,10 @@ fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3, ead_3: &Option
     plaintext_3.content = plaintext_3.content.update(2, mac_3);
 
     if let Some(ead_3) = ead_3 {
-        plaintext_3.content = plaintext_3.content.update_slice(2 + mac_3.len(), &ead_3.content, 0, ead_3.len);
+        plaintext_3.content =
+            plaintext_3
+                .content
+                .update_slice(2 + mac_3.len(), &ead_3.content, 0, ead_3.len);
         plaintext_3.len = 2 + mac_3.len() + ead_3.len;
     } else {
         plaintext_3.len = 2 + mac_3.len();
@@ -1226,7 +1271,10 @@ fn encode_plaintext_2(
     plaintext_2.content = plaintext_2.content.update(2, mac_2);
 
     if let Some(ead_2) = ead_2 {
-        plaintext_2.content = plaintext_2.content.update_slice(2 + mac_2.len(), &ead_2.content, 0, ead_2.len);
+        plaintext_2.content =
+            plaintext_2
+                .content
+                .update_slice(2 + mac_2.len(), &ead_2.content, 0, ead_2.len);
         plaintext_2.len = 2 + mac_2.len() + ead_2.len;
     } else {
         plaintext_2.len = 2 + mac_2.len();
@@ -1460,7 +1508,7 @@ mod tests {
 
         let res = parse_message_1(&message_1_tv);
         assert!(res.is_ok());
-        let (method, suites_i, suites_i_len, g_x, c_i) = res.unwrap();
+        let (method, suites_i, suites_i_len, g_x, c_i, _ead_1) = res.unwrap();
 
         assert_eq!(method.declassify(), METHOD_TV);
         assert_bytes_eq!(suites_i, suites_i_tv);
@@ -1738,7 +1786,8 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EdhocMessageBufferHacspec>);
+        let plaintext_3 =
+            encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EdhocMessageBufferHacspec>);
         assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 

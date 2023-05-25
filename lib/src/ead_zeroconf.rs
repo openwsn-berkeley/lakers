@@ -16,8 +16,8 @@ pub mod ead_zeroconf_initiator {
     ) -> (EdhocMessageBuffer, EADInitiatorZeroConfState) {
         let mut ead_1 = EdhocMessageBuffer::new();
 
-        // add the label to the buffer
-        // since in this case it is critical, it is encoded as a CBOR negative integer
+        // add the label to the buffer, tagged as critical,
+        // which means encoding it as a negative value, i.e., -label
         ead_1.content[0] = CBOR_NEG_INT_RANGE_START + EAD_ZEROCONF_LABEL;
         ead_1.len = 1;
 
@@ -56,13 +56,13 @@ pub mod ead_zeroconf_responder {
     pub fn process_ead_1(
         buffer: EdhocMessageBuffer,
         mut state: EADResponderZeroConfState,
-    ) -> EADResponderZeroConfState {
-        // TODO: verify the label
+    ) -> (Result<(), ()>, EADResponderZeroConfState) {
+        // TODO: parse and verify the label
         // TODO: trigger the voucher request to W
 
         state.ead_state = EADResponderProtocolState::ProcessedEAD1;
 
-        state
+        (Ok(()), state)
     }
 
     pub fn prepare_ead_2(

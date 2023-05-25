@@ -36,7 +36,8 @@ mod common {
         UnsupportedCipherSuite = 4,
         ParsingError = 5,
         WrongState = 6,
-        UnknownError = 7,
+        EADHandlingFailed = 7,
+        UnknownError = 8,
     }
 
     #[derive(PartialEq, Debug)]
@@ -230,6 +231,7 @@ mod hacspec {
 
     array!(BytesEad2, 0, U8);
     pub type BytesEad2New = EdhocMessageBufferHacspec;
+    pub type BytesEad1 = EdhocMessageBufferHacspec;
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
@@ -351,8 +353,10 @@ mod structs_ead_zeroconf {
     #[derive(Copy, Clone, Debug)]
     pub struct EADResponderZeroConfHandler {
         pub state: EADResponderZeroConfState,
-        pub process_ead_1_cb:
-            fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
+        pub process_ead_1_cb: fn(
+            EdhocMessageBuffer,
+            EADResponderZeroConfState,
+        ) -> (Result<(), ()>, EADResponderZeroConfState),
         pub prepare_ead_2_cb:
             fn(EADResponderZeroConfState) -> (EdhocMessageBuffer, EADResponderZeroConfState),
         pub process_ead_3_cb:
@@ -366,7 +370,7 @@ mod structs_ead_zeroconf {
                     label: EAD_ZEROCONF_LABEL,
                     ead_state: EADResponderProtocolState::Start,
                 },
-                process_ead_1_cb: |_ead_1, state| state,
+                process_ead_1_cb: |_ead_1, state| (Ok(()), state),
                 prepare_ead_2_cb: |state| (EdhocMessageBuffer::new(), state),
                 process_ead_3_cb: |_ead_3, state| state,
             }
@@ -407,7 +411,8 @@ mod ead_none {
     #[derive(Copy, Clone, Debug)]
     pub struct EADResponderNoneHandler {
         pub state: EADNoneState,
-        pub process_ead_1_cb: fn(EdhocMessageBuffer, EADNoneState) -> EADNoneState,
+        pub process_ead_1_cb:
+            fn(EdhocMessageBuffer, EADNoneState) -> (Result<(), ()>, EADNoneState),
         pub prepare_ead_2_cb: fn(EADNoneState) -> (EdhocMessageBuffer, EADNoneState),
         pub process_ead_3_cb: fn(EdhocMessageBuffer, EADNoneState) -> EADNoneState,
     }
@@ -416,7 +421,7 @@ mod ead_none {
         fn default() -> Self {
             EADResponderNoneHandler {
                 state: EADNoneState,
-                process_ead_1_cb: |_ead_1, state| state,
+                process_ead_1_cb: |_ead_1, state| (Ok(()), state),
                 prepare_ead_2_cb: |state| (EdhocMessageBuffer::new(), state),
                 process_ead_3_cb: |_ead_3, state| state,
             }
