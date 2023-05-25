@@ -232,6 +232,7 @@ mod hacspec {
     array!(BytesEad2, 0, U8);
     pub type BytesEad2New = EdhocMessageBufferHacspec;
     pub type BytesEad1 = EdhocMessageBufferHacspec;
+    pub type BytesEad3 = EdhocMessageBufferHacspec;
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
@@ -315,8 +316,10 @@ mod structs_ead_zeroconf {
         // TODO: use a smaller buffer for EAD items (and check if hacspec-v2 supports `const generics`)
         pub prepare_ead_1_cb:
             fn(EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
-        pub process_ead_2_cb:
-            fn(EdhocMessageBuffer, EADInitiatorZeroConfState) -> EADInitiatorZeroConfState,
+        pub process_ead_2_cb: fn(
+            EdhocMessageBuffer,
+            EADInitiatorZeroConfState,
+        ) -> (Result<(), ()>, EADInitiatorZeroConfState),
         pub prepare_ead_3_cb:
             fn(EADInitiatorZeroConfState) -> (EdhocMessageBuffer, EADInitiatorZeroConfState),
     }
@@ -329,7 +332,7 @@ mod structs_ead_zeroconf {
                     ead_state: EADInitiatorProtocolState::Start,
                 },
                 prepare_ead_1_cb: |state| (EdhocMessageBuffer::new(), state),
-                process_ead_2_cb: |_msg2, state| state,
+                process_ead_2_cb: |_msg2, state| (Ok(()), state),
                 prepare_ead_3_cb: |state| (EdhocMessageBuffer::new(), state),
             }
         }
@@ -359,8 +362,10 @@ mod structs_ead_zeroconf {
         ) -> (Result<(), ()>, EADResponderZeroConfState),
         pub prepare_ead_2_cb:
             fn(EADResponderZeroConfState) -> (EdhocMessageBuffer, EADResponderZeroConfState),
-        pub process_ead_3_cb:
-            fn(EdhocMessageBuffer, EADResponderZeroConfState) -> EADResponderZeroConfState,
+        pub process_ead_3_cb: fn(
+            EdhocMessageBuffer,
+            EADResponderZeroConfState,
+        ) -> (Result<(), ()>, EADResponderZeroConfState),
     }
 
     impl Default for EADResponderZeroConfHandler {
@@ -372,7 +377,7 @@ mod structs_ead_zeroconf {
                 },
                 process_ead_1_cb: |_ead_1, state| (Ok(()), state),
                 prepare_ead_2_cb: |state| (EdhocMessageBuffer::new(), state),
-                process_ead_3_cb: |_ead_3, state| state,
+                process_ead_3_cb: |_ead_3, state| (Ok(()), state),
             }
         }
     }
@@ -393,7 +398,8 @@ mod ead_none {
     pub struct EADInitiatorNoneHandler {
         pub state: EADNoneState,
         pub prepare_ead_1_cb: fn(EADNoneState) -> (EdhocMessageBuffer, EADNoneState),
-        pub process_ead_2_cb: fn(EdhocMessageBuffer, EADNoneState) -> EADNoneState,
+        pub process_ead_2_cb:
+            fn(EdhocMessageBuffer, EADNoneState) -> (Result<(), ()>, EADNoneState),
         pub prepare_ead_3_cb: fn(EADNoneState) -> (EdhocMessageBuffer, EADNoneState),
     }
 
@@ -402,7 +408,7 @@ mod ead_none {
             EADInitiatorNoneHandler {
                 state: EADNoneState,
                 prepare_ead_1_cb: |state| (EdhocMessageBuffer::new(), state),
-                process_ead_2_cb: |_ead_2, state| state,
+                process_ead_2_cb: |_ead_2, state| (Ok(()), state),
                 prepare_ead_3_cb: |state| (EdhocMessageBuffer::new(), state),
             }
         }
@@ -414,7 +420,8 @@ mod ead_none {
         pub process_ead_1_cb:
             fn(EdhocMessageBuffer, EADNoneState) -> (Result<(), ()>, EADNoneState),
         pub prepare_ead_2_cb: fn(EADNoneState) -> (EdhocMessageBuffer, EADNoneState),
-        pub process_ead_3_cb: fn(EdhocMessageBuffer, EADNoneState) -> EADNoneState,
+        pub process_ead_3_cb:
+            fn(EdhocMessageBuffer, EADNoneState) -> (Result<(), ()>, EADNoneState),
     }
 
     impl Default for EADResponderNoneHandler {
@@ -423,7 +430,7 @@ mod ead_none {
                 state: EADNoneState,
                 process_ead_1_cb: |_ead_1, state| (Ok(()), state),
                 prepare_ead_2_cb: |state| (EdhocMessageBuffer::new(), state),
-                process_ead_3_cb: |_ead_3, state| state,
+                process_ead_3_cb: |_ead_3, state| (Ok(()), state),
             }
         }
     }

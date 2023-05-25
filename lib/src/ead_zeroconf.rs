@@ -31,13 +31,13 @@ pub mod ead_zeroconf_initiator {
     pub fn process_ead_2(
         buffer: EdhocMessageBuffer,
         mut state: EADInitiatorZeroConfState,
-    ) -> EADInitiatorZeroConfState {
+    ) -> (Result<(), ()>, EADInitiatorZeroConfState) {
         // TODO: verify the label
         // TODO: verify the voucher
 
         state.ead_state = EADInitiatorProtocolState::Completed;
 
-        state
+        (Ok(()), state)
     }
 }
 
@@ -68,22 +68,29 @@ pub mod ead_zeroconf_responder {
     pub fn prepare_ead_2(
         mut state: EADResponderZeroConfState,
     ) -> (EdhocMessageBuffer, EADResponderZeroConfState) {
-        // TODO: append the label to the buffer
+        let mut ead_2 = EdhocMessageBuffer::new();
+
+        // add the label to the buffer (non-critical)
+        ead_2.content[0] = EAD_ZEROCONF_LABEL;
+        ead_2.len = 1;
+
         // TODO: append Voucher (H(message_1), CRED_V) to the buffer
 
-        state.ead_state = EADResponderProtocolState::WaitMessage3;
+        // NOTE: see the note in lib.rs::test_ead
+        // state.ead_state = EADResponderProtocolState::WaitMessage3;
+        state.ead_state = EADResponderProtocolState::Completed;
 
-        (EdhocMessageBuffer::new(), state)
+        (ead_2, state)
     }
 
     pub fn process_ead_3(
         buffer: EdhocMessageBuffer,
         mut state: EADResponderZeroConfState,
-    ) -> EADResponderZeroConfState {
+    ) -> (Result<(), ()>, EADResponderZeroConfState) {
         // TODO: maybe retrive CRED_U from a Credential Database
 
         state.ead_state = EADResponderProtocolState::Completed;
 
-        state
+        (Ok(()), state)
     }
 }

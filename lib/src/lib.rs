@@ -745,7 +745,7 @@ mod test {
         let (message_2, c_r) = responder.prepare_message_2().unwrap();
         assert_eq!(
             responder.get_state().11.unwrap().state.ead_state,
-            EADResponderProtocolState::WaitMessage3
+            EADResponderProtocolState::Completed
         );
 
         let _c_r = initiator.process_message_2(&message_2);
@@ -762,6 +762,13 @@ mod test {
 
         let r_prk_out = responder.process_message_3(&message_3);
         assert!(r_prk_out.is_ok());
+
+        // NOTE:
+        // - since lake-authz does not specify EAD_3, there is no processing of EAD_3 in the responder
+        // - this makes it difficult for V to know when to trigger the "credential lookup" procedure to obtain CRED_U
+        // - maybe the draft should be updated, so that a small EAD_3 is sent in message_3 (could be just the lake-authz
+        //   label, non-critical), so that V processes EAD_3 and then have an opportunity to trigger the credential lookup procedure
+
         assert_eq!(
             responder.get_state().11.unwrap().state.ead_state,
             EADResponderProtocolState::Completed
