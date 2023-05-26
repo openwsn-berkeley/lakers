@@ -2,6 +2,7 @@
 
 use edhoc_consts::*;
 use edhoc_crypto::*;
+use edhoc_ead::*;
 use hacspec_lib::*;
 
 pub fn edhoc_exporter(
@@ -354,6 +355,8 @@ pub fn i_prepare_message_1(
 
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;
+
+        let ead_1 = i_prepare_ead_1();
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(

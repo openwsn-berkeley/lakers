@@ -74,10 +74,14 @@ mod common {
         }
     }
 
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
+    pub const MAX_EAD_SIZE_LEN: usize = 64;
+    pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
-    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;
@@ -93,6 +97,8 @@ mod common {
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
+    pub const CBOR_NEG_INT_RANGE_START: u8 = 0x20u8;
+    pub const CBOR_NEG_INT_RANGE_END: u8 = 0x37u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
     pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
     pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;

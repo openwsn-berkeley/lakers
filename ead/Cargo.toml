@@ -1,0 +1,18 @@
+[package]
+name = "edhoc-ead"
+version = "0.1.0"
+edition = "2021"
+authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
+license = "BSD"
+description = "EDHOC EAD library dispatch crate"
+
+[dependencies]
+edhoc-consts = { path = "../consts", default-features = false }
+
+edhoc-ead-none = { path = "./edhoc-ead-none", optional = true }
+edhoc-ead-zeroconf = { path = "./edhoc-ead-zeroconf", optional = true }
+
+[features]
+default = [ "ead-none" ]
+ead-none = [ "edhoc-ead-none" ]
+ead-zeroconf = [ "edhoc-ead-zeroconf" ]

@@ -1,0 +1,10 @@
+[package]
+name = "edhoc-ead-none"
+version = "0.1.0"
+edition = "2021"
+authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
+license = "BSD"
+description = "EDHOC EAD none (just a placeholder)"
+
+[dependencies]
+edhoc-consts = { path = "../../consts" }

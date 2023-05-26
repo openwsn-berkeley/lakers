@@ -9,5 +9,5 @@ description = "EDHOC implementation"
 [dependencies]
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, features = [ "alloc" ] }
 edhoc-crypto = { path = "../crypto", default-features = false }
+edhoc-ead = { path = "../ead", default-features = false }
 edhoc-consts = { path = "../consts" }
-

@@ -3,6 +3,7 @@
 members = [
   "lib",
   "hacspec",
+  "ead",
   "crypto",
   "crypto/edhoc-crypto-cc2538",
   "crypto/edhoc-crypto-hacspec",
@@ -18,6 +19,7 @@ members = [
 default-members = [
   "lib",
   "hacspec",
+  "ead",
   "crypto",
   "crypto/edhoc-crypto-hacspec",
   "examples/coap",
