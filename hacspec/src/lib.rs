@@ -691,6 +691,45 @@ fn parse_suites_i(
     }
 }
 
+fn parse_ead(
+    message: &EdhocMessageBufferHacspec,
+    offset: usize,
+) -> Result<Option<EADItem>, EDHOCError> {
+    let mut error: EDHOCError = EDHOCError::UnknownError;
+    let mut ead_1 = None::<EADItem>;
+
+    let label = message.content[offset];
+
+    // assume label is a single byte integer or negative integer
+    let res_label = match label.declassify() {
+        // CBOR unsigned integer (0..=23)
+        label @ 0x00..=0x17 => Ok(label as i8),
+        // CBOR negative integer (-1..=-24)
+        label @ 0x20..=0x37 => Ok(-((label as i8) - 0x20)), // TODO: replace magic number by constant
+        _ => Err(EDHOCError::ParsingError),
+    };
+
+    if res_label.is_ok() {
+        let value = EdhocMessageBufferHacspec::from_slice(
+            &message.content,
+            offset + 1,
+            message.len - (offset + 1),
+        );
+        ead_1 = Some(EADItem {
+            label: res_label.unwrap(),
+            value: Some(value),
+        });
+        error = EDHOCError::Success;
+    } else {
+        error = res_label.unwrap_err();
+    }
+
+    match error {
+        EDHOCError::Success => Ok(ead_1),
+        _ => Err(error),
+    }
+}
+
 fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
 ) -> Result<
@@ -700,7 +739,7 @@ fn parse_message_1(
         usize,
         BytesP256ElemLen,
         U8,
-        Option<BufferEAD>,
+        Option<EADItem>,
     ),
     EDHOCError,
 > {
@@ -710,7 +749,7 @@ fn parse_message_1(
     let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
-    let mut ead_1 = None::<BufferEAD>;
+    let mut ead_1 = None::<EADItem>;
 
     let method = rcvd_message_1.content[0];
 
@@ -731,30 +770,12 @@ fn parse_message_1(
         if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
             // NOTE: since the current implementation only supports one EAD handler,
             // we assume only one EAD item
-
-            let label = rcvd_message_1.content[4 + raw_suites_len + P256_ELEM_LEN];
-
-            // assume label is a single byte integer or negative integer
-            let res_label = match label.declassify() {
-                // CBOR unsigned integer (0..=23)
-                label @ 0x00..=0x17 => Ok(label as i8),
-                // CBOR negative integer (-1..=-24)
-                label @ 0x20..=0x37 => Ok(-((label as i8) - 0x20)), // TODO: replace magic number by constant
-                _ => Err(EDHOCError::ParsingError),
-            };
-
-            if res_label.is_ok() {
-                ead_1 = Some(BufferEAD {
-                    label: res_label.unwrap(),
-                    value: EdhocMessageBufferHacspec::from_slice(
-                        &rcvd_message_1.content,
-                        5 + raw_suites_len + P256_ELEM_LEN,
-                        rcvd_message_1.len - (5 + raw_suites_len + P256_ELEM_LEN),
-                    ),
-                });
+            let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
+            if ead_res.is_ok() {
+                ead_1 = ead_res.unwrap();
                 error = EDHOCError::Success;
             } else {
-                error = res_label.unwrap_err();
+                error = ead_res.unwrap_err();
             }
         } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
             error = EDHOCError::Success;
@@ -1459,6 +1480,30 @@ mod tests {
 
         let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
+    }
+
+    #[test]
+    fn test_parse_ead() {
+        let message_tv = BufferMessage1::from_hex("ffff01020202");
+        let ead_label_tv = 0x01;
+        let ead_value_tv = EdhocMessageBufferHacspec::from_hex("020202");
+
+        let res = parse_ead(&message_tv, 2);
+        assert!(res.is_ok());
+        let ead_item = res.unwrap();
+        assert!(ead_item.is_some());
+        let ead_item = ead_item.unwrap();
+        assert!(!ead_item.is_critical());
+        assert_eq!(ead_item.label, ead_label_tv);
+        assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+
+        let message_tv = BufferMessage1::from_hex("ffff21020202");
+
+        let ead_label_tv = -0x01;
+        let res = parse_ead(&message_tv, 2).unwrap();
+        let ead_item = res.unwrap();
+        assert!(ead_item.is_critical());
+        assert_eq!(ead_item.label, ead_label_tv);
     }
 
     #[test]

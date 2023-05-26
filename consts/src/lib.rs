@@ -211,12 +211,14 @@ mod hacspec {
     }
 
     #[derive(Debug)]
-    pub struct BufferEAD {
+    pub struct EADItem {
+        // FIXME: shouldn't the label _definition_ (thinking IANA level) be unsigned,
+        // and only possibly negative when CBOR-encoded to indicate criticality?
         pub label: i8,
-        pub value: EdhocMessageBufferHacspec,
+        pub value: Option<EdhocMessageBufferHacspec>,
     }
 
-    impl BufferEAD {
+    impl EADItem {
         pub fn is_critical(&self) -> bool {
             self.label < 0
         }
