@@ -210,7 +210,10 @@ mod hacspec {
         }
     }
 
-    array!(BytesEad2, 0, U8);
+    // TODO[ead]: have adjustable (smaller) length for these buffers
+    pub type BufferEad1 = EdhocMessageBufferHacspec;
+    pub type BufferEad2 = EdhocMessageBufferHacspec;
+    pub type BufferEad3 = EdhocMessageBufferHacspec;
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);
