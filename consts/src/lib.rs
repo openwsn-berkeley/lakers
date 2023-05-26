@@ -210,6 +210,18 @@ mod hacspec {
         }
     }
 
+    #[derive(Debug)]
+    pub struct BufferEAD {
+        pub label: i8,
+        pub value: EdhocMessageBufferHacspec,
+    }
+
+    impl BufferEAD {
+        pub fn is_critical(&self) -> bool {
+            self.label < 0
+        }
+    }
+
     // TODO[ead]: have adjustable (smaller) length for these buffers
     pub type BufferEad1 = EdhocMessageBufferHacspec;
     pub type BufferEad2 = EdhocMessageBufferHacspec;

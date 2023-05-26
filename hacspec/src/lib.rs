@@ -700,7 +700,7 @@ fn parse_message_1(
         usize,
         BytesP256ElemLen,
         U8,
-        Option<BufferEad1>,
+        Option<BufferEAD>,
     ),
     EDHOCError,
 > {
@@ -710,7 +710,7 @@ fn parse_message_1(
     let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
-    let mut ead_1 = None::<BufferEad1>;
+    let mut ead_1 = None::<BufferEAD>;
 
     let method = rcvd_message_1.content[0];
 
@@ -728,15 +728,35 @@ fn parse_message_1(
         c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
 
         // if there is still more to parse, the rest will be the EAD_1
-        if rcvd_message_1.len > (3 + raw_suites_len + P256_ELEM_LEN + 1) {
-            let buffer = BufferEad1::from_slice(
-                &rcvd_message_1.content,
-                3 + raw_suites_len + P256_ELEM_LEN + 1,
-                rcvd_message_1.len - (3 + raw_suites_len + P256_ELEM_LEN + 1),
-            );
-            ead_1 = Some(buffer);
-            error = EDHOCError::Success;
-        } else if rcvd_message_1.len == (3 + raw_suites_len + P256_ELEM_LEN + 1) {
+        if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
+            // NOTE: since the current implementation only supports one EAD handler,
+            // we assume only one EAD item
+
+            let label = rcvd_message_1.content[4 + raw_suites_len + P256_ELEM_LEN];
+
+            // assume label is a single byte integer or negative integer
+            let res_label = match label.declassify() {
+                // CBOR unsigned integer (0..=23)
+                label @ 0x00..=0x17 => Ok(label as i8),
+                // CBOR negative integer (-1..=-24)
+                label @ 0x20..=0x37 => Ok(-((label as i8) - 0x20)), // TODO: replace magic number by constant
+                _ => Err(EDHOCError::ParsingError),
+            };
+
+            if res_label.is_ok() {
+                ead_1 = Some(BufferEAD {
+                    label: res_label.unwrap(),
+                    value: EdhocMessageBufferHacspec::from_slice(
+                        &rcvd_message_1.content,
+                        5 + raw_suites_len + P256_ELEM_LEN,
+                        rcvd_message_1.len - (5 + raw_suites_len + P256_ELEM_LEN),
+                    ),
+                });
+                error = EDHOCError::Success;
+            } else {
+                error = res_label.unwrap_err();
+            }
+        } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
             error = EDHOCError::Success;
         } else {
             error = EDHOCError::ParsingError;
