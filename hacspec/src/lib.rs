@@ -698,27 +698,24 @@ fn parse_ead(
     let mut error: EDHOCError = EDHOCError::UnknownError;
     let mut ead_1 = None::<EADItem>;
 
+    // assume label is either a single byte integer (negative or positive)
     let label = message.content[offset];
-
-    // assume label is a single byte integer or negative integer
     let res_label = match label.declassify() {
         // CBOR unsigned integer (0..=23)
-        label @ 0x00..=0x17 => Ok(label as i8),
+        label @ 0x00..=0x17 => Ok((label as u8, false)),
         // CBOR negative integer (-1..=-24)
-        label @ 0x20..=0x37 => Ok(-((label as i8) - 0x20)), // TODO: replace magic number by constant
+        label @ 0x20..=0x37 => Ok((label - (0x20 - 1), true)), // TODO: replace magic number by constant
         _ => Err(EDHOCError::ParsingError),
     };
 
     if res_label.is_ok() {
+        let (label, is_critical) = res_label.unwrap();
         let value = EdhocMessageBufferHacspec::from_slice(
             &message.content,
             offset + 1,
             message.len - (offset + 1),
         );
-        ead_1 = Some(EADItem {
-            label: res_label.unwrap(),
-            value: Some(value),
-        });
+        ead_1 = Some(EADItem { label, is_critical, value: Some(value) });
         error = EDHOCError::Success;
     } else {
         error = res_label.unwrap_err();
@@ -1493,16 +1490,16 @@ mod tests {
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
         let ead_item = ead_item.unwrap();
-        assert!(!ead_item.is_critical());
+        assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, ead_label_tv);
         assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
 
-        let message_tv = BufferMessage1::from_hex("ffff21020202");
+        let message_tv = BufferMessage1::from_hex("ffff20020202");
 
-        let ead_label_tv = -0x01;
+        let ead_label_tv = 0x01;
         let res = parse_ead(&message_tv, 2).unwrap();
         let ead_item = res.unwrap();
-        assert!(ead_item.is_critical());
+        assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, ead_label_tv);
     }
 
