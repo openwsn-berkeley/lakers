@@ -93,6 +93,8 @@ mod common {
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
+    pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
+    pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
     pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
     pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
@@ -212,17 +214,12 @@ mod hacspec {
 
     #[derive(Debug)]
     pub struct EADItem {
-        // FIXME: shouldn't the label _definition_ (thinking IANA level) be unsigned,
-        // and only possibly negative when CBOR-encoded to indicate criticality?
         pub label: u8,
         pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
         pub value: Option<EdhocMessageBufferHacspec>,
     }
 
-    // TODO[ead]: have adjustable (smaller) length for these buffers
-    pub type BufferEad1 = EdhocMessageBufferHacspec;
-    pub type BufferEad2 = EdhocMessageBufferHacspec;
-    pub type BufferEad3 = EdhocMessageBufferHacspec;
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);

@@ -161,7 +161,7 @@ pub fn r_prepare_message_2(
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<BufferEad2>);
+        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<EADItem>);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -369,7 +369,7 @@ pub fn i_prepare_message_1(
             EDHOC_SUPPORTED_SUITES.len(),
             &g_x,
             c_i,
-            &None::<BufferEad1>,
+            &None::<EADItem>,
         );
 
         // hash message_1 here to avoid saving the whole message in the state
@@ -546,7 +546,7 @@ pub fn i_prepare_message_3(
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
-        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<BufferEad3>);
+        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<EADItem>);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
@@ -704,7 +704,7 @@ fn parse_ead(
         // CBOR unsigned integer (0..=23)
         label @ 0x00..=0x17 => Ok((label as u8, false)),
         // CBOR negative integer (-1..=-24)
-        label @ 0x20..=0x37 => Ok((label - (0x20 - 1), true)), // TODO: replace magic number by constant
+        label @ 0x20..=0x37 => Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true)),
         _ => Err(EDHOCError::ParsingError),
     };
 
@@ -715,7 +715,11 @@ fn parse_ead(
             offset + 1,
             message.len - (offset + 1),
         );
-        ead_1 = Some(EADItem { label, is_critical, value: Some(value) });
+        ead_1 = Some(EADItem {
+            label,
+            is_critical,
+            value: Some(value),
+        });
         error = EDHOCError::Success;
     } else {
         error = res_label.unwrap_err();
@@ -789,13 +793,35 @@ fn parse_message_1(
     }
 }
 
+fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBufferHacspec {
+    let mut output = EdhocMessageBufferHacspec::new();
+
+    // encode label
+    if ead_1.is_critical {
+        output.content[0] = U8(ead_1.label + CBOR_NEG_INT_1BYTE_START - 1);
+    } else {
+        output.content[0] = U8(ead_1.label);
+    }
+    output.len = 1;
+
+    // encode value
+    if let Some(ead_1_value) = &ead_1.value {
+        output.content = output
+            .content
+            .update_slice(1, &ead_1_value.content, 0, ead_1_value.len);
+        output.len += ead_1_value.len;
+    }
+
+    output
+}
+
 fn encode_message_1(
     method: U8,
     suites: &BytesSuites,
     suites_len: usize,
     g_x: &BytesP256ElemLen,
     c_i: U8,
-    ead_1: &Option<BufferEad1>,
+    ead_1: &Option<EADItem>,
 ) -> BufferMessage1 {
     let mut output = BufferMessage1::new();
     let mut raw_suites_len: usize = 0;
@@ -834,17 +860,14 @@ fn encode_message_1(
     output.content[2 + raw_suites_len] = U8(P256_ELEM_LEN as u8); // length of the byte string
     output.content = output.content.update(3 + raw_suites_len, g_x);
     output.content[3 + raw_suites_len + P256_ELEM_LEN] = c_i;
+    output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
 
     if let Some(ead_1) = ead_1 {
-        output.content = output.content.update_slice(
-            4 + raw_suites_len + P256_ELEM_LEN,
-            &ead_1.content,
-            0,
-            ead_1.len,
-        );
-        output.len = 4 + raw_suites_len + P256_ELEM_LEN + ead_1.len;
-    } else {
-        output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
+        let ead_1 = encode_ead_item(ead_1);
+        output.content = output
+            .content
+            .update_slice(output.len, &ead_1.content, 0, ead_1.len);
+        output.len += ead_1.len;
     }
 
     output
@@ -976,23 +999,25 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(U8, BytesMac3, Option<BufferEad3>), EDHOCError> {
-    let mut ead_3 = None::<BufferEad3>;
+) -> Result<(U8, BytesMac3, Option<EADItem>), EDHOCError> {
+    let mut ead_3 = None::<EADItem>;
     let mut error = EDHOCError::UnknownError;
 
     let kid = plaintext_3.content[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
     let mac_3 = BytesMac3::from_slice(&plaintext_3.content, 2, MAC_LENGTH_3);
 
-    // if there is still more to parse, the rest will be the EAD_2
+    // if there is still more to parse, the rest will be the EAD_3
     if plaintext_3.len > (2 + MAC_LENGTH_3) {
-        let buffer = BufferEad3::from_slice(
-            &plaintext_3.content,
-            2 + MAC_LENGTH_3,
-            plaintext_3.len - (2 + MAC_LENGTH_3),
-        );
-        ead_3 = Some(buffer);
-        error = EDHOCError::Success;
+        // NOTE: since the current implementation only supports one EAD handler,
+        // we assume only one EAD item
+        let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
+        if ead_res.is_ok() {
+            ead_3 = ead_res.unwrap();
+            error = EDHOCError::Success;
+        } else {
+            error = ead_res.unwrap_err();
+        }
     } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
         error = EDHOCError::Success;
     } else {
@@ -1008,7 +1033,7 @@ fn decode_plaintext_3(
 fn encode_plaintext_3(
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
-    ead_3: &Option<BufferEad3>,
+    ead_3: &Option<EADItem>,
 ) -> BufferPlaintext3 {
     let mut plaintext_3 = BufferPlaintext3::new();
 
@@ -1016,15 +1041,15 @@ fn encode_plaintext_3(
     plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
     plaintext_3.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8);
     plaintext_3.content = plaintext_3.content.update(2, mac_3);
+    plaintext_3.len = 2 + MAC_LENGTH_3;
 
     if let Some(ead_3) = ead_3 {
+        let ead_3 = encode_ead_item(ead_3);
         plaintext_3.content =
             plaintext_3
                 .content
-                .update_slice(2 + mac_3.len(), &ead_3.content, 0, ead_3.len);
-        plaintext_3.len = 2 + mac_3.len() + ead_3.len;
-    } else {
-        plaintext_3.len = 2 + mac_3.len();
+                .update_slice(plaintext_3.len, &ead_3.content, 0, ead_3.len);
+        plaintext_3.len += ead_3.len;
     }
 
     plaintext_3
@@ -1211,9 +1236,9 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, Option<BufferEad2>), EDHOCError> {
+) -> Result<(U8, BytesMac2, Option<EADItem>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut ead_2 = None::<BufferEad2>;
+    let mut ead_2 = None::<EADItem>;
 
     let id_cred_r = plaintext_2[0];
     // NOTE: skipping cbor byte string byte as we know how long the string is
@@ -1221,13 +1246,18 @@ fn decode_plaintext_2(
 
     // if there is still more to parse, the rest will be the EAD_2
     if plaintext_2_len > (2 + MAC_LENGTH_2) {
-        let buffer = BufferEad2::from_slice(
-            plaintext_2,
+        // NOTE: since the current implementation only supports one EAD handler,
+        // we assume only one EAD item
+        let ead_res = parse_ead(
+            &EdhocMessageBufferHacspec::from_slice(plaintext_2, 0, plaintext_2_len),
             2 + MAC_LENGTH_2,
-            plaintext_2_len - (2 + MAC_LENGTH_2),
         );
-        ead_2 = Some(buffer);
-        error = EDHOCError::Success;
+        if ead_res.is_ok() {
+            ead_2 = ead_res.unwrap();
+            error = EDHOCError::Success;
+        } else {
+            error = ead_res.unwrap_err();
+        }
     } else if plaintext_2_len == (2 + MAC_LENGTH_2) {
         error = EDHOCError::Success;
     } else {
@@ -1243,21 +1273,21 @@ fn decode_plaintext_2(
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &Option<BufferEad2>,
+    ead_2: &Option<EADItem>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
     plaintext_2.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
     plaintext_2.content = plaintext_2.content.update(2, mac_2);
+    plaintext_2.len = 2 + MAC_LENGTH_3;
 
     if let Some(ead_2) = ead_2 {
+        let ead_2 = encode_ead_item(ead_2);
         plaintext_2.content =
             plaintext_2
                 .content
-                .update_slice(2 + mac_2.len(), &ead_2.content, 0, ead_2.len);
-        plaintext_2.len = 2 + mac_2.len() + ead_2.len;
-    } else {
-        plaintext_2.len = 2 + mac_2.len();
+                .update_slice(plaintext_2.len, &ead_2.content, 0, ead_2.len);
+        plaintext_2.len += ead_2.len;
     }
 
     plaintext_2
@@ -1380,6 +1410,15 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_C: &str = "0382021819";
     // message with an array having too many cipher suites (more than 9)
     const MESSAGE_1_TV_SUITE_ONLY_ERR: &str = "038A02020202020202020202";
+    const EAD_DUMMY_LABEL_TV: u8 = 0x01;
+    const EAD_DUMMY_VALUE_TV: &str = "cccccc";
+    const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
+    const MESSAGE_1_WITH_DUMMY_EAD_TV: &str =
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
+    const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc";
+    const PLAINTEXT_2_WITH_DUMMY_CRITICAL_EAD_TV: &str = "3248d0d1a594797d0aaf20cccccc";
+    const PLAINTEXT_3_WITH_DUMMY_CRITICAL_EAD_TV: &str = "2b48ddf106b86fd22fe420cccccc";
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     pub const MESSAGE_2_LEN_TV: usize = 45;
@@ -1440,7 +1479,7 @@ mod tests {
             suites_i_tv_len,
             &g_x_tv,
             c_i_tv,
-            &None::<BufferEad1>,
+            &None::<EADItem>,
         );
 
         assert_bytes_eq!(message_1.content, message_1_tv.content);
@@ -1477,30 +1516,6 @@ mod tests {
 
         let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
-    }
-
-    #[test]
-    fn test_parse_ead() {
-        let message_tv = BufferMessage1::from_hex("ffff01020202");
-        let ead_label_tv = 0x01;
-        let ead_value_tv = EdhocMessageBufferHacspec::from_hex("020202");
-
-        let res = parse_ead(&message_tv, 2);
-        assert!(res.is_ok());
-        let ead_item = res.unwrap();
-        assert!(ead_item.is_some());
-        let ead_item = ead_item.unwrap();
-        assert!(!ead_item.is_critical);
-        assert_eq!(ead_item.label, ead_label_tv);
-        assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
-
-        let message_tv = BufferMessage1::from_hex("ffff20020202");
-
-        let ead_label_tv = 0x01;
-        let res = parse_ead(&message_tv, 2).unwrap();
-        let ead_item = res.unwrap();
-        assert!(ead_item.is_critical);
-        assert_eq!(ead_item.label, ead_label_tv);
     }
 
     #[test]
@@ -1693,7 +1708,7 @@ mod tests {
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<BufferEad2>);
+        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<EADItem>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
@@ -1789,7 +1804,7 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<BufferEad3>);
+        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EADItem>);
         assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 
@@ -1804,5 +1819,83 @@ mod tests {
 
         assert_bytes_eq!(mac_3, mac_3_tv);
         assert_eq!(kid.declassify(), kid_tv.declassify());
+    }
+
+    #[test]
+    fn test_encode_ead_item() {
+        let ead_tv = EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_CRITICAL_TV);
+
+        let ead_item = EADItem {
+            label: EAD_DUMMY_LABEL_TV,
+            is_critical: true,
+            value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
+        };
+
+        let ead_buffer = encode_ead_item(&ead_item);
+        assert_bytes_eq!(ead_buffer.content, ead_tv.content);
+    }
+
+    #[test]
+    fn test_encode_message_with_ead_item() {
+        let method_tv = U8(METHOD_TV);
+        let suites_i_tv = BytesSuites::from_hex(SUITES_I_TV);
+        let suites_i_tv_len: usize = 2;
+        let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
+        let c_i_tv = U8(C_I_TV);
+        let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
+        let ead_item = EADItem {
+            label: EAD_DUMMY_LABEL_TV,
+            is_critical: true,
+            value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
+        };
+
+        let message_1 = encode_message_1(
+            method_tv,
+            &suites_i_tv,
+            suites_i_tv_len,
+            &g_x_tv,
+            c_i_tv,
+            &Some(ead_item),
+        );
+
+        assert_bytes_eq!(message_1.content, message_1_ead_tv.content);
+    }
+
+    #[test]
+    fn test_parse_ead_item() {
+        let message_tv_offset = MESSAGE_1_TV.len() / 2;
+        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
+        let ead_value_tv = EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV);
+
+        let res = parse_ead(&message_ead_tv, message_tv_offset);
+        assert!(res.is_ok());
+        let ead_item = res.unwrap();
+        assert!(ead_item.is_some());
+        let ead_item = ead_item.unwrap();
+        assert!(!ead_item.is_critical);
+        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+
+        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
+
+        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let ead_item = res.unwrap();
+        assert!(ead_item.is_critical);
+        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+    }
+
+    #[test]
+    fn test_parse_message_with_ead_item() {
+        let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
+        let ead_value_tv = EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV);
+
+        let res = parse_message_1(&message_1_ead_tv);
+        assert!(res.is_ok());
+        let (_method, _suites_i, _suites_i_len, _g_x, _c_i, ead_1) = res.unwrap();
+        let ead_1 = ead_1.unwrap();
+        assert!(ead_1.is_critical);
+        assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
+        assert_bytes_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
     }
 }
