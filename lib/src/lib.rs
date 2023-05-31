@@ -668,4 +668,5 @@ mod test {
         assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
+
 }

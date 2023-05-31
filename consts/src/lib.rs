@@ -74,6 +74,24 @@ mod common {
         }
     }
 
+    #[derive(Debug)]
+    pub struct EADItem {
+        pub label: u8,
+        pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
+        pub value: Option<EdhocMessageBuffer>,
+    }
+
+    impl EADItem {
+       pub fn new() -> Self {
+            EADItem {
+                label: 0,
+                is_critical: false,
+                value: None,
+            }
+        }
+    }
+
     pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const MAX_EAD_SIZE_LEN: usize = 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
@@ -113,14 +131,6 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
-
-    #[derive(Debug)]
-    pub struct EADItem {
-        pub label: u8,
-        pub is_critical: bool,
-        // TODO[ead]: have adjustable (smaller) length for this buffer
-        pub value: Option<EdhocMessageBuffer>,
-    }
 
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
@@ -225,11 +235,31 @@ mod hacspec {
     }
 
     #[derive(Debug)]
-    pub struct EADItem {
-        pub label: u8,
+    pub struct EADItemHacspec {
+        pub label: U8,
         pub is_critical: bool,
         // TODO[ead]: have adjustable (smaller) length for this buffer
         pub value: Option<EdhocMessageBufferHacspec>,
+    }
+
+    impl EADItemHacspec {
+        pub fn new() -> Self {
+            EADItemHacspec {
+                label: U8(0),
+                is_critical: false,
+                value: None,
+            }
+        }
+        pub fn from_public_item(item: &EADItem) -> Self {
+            EADItemHacspec {
+                label: U8(item.label),
+                is_critical: item.is_critical,
+                value: match &item.value {
+                    Some(value) => Some(EdhocMessageBufferHacspec::from_public_buffer(value)),
+                    None => None,
+                },
+            }
+        }
     }
 
     array!(BytesIdCred, ID_CRED_LEN, U8);

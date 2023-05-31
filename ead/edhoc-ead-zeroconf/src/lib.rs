@@ -3,13 +3,12 @@
 use edhoc_consts::*;
 
 // initiator side
-pub fn i_prepare_ead_1() -> EADMessageBuffer {
-    let mut ead_1 = EADMessageBuffer::new();
+pub fn i_prepare_ead_1() -> EADItem {
+    let mut ead_1 = EADItem::new();
 
-    // add the label to the buffer, tagged as critical,
-    // which means encoding it as a negative value, i.e., -label
-    ead_1.content[0] = CBOR_NEG_INT_1BYTE_START + EAD_ZEROCONF_LABEL;
-    ead_1.len = 1;
+    // this ead item is critical
+    ead_1.label = EAD_ZEROCONF_LABEL;
+    ead_1.is_critical = true;
 
     // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
 
@@ -18,7 +17,7 @@ pub fn i_prepare_ead_1() -> EADMessageBuffer {
     ead_1
 }
 
-pub fn i_process_ead_2(ead_2: EADMessageBuffer) -> Result<(), ()> {
+pub fn i_process_ead_2(ead_2: EADItem) -> Result<(), ()> {
     // TODO: verify the label
     // TODO: verify the voucher
 
@@ -27,12 +26,12 @@ pub fn i_process_ead_2(ead_2: EADMessageBuffer) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn i_prepare_ead_3() -> EADMessageBuffer {
-    EADMessageBuffer::new()
+pub fn i_prepare_ead_3() -> EADItem {
+    EADItem::new()
 }
 
 // responder side
-pub fn r_process_ead_1(ead_1: EADMessageBuffer) -> Result<(), ()> {
+pub fn r_process_ead_1(ead_1: EADItem) -> Result<(), ()> {
     // TODO: parse and verify the label
     // TODO: trigger the voucher request to W
 
@@ -41,12 +40,12 @@ pub fn r_process_ead_1(ead_1: EADMessageBuffer) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn r_prepare_ead_2() -> EADMessageBuffer {
-    let mut ead_2 = EADMessageBuffer::new();
+pub fn r_prepare_ead_2() -> EADItem {
+    let mut ead_2 = EADItem::new();
 
     // add the label to the buffer (non-critical)
-    ead_2.content[0] = EAD_ZEROCONF_LABEL;
-    ead_2.len = 1;
+    ead_2.label = EAD_ZEROCONF_LABEL;
+    ead_2.is_critical = true;
 
     // TODO: append Voucher (H(message_1), CRED_V) to the buffer
 
@@ -57,7 +56,7 @@ pub fn r_prepare_ead_2() -> EADMessageBuffer {
     ead_2
 }
 
-pub fn r_process_ead_3(ead_3: EADMessageBuffer) -> Result<(), ()> {
+pub fn r_process_ead_3(ead_3: EADItem) -> Result<(), ()> {
     // TODO: maybe retrive CRED_U from a Credential Database
 
     // state.protocol_state = EADResponderProtocolState::Completed;

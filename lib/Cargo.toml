@@ -25,3 +25,5 @@ hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cry
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]
+ead-none = [ ]
+ead-zeroconf = [ ]

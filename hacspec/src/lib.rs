@@ -162,7 +162,7 @@ pub fn r_prepare_message_2(
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<EADItem>);
+        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<EADItemHacspec>);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -363,7 +363,7 @@ pub fn i_prepare_message_1(
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;
 
-        let ead_1 = i_prepare_ead_1();
+        let ead_1 = EADItemHacspec::from_public_item(&i_prepare_ead_1());
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(
@@ -372,7 +372,7 @@ pub fn i_prepare_message_1(
             EDHOC_SUPPORTED_SUITES.len(),
             &g_x,
             c_i,
-            &None::<EADItem>,
+            &None::<EADItemHacspec>,
         );
 
         // hash message_1 here to avoid saving the whole message in the state
@@ -549,7 +549,7 @@ pub fn i_prepare_message_3(
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
-        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<EADItem>);
+        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<EADItemHacspec>);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
@@ -697,9 +697,9 @@ fn parse_suites_i(
 fn parse_ead(
     message: &EdhocMessageBufferHacspec,
     offset: usize,
-) -> Result<Option<EADItem>, EDHOCError> {
+) -> Result<Option<EADItemHacspec>, EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut ead_1 = None::<EADItem>;
+    let mut ead_1 = None::<EADItemHacspec>;
 
     // assume label is either a single byte integer (negative or positive)
     let label = message.content[offset];
@@ -718,8 +718,8 @@ fn parse_ead(
             offset + 1,
             message.len - (offset + 1),
         );
-        ead_1 = Some(EADItem {
-            label,
+        ead_1 = Some(EADItemHacspec {
+            label: U8(label),
             is_critical,
             value: Some(value),
         });
@@ -743,7 +743,7 @@ fn parse_message_1(
         usize,
         BytesP256ElemLen,
         U8,
-        Option<EADItem>,
+        Option<EADItemHacspec>,
     ),
     EDHOCError,
 > {
@@ -753,7 +753,7 @@ fn parse_message_1(
     let mut suites_i_len: usize = 0;
     let mut raw_suites_len: usize = 0;
     let mut c_i = U8(0);
-    let mut ead_1 = None::<EADItem>;
+    let mut ead_1 = None::<EADItemHacspec>;
 
     let method = rcvd_message_1.content[0];
 
@@ -796,14 +796,14 @@ fn parse_message_1(
     }
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBufferHacspec {
+fn encode_ead_item(ead_1: &EADItemHacspec) -> EdhocMessageBufferHacspec {
     let mut output = EdhocMessageBufferHacspec::new();
 
     // encode label
     if ead_1.is_critical {
-        output.content[0] = U8(ead_1.label + CBOR_NEG_INT_1BYTE_START - 1);
+        output.content[0] = ead_1.label + U8(CBOR_NEG_INT_1BYTE_START - 1);
     } else {
-        output.content[0] = U8(ead_1.label);
+        output.content[0] = ead_1.label;
     }
     output.len = 1;
 
@@ -824,7 +824,7 @@ fn encode_message_1(
     suites_len: usize,
     g_x: &BytesP256ElemLen,
     c_i: U8,
-    ead_1: &Option<EADItem>,
+    ead_1: &Option<EADItemHacspec>,
 ) -> BufferMessage1 {
     let mut output = BufferMessage1::new();
     let mut raw_suites_len: usize = 0;
@@ -1002,8 +1002,8 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(U8, BytesMac3, Option<EADItem>), EDHOCError> {
-    let mut ead_3 = None::<EADItem>;
+) -> Result<(U8, BytesMac3, Option<EADItemHacspec>), EDHOCError> {
+    let mut ead_3 = None::<EADItemHacspec>;
     let mut error = EDHOCError::UnknownError;
 
     let kid = plaintext_3.content[0usize];
@@ -1036,7 +1036,7 @@ fn decode_plaintext_3(
 fn encode_plaintext_3(
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
-    ead_3: &Option<EADItem>,
+    ead_3: &Option<EADItemHacspec>,
 ) -> BufferPlaintext3 {
     let mut plaintext_3 = BufferPlaintext3::new();
 
@@ -1239,9 +1239,9 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, Option<EADItem>), EDHOCError> {
+) -> Result<(U8, BytesMac2, Option<EADItemHacspec>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
-    let mut ead_2 = None::<EADItem>;
+    let mut ead_2 = None::<EADItemHacspec>;
 
     let id_cred_r = plaintext_2[0];
     // NOTE: skipping cbor byte string byte as we know how long the string is
@@ -1276,7 +1276,7 @@ fn decode_plaintext_2(
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &Option<EADItem>,
+    ead_2: &Option<EADItemHacspec>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
@@ -1482,7 +1482,7 @@ mod tests {
             suites_i_tv_len,
             &g_x_tv,
             c_i_tv,
-            &None::<EADItem>,
+            &None::<EADItemHacspec>,
         );
 
         assert_bytes_eq!(message_1.content, message_1_tv.content);
@@ -1711,7 +1711,7 @@ mod tests {
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<EADItem>);
+        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<EADItemHacspec>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
@@ -1807,7 +1807,7 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EADItem>);
+        let plaintext_3 = encode_plaintext_3(&id_cred_i_tv, &mac_3_tv, &None::<EADItemHacspec>);
         assert_bytes_eq!(plaintext_3.content, plaintext_3_tv.content);
     }
 
@@ -1828,8 +1828,8 @@ mod tests {
     fn test_encode_ead_item() {
         let ead_tv = EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_CRITICAL_TV);
 
-        let ead_item = EADItem {
-            label: EAD_DUMMY_LABEL_TV,
+        let ead_item = EADItemHacspec {
+            label: U8(EAD_DUMMY_LABEL_TV),
             is_critical: true,
             value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
         };
@@ -1846,8 +1846,8 @@ mod tests {
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
         let c_i_tv = U8(C_I_TV);
         let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
-        let ead_item = EADItem {
-            label: EAD_DUMMY_LABEL_TV,
+        let ead_item = EADItemHacspec {
+            label: U8(EAD_DUMMY_LABEL_TV),
             is_critical: true,
             value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
         };
@@ -1876,7 +1876,7 @@ mod tests {
         assert!(ead_item.is_some());
         let ead_item = ead_item.unwrap();
         assert!(!ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_item.label.declassify(), EAD_DUMMY_LABEL_TV);
         assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
@@ -1884,7 +1884,7 @@ mod tests {
         let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_item.label.declassify(), EAD_DUMMY_LABEL_TV);
         assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
     }
 
@@ -1898,7 +1898,7 @@ mod tests {
         let (_method, _suites_i, _suites_i_len, _g_x, _c_i, ead_1) = res.unwrap();
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
-        assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_1.label.declassify(), EAD_DUMMY_LABEL_TV);
         assert_bytes_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
     }
 }
