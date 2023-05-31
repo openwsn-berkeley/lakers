@@ -149,7 +149,7 @@ pub fn r_prepare_message_2(
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &[]);
+        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<EADItem>);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -219,69 +219,76 @@ pub fn r_process_message_3(
 
         if plaintext_3.is_ok() {
             let plaintext_3 = plaintext_3.unwrap();
-            let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
+            let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
-            // compare the kid received with the kid expected in id_cred_i
-            if kid == id_cred_i_expected[id_cred_i_expected.len() - 1] {
-                // compute salt_4e3m
-                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
-                // TODO compute prk_4e3m
-                prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+            if decoded_p3_res.is_ok() {
+                let (kid, mac_3, _ead_3) = decoded_p3_res.unwrap();
 
-                // compute mac_3
-                let expected_mac_3 = compute_mac_3(
-                    &prk_4e3m,
-                    &th_3,
-                    id_cred_i_expected,
-                    cred_i_expected,
-                    cred_i_len,
-                );
+                // compare the kid received with the kid expected in id_cred_i
+                if kid == id_cred_i_expected[id_cred_i_expected.len() - 1] {
+                    // compute salt_4e3m
+                    let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                    // TODO compute prk_4e3m
+                    prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
 
-                // verify mac_3
-                if mac_3 == expected_mac_3 {
-                    error = EDHOCError::Success;
-                    let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
-
-                    let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-                    th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
-                    // compute prk_out
-                    // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-                    let prk_out_buf =
-                        edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
-                    prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
-
-                    // compute prk_exporter from prk_out
-                    // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-                    let prk_exporter_buf = edhoc_kdf(
-                        &prk_out,
-                        10u8,
-                        &[0x00u8; MAX_KDF_CONTEXT_LEN],
-                        0,
-                        SHA256_DIGEST_LEN,
+                    // compute mac_3
+                    let expected_mac_3 = compute_mac_3(
+                        &prk_4e3m,
+                        &th_3,
+                        id_cred_i_expected,
+                        cred_i_expected,
+                        cred_i_len,
                     );
-                    prk_exporter[..SHA256_DIGEST_LEN]
-                        .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-                    error = EDHOCError::Success;
-                    current_state = EDHOCState::Completed;
+                    // verify mac_3
+                    if mac_3 == expected_mac_3 {
+                        error = EDHOCError::Success;
+                        let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
-                    state = construct_state(
-                        current_state,
-                        y,
-                        _c_i,
-                        _g_x,
-                        prk_3e2m,
-                        prk_4e3m,
-                        prk_out,
-                        prk_exporter,
-                        _h_message_1,
-                        th_3,
-                    );
+                        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+                        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
+                        // compute prk_out
+                        // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
+                        let prk_out_buf =
+                            edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
+                        prk_out[..SHA256_DIGEST_LEN]
+                            .copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
+
+                        // compute prk_exporter from prk_out
+                        // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+                        let prk_exporter_buf = edhoc_kdf(
+                            &prk_out,
+                            10u8,
+                            &[0x00u8; MAX_KDF_CONTEXT_LEN],
+                            0,
+                            SHA256_DIGEST_LEN,
+                        );
+                        prk_exporter[..SHA256_DIGEST_LEN]
+                            .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+
+                        error = EDHOCError::Success;
+                        current_state = EDHOCState::Completed;
+
+                        state = construct_state(
+                            current_state,
+                            y,
+                            _c_i,
+                            _g_x,
+                            prk_3e2m,
+                            prk_4e3m,
+                            prk_out,
+                            prk_exporter,
+                            _h_message_1,
+                            th_3,
+                        );
+                    } else {
+                        error = EDHOCError::MacVerificationFailed;
+                    }
                 } else {
-                    error = EDHOCError::MacVerificationFailed;
+                    error = EDHOCError::UnknownPeer;
                 }
             } else {
-                error = EDHOCError::UnknownPeer;
+                error = decoded_p3_res.unwrap_err();
             }
         } else {
             // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
@@ -505,7 +512,7 @@ pub fn i_prepare_message_3(
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
-        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
+        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<EADItem>);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
@@ -954,25 +961,60 @@ fn edhoc_kdf(
     output
 }
 
-fn decode_plaintext_3(plaintext_3: &BufferPlaintext3) -> (U8, BytesMac3) {
+fn decode_plaintext_3(
+    plaintext_3: &BufferPlaintext3,
+) -> Result<(U8, BytesMac3, Option<EADItem>), EDHOCError> {
+    let mut ead_3 = None::<EADItem>;
+    let mut error = EDHOCError::UnknownError;
+
     let kid = plaintext_3.content[0usize];
     // skip the CBOR magic byte as we know how long the MAC is
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
     mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
-    // TODO verify the length of plaintext_3
 
-    (kid, mac_3)
+    // if there is still more to parse, the rest will be the EAD_3
+    if plaintext_3.len > (2 + MAC_LENGTH_3) {
+        // NOTE: since the current implementation only supports one EAD handler,
+        // we assume only one EAD item
+        let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
+        if ead_res.is_ok() {
+            ead_3 = ead_res.unwrap();
+            error = EDHOCError::Success;
+        } else {
+            error = ead_res.unwrap_err();
+        }
+    } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((kid, mac_3, ead_3)),
+        _ => Err(error),
+    }
 }
 
-fn encode_plaintext_3(id_cred_i: &BytesIdCred, mac_3: &BytesMac3) -> BufferPlaintext3 {
+fn encode_plaintext_3(
+    id_cred_i: &BytesIdCred,
+    mac_3: &BytesMac3,
+    ead_3: &Option<EADItem>,
+) -> BufferPlaintext3 {
     let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
     plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
     plaintext_3.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
     plaintext_3.content[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
-
     plaintext_3.len = 2 + mac_3.len();
+
+    if let Some(ead_3) = ead_3 {
+        let ead_3 = encode_ead_item(ead_3);
+        plaintext_3.content[plaintext_3.len..plaintext_3.len + ead_3.len]
+            .copy_from_slice(&ead_3.content[..ead_3.len]);
+        plaintext_3.len += ead_3.len;
+    }
+
     plaintext_3
 }
 
@@ -1145,29 +1187,61 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, BytesEad2), EDHOCError> {
+) -> Result<(U8, BytesMac2, Option<EADItem>), EDHOCError> {
+    let mut error = EDHOCError::UnknownError;
+    let mut ead_2 = None::<EADItem>;
+
     let id_cred_r = plaintext_2[0];
     // skip cbor byte string byte as we know how long the string is
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
     mac_2[..].copy_from_slice(&plaintext_2[2..2 + MAC_LENGTH_2]);
-    // FIXME we don't support ead_2 parsing for now
-    let ead_2: BytesEad2 = [0x00; 0];
 
-    Ok((id_cred_r, mac_2, ead_2))
+    // if there is still more to parse, the rest will be the EAD_2
+    if plaintext_2_len > (2 + MAC_LENGTH_2) {
+        // NOTE: since the current implementation only supports one EAD handler,
+        // we assume only one EAD item
+        let ead_res = parse_ead(
+            &plaintext_2[2 + MAC_LENGTH_2..plaintext_2_len]
+                .try_into()
+                .expect("too long"),
+            2 + MAC_LENGTH_2,
+        );
+        if ead_res.is_ok() {
+            ead_2 = ead_res.unwrap();
+            error = EDHOCError::Success;
+        } else {
+            error = ead_res.unwrap_err();
+        }
+    } else if plaintext_2_len == (2 + MAC_LENGTH_2) {
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((id_cred_r, mac_2, ead_2)),
+        _ => Err(error),
+    }
 }
 
 fn encode_plaintext_2(
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
-    ead_2: &BytesEad2,
+    ead_2: &Option<EADItem>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
     plaintext_2.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
     plaintext_2.content[2..2 + mac_2.len()].copy_from_slice(&mac_2[..]);
-    plaintext_2.content[2 + mac_2.len()..2 + mac_2.len() + ead_2.len()].copy_from_slice(&ead_2[..]);
+    plaintext_2.len = 2 + mac_2.len();
 
-    plaintext_2.len = 2 + mac_2.len() + ead_2.len();
+    if let Some(ead_2) = ead_2 {
+        let ead_2 = encode_ead_item(ead_2);
+        plaintext_2.content[plaintext_2.len..plaintext_2.len + ead_2.len]
+            .copy_from_slice(&ead_2.content[..ead_2.len]);
+        plaintext_2.len += ead_2.len;
+    }
+
     plaintext_2
 }
 
@@ -1539,7 +1613,7 @@ mod tests {
     #[test]
     fn test_encode_plaintext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let plaintext_2 = encode_plaintext_2(&ID_CRED_R_TV, &MAC_2_TV, &[]);
+        let plaintext_2 = encode_plaintext_2(&ID_CRED_R_TV, &MAC_2_TV, &None::<EADItem>);
 
         assert_eq!(plaintext_2, plaintext_2_tv);
     }
@@ -1557,7 +1631,7 @@ mod tests {
         let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(id_cred_r, ID_CRED_R_TV[3]);
         assert_eq!(mac_2, MAC_2_TV);
-        assert_eq!(ead_2, ead_2_tv);
+        assert!(ead_2.is_none());
     }
 
     #[test]
@@ -1608,7 +1682,7 @@ mod tests {
     #[test]
     fn test_encode_plaintext_3() {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV);
+        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV, &None::<EADItem>);
         assert_eq!(plaintext_3, plaintext_3_tv);
     }
 
@@ -1617,10 +1691,11 @@ mod tests {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
 
-        let (kid, mac_3) = decode_plaintext_3(&plaintext_3_tv);
+        let (kid, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(kid, kid_tv);
+        assert!(ead_3.is_none());
     }
 
     #[test]
