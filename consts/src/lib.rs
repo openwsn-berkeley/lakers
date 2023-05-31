@@ -30,7 +30,8 @@ mod common {
         UnsupportedCipherSuite = 4,
         ParsingError = 5,
         WrongState = 6,
-        UnknownError = 7,
+        EADError = 7,
+        UnknownError = 8,
     }
 
     #[derive(PartialEq, Debug)]
@@ -256,6 +257,16 @@ mod hacspec {
                 is_critical: item.is_critical,
                 value: match &item.value {
                     Some(value) => Some(EdhocMessageBufferHacspec::from_public_buffer(value)),
+                    None => None,
+                },
+            }
+        }
+        pub fn to_public_item(&self) -> EADItem {
+            EADItem {
+                label: self.label.declassify(),
+                is_critical: self.is_critical,
+                value: match &self.value {
+                    Some(value) => Some(value.to_public_buffer()),
                     None => None,
                 },
             }

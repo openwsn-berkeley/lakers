@@ -672,9 +672,7 @@ mod test {
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
 
-#[cfg(any(
-    feature = "ead-zeroconf",
-))]
+#[cfg(feature = "ead-zeroconf")]
 #[test]
     fn test_ead() {
         let state_initiator: EdhocState = Default::default();
@@ -698,14 +696,30 @@ mod test {
             CRED_R,
         );
 
-        ead_set_global_state(EADState::new());
+        ead_initiator_set_global_state(EADInitiatorState::new());
+        let ead_initiator_state = ead_initiator_get_global_state();
+        assert_eq!(ead_initiator_state.protocol_state, EADInitiatorProtocolState::Start);
 
-        let ead_state = ead_get_global_state();
-        assert!(ead_state.protocol_state == EADInitiatorProtocolState::Start);
+        ead_responder_set_global_state(EADResponderState::new());
+        let ead_responder_state = ead_responder_get_global_state();
+        assert_eq!(ead_responder_state.protocol_state, EADResponderProtocolState::Start);
 
-        initiator.prepare_message_1().unwrap();
+        let message_1 = initiator.prepare_message_1().unwrap();
+        assert_eq!(ead_initiator_state.protocol_state, EADInitiatorProtocolState::WaitEAD2);
 
-        let ead_state = ead_get_global_state();
-        assert!(ead_state.protocol_state == EADInitiatorProtocolState::WaitEAD2);
+        responder.process_message_1(&message_1).unwrap();
+        assert_eq!(ead_responder_state.protocol_state, EADResponderProtocolState::ProcessedEAD1);
+
+        let (message_2, _c_r) = responder.prepare_message_2().unwrap();
+        assert_eq!(ead_responder_state.protocol_state, EADResponderProtocolState::Completed);
+
+        initiator.process_message_2(&message_2).unwrap();
+        assert_eq!(ead_initiator_state.protocol_state, EADInitiatorProtocolState::Completed);
+
+        let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+
+        let r_prk_out = responder.process_message_3(&message_3).unwrap();
+        assert_eq!(i_prk_out, r_prk_out);
+        assert_eq!(ead_responder_state.protocol_state, EADResponderProtocolState::Completed);
     }
 }
