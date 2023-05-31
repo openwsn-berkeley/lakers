@@ -97,8 +97,8 @@ mod common {
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
-    pub const CBOR_NEG_INT_RANGE_START: u8 = 0x20u8;
-    pub const CBOR_NEG_INT_RANGE_END: u8 = 0x37u8;
+    pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
+    pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
     pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
     pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
@@ -113,6 +113,14 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
+
+    #[derive(Debug)]
+    pub struct EADItem {
+        pub label: u8,
+        pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
+        pub value: Option<EdhocMessageBuffer>,
+    }
 
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
@@ -216,7 +224,14 @@ mod hacspec {
         }
     }
 
-    array!(BytesEad2, 0, U8);
+    #[derive(Debug)]
+    pub struct EADItem {
+        pub label: u8,
+        pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
+        pub value: Option<EdhocMessageBufferHacspec>,
+    }
+
     array!(BytesIdCred, ID_CRED_LEN, U8);
     array!(BytesSuites, SUITES_LEN, U8);
     array!(BytesSupportedSuites, SUPPORTED_SUITES_LEN, U8);

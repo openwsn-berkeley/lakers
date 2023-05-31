@@ -8,7 +8,7 @@ pub fn i_prepare_ead_1() -> EADMessageBuffer {
 
     // add the label to the buffer, tagged as critical,
     // which means encoding it as a negative value, i.e., -label
-    ead_1.content[0] = CBOR_NEG_INT_RANGE_START + EAD_ZEROCONF_LABEL;
+    ead_1.content[0] = CBOR_NEG_INT_1BYTE_START + EAD_ZEROCONF_LABEL;
     ead_1.len = 1;
 
     // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
