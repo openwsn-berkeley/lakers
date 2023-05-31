@@ -22,6 +22,9 @@ pub use {
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
+#[cfg(feature = "ead-zeroconf")]
+pub use edhoc_ead::*;
+
 #[cfg(any(
     feature = "rust-psa",
     feature = "rust-psa-baremetal",
@@ -669,4 +672,40 @@ mod test {
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
     }
 
+#[cfg(any(
+    feature = "ead-zeroconf",
+))]
+#[test]
+    fn test_ead() {
+        let state_initiator: EdhocState = Default::default();
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            I,
+            G_R,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let state_responder: EdhocState = Default::default();
+        let mut responder = EdhocResponder::new(
+            state_responder,
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+
+        ead_set_global_state(EADState::new());
+
+        let ead_state = ead_get_global_state();
+        assert!(ead_state.protocol_state == EADInitiatorProtocolState::Start);
+
+        initiator.prepare_message_1().unwrap();
+
+        let ead_state = ead_get_global_state();
+        assert!(ead_state.protocol_state == EADInitiatorProtocolState::WaitEAD2);
+    }
 }

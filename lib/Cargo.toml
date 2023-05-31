@@ -14,6 +14,7 @@ edhoc-hacspec = { path = "../hacspec", optional = true }
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
 edhoc-crypto = { path = "../crypto", default-features = false }
 edhoc-consts = { path = "../consts", default-features = false }
+edhoc-ead = { path = "../ead", default-features = false }
 
 [features]
 default = [ ]
@@ -26,4 +27,4 @@ rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]
 ead-none = [ ]
-ead-zeroconf = [ ]
+ead-zeroconf = [ "edhoc-ead/edhoc-ead-zeroconf" ]

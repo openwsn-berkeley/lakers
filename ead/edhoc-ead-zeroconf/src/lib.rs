@@ -2,6 +2,40 @@
 
 use edhoc_consts::*;
 
+#[derive(Default, PartialEq, Copy, Clone, Debug)]
+pub enum EADInitiatorProtocolState {
+    #[default]
+    Start,
+    WaitEAD2,
+    Completed, // TODO[ead]: check if it is really ok to consider Completed after processing EAD_2
+}
+
+pub struct EADState {
+    pub protocol_state: EADInitiatorProtocolState,
+}
+
+impl EADState {
+    pub fn new() -> Self {
+        EADState {
+            protocol_state: EADInitiatorProtocolState::Start,
+        }
+    }
+}
+
+// shared mutable global state for EAD
+// NOTE: this is not thread-safe
+static mut EAD_GLOBAL_STATE: EADState = EADState {
+    protocol_state: EADInitiatorProtocolState::Start,
+};
+pub fn ead_get_global_state() -> &'static EADState {
+    unsafe { &EAD_GLOBAL_STATE }
+}
+pub fn ead_set_global_state(new_state: EADState) {
+    unsafe {
+        EAD_GLOBAL_STATE = new_state;
+    }
+}
+
 // initiator side
 pub fn i_prepare_ead_1() -> EADItem {
     let mut ead_1 = EADItem::new();
@@ -12,7 +46,9 @@ pub fn i_prepare_ead_1() -> EADItem {
 
     // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
 
-    // state.protocol_state = EADInitiatorProtocolState::WaitEAD2;
+    ead_set_global_state(EADState {
+        protocol_state: EADInitiatorProtocolState::WaitEAD2,
+    });
 
     ead_1
 }
