@@ -110,6 +110,14 @@ mod common {
 mod rust {
     use super::common::*;
 
+    #[derive(Debug)]
+    pub struct EADItem {
+        pub label: u8,
+        pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
+        pub value: Option<EdhocMessageBuffer>,
+    }
+
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
