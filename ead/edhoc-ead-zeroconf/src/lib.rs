@@ -68,7 +68,6 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
     Some(EADItem::new())
 }
 
-
 // responder side
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 pub enum EADResponderProtocolState {
