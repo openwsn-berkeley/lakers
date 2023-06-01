@@ -706,7 +706,8 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
 
     if res_label.is_ok() {
         let (label, is_critical) = res_label.unwrap();
-        if message.len > (offset + 1) { // EAD value is present
+        if message.len > (offset + 1) {
+            // EAD value is present
             let mut buffer = EdhocMessageBuffer::new();
             buffer.content[..message.len - (offset + 1)]
                 .copy_from_slice(&message.content[offset + 1..message.len]);
@@ -1241,9 +1242,7 @@ fn decode_plaintext_2(
         // NOTE: since the current implementation only supports one EAD handler,
         // we assume only one EAD item
         let ead_res = parse_ead(
-            &plaintext_2[..plaintext_2_len]
-                .try_into()
-                .expect("too long"),
+            &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
             2 + MAC_LENGTH_2,
         );
         if ead_res.is_ok() {

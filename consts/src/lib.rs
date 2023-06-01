@@ -84,7 +84,7 @@ mod common {
     }
 
     impl EADItem {
-       pub fn new() -> Self {
+        pub fn new() -> Self {
             EADItem {
                 label: 0,
                 is_critical: false,

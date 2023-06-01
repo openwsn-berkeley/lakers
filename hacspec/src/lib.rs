@@ -258,7 +258,8 @@ pub fn r_process_message_3(
                 };
                 if ead_success {
                     // compare the kid received with the kid expected in id_cred_i
-                    if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify()
+                    if kid.declassify()
+                        == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify()
                     {
                         // compute salt_4e3m
                         let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
@@ -277,7 +278,8 @@ pub fn r_process_message_3(
                         // verify mac_3
                         if mac_3.declassify_eq(&expected_mac_3) {
                             error = EDHOCError::Success;
-                            let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
+                            let th_4 =
+                                compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
                             // compute prk_out
                             // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -299,8 +301,12 @@ pub fn r_process_message_3(
                                 0,
                                 SHA256_DIGEST_LEN,
                             );
-                            prk_exporter =
-                                prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
+                            prk_exporter = prk_exporter.update_slice(
+                                0,
+                                &prk_exporter_buf,
+                                0,
+                                SHA256_DIGEST_LEN,
+                            );
 
                             error = EDHOCError::Success;
                             current_state = EDHOCState::Completed;
@@ -499,7 +505,8 @@ pub fn i_process_message_2(
 
                 // Check MAC before checking KID
                 if mac_2.declassify_eq(&expected_mac_2) {
-                    if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
+                    if kid.declassify()
+                        == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
                     {
                         // step is actually from processing of message_3
                         // but we do it here to avoid storing plaintext_2 in State
@@ -755,7 +762,8 @@ fn parse_ead(
 
     if res_label.is_ok() {
         let (label, is_critical) = res_label.unwrap();
-        if message.len > (offset + 1) { // EAD value is present
+        if message.len > (offset + 1) {
+            // EAD value is present
             let buffer = EdhocMessageBufferHacspec::from_slice(
                 &message.content,
                 offset + 1,
