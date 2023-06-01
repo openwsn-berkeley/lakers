@@ -691,7 +691,8 @@ fn parse_suites_i(
 
 fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADItem>, EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut ead_1 = None::<EADItem>;
+    let mut ead_item = None::<EADItem>;
+    let mut ead_value = None::<EdhocMessageBuffer>;
 
     // assuming label is a single byte integer (negative or positive)
     let label = message.content[offset];
@@ -705,14 +706,17 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
 
     if res_label.is_ok() {
         let (label, is_critical) = res_label.unwrap();
-        let mut value = EdhocMessageBuffer::new();
-        value.content[..message.len - (offset + 1)]
-            .copy_from_slice(&message.content[offset + 1..message.len]);
-        value.len = message.len - (offset + 1);
-        ead_1 = Some(EADItem {
+        if message.len > (offset + 1) { // EAD value is present
+            let mut buffer = EdhocMessageBuffer::new();
+            buffer.content[..message.len - (offset + 1)]
+                .copy_from_slice(&message.content[offset + 1..message.len]);
+            buffer.len = message.len - (offset + 1);
+            ead_value = Some(buffer);
+        }
+        ead_item = Some(EADItem {
             label,
             is_critical,
-            value: Some(value),
+            value: ead_value,
         });
         error = EDHOCError::Success;
     } else {
@@ -720,7 +724,7 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
     }
 
     match error {
-        EDHOCError::Success => Ok(ead_1),
+        EDHOCError::Success => Ok(ead_item),
         _ => Err(error),
     }
 }
@@ -1237,7 +1241,7 @@ fn decode_plaintext_2(
         // NOTE: since the current implementation only supports one EAD handler,
         // we assume only one EAD item
         let ead_res = parse_ead(
-            &plaintext_2[2 + MAC_LENGTH_2..plaintext_2_len]
+            &plaintext_2[..plaintext_2_len]
                 .try_into()
                 .expect("too long"),
             2 + MAC_LENGTH_2,
@@ -1400,6 +1404,8 @@ mod tests {
     const EAD_DUMMY_LABEL_TV: u8 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
+    const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701";
     const MESSAGE_1_WITH_DUMMY_EAD_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
     const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
@@ -1794,6 +1800,14 @@ mod tests {
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+
+        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
+
+        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let ead_item = res.unwrap();
+        assert!(!ead_item.is_critical);
+        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert!(ead_item.value.is_none());
     }
 
     #[test]

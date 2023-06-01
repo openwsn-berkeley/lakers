@@ -740,7 +740,8 @@ fn parse_ead(
     offset: usize,
 ) -> Result<Option<EADItemHacspec>, EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut ead_1 = None::<EADItemHacspec>;
+    let mut ead_item = None::<EADItemHacspec>;
+    let mut ead_value = None::<EdhocMessageBufferHacspec>;
 
     // assume label is either a single byte integer (negative or positive)
     let label = message.content[offset];
@@ -754,15 +755,18 @@ fn parse_ead(
 
     if res_label.is_ok() {
         let (label, is_critical) = res_label.unwrap();
-        let value = EdhocMessageBufferHacspec::from_slice(
-            &message.content,
-            offset + 1,
-            message.len - (offset + 1),
-        );
-        ead_1 = Some(EADItemHacspec {
+        if message.len > (offset + 1) { // EAD value is present
+            let buffer = EdhocMessageBufferHacspec::from_slice(
+                &message.content,
+                offset + 1,
+                message.len - (offset + 1),
+            );
+            ead_value = Some(buffer);
+        }
+        ead_item = Some(EADItemHacspec {
             label: U8(label),
             is_critical,
-            value: Some(value),
+            value: ead_value,
         });
         error = EDHOCError::Success;
     } else {
@@ -770,7 +774,7 @@ fn parse_ead(
     }
 
     match error {
-        EDHOCError::Success => Ok(ead_1),
+        EDHOCError::Success => Ok(ead_item),
         _ => Err(error),
     }
 }
@@ -1457,6 +1461,8 @@ mod tests {
     const EAD_DUMMY_LABEL_TV: u8 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
+    const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701";
     const MESSAGE_1_WITH_DUMMY_EAD_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
     const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
@@ -1927,6 +1933,14 @@ mod tests {
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label.declassify(), EAD_DUMMY_LABEL_TV);
         assert_bytes_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+
+        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
+
+        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let ead_item = res.unwrap();
+        assert!(!ead_item.is_critical);
+        assert_eq!(ead_item.label.declassify(), EAD_DUMMY_LABEL_TV);
+        assert!(ead_item.value.is_none());
     }
 
     #[test]
