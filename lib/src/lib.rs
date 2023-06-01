@@ -22,6 +22,9 @@ pub use {
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
+#[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
+pub use edhoc_ead::*;
+
 #[cfg(any(
     feature = "rust-psa",
     feature = "rust-psa-baremetal",
@@ -667,5 +670,77 @@ mod test {
 
         assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
+    }
+
+    #[cfg(feature = "ead-zeroconf")]
+    #[test]
+    fn test_ead() {
+        let state_initiator: EdhocState = Default::default();
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            I,
+            G_R,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let state_responder: EdhocState = Default::default();
+        let mut responder = EdhocResponder::new(
+            state_responder,
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+
+        ead_initiator_set_global_state(EADInitiatorState::new());
+        let ead_initiator_state = ead_initiator_get_global_state();
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::Start
+        );
+
+        ead_responder_set_global_state(EADResponderState::new());
+        let ead_responder_state = ead_responder_get_global_state();
+        assert_eq!(
+            ead_responder_state.protocol_state,
+            EADResponderProtocolState::Start
+        );
+
+        let message_1 = initiator.prepare_message_1().unwrap();
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::WaitEAD2
+        );
+
+        responder.process_message_1(&message_1).unwrap();
+        assert_eq!(
+            ead_responder_state.protocol_state,
+            EADResponderProtocolState::ProcessedEAD1
+        );
+
+        let (message_2, _c_r) = responder.prepare_message_2().unwrap();
+        assert_eq!(
+            ead_responder_state.protocol_state,
+            EADResponderProtocolState::Completed
+        );
+
+        initiator.process_message_2(&message_2).unwrap();
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::Completed
+        );
+
+        let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+
+        let r_prk_out = responder.process_message_3(&message_3).unwrap();
+        assert_eq!(i_prk_out, r_prk_out);
+        assert_eq!(
+            ead_responder_state.protocol_state,
+            EADResponderProtocolState::Completed
+        );
     }
 }

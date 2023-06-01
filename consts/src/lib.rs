@@ -30,7 +30,8 @@ mod common {
         UnsupportedCipherSuite = 4,
         ParsingError = 5,
         WrongState = 6,
-        UnknownError = 7,
+        EADError = 7,
+        UnknownError = 8,
     }
 
     #[derive(PartialEq, Debug)]
@@ -74,10 +75,32 @@ mod common {
         }
     }
 
+    #[derive(Debug)]
+    pub struct EADItem {
+        pub label: u8,
+        pub is_critical: bool,
+        // TODO[ead]: have adjustable (smaller) length for this buffer
+        pub value: Option<EdhocMessageBuffer>,
+    }
+
+    impl EADItem {
+        pub fn new() -> Self {
+            EADItem {
+                label: 0,
+                is_critical: false,
+                value: None,
+            }
+        }
+    }
+
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
+    pub const MAX_EAD_SIZE_LEN: usize = 64;
+    pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
     pub const SUPPORTED_SUITES_LEN: usize = 1;
-    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;
@@ -109,14 +132,6 @@ mod common {
 #[cfg(feature = "rust")]
 mod rust {
     use super::common::*;
-
-    #[derive(Debug)]
-    pub struct EADItem {
-        pub label: u8,
-        pub is_critical: bool,
-        // TODO[ead]: have adjustable (smaller) length for this buffer
-        pub value: Option<EdhocMessageBuffer>,
-    }
 
     pub type U8 = u8;
     pub type BytesEad2 = [u8; 0];
@@ -221,11 +236,41 @@ mod hacspec {
     }
 
     #[derive(Debug)]
-    pub struct EADItem {
-        pub label: u8,
+    pub struct EADItemHacspec {
+        pub label: U8,
         pub is_critical: bool,
         // TODO[ead]: have adjustable (smaller) length for this buffer
         pub value: Option<EdhocMessageBufferHacspec>,
+    }
+
+    impl EADItemHacspec {
+        pub fn new() -> Self {
+            EADItemHacspec {
+                label: U8(0),
+                is_critical: false,
+                value: None,
+            }
+        }
+        pub fn from_public_item(item: &EADItem) -> Self {
+            EADItemHacspec {
+                label: U8(item.label),
+                is_critical: item.is_critical,
+                value: match &item.value {
+                    Some(value) => Some(EdhocMessageBufferHacspec::from_public_buffer(value)),
+                    None => None,
+                },
+            }
+        }
+        pub fn to_public_item(&self) -> EADItem {
+            EADItem {
+                label: self.label.declassify(),
+                is_critical: self.is_critical,
+                value: match &self.value {
+                    Some(value) => Some(value.to_public_buffer()),
+                    None => None,
+                },
+            }
+        }
     }
 
     array!(BytesIdCred, ID_CRED_LEN, U8);

@@ -2,6 +2,7 @@
 
 use edhoc_consts::*;
 use edhoc_crypto::*;
+use edhoc_ead::*;
 
 pub fn edhoc_exporter(
     state: State,
@@ -59,35 +60,42 @@ pub fn r_process_message_1(
         let res = parse_message_1(message_1);
 
         if res.is_ok() {
-            let (method, suites_i, suites_i_len, g_x, c_i, _ead_1) = res.unwrap();
+            let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
             // verify that the method is supported
             if method == EDHOC_METHOD {
                 // Step 2: verify that the selected cipher suite is supported
                 if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
                     // Step 3: If EAD is present make it available to the application
-                    // TODO we do not support EAD for now
+                    let ead_success = if let Some(ead_1) = ead_1 {
+                        r_process_ead_1(ead_1).is_ok()
+                    } else {
+                        true
+                    };
+                    if ead_success {
+                        // hash message_1 and save the hash to the state to avoid saving the whole message
+                        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+                        message_1_buf[..message_1.len]
+                            .copy_from_slice(&message_1.content[..message_1.len]);
+                        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
-                    // hash message_1 and save the hash to the state to avoid saving the whole message
-                    let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                    message_1_buf[..message_1.len]
-                        .copy_from_slice(&message_1.content[..message_1.len]);
-                    h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+                        error = EDHOCError::Success;
+                        current_state = EDHOCState::ProcessedMessage1;
 
-                    error = EDHOCError::Success;
-                    current_state = EDHOCState::ProcessedMessage1;
-
-                    state = construct_state(
-                        current_state,
-                        _y,
-                        c_i,
-                        g_x,
-                        _prk_3e2m,
-                        _prk_4e3m,
-                        _prk_out,
-                        _prk_exporter,
-                        h_message_1,
-                        _th_3,
-                    );
+                        state = construct_state(
+                            current_state,
+                            _y,
+                            c_i,
+                            g_x,
+                            _prk_3e2m,
+                            _prk_4e3m,
+                            _prk_out,
+                            _prk_exporter,
+                            h_message_1,
+                            _th_3,
+                        );
+                    } else {
+                        error = EDHOCError::EADError;
+                    }
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;
                 }
@@ -148,8 +156,10 @@ pub fn r_prepare_message_2(
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
+        let ead_2 = r_prepare_ead_2();
+
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &None::<EADItem>);
+        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &ead_2);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -222,70 +232,81 @@ pub fn r_process_message_3(
             let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
             if decoded_p3_res.is_ok() {
-                let (kid, mac_3, _ead_3) = decoded_p3_res.unwrap();
+                let (kid, mac_3, ead_3) = decoded_p3_res.unwrap();
 
-                // compare the kid received with the kid expected in id_cred_i
-                if kid == id_cred_i_expected[id_cred_i_expected.len() - 1] {
-                    // compute salt_4e3m
-                    let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
-                    // TODO compute prk_4e3m
-                    prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+                // Step 3: If EAD is present make it available to the application
+                let ead_success = if let Some(ead_3) = ead_3 {
+                    r_process_ead_3(ead_3).is_ok()
+                } else {
+                    true
+                };
+                if ead_success {
+                    // compare the kid received with the kid expected in id_cred_i
+                    if kid == id_cred_i_expected[id_cred_i_expected.len() - 1] {
+                        // compute salt_4e3m
+                        let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                        // TODO compute prk_4e3m
+                        prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
 
-                    // compute mac_3
-                    let expected_mac_3 = compute_mac_3(
-                        &prk_4e3m,
-                        &th_3,
-                        id_cred_i_expected,
-                        cred_i_expected,
-                        cred_i_len,
-                    );
-
-                    // verify mac_3
-                    if mac_3 == expected_mac_3 {
-                        error = EDHOCError::Success;
-                        let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
-
-                        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-                        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
-                        // compute prk_out
-                        // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-                        let prk_out_buf =
-                            edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
-                        prk_out[..SHA256_DIGEST_LEN]
-                            .copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
-
-                        // compute prk_exporter from prk_out
-                        // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-                        let prk_exporter_buf = edhoc_kdf(
-                            &prk_out,
-                            10u8,
-                            &[0x00u8; MAX_KDF_CONTEXT_LEN],
-                            0,
-                            SHA256_DIGEST_LEN,
+                        // compute mac_3
+                        let expected_mac_3 = compute_mac_3(
+                            &prk_4e3m,
+                            &th_3,
+                            id_cred_i_expected,
+                            cred_i_expected,
+                            cred_i_len,
                         );
-                        prk_exporter[..SHA256_DIGEST_LEN]
-                            .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-                        error = EDHOCError::Success;
-                        current_state = EDHOCState::Completed;
+                        // verify mac_3
+                        if mac_3 == expected_mac_3 {
+                            error = EDHOCError::Success;
+                            let th_4 =
+                                compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
-                        state = construct_state(
-                            current_state,
-                            y,
-                            _c_i,
-                            _g_x,
-                            prk_3e2m,
-                            prk_4e3m,
-                            prk_out,
-                            prk_exporter,
-                            _h_message_1,
-                            th_3,
-                        );
+                            let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+                            th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
+                            // compute prk_out
+                            // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
+                            let prk_out_buf =
+                                edhoc_kdf(&prk_4e3m, 7u8, &th_4_buf, th_4.len(), SHA256_DIGEST_LEN);
+                            prk_out[..SHA256_DIGEST_LEN]
+                                .copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
+
+                            // compute prk_exporter from prk_out
+                            // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+                            let prk_exporter_buf = edhoc_kdf(
+                                &prk_out,
+                                10u8,
+                                &[0x00u8; MAX_KDF_CONTEXT_LEN],
+                                0,
+                                SHA256_DIGEST_LEN,
+                            );
+                            prk_exporter[..SHA256_DIGEST_LEN]
+                                .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::Completed;
+
+                            state = construct_state(
+                                current_state,
+                                y,
+                                _c_i,
+                                _g_x,
+                                prk_3e2m,
+                                prk_4e3m,
+                                prk_out,
+                                prk_exporter,
+                                _h_message_1,
+                                th_3,
+                            );
+                        } else {
+                            error = EDHOCError::MacVerificationFailed;
+                        }
                     } else {
-                        error = EDHOCError::MacVerificationFailed;
+                        error = EDHOCError::UnknownPeer;
                     }
                 } else {
-                    error = EDHOCError::UnknownPeer;
+                    error = EDHOCError::EADError;
                 }
             } else {
                 error = decoded_p3_res.unwrap_err();
@@ -334,6 +355,8 @@ pub fn i_prepare_message_1(
         // Choose a connection identifier C_I and store it for the length of the protocol.
         c_i = C_I;
 
+        let ead_1 = i_prepare_ead_1();
+
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(
             EDHOC_METHOD,
@@ -341,7 +364,7 @@ pub fn i_prepare_message_1(
             EDHOC_SUPPORTED_SUITES.len(),
             &g_x,
             c_i,
-            &None::<EADItem>,
+            &ead_1,
         );
 
         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
@@ -420,57 +443,67 @@ pub fn i_process_message_2(
             let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
             if plaintext_2_decoded.is_ok() {
-                let (kid, mac_2, _ead_2) = plaintext_2_decoded.unwrap();
+                let (kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
 
-                // verify mac_2
-                let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+                // Step 3: If EAD is present make it available to the application
+                let ead_success = if let Some(ead_2) = ead_2 {
+                    i_process_ead_2(ead_2).is_ok()
+                } else {
+                    true
+                };
+                if ead_success {
+                    // verify mac_2
+                    let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-                prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+                    prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-                let expected_mac_2 = compute_mac_2(
-                    &prk_3e2m,
-                    id_cred_r_expected,
-                    cred_r_expected,
-                    cred_r_len,
-                    &th_2,
-                );
+                    let expected_mac_2 = compute_mac_2(
+                        &prk_3e2m,
+                        id_cred_r_expected,
+                        cred_r_expected,
+                        cred_r_len,
+                        &th_2,
+                    );
 
-                if mac_2 == expected_mac_2 {
-                    if kid == id_cred_r_expected[id_cred_r_expected.len() - 1] {
-                        // step is actually from processing of message_3
-                        // but we do it here to avoid storing plaintext_2 in State
-                        let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
-                        pt2.content[..plaintext_2_len]
-                            .copy_from_slice(&plaintext_2[..plaintext_2_len]);
-                        pt2.len = plaintext_2_len;
-                        th_3 = compute_th_3(&th_2, &pt2, cred_r_expected, cred_r_len);
-                        // message 3 processing
+                    if mac_2 == expected_mac_2 {
+                        if kid == id_cred_r_expected[id_cred_r_expected.len() - 1] {
+                            // step is actually from processing of message_3
+                            // but we do it here to avoid storing plaintext_2 in State
+                            let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
+                            pt2.content[..plaintext_2_len]
+                                .copy_from_slice(&plaintext_2[..plaintext_2_len]);
+                            pt2.len = plaintext_2_len;
+                            th_3 = compute_th_3(&th_2, &pt2, cred_r_expected, cred_r_len);
+                            // message 3 processing
 
-                        let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                        prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                            prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
-                        error = EDHOCError::Success;
-                        current_state = EDHOCState::ProcessedMessage2;
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::ProcessedMessage2;
 
-                        state = construct_state(
-                            current_state,
-                            x,
-                            _c_i,
-                            g_y,
-                            prk_3e2m,
-                            prk_4e3m,
-                            _prk_out,
-                            _prk_exporter,
-                            h_message_1,
-                            th_3,
-                        );
+                            state = construct_state(
+                                current_state,
+                                x,
+                                _c_i,
+                                g_y,
+                                prk_3e2m,
+                                prk_4e3m,
+                                _prk_out,
+                                _prk_exporter,
+                                h_message_1,
+                                th_3,
+                            );
+                        } else {
+                            // Unknown peer
+                            error = EDHOCError::UnknownPeer;
+                        }
                     } else {
-                        // Unknown peer
-                        error = EDHOCError::UnknownPeer;
+                        error = EDHOCError::MacVerificationFailed;
                     }
                 } else {
-                    error = EDHOCError::MacVerificationFailed;
+                    error = EDHOCError::EADError;
                 }
             } else {
                 error = EDHOCError::ParsingError;
@@ -512,7 +545,10 @@ pub fn i_prepare_message_3(
 
     if current_state == EDHOCState::ProcessedMessage2 {
         let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
-        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &None::<EADItem>);
+
+        let ead_3 = i_prepare_ead_3();
+
+        let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
         let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
@@ -655,7 +691,8 @@ fn parse_suites_i(
 
 fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADItem>, EDHOCError> {
     let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut ead_1 = None::<EADItem>;
+    let mut ead_item = None::<EADItem>;
+    let mut ead_value = None::<EdhocMessageBuffer>;
 
     // assuming label is a single byte integer (negative or positive)
     let label = message.content[offset];
@@ -669,14 +706,18 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
 
     if res_label.is_ok() {
         let (label, is_critical) = res_label.unwrap();
-        let mut value = EdhocMessageBuffer::new();
-        value.content[..message.len - (offset + 1)]
-            .copy_from_slice(&message.content[offset + 1..message.len]);
-        value.len = message.len - (offset + 1);
-        ead_1 = Some(EADItem {
+        if message.len > (offset + 1) {
+            // EAD value is present
+            let mut buffer = EdhocMessageBuffer::new();
+            buffer.content[..message.len - (offset + 1)]
+                .copy_from_slice(&message.content[offset + 1..message.len]);
+            buffer.len = message.len - (offset + 1);
+            ead_value = Some(buffer);
+        }
+        ead_item = Some(EADItem {
             label,
             is_critical,
-            value: Some(value),
+            value: ead_value,
         });
         error = EDHOCError::Success;
     } else {
@@ -684,7 +725,7 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
     }
 
     match error {
-        EDHOCError::Success => Ok(ead_1),
+        EDHOCError::Success => Ok(ead_item),
         _ => Err(error),
     }
 }
@@ -1201,9 +1242,7 @@ fn decode_plaintext_2(
         // NOTE: since the current implementation only supports one EAD handler,
         // we assume only one EAD item
         let ead_res = parse_ead(
-            &plaintext_2[2 + MAC_LENGTH_2..plaintext_2_len]
-                .try_into()
-                .expect("too long"),
+            &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
             2 + MAC_LENGTH_2,
         );
         if ead_res.is_ok() {
@@ -1364,6 +1403,8 @@ mod tests {
     const EAD_DUMMY_LABEL_TV: u8 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
+    const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701";
     const MESSAGE_1_WITH_DUMMY_EAD_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
     const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
@@ -1758,6 +1799,14 @@ mod tests {
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+
+        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
+
+        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let ead_item = res.unwrap();
+        assert!(!ead_item.is_critical);
+        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert!(ead_item.value.is_none());
     }
 
     #[test]

@@ -14,9 +14,10 @@ edhoc-hacspec = { path = "../hacspec", optional = true }
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
 edhoc-crypto = { path = "../crypto", default-features = false }
 edhoc-consts = { path = "../consts", default-features = false }
+edhoc-ead = { path = "../ead", default-features = false }
 
 [features]
-default = [ ]
+default = [ "edhoc-ead/ead-none" ]
 hacspec-hacspec = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec", "edhoc-consts/hacspec" ]
 hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538", "edhoc-consts/hacspec" ] # FIXME: stubs
 hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-consts/hacspec" ]
@@ -25,3 +26,5 @@ hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cry
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]
+ead-none = [ "edhoc-ead/ead-none" ]
+ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]

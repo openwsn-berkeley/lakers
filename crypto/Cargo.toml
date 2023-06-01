@@ -22,7 +22,7 @@ edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, opti
 edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
 
 [features]
-default = [ "hacspec" ]
+default = [  ]
 hacspec = [ "edhoc-crypto-hacspec" ]
 cc2538 = [ "edhoc-crypto-cc2538" ]
 psa = [ "edhoc-crypto-psa/hacspec" ]
