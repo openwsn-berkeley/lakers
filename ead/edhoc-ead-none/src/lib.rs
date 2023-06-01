@@ -1,3 +1,5 @@
+#![no_std]
+
 use edhoc_consts::*;
 
 // initiator side

@@ -29,6 +29,7 @@ jobs:
       matrix:
         edhoc_lib: [hacspec, rust]
         crypto: [hacspec, psa]
+        ead: [ead-none, ead-zeroconf]
         exclude:
           - edhoc_lib: rust
             crypto: hacspec
@@ -38,7 +39,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Run unit tests # note that we only add `--package edhoc-hacspec` when testing the hacspec version of the lib
-      run: cargo test --no-default-features --package edhoc-rs --package edhoc-crypto ${{ matrix.edhoc_lib == 'hacspec' && '--package edhoc-hacspec' || '' }} --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --no-fail-fast
+      run: cargo test --package edhoc-rs --package edhoc-crypto --package edhoc-ead ${{ matrix.edhoc_lib == 'hacspec' && '--package edhoc-hacspec' || '' }} --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, ${{ matrix.ead }}" --no-fail-fast
 
 
   build-edhoc-package:
@@ -50,6 +51,7 @@ jobs:
       matrix:
         edhoc_lib: [hacspec, rust]
         crypto: [hacspec, psa, psa-baremetal, cryptocell310]
+        ead: [ead-none, ead-zeroconf]
         exclude:
           - edhoc_lib: rust
             crypto: hacspec
@@ -64,7 +66,7 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build
-      run: cargo build --package edhoc-rs --package edhoc-crypto --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}" --release
+      run: cargo build --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, ${{ matrix.ead }}" --release
 
 
   run-example-on-qemu:
@@ -75,6 +77,7 @@ jobs:
       fail-fast: false
       matrix:
         config: [hacspec-psa, rust-psa]
+        ead: [ead-none, ead-zeroconf]
 
     steps:
     - name: Checkout repo
@@ -88,7 +91,8 @@ jobs:
       run: sudo apt-get -y install qemu-system-arm
 
     - name: Run tests in QEMU
-      run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}" --release
+      # FIXME: still failing
+      run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}, ${{ matrix.ead }}" --release
 
 
   build-example-for-cortex-m4:
@@ -100,6 +104,7 @@ jobs:
       matrix:
         edhoc_lib: [hacspec, rust]
         crypto: [psa, cryptocell310]
+        ead: [ead-none, ead-zeroconf]
 
     steps:
     - name: Checkout repo
@@ -111,7 +116,8 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build example
-      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, rtt" --release
+      # FIXME: still failing
+      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, ${{ matrix.ead }}, rtt" --release
 
 
   build-coap-example:

@@ -22,7 +22,7 @@ pub use {
     rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
 };
 
-#[cfg(feature = "ead-zeroconf")]
+#[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
 pub use edhoc_ead::*;
 
 #[cfg(any(
