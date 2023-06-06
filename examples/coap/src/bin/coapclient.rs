@@ -1,4 +1,5 @@
 use coap::CoAPClient;
+use coap_lite::ResponseType;
 use edhoc_rs::*;
 use std::time::Duration;
 
@@ -26,6 +27,9 @@ fn main() {
     msg_1_buf.extend_from_slice(&message_1.content[..message_1.len]);
 
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
+    if response.get_status() != &ResponseType::Changed {
+        panic!("Message 1 response error: {:?}", response.get_status());
+    }
     println!("response_vec = {:02x?}", response.message.payload);
 
     let c_r = initiator.process_message_2(
