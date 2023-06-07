@@ -1,4 +1,4 @@
-use coap_lite::{CoapRequest, Packet};
+use coap_lite::{CoapRequest, Packet, ResponseType};
 use edhoc_rs::*;
 use std::net::UdpSocket;
 
@@ -77,6 +77,11 @@ fn main() {
                 let _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
                 println!("oscore_salt: {:02x?}", _oscore_salt);
             }
+            response.set_status(ResponseType::Changed);
+        } else {
+            println!("Received message at unknown resource");
+            response.message.payload = b"Resource not found".to_vec();
+            response.set_status(ResponseType::BadRequest);
         }
         let packet = response.message.to_bytes().unwrap();
         socket
