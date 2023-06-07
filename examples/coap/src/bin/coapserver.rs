@@ -42,16 +42,15 @@ fn main() {
                 if error.is_ok() {
                     let (message_2, c_r) = responder.prepare_message_2().unwrap();
                     response.message.payload = Vec::from(&message_2.content[..message_2.len]);
-                    // save state
-                    let edhoc_protocol_state = (c_r, responder, state);
-                    edhoc_connections.push(edhoc_protocol_state);
+                    // save edhoc connection
+                    edhoc_connections.push((c_r, responder));
                 }
             } else {
                 // potentially message 3
                 println!("Received message 3");
                 let c_r_rcvd = request.message.payload[0];
-                let (_c_r, mut responder, _state) =
-                    lookup_state(c_r_rcvd, &mut edhoc_connections).unwrap();
+                let (index, mut responder, ec) = lookup_state(c_r_rcvd, edhoc_connections).unwrap();
+                edhoc_connections = ec;
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
                 let prk_out = responder.process_message_3(
@@ -65,6 +64,9 @@ fn main() {
                     // FIXME remove state from edhoc_connections
                     continue;
                 }
+
+                // update edhoc connection
+                edhoc_connections[index] = (c_r_rcvd, responder);
 
                 // send empty ack back
                 response.message.payload = b"".to_vec();
@@ -85,12 +87,12 @@ fn main() {
 
 fn lookup_state<'a>(
     c_r_rcvd: u8,
-    edhoc_protocol_states: &'a Vec<(u8, EdhocResponder<'a>, EdhocState)>,
-) -> Result<(u8, EdhocResponder, EdhocState), EDHOCError> {
-    for element in edhoc_protocol_states {
-        let (c_r, responder, state) = element;
+    edhoc_protocol_states: Vec<(u8, EdhocResponder<'a>)>,
+) -> Result<(usize, EdhocResponder<'a>, Vec<(u8, EdhocResponder)>), EDHOCError> {
+    for (i, element) in edhoc_protocol_states.iter().enumerate() {
+        let (c_r, responder) = element;
         if *c_r == c_r_rcvd {
-            return Ok((*c_r, *responder, *state));
+            return Ok((i, *responder, edhoc_protocol_states));
         }
     }
     return Err(EDHOCError::WrongState);
