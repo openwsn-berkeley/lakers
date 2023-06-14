@@ -907,7 +907,6 @@ fn encode_message_1(
                 output.content[2 + raw_suites_len] = suites[i];
                 raw_suites_len += 2;
             }
-            i += 1;
         }
     };
 
