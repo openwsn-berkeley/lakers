@@ -69,7 +69,9 @@ mod common {
         fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
             if self.len() <= MAX_MESSAGE_SIZE_LEN {
                 let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
-                buffer[..self.len()].copy_from_slice(self);
+                for i in 0..self.len() {
+                    buffer[i] = self[i];
+                }
 
                 Ok(EdhocMessageBuffer {
                     content: buffer,
