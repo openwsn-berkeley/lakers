@@ -1,0 +1,17 @@
+# call with:
+# cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output edhoc_rs.h -vv
+
+language = "C"
+# no_includes = true
+includes = ["edhoc_consts.h"]
+
+[defines]
+# "feature = rust-psa" = "DEFINE_RUST_PSA"
+
+[export]
+include = ["RustEdhocInitiator", "RustEdhocResponder", "new_edhoc_responder"]
+
+[parse.expand]
+all_features = false
+default_features = false
+features = ["rust-psa"]

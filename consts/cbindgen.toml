@@ -1,0 +1,13 @@
+# call with:
+# cbindgen --config consts/cbindgen.toml --crate edhoc-consts --output edhoc_consts.h -vv
+
+language = "C"
+# no_includes = true
+
+[export]
+# include = ["EDHOCState", "EdhocMessageBuffer", "EADItem"]
+include = ["State", "EdhocMessageBuffer"]
+
+
+[parse.expand]
+features = ["rust"]

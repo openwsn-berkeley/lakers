@@ -1,5 +1,35 @@
 #![cfg_attr(not(test), no_std)]
 
+// Rust requires a panic handler in order to compile for cortex-m in no_std mode
+use core::panic::PanicInfo;
+#[panic_handler]
+fn my_panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
+
+#[no_mangle]
+pub extern "C" fn edhoc_add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+// #[repr(C)]
+// #[no_mangle]
+// pub struct MyCBindGenStruct(
+//     pub u8
+// );
+
+// #[repr(C)]
+// #[no_mangle]
+// pub struct MyCBindGenStruct2 {
+//     pub a: u8,
+//     pub b: u8,
+// }
+
+// #[no_mangle]
+// pub extern "C" fn do_something(a: EdhocMessageBuffer) {
+//     ()
+// }
+
 #[cfg(any(
     feature = "hacspec-hacspec",
     feature = "hacspec-cc2538",
@@ -50,6 +80,7 @@ mod hacspec {
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocInitiator<'a> {
         state: State,       // opaque state
@@ -61,6 +92,7 @@ mod hacspec {
         cred_r: &'a str,    // R's full credential
     }
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocResponder<'a> {
         state: State,       // opaque state
@@ -191,7 +223,8 @@ mod hacspec {
     }
 
     impl<'a> HacspecEdhocInitiator<'a> {
-        pub fn new(
+        // #[no_mangle]
+        pub extern "C" fn new(
             state: State,
             i: &'a str,
             g_r: &'a str,
@@ -322,6 +355,7 @@ mod rust {
     use edhoc_consts::*;
     use hex::FromHex;
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct RustEdhocInitiator<'a> {
         state: State,       // opaque state
@@ -333,6 +367,7 @@ mod rust {
         cred_r: &'a str,    // R's full credential
     }
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct RustEdhocResponder<'a> {
         state: State,       // opaque state
@@ -345,7 +380,8 @@ mod rust {
     }
 
     impl<'a> RustEdhocResponder<'a> {
-        pub fn new(
+        #[no_mangle]
+        pub extern "C" fn new(
             state: State,
             r: &'a str,
             g_i: &'a str,
@@ -370,7 +406,7 @@ mod rust {
             }
         }
 
-        pub fn process_message_1(
+        pub extern "C" fn process_message_1(
             self: &mut RustEdhocResponder<'a>,
             message_1: &BufferMessage1,
         ) -> Result<(), EDHOCError> {
@@ -743,4 +779,43 @@ mod test {
             EADResponderProtocolState::Completed
         );
     }
+}
+
+
+use core::slice;
+
+#[no_mangle]
+pub unsafe extern "C" fn new_edhoc_responder(
+    state: State,
+    r: *const u8,
+    r_len: usize,
+    g_i: *const u8,
+    g_i_len: usize,
+    id_cred_i: *const u8,
+    id_cred_i_len: usize,
+    cred_i: *const u8,
+    cred_i_len: usize,
+    id_cred_r: *const u8,
+    id_cred_r_len: usize,
+    cred_r: *const u8,
+    cred_r_len: usize,
+) -> EdhocResponder<'static> {
+    let r_str = slice::from_raw_parts(r, r_len);
+    let g_i_str = slice::from_raw_parts(g_i, g_i_len);
+    let id_cred_i_str = slice::from_raw_parts(id_cred_i, id_cred_i_len);
+    let cred_i_str = slice::from_raw_parts(cred_i, cred_i_len);
+    let id_cred_r_str = slice::from_raw_parts(id_cred_r, id_cred_r_len);
+    let cred_r_str = slice::from_raw_parts(cred_r, cred_r_len);
+
+    let responder = EdhocResponder::new(
+        state,
+        core::str::from_utf8_unchecked(r_str),
+        core::str::from_utf8_unchecked(g_i_str),
+        core::str::from_utf8_unchecked(id_cred_i_str),
+        core::str::from_utf8_unchecked(cred_i_str),
+        core::str::from_utf8_unchecked(id_cred_r_str),
+        core::str::from_utf8_unchecked(cred_r_str),
+    );
+
+    responder
 }
