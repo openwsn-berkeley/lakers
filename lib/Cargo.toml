@@ -29,6 +29,6 @@ rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]
 ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
 
-# [lib]
-# name = "edhoc_rs" # name of the static library
-# crate-type = ["staticlib"] # type of the library, in this case a static library
+[lib]
+name = "edhoc_rs" # name of the static library
+crate-type = ["staticlib"] # type of the library, in this case a static library

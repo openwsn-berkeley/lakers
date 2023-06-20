@@ -6,10 +6,9 @@ language = "C"
 includes = ["edhoc_consts.h"]
 
 [defines]
-# "feature = rust-psa" = "DEFINE_RUST_PSA"
 
 [export]
-include = ["RustEdhocInitiator", "RustEdhocResponder", "new_edhoc_responder"]
+# include = []
 
 [parse.expand]
 all_features = false

@@ -5,7 +5,6 @@ language = "C"
 # no_includes = true
 
 [export]
-# include = ["EDHOCState", "EdhocMessageBuffer", "EADItem"]
 include = ["State", "EdhocMessageBuffer"]
 
 
