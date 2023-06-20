@@ -224,6 +224,27 @@ mod hacspec {
         BytesHashLen::from_public_slice(&convert_array(&buffer[..SHA256_DIGEST_LEN / 4]))
     }
 
+    pub fn get_random_byte() -> U8 {
+        let mut rnd_context = CRYS_RND_State_t::default();
+        let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
+        unsafe {
+            SaSi_LibInit();
+            CRYS_RndInit(
+                &mut rnd_context as *mut _ as *mut c_void,
+                &mut rnd_work_buffer as *mut _,
+            );
+        }
+        let mut buffer = [0u8; 1];
+        unsafe {
+            CRYS_RND_GenerateVector(
+                &mut rnd_context as *mut _ as *mut c_void,
+                1,
+                buffer.as_mut_ptr(),
+            );
+        }
+        U8(buffer[0])
+    }
+
     pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
         let mut rnd_context = CRYS_RND_State_t::default();
         let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
@@ -504,6 +525,27 @@ mod rust {
         }
 
         convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
+    }
+
+    pub fn get_random_byte() -> u8 {
+        let mut rnd_context = CRYS_RND_State_t::default();
+        let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
+        unsafe {
+            SaSi_LibInit();
+            CRYS_RndInit(
+                &mut rnd_context as *mut _ as *mut c_void,
+                &mut rnd_work_buffer as *mut _,
+            );
+        }
+        let mut buffer = [0u8; 1];
+        unsafe {
+            CRYS_RND_GenerateVector(
+                &mut rnd_context as *mut _ as *mut c_void,
+                1,
+                buffer.as_mut_ptr(),
+            );
+        }
+        buffer[0]
     }
 
     pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {

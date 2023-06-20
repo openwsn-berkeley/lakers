@@ -94,6 +94,10 @@ pub fn p256_ecdh(
     secret
 }
 
+pub fn get_random_byte() -> U8 {
+    U8(rand::thread_rng().gen::<u8>())
+}
+
 pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     // generate a private key
     let mut private_key = BytesP256ElemLen::new();
