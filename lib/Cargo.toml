@@ -15,6 +15,7 @@ hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = t
 edhoc-crypto = { path = "../crypto", default-features = false }
 edhoc-consts = { path = "../consts", default-features = false }
 edhoc-ead = { path = "../ead", default-features = false }
+panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }
 
 [features]
 default = [ "edhoc-ead/ead-none" ]
@@ -25,10 +26,9 @@ hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-con
 hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cryptocell310", "edhoc-consts/hacspec" ]
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
-rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust" ]
+rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust", "panic-semihosting" ]
 ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
 
 [lib]
-name = "edhoc_rs" # name of the static library
-crate-type = ["staticlib"] # type of the library, in this case a static library
+crate-type = ["rlib", "staticlib"] # build both a rust library and a static library
