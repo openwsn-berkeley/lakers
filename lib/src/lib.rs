@@ -8,7 +8,7 @@
 ))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
-    hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    hacspec::generate_connection_identifier, hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
@@ -19,7 +19,8 @@ pub use {
 ))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
-    rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
+    rust::generate_connection_identifier, rust::RustEdhocInitiator as EdhocInitiator,
+    rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
@@ -310,6 +311,15 @@ mod hacspec {
             }
         }
     }
+
+    /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
+    pub fn generate_connection_identifier() -> i8 {
+        let mut conn_id = edhoc_crypto::get_random_byte().declassify() as i8;
+        while conn_id < -24 || conn_id > 23 {
+            conn_id = edhoc_crypto::get_random_byte().declassify() as i8;
+        }
+        conn_id
+    }
 }
 
 #[cfg(any(
@@ -552,6 +562,15 @@ mod rust {
             }
         }
     }
+
+    /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
+    pub fn generate_connection_identifier() -> i8 {
+        let mut conn_id = edhoc_crypto::get_random_byte() as i8;
+        while conn_id < -24 || conn_id > 23 {
+            conn_id = edhoc_crypto::get_random_byte() as i8;
+        }
+        conn_id
+    }
 }
 
 #[cfg(test)]
@@ -606,6 +625,12 @@ mod test {
         let error = responder.process_message_1(&message_1_tv);
 
         assert!(error.is_ok());
+    }
+
+    #[test]
+    fn test_generate_connection_identifier() {
+        let conn_id = generate_connection_identifier();
+        assert!(conn_id >= -24 && conn_id <= 23);
     }
 
     #[test]
