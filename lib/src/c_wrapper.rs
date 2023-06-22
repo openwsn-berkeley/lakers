@@ -1,6 +1,6 @@
+use crate::rust::*;
 use core::{slice, str};
 use edhoc_consts::*;
-use crate::rust::*;
 
 // Rust requires a panic handler to build a static library for cortex-m in no_std mode
 // Generic panic handler
@@ -21,7 +21,7 @@ pub extern "C" fn edhoc_add(a: i32, b: i32) -> i32 {
 
 #[repr(C)]
 pub struct RustEdhocInitiatorC {
-    pub state: State,       // opaque state
+    pub state: State,
     pub i: *const u8,
     pub i_len: usize,
     pub g_r: *const u8,
@@ -42,17 +42,25 @@ impl RustEdhocInitiatorC {
             self.state,
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.i, self.i_len)) },
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_r, self.g_r_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len)) },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len))
+            },
         )
     }
 }
 
 #[repr(C)]
 pub struct RustEdhocResponderC {
-    pub state: State,       // opaque state
+    pub state: State,
     pub r: *const u8,
     pub r_len: usize,
     pub g_i: *const u8,
@@ -73,10 +81,18 @@ impl RustEdhocResponderC {
             self.state,
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.r, self.r_len)) },
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_i, self.g_i_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len)) },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len))
+            },
+            unsafe {
+                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len))
+            },
         )
     }
 }
@@ -104,7 +120,8 @@ pub unsafe extern "C" fn responder_new(
         str::from_utf8_unchecked(slice::from_raw_parts(cred_i, cred_i_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(id_cred_r, id_cred_r_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(cred_r, cred_r_len)),
-    ).to_c()
+    )
+    .to_c()
 }
 
 #[no_mangle]
@@ -130,7 +147,8 @@ pub unsafe extern "C" fn initiator_new(
         str::from_utf8_unchecked(slice::from_raw_parts(cred_i, cred_i_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(id_cred_r, id_cred_r_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(cred_r, cred_r_len)),
-    ).to_c()
+    )
+    .to_c()
 }
 
 #[no_mangle]
@@ -144,7 +162,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
         Ok(msg_1) => {
             *message_1 = msg_1;
             0
-        },
+        }
         Err(_) => -1,
     };
 
@@ -183,7 +201,7 @@ pub unsafe extern "C" fn responder_prepare_message_2(
             *message_2 = msg_2;
             *c_r = c_r_res;
             0
-        },
+        }
         Err(_) => -1,
     };
 
@@ -204,7 +222,7 @@ pub unsafe extern "C" fn initiator_process_message_2(
         Ok(c_r_res) => {
             *c_r = c_r_res;
             0
-        },
+        }
         Err(_) => -1,
     };
 
@@ -226,7 +244,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
             *message_3 = msg_3;
             *prk_out = prk_out_res;
             0
-        },
+        }
         Err(_) => -1,
     };
 
@@ -247,7 +265,7 @@ pub unsafe extern "C" fn responder_process_message_3(
         Ok(prk_out_res) => {
             *prk_out = prk_out_res;
             0
-        },
+        }
         Err(_) => -1,
     };
 
@@ -265,23 +283,27 @@ mod test_c {
         const ID_CRED_I: &[u8] = "a104412b".as_bytes();
         const ID_CRED_R: &[u8] = "a104410a".as_bytes();
         const CRED_I: &[u8] = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8".as_bytes();
-        const G_I: &[u8] = "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6".as_bytes();
+        const G_I: &[u8] =
+            "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6".as_bytes();
         const CRED_R: &[u8] = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072".as_bytes();
-        const R: &[u8] = "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac".as_bytes();
+        const R: &[u8] =
+            "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac".as_bytes();
 
-        let resp = unsafe { responder_new(
-            R.as_ptr(),
-            R.len(),
-            G_I.as_ptr(),
-            G_I.len(),
-            ID_CRED_I.as_ptr(),
-            ID_CRED_I.len(),
-            CRED_I.as_ptr(),
-            CRED_I.len(),
-            ID_CRED_R.as_ptr(),
-            ID_CRED_R.len(),
-            CRED_R.as_ptr(),
-            CRED_R.len(),
-        ) };
+        let resp = unsafe {
+            responder_new(
+                R.as_ptr(),
+                R.len(),
+                G_I.as_ptr(),
+                G_I.len(),
+                ID_CRED_I.as_ptr(),
+                ID_CRED_I.len(),
+                CRED_I.as_ptr(),
+                CRED_I.len(),
+                ID_CRED_R.as_ptr(),
+                ID_CRED_R.len(),
+                CRED_R.as_ptr(),
+                CRED_R.len(),
+            )
+        };
     }
 }
