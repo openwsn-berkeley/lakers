@@ -39,7 +39,18 @@ mod edhoc;
 ))]
 use edhoc::*;
 
+#[cfg(any(
+    feature = "rust-psa",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 mod c_wrapper;
+
+#[cfg(any(
+    feature = "rust-psa",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
 use c_wrapper::*;
 
 #[cfg(any(
