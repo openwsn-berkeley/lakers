@@ -78,7 +78,6 @@ mod common {
         }
     }
 
-    #[repr(C)]
     #[derive(Debug)]
     pub struct EADItem {
         pub label: u8,

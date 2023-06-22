@@ -2,15 +2,8 @@
 # cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output edhoc_rs.h -vv
 
 language = "C"
-# no_includes = true
 includes = ["edhoc_consts.h"]
-
-[defines]
-
-[export]
-# include = []
 
 [parse.expand]
 all_features = false
-default_features = false
 features = ["rust-psa"]
