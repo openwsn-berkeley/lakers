@@ -44,6 +44,8 @@ typedef struct RustEdhocInitiatorC {
 
 int32_t edhoc_add(int32_t a, int32_t b);
 
+void p256_generate_key_pair_from_c(uint8_t *out_private_key, uint8_t *out_public_key);
+
 struct RustEdhocResponderC responder_new(const uint8_t *r,
                                          uintptr_t r_len,
                                          const uint8_t *g_i,

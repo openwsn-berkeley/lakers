@@ -15,6 +15,13 @@ static const uint8_t G_R[] = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac
  {
     puts("Calling edhoc-rs from C!");
 
+    puts("Begin test: generate key pair.");
+    uint8_t out_private_key[32] = {0};
+    uint8_t out_public_key[32] = {0};
+    p256_generate_key_pair_from_c(out_private_key, out_public_key);
+    puts("End test: generate key pair.");
+
+    puts("Begin test: edhoc handshake.");
     RustEdhocInitiatorC initiator = initiator_new(I, 32*2, G_R, 32*2, ID_CRED_I, 4*2, CRED_I, 107*2, ID_CRED_R, 4*2, CRED_R, 84*2);
     RustEdhocResponderC responder = responder_new(R, 32*2, G_I, 32*2, ID_CRED_I, 4*2, CRED_I, 107*2, ID_CRED_R, 4*2, CRED_R, 84*2);
 
@@ -36,6 +43,8 @@ static const uint8_t G_R[] = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac
     od_hex_dump(prk_out_initiator, SHA256_DIGEST_LEN, OD_WIDTH_DEFAULT);
     printf("\nprk_out_responder: \n");
     od_hex_dump(prk_out_responder, SHA256_DIGEST_LEN, OD_WIDTH_DEFAULT);
+
+    puts("End test: edhoc handshake.");
 
     return 0;
 }

@@ -4,19 +4,40 @@ use edhoc_consts::*;
 
 // Rust requires a panic handler to build a static library for cortex-m in no_std mode
 // Generic panic handler
-#[cfg(not(any(test, feature = "rust-cryptocell310")))]
+#[cfg(not(any(test, feature = "rust-cryptocell310", feature = "rust-psa-baremetal")))]
 #[panic_handler]
 fn my_panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
 // Panic handler for cortex-m targets
-#[cfg(feature = "rust-cryptocell310")]
+#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 use panic_semihosting as _;
+
+// mbedtls requires a memory allocator
+#[cfg(feature = "rust-psa-baremetal")]
+use embedded_alloc::Heap;
+
+#[cfg(feature = "rust-psa-baremetal")]
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
 
 #[no_mangle]
 pub extern "C" fn edhoc_add(a: i32, b: i32) -> i32 {
     a + b
+}
+
+use edhoc_crypto::p256_generate_key_pair;
+#[no_mangle]
+pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_public_key: *mut u8) {
+    let (private_key, public_key) = p256_generate_key_pair();
+
+    unsafe {
+        // copy the arrays to the pointers received from C
+        // this makes sure that data is not dropped when the function returns
+        core::ptr::copy_nonoverlapping(private_key.as_ptr(), out_private_key, P256_ELEM_LEN);
+        core::ptr::copy_nonoverlapping(public_key.as_ptr(), out_public_key, P256_ELEM_LEN);
+    }
 }
 
 #[repr(C)]

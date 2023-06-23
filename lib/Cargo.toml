@@ -16,6 +16,7 @@ edhoc-crypto = { path = "../crypto", default-features = false }
 edhoc-consts = { path = "../consts", default-features = false }
 edhoc-ead = { path = "../ead", default-features = false }
 panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }
+embedded-alloc = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 cbindgen = "0.24.5"
@@ -28,7 +29,7 @@ hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-
 hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-consts/hacspec" ]
 hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cryptocell310", "edhoc-consts/hacspec" ]
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
-rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust" ]
+rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust", "panic-semihosting", "embedded-alloc" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust", "panic-semihosting" ]
 ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
