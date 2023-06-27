@@ -11,7 +11,9 @@ static const uint8_t R[] = "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140
 static const uint8_t I[] = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
 static const uint8_t G_R[] = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
 
- int main(void)
+// TODO: make the edhoc-rs code run in a separate thread which has more stack size,
+// so that we do not need to set the stack size of the main thread to 16KB.
+int main(void)
  {
     puts("Calling edhoc-rs from C!");
 
@@ -20,6 +22,8 @@ static const uint8_t G_R[] = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac
     uint8_t out_public_key[32] = {0};
     p256_generate_key_pair_from_c(out_private_key, out_public_key);
     puts("End test: generate key pair.");
+    od_hex_dump(out_private_key, 32, OD_WIDTH_DEFAULT);
+    od_hex_dump(out_public_key, 32, OD_WIDTH_DEFAULT);
 
     puts("Begin test: edhoc handshake.");
     RustEdhocInitiatorC initiator = initiator_new(I, 32*2, G_R, 32*2, ID_CRED_I, 4*2, CRED_I, 107*2, ID_CRED_R, 4*2, CRED_R, 84*2);
