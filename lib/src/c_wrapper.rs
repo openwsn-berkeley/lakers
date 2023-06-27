@@ -184,7 +184,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
             *message_1 = msg_1;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *initiator_c = initiator.to_c();
@@ -201,7 +201,7 @@ pub unsafe extern "C" fn responder_process_message_1(
 
     let result = match responder.process_message_1(&*message_1) {
         Ok(_) => 0,
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *responder_c = responder.to_c();
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn responder_prepare_message_2(
             *c_r = c_r_res;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *responder_c = responder.to_c();
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn initiator_process_message_2(
             *c_r = c_r_res;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *initiator_c = initiator.to_c();
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
             *prk_out = prk_out_res;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *initiator_c = initiator.to_c();
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn responder_process_message_3(
             *prk_out = prk_out_res;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     };
 
     *responder_c = responder.to_c();
