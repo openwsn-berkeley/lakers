@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "edhoc_consts.h"
+#ifndef EDHOC_FEATURES
+#define EDHOC_FEATURES RUST_CRYPTOCELL310
+#endif
 
 typedef struct RustEdhocResponderC {
   State state;

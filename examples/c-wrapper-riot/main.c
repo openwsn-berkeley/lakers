@@ -2,6 +2,10 @@
 #include "od.h"
 #include "edhoc_rs.h"
 
+#ifdef RUST_PSA
+extern void mbedtls_memory_buffer_alloc_init(uint8_t *buf, size_t len);
+#endif
+
 static const uint8_t ID_CRED_I[] = "a104412b";
 static const uint8_t ID_CRED_R[] = "a104410a";
 static const uint8_t CRED_I[] = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
@@ -11,11 +15,15 @@ static const uint8_t R[] = "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140
 static const uint8_t I[] = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
 static const uint8_t G_R[] = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
 
-// TODO: make the edhoc-rs code run in a separate thread which has more stack size,
-// so that we do not need to set the stack size of the main thread to 16KB.
 int main(void)
  {
     puts("Calling edhoc-rs from C!");
+
+#ifdef RUST_PSA
+    // Memory buffer for mbedtls
+    uint8_t buffer[4096 * 2] = {0};
+    mbedtls_memory_buffer_alloc_init(buffer, 4096 * 2);
+#endif
 
     puts("Begin test: generate key pair.");
     uint8_t out_private_key[32] = {0};
