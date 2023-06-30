@@ -27,7 +27,7 @@ pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_pu
 }
 
 #[repr(C)]
-pub struct RustEdhocInitiatorC {
+pub struct EdhocInitiatorC {
     pub state: State,
     pub i: *const u8,
     pub i_len: usize,
@@ -43,7 +43,7 @@ pub struct RustEdhocInitiatorC {
     pub cred_r_len: usize,
 }
 
-impl RustEdhocInitiatorC {
+impl EdhocInitiatorC {
     pub fn to_rust(&self) -> RustEdhocInitiator {
         RustEdhocInitiator::new(
             self.state,
@@ -66,7 +66,7 @@ impl RustEdhocInitiatorC {
 }
 
 #[repr(C)]
-pub struct RustEdhocResponderC {
+pub struct EdhocResponderC {
     pub state: State,
     pub r: *const u8,
     pub r_len: usize,
@@ -82,7 +82,7 @@ pub struct RustEdhocResponderC {
     pub cred_r_len: usize,
 }
 
-impl RustEdhocResponderC {
+impl EdhocResponderC {
     pub fn to_rust(&self) -> RustEdhocResponder {
         RustEdhocResponder::new(
             self.state,
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn responder_new(
     id_cred_r_len: usize,
     cred_r: *const u8,
     cred_r_len: usize,
-) -> RustEdhocResponderC {
+) -> EdhocResponderC {
     RustEdhocResponder::new(
         State::default(),
         str::from_utf8_unchecked(slice::from_raw_parts(r, r_len)),
@@ -145,7 +145,7 @@ pub unsafe extern "C" fn initiator_new(
     id_cred_r_len: usize,
     cred_r: *const u8,
     cred_r_len: usize,
-) -> RustEdhocInitiatorC {
+) -> EdhocInitiatorC {
     RustEdhocInitiator::new(
         State::default(),
         str::from_utf8_unchecked(slice::from_raw_parts(i, i_len)),
@@ -160,7 +160,7 @@ pub unsafe extern "C" fn initiator_new(
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_prepare_message_1(
-    initiator_c: *mut RustEdhocInitiatorC,
+    initiator_c: *mut EdhocInitiatorC,
     message_1: *mut EdhocMessageBuffer,
 ) -> i8 {
     let mut initiator = (*initiator_c).to_rust();
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
 
 #[no_mangle]
 pub unsafe extern "C" fn responder_process_message_1(
-    responder_c: *mut RustEdhocResponderC,
+    responder_c: *mut EdhocResponderC,
     message_1: *const EdhocMessageBuffer,
 ) -> i8 {
     let mut responder = (*responder_c).to_rust();
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn responder_process_message_1(
 
 #[no_mangle]
 pub unsafe extern "C" fn responder_prepare_message_2(
-    responder_c: *mut RustEdhocResponderC,
+    responder_c: *mut EdhocResponderC,
     message_2: *mut EdhocMessageBuffer,
     c_r: *mut u8,
 ) -> i8 {
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn responder_prepare_message_2(
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_process_message_2(
-    initiator_c: *mut RustEdhocInitiatorC,
+    initiator_c: *mut EdhocInitiatorC,
     message_2: *const EdhocMessageBuffer,
     c_r: *mut u8,
 ) -> i8 {
@@ -240,7 +240,7 @@ pub unsafe extern "C" fn initiator_process_message_2(
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_prepare_message_3(
-    initiator_c: *mut RustEdhocInitiatorC,
+    initiator_c: *mut EdhocInitiatorC,
     message_3: *mut EdhocMessageBuffer,
     prk_out: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
@@ -262,7 +262,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
 
 #[no_mangle]
 pub unsafe extern "C" fn responder_process_message_3(
-    responder_c: *mut RustEdhocResponderC,
+    responder_c: *mut EdhocResponderC,
     message_3: *const EdhocMessageBuffer,
     prk_out: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {

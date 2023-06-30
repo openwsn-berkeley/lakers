@@ -361,8 +361,8 @@ mod rust {
     }
 
     impl<'a> RustEdhocResponder<'a> {
-        pub fn to_c(&self) -> RustEdhocResponderC {
-            RustEdhocResponderC {
+        pub fn to_c(&self) -> EdhocResponderC {
+            EdhocResponderC {
                 state: self.state,
                 r: self.r.as_ptr(),
                 r_len: self.r.len(),
@@ -483,8 +483,8 @@ mod rust {
     }
 
     impl<'a> RustEdhocInitiator<'a> {
-        pub fn to_c(&self) -> RustEdhocInitiatorC {
-            RustEdhocInitiatorC {
+        pub fn to_c(&self) -> EdhocInitiatorC {
+            EdhocInitiatorC {
                 state: self.state,
                 i: self.i.as_ptr(),
                 i_len: self.i.len(),
