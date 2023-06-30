@@ -7,5 +7,5 @@ make all flash term
 Run with `rust-psa-baremetal`:
 
 ```bash
-make all flash term EXTRA_CFLAGS+="-D EDHOC_FEATURES=RUST_PSA"
+make all flash term EDHOC_CRYPTO=RUST_PSA
 ```

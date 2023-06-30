@@ -9,20 +9,14 @@ use panic_semihosting as _;
 // mbedtls requires a memory allocator
 #[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 use embedded_alloc::Heap;
-
 #[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
 
-#[no_mangle]
-pub extern "C" fn edhoc_add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-use edhoc_crypto::p256_generate_key_pair;
+// This function is mainly used to test the C wrapper
 #[no_mangle]
 pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_public_key: *mut u8) {
-    let (private_key, public_key) = p256_generate_key_pair();
+    let (private_key, public_key) = edhoc_crypto::p256_generate_key_pair();
 
     unsafe {
         // copy the arrays to the pointers received from C

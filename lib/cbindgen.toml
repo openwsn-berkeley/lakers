@@ -9,13 +9,6 @@ header = """
  * ================================================================================================
  */"""
 includes = ["edhoc_consts.h"]
-# after_includes = """
-
-# #define RUST_CRYPTOCELL310 1
-# #define RUST_PSA 2
-# #ifndef EDHOC_FEATURES
-# #define EDHOC_FEATURES RUST_CRYPTOCELL310
-# #endif"""
 
 [parse.expand]
 all_features = false

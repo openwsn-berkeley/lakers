@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# This script builds the static library for a cortex-m4 target
+# It also generates the header files for the c wrapper
+# The script takes one argument: the cargo feature to use
+
+# This script should not be necessary, it exists due to several flags clashing and preventing CI from passing.
+# The main reason being that the build behaves differently then crate-type is set to staticlib,
+# for example, running tests required a panic handler and an "eh_personality" function, but then
+# this would clash when building the static library or the no_std example.
+
 cargo_features=$1
 
 if [[ $cargo_features != "rust-cryptocell310" && $cargo_features != "rust-psa-baremetal" ]]; then
