@@ -2,16 +2,6 @@ use crate::rust::*;
 use core::{slice, str};
 use edhoc_consts::*;
 
-// Rust requires a panic handler to build a static library for cortex-m in no_std mode
-// Generic panic handler
-#[cfg(not(any(test, feature = "rust-cryptocell310", feature = "rust-psa-baremetal")))]
-#[panic_handler]
-fn my_panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
-
-// Panic handler for cortex-m targets
-#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 use panic_semihosting as _;
 
 // mbedtls requires a memory allocator

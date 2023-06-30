@@ -35,4 +35,4 @@ ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
 
 [lib]
-crate-type = ["rlib", "staticlib"] # build both a rust library and a static library
+crate-type = ["rlib"]

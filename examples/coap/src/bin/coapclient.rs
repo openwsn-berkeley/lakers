@@ -25,12 +25,14 @@ fn main() {
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
     let message_1 = initiator.prepare_message_1().unwrap();
     msg_1_buf.extend_from_slice(&message_1.content[..message_1.len]);
+    println!("message_1 len = {}", msg_1_buf.len());
 
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
     if response.get_status() != &ResponseType::Changed {
         panic!("Message 1 response error: {:?}", response.get_status());
     }
     println!("response_vec = {:02x?}", response.message.payload);
+    println!("message_2 len = {}", response.message.payload.len());
 
     let c_r = initiator.process_message_2(
         &response.message.payload[..]
@@ -42,6 +44,7 @@ fn main() {
         let mut msg_3 = Vec::from([c_r.unwrap()]);
         let (message_3, _prk_out) = initiator.prepare_message_3().unwrap();
         msg_3.extend_from_slice(&message_3.content[..message_3.len]);
+        println!("message_3 len = {}", msg_3.len());
 
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
         // we don't care about the response to message_3 for now
