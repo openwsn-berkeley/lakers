@@ -25,12 +25,12 @@ cbindgen = "0.24.5"
 default = [ "edhoc-ead/ead-none" ]
 hacspec-hacspec = ["hacspec-lib/std", "edhoc-hacspec", "edhoc-crypto/hacspec", "edhoc-consts/hacspec" ]
 hacspec-cc2538 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cc2538", "edhoc-consts/hacspec" ] # FIXME: stubs
-hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-consts/hacspec" ]
-hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-consts/hacspec" ]
+hacspec-psa = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/psa", "edhoc-consts/hacspec", "embedded-alloc" ]
+hacspec-psa-baremetal = ["hacspec-psa", "edhoc-crypto/psa-baremetal", "edhoc-consts/hacspec", "embedded-alloc" ]
 hacspec-cryptocell310 = ["hacspec-lib/alloc", "edhoc-hacspec", "edhoc-crypto/cryptocell310", "edhoc-consts/hacspec" ]
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust", "panic-semihosting", "embedded-alloc" ]
-rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust", "panic-semihosting" ]
+rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust", "panic-semihosting", "embedded-alloc" ]
 ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
 

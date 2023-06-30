@@ -2,13 +2,15 @@ use crate::rust::*;
 use core::{slice, str};
 use edhoc_consts::*;
 
+// // Panic handler for cortex-m targets
+#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 use panic_semihosting as _;
 
 // mbedtls requires a memory allocator
-#[cfg(feature = "rust-psa-baremetal")]
+#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 use embedded_alloc::Heap;
 
-#[cfg(feature = "rust-psa-baremetal")]
+#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
 
