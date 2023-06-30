@@ -69,6 +69,36 @@ jobs:
       run: cargo build --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, ${{ matrix.ead }}" --release
 
 
+  hacspec-to-fstar:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout edhoc-rs
+      uses: actions/checkout@v3
+
+    - name: Patch edhoc-rs features
+      run: git apply ./hacspec/adjust_features_for_hax.patch
+
+    - name: Checkout hacspec-v2
+      uses: actions/checkout@v3
+      with:
+        repository: 'hacspec/hacspec-v2'
+        path: hacspec-v2-repo
+
+    - name: Build hacspec-v2 docker image
+      run: docker build -f .docker/Dockerfile . -t hacspec-v2
+      working-directory: hacspec-v2-repo
+
+    - name: Generate fstar
+      run: docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-hax into fstar"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: fstar-code
+        path: ./hacspec/out/*
+
+
   run-example-on-qemu:
     needs: unit-tests
     runs-on: ubuntu-latest
@@ -137,21 +167,21 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example]
+    needs: [build-edhoc-package, hacspec-to-fstar, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      # TODO: add the fstar code once it is working on CI
-      # - name: Download artifacts
-      #   uses: actions/download-artifact@v3
-      #   with:
-      #     name: artifacts
-      #     path: ./artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: fstar-code
+          path: ./fstar-code
       - name: Release
         uses: ncipollo/release-action@v1
         with:
           generateReleaseNotes: true
+          artifacts: "fstar-code/*"
           token: ${{ secrets.RELEASE_TOKEN }}
