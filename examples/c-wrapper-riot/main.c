@@ -58,8 +58,7 @@ int main(void)
     od_hex_dump(prk_out_responder, SHA256_DIGEST_LEN, OD_WIDTH_DEFAULT);
 
     // Compare prk_out_initiator and prk_out_responder
-    int result = memcmp(prk_out_initiator, prk_out_responder, SHA256_DIGEST_LEN);
-    if (result != 0) {
+    if (memcmp(prk_out_initiator, prk_out_responder, SHA256_DIGEST_LEN) != 0) {
         printf("Error: prk_out_initiator and prk_out_responder do not match.\n");
         return 1;
     }
