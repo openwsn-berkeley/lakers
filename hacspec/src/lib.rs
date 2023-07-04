@@ -683,58 +683,56 @@ fn parse_suites_i(
     let mut suites_i_len: usize = 0;
 
     // match based on first byte of SUITES_I, which can be either an int or an array
-    match (rcvd_message_1.content[1] as U8).declassify() {
+    let suites_i_first = (rcvd_message_1.content[1] as U8).declassify();
+    if suites_i_first >= 0x00 && suites_i_first <= 0x17 {
         // CBOR unsigned integer (0..=23)
-        0x00..=0x17 => {
-            suites_i[0] = rcvd_message_1.content[1];
-            suites_i_len = 1;
-            raw_suites_len = 1;
-            error = EDHOCError::Success;
-        }
+        suites_i[0] = rcvd_message_1.content[1];
+        suites_i_len = 1;
+        raw_suites_len = 1;
+        error = EDHOCError::Success;
+    } else if suites_i_first == 0x18 {
         // CBOR unsigned integer (one-byte uint8_t follows)
-        0x18 => {
-            suites_i[0] = rcvd_message_1.content[2];
-            suites_i_len = 1;
-            raw_suites_len = 2;
-            error = EDHOCError::Success;
-        }
+        suites_i[0] = rcvd_message_1.content[2];
+        suites_i_len = 1;
+        raw_suites_len = 2;
+        error = EDHOCError::Success;
+    } else if suites_i_first >= 0x80 && suites_i_first <= 0x97 {
         // CBOR array (0..=23 data items follow)
-        0x80..=0x97 => {
-            // the CBOR array length is encoded in the first byte, so we extract it
-            let suites_len: U8 = rcvd_message_1.content[1] - U8(CBOR_MAJOR_ARRAY);
-            let suites_len: usize = suites_len.declassify().into();
-            raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
-            if suites_len <= EDHOC_SUITES.len() {
-                let mut j: usize = 0; // index for addressing cipher suites
-                while j < suites_len {
-                    raw_suites_len += 1;
-                    // match based on cipher suite identifier
-                    match (rcvd_message_1.content[raw_suites_len] as U8).declassify() {
+        // the CBOR array length is encoded in the first byte, so we extract it
+        let suites_len: U8 = rcvd_message_1.content[1] - U8(CBOR_MAJOR_ARRAY);
+        let suites_len: usize = suites_len.declassify().into();
+        raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
+        if suites_len <= EDHOC_SUITES.len() {
+            let mut error_occurred = false;
+            for j in 0..suites_len {
+                raw_suites_len += 1;
+                if !error_occurred {
+                    // parse based on cipher suite identifier
+                    let cs_id = (rcvd_message_1.content[raw_suites_len] as U8).declassify();
+                    if cs_id >= 0x00 && cs_id <= 0x17 {
                         // CBOR unsigned integer (0..23)
-                        0x00..=0x17 => {
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                            suites_i_len += 1;
-                        }
+                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                        suites_i_len += 1;
+                    } else if cs_id == 0x18 {
                         // CBOR unsigned integer (one-byte uint8_t follows)
-                        0x18 => {
-                            raw_suites_len += 1; // account for the 0x18 tag byte
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                            suites_i_len += 1;
-                        }
-                        _ => {
-                            error = EDHOCError::ParsingError;
-                            break;
-                        }
+                        raw_suites_len += 1; // account for the 0x18 tag byte
+                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                        suites_i_len += 1;
+                    } else {
+                        error = EDHOCError::ParsingError;
+                        error_occurred = true;
                     }
-                    j += 1;
                 }
-                error = EDHOCError::Success;
-            } else {
-                error = EDHOCError::ParsingError;
             }
+            if !error_occurred {
+                error = EDHOCError::Success;
+            }
+        } else {
+            error = EDHOCError::ParsingError;
         }
-        _ => error = EDHOCError::ParsingError,
-    };
+    } else {
+        error = EDHOCError::ParsingError;
+    }
 
     match error {
         EDHOCError::Success => Ok((suites_i, suites_i_len, raw_suites_len)),
@@ -751,13 +749,15 @@ fn parse_ead(
     let mut ead_value = None::<EdhocMessageBufferHacspec>;
 
     // assume label is either a single byte integer (negative or positive)
-    let label = message.content[offset];
-    let res_label = match label.declassify() {
+    let label = message.content[offset].declassify();
+    let res_label = if label >= 0x00 && label <= 0x17 {
         // CBOR unsigned integer (0..=23)
-        label @ 0x00..=0x17 => Ok((label as u8, false)),
+        Ok((label as u8, false))
+    } else if label >= 0x20 && label <= 0x37 {
         // CBOR negative integer (-1..=-24)
-        label @ 0x20..=0x37 => Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true)),
-        _ => Err(EDHOCError::ParsingError),
+        Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
+    } else {
+        Err(EDHOCError::ParsingError)
     };
 
     if res_label.is_ok() {
@@ -898,8 +898,7 @@ fn encode_message_1(
         // several suites, will be encoded as an array
         output.content[1] = U8(CBOR_MAJOR_ARRAY + suites_len as u8);
         raw_suites_len += 1;
-        let mut i: usize = 0;
-        while i < suites_len {
+        for i in 0..suites_len {
             if (suites[i] as U8).declassify() <= CBOR_UINT_1BYTE {
                 output.content[1 + raw_suites_len] = suites[i];
                 raw_suites_len += 1;
@@ -908,7 +907,6 @@ fn encode_message_1(
                 output.content[2 + raw_suites_len] = suites[i];
                 raw_suites_len += 2;
             }
-            i += 1;
         }
     };
 
