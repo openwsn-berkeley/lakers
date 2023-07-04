@@ -17,10 +17,8 @@ use edhoc_rs::*;
 
 extern crate alloc;
 
-#[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
 use embedded_alloc::Heap;
 
-#[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
 
