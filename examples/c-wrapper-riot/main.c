@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "od.h"
 #include "edhoc_rs.h"
 
@@ -55,6 +56,13 @@ int main(void)
     od_hex_dump(prk_out_initiator, SHA256_DIGEST_LEN, OD_WIDTH_DEFAULT);
     printf("\nprk_out_responder: \n");
     od_hex_dump(prk_out_responder, SHA256_DIGEST_LEN, OD_WIDTH_DEFAULT);
+
+    // Compare prk_out_initiator and prk_out_responder
+    int result = memcmp(prk_out_initiator, prk_out_responder, SHA256_DIGEST_LEN);
+    if (result != 0) {
+        printf("Error: prk_out_initiator and prk_out_responder do not match.\n");
+        return 1;
+    }
 
     puts("End test: edhoc handshake.");
 
