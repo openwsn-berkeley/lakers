@@ -4,7 +4,7 @@ APPLICATION = c-wrapper-riot
 # If no BOARD is found in the environment, use this default:
 BOARD ?= nrf52840dk
 
-INCLUDES += -I$(CURDIR)/../../include
+INCLUDES += -I$(CURDIR)/../../target/include
 ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/libedhoc_rs.a
 
 ifeq ($(EDHOC_CRYPTO), RUST_PSA)

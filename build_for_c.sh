@@ -23,12 +23,12 @@ new_value='crate-type = ["staticlib"]'
 echo "Changing crate-type to:   $new_value"
 sed -i -E "s/crate-type.*/$new_value/" lib/Cargo.toml
 
-# generate the headers
-cbindgen --config consts/cbindgen.toml --crate edhoc-consts --output include/edhoc_consts.h -v
-cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output include/edhoc_rs.h -v
-
 # generate the static library
 cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package edhoc-crypto --package edhoc-ead  --features="$cargo_features" --release
+
+# generate the headers
+cbindgen --config consts/cbindgen.toml --crate edhoc-consts --output ./target/include/edhoc_consts.h -v
+cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output ./target/include/edhoc_rs.h -v
 
 echo "Reverting crate-type to original value:   $original_value"
 sed -i -E "s/crate-type.*/$original_value/" lib/Cargo.toml
