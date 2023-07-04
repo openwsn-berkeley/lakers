@@ -10,3 +10,4 @@ cscope*
 *.swo
 .DS_Store
 .vscode
+*.fst

@@ -40,6 +40,20 @@ mod edhoc;
 use edhoc::*;
 
 #[cfg(any(
+    feature = "rust-psa",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
+mod c_wrapper;
+
+#[cfg(any(
+    feature = "rust-psa",
+    feature = "rust-psa-baremetal",
+    feature = "rust-cryptocell310"
+))]
+use c_wrapper::*;
+
+#[cfg(any(
     feature = "hacspec-hacspec",
     feature = "hacspec-cc2538",
     feature = "hacspec-psa",
@@ -50,6 +64,7 @@ mod hacspec {
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocInitiator<'a> {
         state: State,       // opaque state
@@ -61,6 +76,7 @@ mod hacspec {
         cred_r: &'a str,    // R's full credential
     }
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct HacspecEdhocResponder<'a> {
         state: State,       // opaque state
@@ -345,6 +361,24 @@ mod rust {
     }
 
     impl<'a> RustEdhocResponder<'a> {
+        pub fn to_c(&self) -> EdhocResponderC {
+            EdhocResponderC {
+                state: self.state,
+                r: self.r.as_ptr(),
+                r_len: self.r.len(),
+                g_i: self.g_i.as_ptr(),
+                g_i_len: self.g_i.len(),
+                id_cred_i: self.id_cred_i.as_ptr(),
+                id_cred_i_len: self.id_cred_i.len(),
+                cred_i: self.cred_i.as_ptr(),
+                cred_i_len: self.cred_i.len(),
+                id_cred_r: self.id_cred_r.as_ptr(),
+                id_cred_r_len: self.id_cred_r.len(),
+                cred_r: self.cred_r.as_ptr(),
+                cred_r_len: self.cred_r.len(),
+            }
+        }
+
         pub fn new(
             state: State,
             r: &'a str,
@@ -449,6 +483,24 @@ mod rust {
     }
 
     impl<'a> RustEdhocInitiator<'a> {
+        pub fn to_c(&self) -> EdhocInitiatorC {
+            EdhocInitiatorC {
+                state: self.state,
+                i: self.i.as_ptr(),
+                i_len: self.i.len(),
+                g_r: self.g_r.as_ptr(),
+                g_r_len: self.g_r.len(),
+                id_cred_i: self.id_cred_i.as_ptr(),
+                id_cred_i_len: self.id_cred_i.len(),
+                cred_i: self.cred_i.as_ptr(),
+                cred_i_len: self.cred_i.len(),
+                id_cred_r: self.id_cred_r.as_ptr(),
+                id_cred_r_len: self.id_cred_r.len(),
+                cred_r: self.cred_r.as_ptr(),
+                cred_r_len: self.cred_r.len(),
+            }
+        }
+
         pub fn new(
             state: State,
             i: &'a str,

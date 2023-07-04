@@ -10,6 +10,7 @@ pub use rust::*;
 
 mod common {
 
+    #[repr(C)]
     #[derive(Default, PartialEq, Copy, Clone, Debug)]
     pub enum EDHOCState {
         #[default]
@@ -21,6 +22,7 @@ mod common {
         Completed = 5,         // initiator and responder
     }
 
+    #[repr(C)]
     #[derive(PartialEq, Debug)]
     pub enum EDHOCError {
         Success = 0,
@@ -34,6 +36,7 @@ mod common {
         UnknownError = 8,
     }
 
+    #[repr(C)]
     #[derive(PartialEq, Debug)]
     pub struct EdhocMessageBuffer {
         pub content: [u8; MAX_MESSAGE_SIZE_LEN],
@@ -175,6 +178,7 @@ mod rust {
     pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(
         pub EDHOCState,
@@ -343,6 +347,7 @@ mod hacspec {
         BytesSupportedSuites(secret_bytes!([0x2u8]));
     pub const EDHOC_SUITES: BytesSuites = BytesSuites(secret_bytes!([0, 1, 2, 3, 4, 5, 6, 24, 25])); // all but private cipher suites
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(
         pub EDHOCState,
