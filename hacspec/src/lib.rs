@@ -122,10 +122,9 @@ pub fn r_process_message_1(
 /// Constructs message_2, which has the following format:
 ///   message_2 = (
 ///     G_Y_CIPHERTEXT_2 : bstr,
-///     C_R : bstr / -24..23,
 ///   )
 /// Note that the plaintext is:
-///   PLAINTEXT_2 = ( ID_CRED_R / bstr / -24..23, Signature_or_MAC_2, ? EAD_2 )
+///   PLAINTEXT_2 = ( C_R, ID_CRED_R / bstr / -24..23, Signature_or_MAC_2, ? EAD_2 )
 /// returns: (state, message_2, c_r)
 pub fn r_prepare_message_2(
     mut state: State,
@@ -465,8 +464,7 @@ pub fn i_process_message_2(
     let mut kid = U8(0xffu8); // invalidate kid
 
     if current_state == EDHOCState::WaitMessage2 {
-        let (g_y, ciphertext_2, c_r_2) = parse_message_2(message_2);
-        c_r = c_r_2;
+        let (g_y, ciphertext_2) = parse_message_2(message_2);
 
         let th_2 = compute_th_2(&g_y, &h_message_1);
 
@@ -480,7 +478,8 @@ pub fn i_process_message_2(
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
         if plaintext_2_decoded.is_ok() {
-            let (kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+            let (c_r_2, kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+            c_r = c_r_2;
 
             // Step 3: If EAD is present make it available to the application
             let ead_success = if let Some(ead_2) = ead_2 {
@@ -926,15 +925,14 @@ fn encode_message_1(
     output
 }
 
-fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, BufferCiphertext2, U8) {
+fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, BufferCiphertext2) {
     // FIXME decode negative integers as well
     let g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
-    let ciphertext_2_len = rcvd_message_2.len - 1 - P256_ELEM_LEN - 2; // len - cr_len - gy_len - 2
+    let ciphertext_2_len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
     let ciphertext_2 =
         BufferCiphertext2::from_slice(&rcvd_message_2.content, 2 + P256_ELEM_LEN, ciphertext_2_len);
-    let c_r = rcvd_message_2.content[2 + P256_ELEM_LEN + ciphertext_2.len];
 
-    (g_y, ciphertext_2, c_r)
+    (g_y, ciphertext_2)
 }
 
 fn encode_message_2(
@@ -1286,21 +1284,22 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, BytesMac2, Option<EADItemHacspec>), EDHOCError> {
+) -> Result<(U8, U8, BytesMac2, Option<EADItemHacspec>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
     let mut ead_2 = None::<EADItemHacspec>;
 
-    let id_cred_r = plaintext_2[0];
+    let c_r = plaintext_2[0];
+    let id_cred_r = plaintext_2[1];
     // NOTE: skipping cbor byte string byte as we know how long the string is
-    let mac_2 = BytesMac2::from_slice(plaintext_2, 2, MAC_LENGTH_2);
+    let mac_2 = BytesMac2::from_slice(plaintext_2, 3, MAC_LENGTH_2);
 
     // if there is still more to parse, the rest will be the EAD_2
-    if plaintext_2_len > (2 + MAC_LENGTH_2) {
+    if plaintext_2_len > (3 + MAC_LENGTH_2) {
         // NOTE: since the current implementation only supports one EAD handler,
         // we assume only one EAD item
         let ead_res = parse_ead(
             &EdhocMessageBufferHacspec::from_slice(plaintext_2, 0, plaintext_2_len),
-            2 + MAC_LENGTH_2,
+            3 + MAC_LENGTH_2,
         );
         if ead_res.is_ok() {
             ead_2 = ead_res.unwrap();
@@ -1308,14 +1307,14 @@ fn decode_plaintext_2(
         } else {
             error = ead_res.unwrap_err();
         }
-    } else if plaintext_2_len == (2 + MAC_LENGTH_2) {
+    } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
         error = EDHOCError::Success;
     } else {
         error = EDHOCError::ParsingError;
     }
 
     match error {
-        EDHOCError::Success => Ok((id_cred_r, mac_2, ead_2)),
+        EDHOCError::Success => Ok((c_r, id_cred_r, mac_2, ead_2)),
         _ => Err(error),
     }
 }
@@ -1605,13 +1604,11 @@ mod tests {
         let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let c_r_tv = U8(C_R_TV);
 
-        let (g_y, ciphertext_2, c_r) = parse_message_2(&message_2_tv);
+        let (g_y, ciphertext_2) = parse_message_2(&message_2_tv);
 
         assert_bytes_eq!(g_y, g_y_tv);
         assert_bytes_eq!(ciphertext_2.content, ciphertext_2_tv.content);
-        assert_eq!(c_r.declassify(), c_r_tv.declassify());
     }
 
     #[test]
@@ -1773,12 +1770,14 @@ mod tests {
             0,
             PLAINTEXT_2_TV.len() / 2,
         );
+        let c_r_tv = U8(C_R_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
         let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, PLAINTEXT_2_LEN_TV);
         assert!(plaintext_2.is_ok());
-        let (id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
+        let (c_r, id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
+        assert_eq!(U8::declassify(c_r), U8::declassify(c_r_tv));
         assert_eq!(U8::declassify(id_cred_r), U8::declassify(id_cred_r_tv[3]));
         assert_bytes_eq!(mac_2, mac_2_tv);
         assert!(ead_2.is_none());
