@@ -36,7 +36,7 @@ pub fn edhoc_exporter(
     }
 }
 
-/// process message_2: parse, check method, check cipher suite
+/// process message_1: parse, check method, check cipher suite
 pub fn r_process_message_1(
     mut state: State,
     message_1: &BufferMessage1,
@@ -158,7 +158,7 @@ pub fn r_prepare_message_2(
         c_r = C_R;
 
         // compute TH_2
-        let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
+        let th_2 = compute_th_2(&g_y, &h_message_1);
 
         // compute prk_3e2m
         let prk_2e = compute_prk_2e(&y, &g_x, &th_2);
@@ -469,7 +469,7 @@ pub fn i_process_message_2(
         let (g_y, ciphertext_2, c_r_2) = parse_message_2(message_2);
         c_r = c_r_2;
 
-        let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
+        let th_2 = compute_th_2(&g_y, &h_message_1);
 
         // compute prk_2e
         let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
@@ -960,17 +960,16 @@ fn encode_message_2(
     output
 }
 
-fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> BytesHashLen {
+fn compute_th_2(g_y: &BytesP256ElemLen, h_message_1: &BytesHashLen) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(P256_ELEM_LEN as u8);
     message = message.update(2, g_y);
-    message[2 + P256_ELEM_LEN] = c_r;
-    message[3 + P256_ELEM_LEN] = U8(CBOR_BYTE_STRING);
-    message[4 + P256_ELEM_LEN] = U8(SHA256_DIGEST_LEN as u8);
-    message = message.update(5 + P256_ELEM_LEN, h_message_1);
+    message[2 + P256_ELEM_LEN] = U8(CBOR_BYTE_STRING);
+    message[3 + P256_ELEM_LEN] = U8(SHA256_DIGEST_LEN as u8);
+    message = message.update(4 + P256_ELEM_LEN, h_message_1);
 
-    let len = 5 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
+    let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
     let th_2 = sha256_digest(&message, len);
 
@@ -1621,10 +1620,9 @@ mod tests {
     fn test_compute_th_2() {
         let h_message_1_tv = BytesHashLen::from_hex(H_MESSAGE_1_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
-        let c_r_tv = U8(C_R_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
 
-        let th_2 = compute_th_2(&g_y_tv, c_r_tv, &h_message_1_tv);
+        let th_2 = compute_th_2(&g_y_tv, &h_message_1_tv);
         assert_bytes_eq!(th_2, th_2_tv);
     }
 
