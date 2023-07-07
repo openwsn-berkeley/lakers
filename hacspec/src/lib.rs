@@ -174,7 +174,7 @@ pub fn r_prepare_message_2(
         };
 
         // compute ciphertext_2
-        let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &ead_2);
+        let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
@@ -186,7 +186,6 @@ pub fn r_prepare_message_2(
         message_2 = encode_message_2(
             &g_y,
             &BufferCiphertext2::from_slice(&ciphertext_2, 0, ciphertext_2_len),
-            c_r,
         );
 
         error = EDHOCError::Success;
@@ -941,7 +940,6 @@ fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, Buffer
 fn encode_message_2(
     g_y: &BytesP256ElemLen,
     ciphertext_2: &BufferCiphertext2,
-    c_r: U8,
 ) -> BufferMessage2 {
     let mut output = BufferMessage2::new();
 
@@ -954,9 +952,8 @@ fn encode_message_2(
         0,
         ciphertext_2.len,
     );
-    output.content[2 + P256_ELEM_LEN + ciphertext_2.len] = c_r;
 
-    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len + 1;
+    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len;
     output
 }
 
@@ -1324,15 +1321,17 @@ fn decode_plaintext_2(
 }
 
 fn encode_plaintext_2(
+    c_r: U8,
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItemHacspec>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2 = BufferPlaintext2::new();
-    plaintext_2.content[0] = id_cred_r[id_cred_r.len() - 1];
-    plaintext_2.content[1] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
-    plaintext_2.content = plaintext_2.content.update(2, mac_2);
-    plaintext_2.len = 2 + MAC_LENGTH_3;
+    plaintext_2.content[0] = c_r;
+    plaintext_2.content[1] = id_cred_r[id_cred_r.len() - 1];
+    plaintext_2.content[2] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
+    plaintext_2.content = plaintext_2.content.update(3, mac_2);
+    plaintext_2.len = 3 + MAC_LENGTH_3;
 
     if let Some(ead_2) = ead_2 {
         let ead_2 = encode_ead_item(ead_2);
@@ -1595,9 +1594,8 @@ mod tests {
         let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let c_r_tv = U8(C_R_TV);
 
-        let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv, c_r_tv);
+        let message_2 = encode_message_2(&g_y_tv, &ciphertext_2_tv);
 
         assert_bytes_eq!(message_2.content, message_2_tv.content);
     }
@@ -1759,10 +1757,11 @@ mod tests {
     #[test]
     fn test_encode_plaintext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
+        let c_r_tv = U8(C_R_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(&id_cred_r_tv, &mac_2_tv, &None::<EADItemHacspec>);
+        let plaintext_2 = encode_plaintext_2(c_r_tv, &id_cred_r_tv, &mac_2_tv, &None::<EADItemHacspec>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
