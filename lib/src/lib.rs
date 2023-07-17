@@ -623,8 +623,10 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
+    const MESSAGE_1_TV_FIRST_TIME: &str =
+        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
     const MESSAGE_1_TV: &str =
-        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
 
     #[test]
     fn test_new_initiator() {
@@ -650,13 +652,19 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
+        let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&message_1_tv);
+        // process message_1 first time, when unsupported suite is selected
+        let error = responder.process_message_1(&message_1_tv_first_time);
+        assert!(error.is_err());
+        assert_eq!(error.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
 
+        // process message_1 second time
+        let error = responder.process_message_1(&message_1_tv);
         assert!(error.is_ok());
     }
 

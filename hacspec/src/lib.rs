@@ -1444,6 +1444,16 @@ mod tests {
     use super::*;
     // test vectors (TV)
 
+    // message_1 (first_time)
+    const METHOD_TV_FIRST_TIME: u8 = 0x03;
+    const SUITES_I_TV_FIRST_TIME: &str = "060000000000000000";
+    const G_X_TV_FIRST_TIME: &str =
+        "741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9";
+    const C_I_TV_FIRST_TIME: u8 = 0x0e;
+    const MESSAGE_1_TV_FIRST_TIME: &str =
+        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+
+    // message_1 (second time)
     const METHOD_TV: u8 = 0x03;
     // manually modified test vector to include a single supported cipher suite
     const SUPPORTED_SUITES_I_TV: &str = "02";
@@ -1573,11 +1583,25 @@ mod tests {
 
     #[test]
     fn test_parse_message_1() {
+        let message_1_tv_first_time = BufferMessage1::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
+        let suites_i_tv_first_time = BytesSuites::from_hex(SUITES_I_TV_FIRST_TIME);
         let suites_i_tv = BytesSuites::from_hex(SUITES_I_TV);
+        let g_x_tv_first_time = BytesP256ElemLen::from_hex(G_X_TV_FIRST_TIME);
         let g_x_tv = BytesP256ElemLen::from_hex(G_X_TV);
+        let c_i_tv_first_time = U8(C_I_TV_FIRST_TIME);
         let c_i_tv = U8(C_I_TV);
 
+        // first time message_1 parsing
+        let res = parse_message_1(&message_1_tv_first_time);
+        assert!(res.is_ok());
+        let (method, suites_i, suites_i_len, g_x, c_i, _ead_1) = res.unwrap();
+        assert_eq!(method.declassify(), METHOD_TV_FIRST_TIME);
+        assert_bytes_eq!(suites_i, suites_i_tv_first_time);
+        assert_bytes_eq!(g_x, g_x_tv_first_time);
+        assert_eq!(c_i.declassify(), c_i_tv_first_time.declassify());
+
+        // second time message_1
         let res = parse_message_1(&message_1_tv);
         assert!(res.is_ok());
         let (method, suites_i, suites_i_len, g_x, c_i, _ead_1) = res.unwrap();
