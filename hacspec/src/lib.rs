@@ -1452,8 +1452,6 @@ mod tests {
 
     // message_1 (second time)
     const METHOD_TV: u8 = 0x03;
-    // manually modified test vector to include a single supported cipher suite
-    const SUPPORTED_SUITES_I_TV: &str = "02";
     const SUITES_I_TV: &str = "060200000000000000";
     const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
     const C_I_TV: u8 = 0x37;
@@ -1482,35 +1480,35 @@ mod tests {
     const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
     const C_R_TV: u8 = 0x27;
     pub const MESSAGE_2_LEN_TV: usize = 45;
-    pub const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_LEN_TV - P256_ELEM_LEN - 1 - 2;
+    pub const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_LEN_TV - P256_ELEM_LEN - 2;
     pub const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
     const MESSAGE_2_TV: &str =
-    "582a419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5042459e2da6c75143f3527";
-    const CIPHERTEXT_2_TV: &str = "042459e2da6c75143f35";
+    "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a11de42a95d785386a";
+    const CIPHERTEXT_2_TV: &str = "9862a11de42a95d785386a";
     const H_MESSAGE_1_TV: &str = "ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c";
-    const TH_2_TV: &str = "9d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439c";
-    const TH_3_TV: &str = "b778f602331ff68ac402a6511b9de285bedf6eab3e9ed12dfe22a53eeda7de48";
-    const CIPHERTEXT_3_TV: &str = "c2b62835dc9b1f53419c1d3a2261eeed3505";
-    const TH_4_TV: &str = "1f57dabf8f26da0657d9840c9b1077c1d4c47db243a8b41360a98ec4cb706b70";
-    const PRK_2E_TV: &str = "e01fa14dd56e308267a1a812a9d0b95341e394abc7c5c39dd71885f7d4cd5bf3";
-    const KEYSTREAM_2_TV: &str = "366c89337ff80c69359a";
-    const PRK_3E2M_TV: &str = "412d60cdf99dc7490754c969ad4c46b1350b908433ebf3fe063be8627fb35b3b";
-    const CONTEXT_INFO_MAC_2_TV: &str = "a104413258209d2af3a3d3fc06aea8110f14ba12ad0b4fb7e5cdf59c7df1cf2dfe9c2024439ca2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072";
-    const MAC_2_TV: &str = "d0d1a594797d0aaf";
+    const TH_2_TV: &str = "356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084b";
+    const TH_3_TV: &str = "dfe5b065e64c72d226d500c12d49bee6dc4881ded0965e9bdf89d24a54f2e59a";
+    const CIPHERTEXT_3_TV: &str = "473dd16077dd71d65b56e6bd71e7a49d6012";
+    const TH_4_TV: &str = "baf60adbc500fce789af25b108ada2275575056c52c1c2036a2da4a643891cb4";
+    const PRK_2E_TV: &str = "5aa0d69f3e3d1e0c479f0b8a486690c9802630c3466b1dc92371c982563170b5";
+    const KEYSTREAM_2_TV: &str = "bf50e9e7bad0bb68173399";
+    const PRK_3E2M_TV: &str = "0ca3d3398296b3c03900987620c11f6fce70781c1d1219720f9ec08c122d8434";
+    const CONTEXT_INFO_MAC_2_TV: &str = "a10441325820356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084ba2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072";
+    const MAC_2_TV: &str = "fa5efa2ebf920bf3";
     const ID_CRED_I_TV: &str = "a104412b";
-    const MAC_3_TV: &str = "ddf106b86fd22fe4";
-    const MESSAGE_3_TV: &str = "52c2b62835dc9b1f53419c1d3a2261eeed3505";
-    const PRK_4E3M_TV: &str = "7d0159bbe45473c9402e0d42dbceb45dca05b744cae1e083e58315b8aa47ceec";
-    const CRED_I_TV : &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
+    const MAC_3_TV: &str = "a5eeb9effdabfc39";
+    const MESSAGE_3_TV: &str = "52473dd16077dd71d65b56e6bd71e7a49d6012";
+    const PRK_4E3M_TV: &str = "e9cb832a240095d3d0643dbe12e9e2e7b18f0360a3172cea7ac0013ee240e072";
+    const CRED_I_TV: &str = "a2027734322d35302d33312d46462d45462d33372d33322d333908a101a5010202412b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8";
     const ID_CRED_R_TV: &str = "a1044132";
-    const CRED_R_TV : &str = "A2026B6578616D706C652E65647508A101A501020241322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
-    const PLAINTEXT_2_TV: &str = "3248d0d1a594797d0aaf";
-    const I_TV: &str = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
+    const CRED_R_TV: &str = "a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072";
+    const PLAINTEXT_2_TV: &str = "273248fa5efa2ebf920bf3";
+    const SK_I_TV: &str = "fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b";
     const X_TV: &str = "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525";
     const G_R_TV: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
-    const PLAINTEXT_3_TV: &str = "2b48ddf106b86fd22fe4";
-    const SALT_3E2M_TV: &str = "a4f767b3469a6e6ae5fcbf273839fa87c41f462b03ad1ca7ce8f37c95366d8d1";
-    const SALT_4E3M_TV: &str = "8c60d4357fba5f694a81482c4d38a1000bc3e3e2a29406d18153ffc3595c17ba";
+    const PLAINTEXT_3_TV: &str = "2b48a5eeb9effdabfc39";
+    const SALT_3E2M_TV: &str = "af4e103a47cb3cf32570d5c25ad27732bd8d8178e9a69d061c31a27f8e3ca926";
+    const SALT_4E3M_TV: &str = "84f8a2a9534ddd78dcc7e76e0d4df60bfad7cd3ad6e1d531c7f373a7eda52d1c";
     const G_XY_TV: &str = "2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba";
 
     #[test]
@@ -1842,7 +1840,7 @@ mod tests {
     #[test]
     fn test_compute_prk_4e3m() {
         let salt_4e3m_tv = BytesHashLen::from_hex(SALT_4E3M_TV);
-        let i_tv = BytesP256ElemLen::from_hex(I_TV);
+        let i_tv = BytesP256ElemLen::from_hex(SK_I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
 
