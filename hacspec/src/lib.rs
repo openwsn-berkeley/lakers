@@ -935,10 +935,7 @@ fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, Buffer
     (g_y, ciphertext_2)
 }
 
-fn encode_message_2(
-    g_y: &BytesP256ElemLen,
-    ciphertext_2: &BufferCiphertext2,
-) -> BufferMessage2 {
+fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
     let mut output = BufferMessage2::new();
 
     output.content[0] = U8(CBOR_BYTE_STRING);
@@ -1782,7 +1779,8 @@ mod tests {
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
-        let plaintext_2 = encode_plaintext_2(c_r_tv, &id_cred_r_tv, &mac_2_tv, &None::<EADItemHacspec>);
+        let plaintext_2 =
+            encode_plaintext_2(c_r_tv, &id_cred_r_tv, &mac_2_tv, &None::<EADItemHacspec>);
 
         assert_bytes_eq!(plaintext_2.content, plaintext_2_tv.content);
     }
