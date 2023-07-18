@@ -204,6 +204,23 @@ mod hacspec {
                 Err(error) => Err(error),
             }
         }
+
+        pub fn edhoc_key_update(
+            self: &mut HacspecEdhocResponder<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            // init hacspec struct for context
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
+
+            match edhoc_key_update(self.state, &context_hacspec, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new.to_public_array())
+                }
+                Err(error) => Err(error),
+            }
+        }
     }
 
     impl<'a> HacspecEdhocInitiator<'a> {
@@ -321,6 +338,23 @@ mod hacspec {
                 Ok((state, output)) => {
                     self.state = state;
                     Ok(output.to_public_array())
+                }
+                Err(error) => Err(error),
+            }
+        }
+
+        pub fn edhoc_key_update(
+            self: &mut HacspecEdhocInitiator<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            // init hacspec struct for context
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
+
+            match edhoc_key_update(self.state, &context_hacspec, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new.to_public_array())
                 }
                 Err(error) => Err(error),
             }
@@ -730,6 +764,20 @@ mod test {
 
         assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
+
+        // test key update with context from draft-ietf-lake-traces
+        let i_prk_out_new = initiator.edhoc_key_update(&[
+            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
+            0xbc, 0xea,
+        ]);
+        assert!(i_prk_out_new.is_ok());
+        let r_prk_out_new = responder.edhoc_key_update(&[
+            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
+            0xbc, 0xea,
+        ]);
+        assert!(r_prk_out_new.is_ok());
+
+        assert_eq!(i_prk_out_new.unwrap(), r_prk_out_new.unwrap());
     }
 
     #[cfg(feature = "ead-zeroconf")]

@@ -36,6 +36,67 @@ pub fn edhoc_exporter(
     }
 }
 
+pub fn edhoc_key_update(
+    mut state: State,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+) -> Result<(State, BytesHashLen), EDHOCError> {
+    let State(
+        current_state,
+        _x_or_y,
+        _c_i,
+        _gy_or_gx,
+        _prk_3e2m,
+        _prk_4e3m,
+        mut prk_out,
+        mut prk_exporter,
+        _h_message_1,
+        _th_3,
+    ) = state;
+
+    let mut prk_new_buf = BytesMaxBuffer::new();
+    let mut error = EDHOCError::UnknownError;
+
+    if current_state == EDHOCState::Completed {
+        // new PRK_out
+        prk_new_buf = edhoc_kdf(
+            &prk_out,
+            U8(11 as u8),
+            context,
+            context_len,
+            SHA256_DIGEST_LEN,
+        );
+        prk_out = prk_out.update_slice(0, &prk_new_buf, 0, SHA256_DIGEST_LEN);
+
+        // new PRK_exporter
+        prk_new_buf = edhoc_kdf(
+            &prk_out,
+            U8(10 as u8),
+            &BytesMaxContextBuffer::new(),
+            0,
+            SHA256_DIGEST_LEN,
+        );
+        prk_exporter = prk_exporter.update_slice(0, &prk_new_buf, 0, SHA256_DIGEST_LEN);
+
+        state = construct_state(
+            current_state,
+            _x_or_y,
+            _c_i,
+            _gy_or_gx,
+            _prk_3e2m,
+            _prk_4e3m,
+            prk_out,
+            prk_exporter,
+            _h_message_1,
+            _th_3,
+        );
+
+        Ok((state, prk_out))
+    } else {
+        Err(EDHOCError::WrongState)
+    }
+}
+
 /// process message_1: parse, check method, check cipher suite
 pub fn r_process_message_1(
     mut state: State,
