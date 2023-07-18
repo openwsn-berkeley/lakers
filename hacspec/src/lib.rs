@@ -1510,6 +1510,11 @@ mod tests {
     const SALT_3E2M_TV: &str = "af4e103a47cb3cf32570d5c25ad27732bd8d8178e9a69d061c31a27f8e3ca926";
     const SALT_4E3M_TV: &str = "84f8a2a9534ddd78dcc7e76e0d4df60bfad7cd3ad6e1d531c7f373a7eda52d1c";
     const G_XY_TV: &str = "2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba";
+    const PRK_OUT_TV: &str = "6b2dae4032306571cfbc2e4f94a255fb9f1f3fb29ca6f379fec989d4fa90dcf0";
+    const PRK_EXPORTER_TV: &str =
+        "4f0a5a823d06d0005e1becda8a6e61f3c8c67a8b15da7d44d3585ec5854e91e2";
+    const OSCORE_MASTER_SECRET_TV: &str = "8c409a332223ad900e44f3434d2d2ce3";
+    const OSCORE_MASTER_SALT_TV: &str = "6163f44be862adfa";
 
     #[test]
     fn test_ecdh() {
@@ -1977,5 +1982,84 @@ mod tests {
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label.declassify(), EAD_DUMMY_LABEL_TV);
         assert_bytes_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
+    }
+
+    #[test]
+    fn test_compute_prk_out() {
+        let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
+        let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
+        let prk_out_tv = BytesHashLen::from_hex(PRK_OUT_TV);
+
+        let mut prk_out = BytesHashLen::new();
+
+        let prk_out_buf = edhoc_kdf(
+            &prk_4e3m_tv,
+            U8(7 as u8),
+            &BytesMaxContextBuffer::from_slice(&th_4_tv, 0, th_4_tv.len()),
+            th_4_tv.len(),
+            SHA256_DIGEST_LEN,
+        );
+        prk_out = prk_out.update_slice(0, &prk_out_buf, 0, SHA256_DIGEST_LEN);
+
+        assert_bytes_eq!(prk_out, prk_out_tv);
+    }
+
+    #[test]
+    fn test_compute_prk_exporter() {
+        let prk_out_tv = BytesHashLen::from_hex(PRK_OUT_TV);
+        let prk_exporter_tv = BytesHashLen::from_hex(PRK_EXPORTER_TV);
+
+        let mut prk_exporter = BytesHashLen::new();
+        let prk_exporter_buf = edhoc_kdf(
+            &prk_out_tv,
+            U8(10 as u8),
+            &BytesMaxContextBuffer::new(),
+            0,
+            SHA256_DIGEST_LEN,
+        );
+        prk_exporter = prk_exporter.update_slice(0, &prk_exporter_buf, 0, SHA256_DIGEST_LEN);
+
+        assert_bytes_eq!(prk_exporter, prk_exporter_tv);
+    }
+
+    #[test]
+    fn test_compute_oscore_master_secret_salt() {
+        let prk_exporter_tv = BytesHashLen::from_hex(PRK_EXPORTER_TV);
+        let mut oscore_master_secret_tv_buf = BytesMaxBuffer::new();
+        let oscore_master_secret_tv = BytesCcmKeyLen::from_hex(OSCORE_MASTER_SECRET_TV);
+        oscore_master_secret_tv_buf = oscore_master_secret_tv_buf.update_slice(
+            0,
+            &oscore_master_secret_tv,
+            0,
+            oscore_master_secret_tv.len(),
+        );
+
+        let mut oscore_master_salt_tv_buf = BytesMaxBuffer::new();
+        let oscore_master_salt_tv = Bytes8::from_hex(OSCORE_MASTER_SALT_TV);
+        let oscore_master_salt_tv_buf = oscore_master_salt_tv_buf.update_slice(
+            0,
+            &oscore_master_salt_tv,
+            0,
+            oscore_master_salt_tv.len(),
+        );
+
+        let oscore_master_secret_buf = edhoc_kdf(
+            &prk_exporter_tv,
+            U8(0 as u8),
+            &BytesMaxContextBuffer::new(),
+            0,
+            oscore_master_secret_tv.len(),
+        );
+        assert_bytes_eq!(oscore_master_secret_buf, oscore_master_secret_tv_buf);
+
+        let oscore_master_salt_buf = edhoc_kdf(
+            &prk_exporter_tv,
+            U8(1 as u8),
+            &BytesMaxContextBuffer::new(),
+            0,
+            oscore_master_salt_tv.len(),
+        );
+
+        assert_bytes_eq!(oscore_master_salt_buf, oscore_master_salt_tv_buf);
     }
 }
