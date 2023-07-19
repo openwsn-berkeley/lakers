@@ -79,6 +79,7 @@ fn main() {
                 let mut _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
                 println!("OSCORE salt: {:02x?}", _oscore_salt);
 
+                // context of key update is a test vector from draft-ietf-lake-traces
                 let prk_out_new = responder.edhoc_key_update(&[
                     0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02,
                     0xb8, 0xbc, 0xea,
