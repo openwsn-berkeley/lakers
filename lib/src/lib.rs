@@ -204,6 +204,23 @@ mod hacspec {
                 Err(error) => Err(error),
             }
         }
+
+        pub fn edhoc_key_update(
+            self: &mut HacspecEdhocResponder<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            // init hacspec struct for context
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
+
+            match edhoc_key_update(self.state, &context_hacspec, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new.to_public_array())
+                }
+                Err(error) => Err(error),
+            }
+        }
     }
 
     impl<'a> HacspecEdhocInitiator<'a> {
@@ -321,6 +338,23 @@ mod hacspec {
                 Ok((state, output)) => {
                     self.state = state;
                     Ok(output.to_public_array())
+                }
+                Err(error) => Err(error),
+            }
+        }
+
+        pub fn edhoc_key_update(
+            self: &mut HacspecEdhocInitiator<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            // init hacspec struct for context
+            let mut context_hacspec = BytesMaxContextBuffer::new();
+            context_hacspec = context_hacspec.update(0, &ByteSeq::from_public_slice(context));
+
+            match edhoc_key_update(self.state, &context_hacspec, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new.to_public_array())
                 }
                 Err(error) => Err(error),
             }
@@ -480,6 +514,22 @@ mod rust {
                 Err(error) => Err(error),
             }
         }
+
+        pub fn edhoc_key_update(
+            self: &mut RustEdhocResponder<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            match edhoc_key_update(self.state, &context_buf, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new)
+                }
+                Err(error) => Err(error),
+            }
+        }
     }
 
     impl<'a> RustEdhocInitiator<'a> {
@@ -603,6 +653,22 @@ mod rust {
                 Err(error) => Err(error),
             }
         }
+
+        pub fn edhoc_key_update(
+            self: &mut RustEdhocInitiator<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            match edhoc_key_update(self.state, &context_buf, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new)
+                }
+                Err(error) => Err(error),
+            }
+        }
     }
 }
 
@@ -623,8 +689,10 @@ mod test {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
+    const MESSAGE_1_TV_FIRST_TIME: &str =
+        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
     const MESSAGE_1_TV: &str =
-        "030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
 
     #[test]
     fn test_new_initiator() {
@@ -650,13 +718,19 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
+        let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
         let mut responder =
             EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let error = responder.process_message_1(&message_1_tv);
+        // process message_1 first time, when unsupported suite is selected
+        let error = responder.process_message_1(&message_1_tv_first_time);
+        assert!(error.is_err());
+        assert_eq!(error.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
 
+        // process message_1 second time
+        let error = responder.process_message_1(&message_1_tv);
         assert!(error.is_ok());
     }
 
@@ -722,6 +796,20 @@ mod test {
 
         assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
         assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
+
+        // test key update with context from draft-ietf-lake-traces
+        let i_prk_out_new = initiator.edhoc_key_update(&[
+            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
+            0xbc, 0xea,
+        ]);
+        assert!(i_prk_out_new.is_ok());
+        let r_prk_out_new = responder.edhoc_key_update(&[
+            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
+            0xbc, 0xea,
+        ]);
+        assert!(r_prk_out_new.is_ok());
+
+        assert_eq!(i_prk_out_new.unwrap(), r_prk_out_new.unwrap());
     }
 
     #[cfg(feature = "ead-zeroconf")]

@@ -42,19 +42,36 @@ fn main() {
 
     if c_r.is_ok() {
         let mut msg_3 = Vec::from([c_r.unwrap()]);
-        let (message_3, _prk_out) = initiator.prepare_message_3().unwrap();
+        let (message_3, prk_out) = initiator.prepare_message_3().unwrap();
         msg_3.extend_from_slice(&message_3.content[..message_3.len]);
         println!("message_3 len = {}", msg_3.len());
 
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
         // we don't care about the response to message_3 for now
 
-        let _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
-        let _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
-
         println!("EDHOC exchange successfully completed");
+        println!("PRK_out: {:02x?}", prk_out);
+
+        let mut _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
+        let mut _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+
         println!("OSCORE secret: {:02x?}", _oscore_secret);
         println!("OSCORE salt: {:02x?}", _oscore_salt);
+
+        // context of key update is a test vector from draft-ietf-lake-traces
+        let prk_out_new = initiator.edhoc_key_update(&[
+            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
+            0xbc, 0xea,
+        ]);
+
+        println!("PRK_out after key update: {:02x?}?", prk_out_new);
+
+        // compute OSCORE secret and salt after key update
+        _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
+        _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+
+        println!("OSCORE secret after key update: {:02x?}", _oscore_secret);
+        println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
     } else {
         panic!("Message 2 processing error: {:#?}", c_r);
     }
