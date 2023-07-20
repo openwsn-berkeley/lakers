@@ -30,5 +30,11 @@ cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package edhoc-cr
 cbindgen --config consts/cbindgen.toml --crate edhoc-consts --output ./target/include/edhoc_consts.h -v
 cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output ./target/include/edhoc_rs.h -v
 
+# zip to a single file
+cd target
+zip -r staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip include/
+zip -u -j staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip thumbv7em-none-eabihf/release/libedhoc_rs.a
+cd -
+
 echo "Reverting crate-type to original value:   $original_value"
 sed -i -E "s/crate-type.*/$original_value/" lib/Cargo.toml
