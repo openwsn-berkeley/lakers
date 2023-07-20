@@ -514,6 +514,22 @@ mod rust {
                 Err(error) => Err(error),
             }
         }
+
+        pub fn edhoc_key_update(
+            self: &mut RustEdhocResponder<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            match edhoc_key_update(self.state, &context_buf, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new)
+                }
+                Err(error) => Err(error),
+            }
+        }
     }
 
     impl<'a> RustEdhocInitiator<'a> {
@@ -633,6 +649,22 @@ mod rust {
                 Ok((state, output)) => {
                     self.state = state;
                     Ok(output)
+                }
+                Err(error) => Err(error),
+            }
+        }
+
+        pub fn edhoc_key_update(
+            self: &mut RustEdhocInitiator<'a>,
+            context: &[u8],
+        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+            context_buf[..context.len()].copy_from_slice(context);
+
+            match edhoc_key_update(self.state, &context_buf, context.len()) {
+                Ok((state, prk_out_new)) => {
+                    self.state = state;
+                    Ok(prk_out_new)
                 }
                 Err(error) => Err(error),
             }
