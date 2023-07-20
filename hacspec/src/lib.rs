@@ -1388,7 +1388,7 @@ fn encode_plaintext_2(
     plaintext_2.content[1] = id_cred_r[id_cred_r.len() - 1];
     plaintext_2.content[2] = U8(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8);
     plaintext_2.content = plaintext_2.content.update(3, mac_2);
-    plaintext_2.len = 3 + MAC_LENGTH_3;
+    plaintext_2.len = 3 + mac_2.len();
 
     if let Some(ead_2) = ead_2 {
         let ead_2 = encode_ead_item(ead_2);
