@@ -90,13 +90,44 @@ jobs:
       working-directory: hacspec-v2-repo
 
     - name: Generate fstar
-      run: docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-hax into fstar"
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-hax into fstar"
+        zip -j -r edhoc-rs-fstar.zip $(find ./hacspec -name *fst)
 
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
         name: fstar-code
-        path: ./hacspec/out/*
+        path: ./edhoc-rs-fstar.zip
+
+
+  build-static-lib-and-headers:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        edhoc_lib: [rust]
+        crypto: [psa-baremetal, cryptocell310]
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Install arm targets for Rust
+      run: rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+
+    - name: Build static library, generate headers, and zip to file
+      run: ./build_for_c.sh "${{ matrix.edhoc_lib }}-${{ matrix.crypto }}"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: static-lib-and-headers
+        path: ./target/staticlib-*.zip
 
 
   run-example-on-qemu:
@@ -121,7 +152,6 @@ jobs:
       run: sudo apt-get -y install qemu-system-arm
 
     - name: Run tests in QEMU
-      # FIXME: still failing
       run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.config }}, ${{ matrix.ead }}" --release
 
 
@@ -146,7 +176,6 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build example
-      # FIXME: still failing
       run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.edhoc_lib }}-${{ matrix.crypto }}, ${{ matrix.ead }}, rtt" --release
 
 
@@ -167,7 +196,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-edhoc-package, hacspec-to-fstar, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example]
+    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, hacspec-to-fstar, build-static-lib-and-headers]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
@@ -178,10 +207,15 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: fstar-code
-          path: ./fstar-code
+          path: ./release-artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: static-lib-and-headers
+          path: ./release-artifacts
       - name: Release
         uses: ncipollo/release-action@v1
         with:
           generateReleaseNotes: true
-          artifacts: "fstar-code/*"
+          artifacts: "release-artifacts/*"
           token: ${{ secrets.RELEASE_TOKEN }}
