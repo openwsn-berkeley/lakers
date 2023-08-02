@@ -10,6 +10,7 @@ pub use rust::*;
 
 mod common {
 
+    #[repr(C)]
     #[derive(Default, PartialEq, Copy, Clone, Debug)]
     pub enum EDHOCState {
         #[default]
@@ -21,6 +22,7 @@ mod common {
         Completed = 5,         // initiator and responder
     }
 
+    #[repr(C)]
     #[derive(PartialEq, Debug)]
     pub enum EDHOCError {
         Success = 0,
@@ -34,24 +36,31 @@ mod common {
         UnknownError = 8,
     }
 
+    #[repr(C)]
     #[derive(PartialEq, Debug)]
     pub struct EdhocMessageBuffer {
         pub content: [u8; MAX_MESSAGE_SIZE_LEN],
         pub len: usize,
     }
 
-    impl EdhocMessageBuffer {
-        pub fn new() -> Self {
+    pub trait MessageBufferTrait {
+        fn new() -> Self;
+        fn from_hex(hex: &str) -> Self;
+    }
+
+    impl MessageBufferTrait for EdhocMessageBuffer {
+        fn new() -> Self {
             EdhocMessageBuffer {
                 content: [0u8; MAX_MESSAGE_SIZE_LEN],
                 len: 0,
             }
         }
-        pub fn from_hex(hex: &str) -> Self {
+        fn from_hex(hex: &str) -> Self {
             let mut buffer = EdhocMessageBuffer::new();
             buffer.len = hex.len() / 2;
-            for i in (0..hex.len()).step_by(2) {
-                buffer.content[i / 2] = u8::from_str_radix(&hex[i..i + 2], 16).unwrap();
+            for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+                let chunk_str = core::str::from_utf8(chunk).unwrap();
+                buffer.content[i] = u8::from_str_radix(chunk_str, 16).unwrap();
             }
             buffer
         }
@@ -63,7 +72,9 @@ mod common {
         fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
             if self.len() <= MAX_MESSAGE_SIZE_LEN {
                 let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
-                buffer[..self.len()].copy_from_slice(self);
+                for i in 0..self.len() {
+                    buffer[i] = self[i];
+                }
 
                 Ok(EdhocMessageBuffer {
                     content: buffer,
@@ -83,8 +94,12 @@ mod common {
         pub value: Option<EdhocMessageBuffer>,
     }
 
-    impl EADItem {
-        pub fn new() -> Self {
+    pub trait EADTrait {
+        fn new() -> Self;
+    }
+
+    impl EADTrait for EADItem {
+        fn new() -> Self {
             EADItem {
                 label: 0,
                 is_critical: false,
@@ -163,6 +178,7 @@ mod rust {
     pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(
         pub EDHOCState,
@@ -191,28 +207,40 @@ mod hacspec {
         pub len: usize,
     }
 
-    impl EdhocMessageBufferHacspec {
-        pub fn new() -> Self {
+    pub trait MessageBufferHacspecTrait {
+        fn new() -> Self;
+        fn from_hex(hex: &str) -> Self;
+        fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self;
+        fn from_slice<A>(slice: &A, start: usize, len: usize) -> Self
+        where
+            A: SeqTrait<U8>;
+        fn from_seq(buffer: &Seq<U8>) -> Self;
+        fn to_public_buffer(&self) -> EdhocMessageBuffer;
+    }
+
+    impl MessageBufferHacspecTrait for EdhocMessageBufferHacspec {
+        fn new() -> Self {
             EdhocMessageBufferHacspec {
                 content: BytesMessageBuffer::new(),
                 len: 0,
             }
         }
-        pub fn from_hex(hex: &str) -> Self {
+        fn from_hex(hex: &str) -> Self {
             let mut buffer = EdhocMessageBufferHacspec::new();
             buffer.len = hex.len() / 2;
-            for i in (0..hex.len()).step_by(2) {
-                buffer.content[i / 2] = U8(u8::from_str_radix(&hex[i..i + 2], 16).unwrap());
+            for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+                let chunk_str = core::str::from_utf8(chunk).unwrap();
+                buffer.content[i] = U8(u8::from_str_radix(chunk_str, 16).unwrap());
             }
             buffer
         }
-        pub fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self {
+        fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self {
             let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
             hacspec_buffer.len = buffer.len;
             hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
             hacspec_buffer
         }
-        pub fn from_slice<A>(slice: &A, start: usize, len: usize) -> Self
+        fn from_slice<A>(slice: &A, start: usize, len: usize) -> Self
         where
             A: SeqTrait<U8>,
         {
@@ -221,13 +249,13 @@ mod hacspec {
             hacspec_buffer.content = BytesMessageBuffer::from_slice(slice, start, len);
             hacspec_buffer
         }
-        pub fn from_seq(buffer: &Seq<U8>) -> Self {
+        fn from_seq(buffer: &Seq<U8>) -> Self {
             EdhocMessageBufferHacspec {
                 content: BytesMessageBuffer::from_slice(buffer, 0, buffer.len()),
                 len: buffer.len(),
             }
         }
-        pub fn to_public_buffer(&self) -> EdhocMessageBuffer {
+        fn to_public_buffer(&self) -> EdhocMessageBuffer {
             let mut buffer = EdhocMessageBuffer::new();
             buffer.content = self.content.to_public_array();
             buffer.len = self.len;
@@ -243,15 +271,21 @@ mod hacspec {
         pub value: Option<EdhocMessageBufferHacspec>,
     }
 
-    impl EADItemHacspec {
-        pub fn new() -> Self {
+    pub trait EADItemHacspecTrait {
+        fn new() -> Self;
+        fn from_public_item(item: &EADItem) -> Self;
+        fn to_public_item(&self) -> EADItem;
+    }
+
+    impl EADItemHacspecTrait for EADItemHacspec {
+        fn new() -> Self {
             EADItemHacspec {
                 label: U8(0),
                 is_critical: false,
                 value: None,
             }
         }
-        pub fn from_public_item(item: &EADItem) -> Self {
+        fn from_public_item(item: &EADItem) -> Self {
             EADItemHacspec {
                 label: U8(item.label),
                 is_critical: item.is_critical,
@@ -261,7 +295,7 @@ mod hacspec {
                 },
             }
         }
-        pub fn to_public_item(&self) -> EADItem {
+        fn to_public_item(&self) -> EADItem {
             EADItem {
                 label: self.label.declassify(),
                 is_critical: self.is_critical,
@@ -313,6 +347,7 @@ mod hacspec {
         BytesSupportedSuites(secret_bytes!([0x2u8]));
     pub const EDHOC_SUITES: BytesSuites = BytesSuites(secret_bytes!([0, 1, 2, 3, 4, 5, 6, 24, 25])); // all but private cipher suites
 
+    #[repr(C)]
     #[derive(Default, Copy, Clone, Debug)]
     pub struct State(
         pub EDHOCState,

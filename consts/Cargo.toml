@@ -9,6 +9,9 @@ description = "EDHOC crypto library constants crate"
 [dependencies]
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
 
+[build-dependencies]
+cbindgen = "0.24.5"
+
 [features]
 default = [ ]
 hacspec = [ "hacspec-lib/alloc" ]
