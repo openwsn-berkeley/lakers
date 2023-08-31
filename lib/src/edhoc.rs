@@ -178,6 +178,7 @@ pub fn r_prepare_message_2(
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
+    c_r: U8,
 ) -> Result<(State, BufferMessage2, U8), EDHOCError> {
     let State(
         mut current_state,
@@ -194,12 +195,8 @@ pub fn r_prepare_message_2(
 
     let mut error = EDHOCError::UnknownError;
     let mut message_2: BufferMessage2 = BufferMessage2::new();
-    let mut c_r = 0xffu8; // invalid c_r
 
     if current_state == EDHOCState::ProcessedMessage1 {
-        // FIXME generate a connection identifier to multiplex sessions
-        c_r = C_R;
-
         // compute TH_2
         let th_2 = compute_th_2(&g_y, &h_message_1);
 
@@ -384,11 +381,12 @@ pub fn i_prepare_message_1(
     mut state: State,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
+    c_i: U8,
 ) -> Result<(State, BufferMessage1), EDHOCError> {
     let State(
         mut current_state,
         mut _x,
-        mut c_i,
+        mut _c_i,
         _g_y,
         _prk_3e2m,
         _prk_4e3m,
@@ -406,9 +404,6 @@ pub fn i_prepare_message_1(
         // we only support a single cipher suite which is already CBOR-encoded
         let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
         suites_i[0..EDHOC_SUPPORTED_SUITES.len()].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-
-        // Choose a connection identifier C_I and store it for the length of the protocol.
-        c_i = C_I;
 
         let ead_1 = i_prepare_ead_1();
 

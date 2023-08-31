@@ -8,7 +8,7 @@
 ))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
-    hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    hacspec::generate_connection_identifier, hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
@@ -19,7 +19,8 @@ pub use {
 ))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
-    rust::RustEdhocInitiator as EdhocInitiator, rust::RustEdhocResponder as EdhocResponder,
+    rust::generate_connection_identifier, rust::RustEdhocInitiator as EdhocInitiator,
+    rust::RustEdhocResponder as EdhocResponder,
 };
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
@@ -141,8 +142,10 @@ mod hacspec {
 
             // Generate ephemeral key pair
             let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+            let c_r = generate_connection_identifier_cbor();
 
-            match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y) {
+            match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y, c_r)
+            {
                 Ok((state, message_2, c_r)) => {
                     self.state = state;
                     Ok((message_2.to_public_buffer(), c_r.declassify()))
@@ -254,8 +257,9 @@ mod hacspec {
         ) -> Result<EdhocMessageBuffer, EDHOCError> {
             // Generate ephemeral key pair
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+            let c_i = generate_connection_identifier_cbor();
 
-            match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x) {
+            match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x, c_i) {
                 Ok((state, message_1)) => {
                     self.state = state;
                     Ok(message_1.to_public_buffer())
@@ -360,6 +364,27 @@ mod hacspec {
             }
         }
     }
+
+    pub fn generate_connection_identifier_cbor() -> U8 {
+        let c_i = generate_connection_identifier();
+        if c_i >= 0 && c_i <= 23 {
+            return U8(c_i as u8); // verbatim encoding of single byte integer
+        } else if c_i < 0 && c_i >= -24 {
+            // negative single byte integer encoding
+            return U8(CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8));
+        } else {
+            return U8(0);
+        }
+    }
+
+    /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
+    pub fn generate_connection_identifier() -> i8 {
+        let mut conn_id = edhoc_crypto::get_random_byte().declassify() as i8;
+        while conn_id < -24 || conn_id > 23 {
+            conn_id = edhoc_crypto::get_random_byte().declassify() as i8;
+        }
+        conn_id
+    }
 }
 
 #[cfg(any(
@@ -455,6 +480,7 @@ mod rust {
             hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
                 .expect("Decoding failed");
             let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+            let c_r = generate_connection_identifier_cbor();
 
             match r_prepare_message_2(
                 self.state,
@@ -464,6 +490,7 @@ mod rust {
                 &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
                 y,
                 g_y,
+                c_r,
             ) {
                 Ok((state, message_2, c_r)) => {
                     self.state = state;
@@ -580,8 +607,9 @@ mod rust {
             self: &mut RustEdhocInitiator<'a>,
         ) -> Result<BufferMessage1, EDHOCError> {
             let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+            let c_i = generate_connection_identifier_cbor();
 
-            match i_prepare_message_1(self.state, x, g_x) {
+            match i_prepare_message_1(self.state, x, g_x, c_i) {
                 Ok((state, message_1)) => {
                     self.state = state;
                     Ok(message_1)
@@ -670,6 +698,27 @@ mod rust {
             }
         }
     }
+
+    pub fn generate_connection_identifier_cbor() -> u8 {
+        let c_i = generate_connection_identifier();
+        if c_i >= 0 && c_i <= 23 {
+            return c_i as u8; // verbatim encoding of single byte integer
+        } else if c_i < 0 && c_i >= -24 {
+            // negative single byte integer encoding
+            return CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8);
+        } else {
+            return 0;
+        }
+    }
+
+    /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
+    pub fn generate_connection_identifier() -> i8 {
+        let mut conn_id = edhoc_crypto::get_random_byte() as i8;
+        while conn_id < -24 || conn_id > 23 {
+            conn_id = edhoc_crypto::get_random_byte() as i8;
+        }
+        conn_id
+    }
 }
 
 #[cfg(test)]
@@ -732,6 +781,12 @@ mod test {
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
         assert!(error.is_ok());
+    }
+
+    #[test]
+    fn test_generate_connection_identifier() {
+        let conn_id = generate_connection_identifier();
+        assert!(conn_id >= -24 && conn_id <= 23);
     }
 
     #[test]

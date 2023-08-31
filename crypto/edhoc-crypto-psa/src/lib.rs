@@ -2,7 +2,7 @@
 
 use edhoc_consts::*;
 use psa_crypto::operations::hash::hash_compute;
-use psa_crypto::operations::{aead, key_agreement, key_management};
+use psa_crypto::operations::{aead, key_agreement, key_management, other::generate_random};
 use psa_crypto::types::algorithm::Hash;
 use psa_crypto::types::algorithm::{Aead, AeadWithDefaultLengthTag, KeyAgreement, RawKeyAgreement};
 use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, UsageFlags};
@@ -264,6 +264,13 @@ mod hacspec {
         oh
     }
 
+    pub fn get_random_byte() -> U8 {
+        psa_crypto::init().unwrap();
+        let mut buffer = [0u8; 1];
+        generate_random(&mut buffer); // TODO: check return value
+        U8(buffer[0])
+    }
+
     pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
         let alg = RawKeyAgreement::Ecdh;
         let mut usage_flags: UsageFlags = UsageFlags::default();
@@ -516,6 +523,13 @@ mod rust {
         let oh = sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
 
         oh
+    }
+
+    pub fn get_random_byte() -> u8 {
+        psa_crypto::init().unwrap();
+        let mut buffer = [0u8; 1];
+        generate_random(&mut buffer); // TODO: check return value
+        buffer[0]
     }
 
     pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {

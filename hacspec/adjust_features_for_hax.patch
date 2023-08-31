@@ -32,18 +32,6 @@ index e59a361..14f606e 100644
 +[features]
 +hacspec-pure = []
 \ No newline at end of file
-diff --git a/crypto/edhoc-crypto-hacspec/src/lib.rs b/crypto/edhoc-crypto-hacspec/src/lib.rs
-index a9c7064..a9e2a7e 100644
---- a/crypto/edhoc-crypto-hacspec/src/lib.rs
-+++ b/crypto/edhoc-crypto-hacspec/src/lib.rs
-@@ -94,6 +94,7 @@ pub fn p256_ecdh(
-     secret
- }
- 
-+#[cfg(not(feature = "hacspec-pure"))]
- pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
-     // generate a private key
-     let mut private_key = BytesP256ElemLen::new();
 diff --git a/hacspec/Cargo.toml b/hacspec/Cargo.toml
 index 94b80ae..51dbeb2 100644
 --- a/hacspec/Cargo.toml
