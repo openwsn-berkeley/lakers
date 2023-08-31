@@ -173,8 +173,6 @@ mod rust {
     pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
     pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
-    pub const C_I: u8 = 0x37u8;
-    pub const C_R: u8 = 0x00u8;
     pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
@@ -329,9 +327,6 @@ mod hacspec {
     array!(BytesMaxInfoBuffer, MAX_INFO_LEN, U8);
     array!(BytesMaxLabelBuffer, MAX_KDF_LABEL_LEN, U8);
     array!(BytesEncStructureLen, ENC_STRUCTURE_LEN, U8);
-
-    pub const C_I: U8 = U8(0x37u8);
-    pub const C_R: U8 = U8(0x00u8);
 
     // Currently only suite number 2 is supported,
     // which corresponds to the array 10, -16, 8, 1, -7, 10, -16,
