@@ -755,31 +755,36 @@ fn parse_suites_i(
         // the CBOR array length is encoded in the first byte, so we extract it
         let suites_len: U8 = rcvd_message_1.content[1] - U8(CBOR_MAJOR_ARRAY);
         let suites_len: usize = suites_len.declassify().into();
-        raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
-        if suites_len <= EDHOC_SUITES.len() {
-            let mut error_occurred = false;
-            for j in 0..suites_len {
-                raw_suites_len += 1;
-                if !error_occurred {
-                    // parse based on cipher suite identifier
-                    let cs_id = (rcvd_message_1.content[raw_suites_len] as U8).declassify();
-                    if cs_id >= 0x00 && cs_id <= 0x17 {
-                        // CBOR unsigned integer (0..23)
-                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                        suites_i_len += 1;
-                    } else if cs_id == 0x18 {
-                        // CBOR unsigned integer (one-byte uint8_t follows)
-                        raw_suites_len += 1; // account for the 0x18 tag byte
-                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                        suites_i_len += 1;
-                    } else {
-                        error = EDHOCError::ParsingError;
-                        error_occurred = true;
+        // check surplus array encoding of ciphersuite
+        if suites_len > 1 {
+            raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
+            if suites_len <= EDHOC_SUITES.len() {
+                let mut error_occurred = false;
+                for j in 0..suites_len {
+                    raw_suites_len += 1;
+                    if !error_occurred {
+                        // parse based on cipher suite identifier
+                        let cs_id = (rcvd_message_1.content[raw_suites_len] as U8).declassify();
+                        if cs_id >= 0x00 && cs_id <= 0x17 {
+                            // CBOR unsigned integer (0..23)
+                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                            suites_i_len += 1;
+                        } else if cs_id == 0x18 {
+                            // CBOR unsigned integer (one-byte uint8_t follows)
+                            raw_suites_len += 1; // account for the 0x18 tag byte
+                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                            suites_i_len += 1;
+                        } else {
+                            error = EDHOCError::ParsingError;
+                            error_occurred = true;
+                        }
                     }
                 }
-            }
-            if !error_occurred {
-                error = EDHOCError::Success;
+                if !error_occurred {
+                    error = EDHOCError::Success;
+                }
+            } else {
+                error = EDHOCError::ParsingError;
             }
         } else {
             error = EDHOCError::ParsingError;
@@ -841,6 +846,25 @@ fn parse_ead(
     }
 }
 
+fn is_cbor_array(first_byte: U8) -> bool {
+    return (first_byte.declassify() & CBOR_MAJOR_ARRAY) == CBOR_MAJOR_ARRAY;
+}
+
+fn is_encoded_conn_id_minimal(conn_id: U8) -> bool {
+    let conn_id = conn_id.declassify();
+    return (conn_id >= 20 && conn_id <= 37) || (conn_id >= 0 && conn_id <= 17);
+}
+
+fn should_encoded_conn_id_be_minimal(conn_id_byte1: U8, conn_id_byte2: U8) -> bool {
+    return !is_encoded_conn_id_minimal(conn_id_byte1)
+        && (conn_id_byte1.declassify() == (CBOR_MAJOR_BYTE_STRING | 0x1)) // bstr with length of 1
+        && is_encoded_conn_id_minimal(conn_id_byte2);
+}
+
+fn should_encoded_ciphersuite_be_minimal(byte1: U8, byte2: U8) -> bool {
+    return is_cbor_array(byte1) && (byte1.declassify() - CBOR_MAJOR_ARRAY) == 1;
+}
+
 fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
 ) -> Result<
@@ -855,6 +879,7 @@ fn parse_message_1(
     EDHOCError,
 > {
     let mut error: EDHOCError = EDHOCError::UnknownError;
+    let mut method: U8 = U8(0xff);
     let mut g_x: BytesP256ElemLen = BytesP256ElemLen::new();
     let mut suites_i = BytesSuites::new();
     let mut suites_i_len: usize = 0;
@@ -862,39 +887,54 @@ fn parse_message_1(
     let mut c_i = U8(0);
     let mut ead_1 = None::<EADItemHacspec>;
 
-    let method = rcvd_message_1.content[0];
+    // check surplus array encoding
+    if !is_cbor_array(rcvd_message_1.content[0]) {
+        method = rcvd_message_1.content[0];
 
-    let res_suites = parse_suites_i(rcvd_message_1);
+        let res_suites = parse_suites_i(rcvd_message_1);
 
-    if res_suites.is_ok() {
-        (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
+        if res_suites.is_ok() {
+            (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
 
-        g_x = BytesP256ElemLen::from_slice(
-            &rcvd_message_1.content,
-            3 + raw_suites_len,
-            P256_ELEM_LEN,
-        );
+            let g_x_type = rcvd_message_1.content[1 + raw_suites_len].declassify();
+            if g_x_type == CBOR_BYTE_STRING {
+                g_x = BytesP256ElemLen::from_slice(
+                    &rcvd_message_1.content,
+                    3 + raw_suites_len,
+                    P256_ELEM_LEN,
+                );
 
-        c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
-
-        // if there is still more to parse, the rest will be the EAD_1
-        if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
-            if ead_res.is_ok() {
-                ead_1 = ead_res.unwrap();
-                error = EDHOCError::Success;
+                // check surplus bstr encoding
+                c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
+                let c_i_lookahead = rcvd_message_1.content[4 + raw_suites_len + P256_ELEM_LEN];
+                if !should_encoded_conn_id_be_minimal(c_i, c_i_lookahead) {
+                    // if there is still more to parse, the rest will be the EAD_1
+                    if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
+                        // NOTE: since the current implementation only supports one EAD handler,
+                        // we assume only one EAD item
+                        let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
+                        if ead_res.is_ok() {
+                            ead_1 = ead_res.unwrap();
+                            error = EDHOCError::Success;
+                        } else {
+                            error = ead_res.unwrap_err();
+                        }
+                    } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
+                        error = EDHOCError::Success;
+                    } else {
+                        error = EDHOCError::ParsingError;
+                    }
+                } else {
+                    error = EDHOCError::ParsingError;
+                }
             } else {
-                error = ead_res.unwrap_err();
+                error = EDHOCError::ParsingError;
             }
-        } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
-            error = EDHOCError::Success;
         } else {
-            error = EDHOCError::ParsingError;
+            error = res_suites.unwrap_err();
         }
     } else {
-        error = res_suites.unwrap_err();
+        error = EDHOCError::ParsingError;
     }
 
     match error {
@@ -1572,6 +1612,20 @@ mod tests {
     const OSCORE_MASTER_SECRET_TV: &str = "8c409a332223ad900e44f3434d2d2ce3";
     const OSCORE_MASTER_SALT_TV: &str = "6163f44be862adfa";
 
+    // invalid test vectors, should result in a parsing error
+    const MESSAGE_1_INVALID_ARRAY_TV: &str =
+        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_C_I_TV: &str =
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
+    const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
+        "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
+        "0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e";
+    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: &str =
+        "5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a";
+    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: &str = "27a10442321048fa5efa2ebf920bf3";
+    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: &str = "27413248fa5efa2ebf920bf3";
+
     #[test]
     fn test_ecdh() {
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
@@ -1666,6 +1720,21 @@ mod tests {
         assert_bytes_eq!(suites_i, suites_i_tv);
         assert_bytes_eq!(g_x, g_x_tv);
         assert_eq!(c_i.declassify(), c_i_tv.declassify());
+    }
+
+    #[test]
+    fn test_parse_message_1_invalid_traces() {
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        assert!(parse_message_1(&message_1_tv).is_err());
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
+        assert!(parse_message_1(&message_1_tv).is_err());
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
+        assert!(parse_message_1(&message_1_tv).is_err());
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
+        assert!(parse_message_1(&message_1_tv).is_err());
     }
 
     #[test]
