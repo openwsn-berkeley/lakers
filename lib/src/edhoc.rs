@@ -960,17 +960,30 @@ fn encode_message_1(
 fn parse_message_2(
     rcvd_message_2: &BufferMessage2,
 ) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
+    let mut error: EDHOCError = EDHOCError::UnknownError;
     // FIXME decode negative integers as well
     let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
-
     let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
-    ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
-    ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
-        &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
-    );
 
-    Ok((g_y, ciphertext_2))
+    // ensure the whole message is a single CBOR sequence
+    if rcvd_message_2.content[0] == CBOR_BYTE_STRING
+        && rcvd_message_2.content[1] == (rcvd_message_2.len as u8 - 2)
+    {
+        g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
+
+        ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
+        ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
+            &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
+        );
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((g_y, ciphertext_2)),
+        _ => Err(error),
+    }
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
@@ -1554,6 +1567,20 @@ mod tests {
     const OSCORE_MASTER_SECRET_TV: BytesCcmKeyLen = hex!("8c409a332223ad900e44f3434d2d2ce3");
     const OSCORE_MASTER_SALT_TV: Bytes8 = hex!("6163f44be862adfa");
 
+    // invalid test vectors, should result in a parsing error
+    const MESSAGE_1_INVALID_ARRAY_TV: &str =
+        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_C_I_TV: &str =
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
+    const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
+        "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
+        "0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e";
+    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: &str =
+        "5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a";
+    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: &str = "27a10442321048fa5efa2ebf920bf3";
+    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: &str = "27413248fa5efa2ebf920bf3";
+
     #[test]
     fn test_ecdh() {
         let g_xy = p256_ecdh(&X_TV, &G_Y_TV);
@@ -1637,20 +1664,6 @@ mod tests {
         assert!(ead_1.is_none());
     }
 
-    const _MESSAGE_1_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
-    const MESSAGE_1_INVALID_ARRAY_TV: &str =
-        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
-    const MESSAGE_1_INVALID_C_I_TV: &str =
-        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
-    const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
-        "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
-    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
-        "0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e";
-    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: &str =
-        "5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a";
-    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: &str = "27a10442321048fa5efa2ebf920bf3";
-    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: &str = "27413248fa5efa2ebf920bf3";
     #[test]
     fn test_parse_message_1_invalid_traces() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
@@ -1664,6 +1677,12 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
         assert!(parse_message_1(&message_1_tv).is_err());
+    }
+
+    #[test]
+    fn test_parse_message_2_invalid_traces() {
+        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        assert!(parse_message_2(&message_2_tv).is_err());
     }
 
     #[test]
@@ -1795,6 +1814,23 @@ mod tests {
         let plaintext_2 = encode_plaintext_2(C_R_TV, &ID_CRED_R_TV, &MAC_2_TV, &None::<EADItem>);
 
         assert_eq!(plaintext_2, plaintext_2_tv);
+    }
+
+    #[test]
+    fn test_parse_plaintext_2_invalid_traces() {
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV);
+        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        plaintext_2_tv_buffer[..plaintext_2_tv.len]
+            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        assert!(plaintext_2.is_err());
+
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV);
+        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        plaintext_2_tv_buffer[..plaintext_2_tv.len]
+            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        assert!(plaintext_2.is_err());
     }
 
     #[test]
