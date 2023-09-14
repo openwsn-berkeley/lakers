@@ -1914,6 +1914,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_plaintext_2_invalid_traces() {
+        let plaintext_2_tv_len = PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV.len() / 2;
+        let plaintext_2_tv = BytesMaxBuffer::from_slice(
+            &ByteSeq::from_hex(PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV),
+            0,
+            plaintext_2_tv_len,
+        );
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, plaintext_2_tv_len);
+        assert!(plaintext_2.is_err());
+
+        let plaintext_2_tv_len = PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV.len() / 2;
+        let plaintext_2_tv = BytesMaxBuffer::from_slice(
+            &ByteSeq::from_hex(PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV),
+            0,
+            plaintext_2_tv_len,
+        );
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, plaintext_2_tv_len);
+        assert!(plaintext_2.is_err());
+    }
+
+    #[test]
     fn test_decode_plaintext_2() {
         let plaintext_2_tv = BytesMaxBuffer::from_slice(
             &ByteSeq::from_hex(PLAINTEXT_2_TV),
