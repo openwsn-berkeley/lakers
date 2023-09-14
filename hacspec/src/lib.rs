@@ -520,86 +520,91 @@ pub fn i_process_message_2(
     let mut kid = U8(0xffu8); // invalidate kid
 
     if current_state == EDHOCState::WaitMessage2 {
-        let (g_y, ciphertext_2) = parse_message_2(message_2);
+        let res = parse_message_2(message_2);
+        if res.is_ok() {
+            let (g_y, ciphertext_2) = res.unwrap();
 
-        let th_2 = compute_th_2(&g_y, &h_message_1);
+            let th_2 = compute_th_2(&g_y, &h_message_1);
 
-        // compute prk_2e
-        let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
+            // compute prk_2e
+            let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
 
-        let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
+            let (plaintext_2, plaintext_2_len) =
+                encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
 
-        // decode plaintext_2
-        let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
+            // decode plaintext_2
+            let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
-        if plaintext_2_decoded.is_ok() {
-            let (c_r_2, kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
-            c_r = c_r_2;
+            if plaintext_2_decoded.is_ok() {
+                let (c_r_2, kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+                c_r = c_r_2;
 
-            // Step 3: If EAD is present make it available to the application
-            let ead_success = if let Some(ead_2) = ead_2 {
-                i_process_ead_2(ead_2.to_public_item()).is_ok()
-            } else {
-                true
-            };
-            if ead_success {
-                // verify mac_2
-                let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+                // Step 3: If EAD is present make it available to the application
+                let ead_success = if let Some(ead_2) = ead_2 {
+                    i_process_ead_2(ead_2.to_public_item()).is_ok()
+                } else {
+                    true
+                };
+                if ead_success {
+                    // verify mac_2
+                    let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-                prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+                    prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-                let expected_mac_2 = compute_mac_2(
-                    &prk_3e2m,
-                    id_cred_r_expected,
-                    cred_r_expected,
-                    cred_r_len,
-                    &th_2,
-                );
+                    let expected_mac_2 = compute_mac_2(
+                        &prk_3e2m,
+                        id_cred_r_expected,
+                        cred_r_expected,
+                        cred_r_len,
+                        &th_2,
+                    );
 
-                // Check MAC before checking KID
-                if mac_2.declassify_eq(&expected_mac_2) {
-                    if kid.declassify()
-                        == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
-                    {
-                        // step is actually from processing of message_3
-                        // but we do it here to avoid storing plaintext_2 in State
-                        th_3 = compute_th_3(
-                            &th_2,
-                            &BufferPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
-                            cred_r_expected,
-                            cred_r_len,
-                        );
-                        // message 3 processing
+                    // Check MAC before checking KID
+                    if mac_2.declassify_eq(&expected_mac_2) {
+                        if kid.declassify()
+                            == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify()
+                        {
+                            // step is actually from processing of message_3
+                            // but we do it here to avoid storing plaintext_2 in State
+                            th_3 = compute_th_3(
+                                &th_2,
+                                &BufferPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
+                                cred_r_expected,
+                                cred_r_len,
+                            );
+                            // message 3 processing
 
-                        let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                        prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                            prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
-                        error = EDHOCError::Success;
-                        current_state = EDHOCState::ProcessedMessage2;
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::ProcessedMessage2;
 
-                        state = construct_state(
-                            current_state,
-                            x,
-                            _c_i,
-                            g_y,
-                            prk_3e2m,
-                            prk_4e3m,
-                            _prk_out,
-                            _prk_exporter,
-                            h_message_1,
-                            th_3,
-                        );
+                            state = construct_state(
+                                current_state,
+                                x,
+                                _c_i,
+                                g_y,
+                                prk_3e2m,
+                                prk_4e3m,
+                                _prk_out,
+                                _prk_exporter,
+                                h_message_1,
+                                th_3,
+                            );
+                        } else {
+                            // Unknown peer
+                            error = EDHOCError::UnknownPeer;
+                        }
                     } else {
-                        // Unknown peer
-                        error = EDHOCError::UnknownPeer;
+                        error = EDHOCError::MacVerificationFailed;
                     }
                 } else {
-                    error = EDHOCError::MacVerificationFailed;
+                    error = EDHOCError::EADError;
                 }
             } else {
-                error = EDHOCError::EADError;
+                error = EDHOCError::ParsingError;
             }
         } else {
             error = EDHOCError::ParsingError;
@@ -1021,14 +1026,34 @@ fn encode_message_1(
     output
 }
 
-fn parse_message_2(rcvd_message_2: &BufferMessage2) -> (BytesP256ElemLen, BufferCiphertext2) {
+fn parse_message_2(
+    rcvd_message_2: &BufferMessage2,
+) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
+    let mut error: EDHOCError = EDHOCError::UnknownError;
     // FIXME decode negative integers as well
-    let g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
-    let ciphertext_2_len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
-    let ciphertext_2 =
-        BufferCiphertext2::from_slice(&rcvd_message_2.content, 2 + P256_ELEM_LEN, ciphertext_2_len);
+    let mut g_y: BytesP256ElemLen = BytesP256ElemLen::new();
+    let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
 
-    (g_y, ciphertext_2)
+    // ensure the whole message is a single CBOR sequence
+    if u8::from(rcvd_message_2.content[0]) == CBOR_BYTE_STRING
+        && u8::from(rcvd_message_2.content[1]) == (rcvd_message_2.len as u8 - 2)
+    {
+        g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
+        let ciphertext_2_len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
+        ciphertext_2 = BufferCiphertext2::from_slice(
+            &rcvd_message_2.content,
+            2 + P256_ELEM_LEN,
+            ciphertext_2_len,
+        );
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((g_y, ciphertext_2)),
+        _ => Err(error),
+    }
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
@@ -1738,6 +1763,12 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_message_2_invalid_traces() {
+        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        assert!(parse_message_2(&message_2_tv).is_err());
+    }
+
+    #[test]
     fn test_encode_message_2() {
         let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
@@ -1754,7 +1785,9 @@ mod tests {
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
 
-        let (g_y, ciphertext_2) = parse_message_2(&message_2_tv);
+        let ret = parse_message_2(&message_2_tv);
+        assert!(ret.is_ok());
+        let (g_y, ciphertext_2) = ret.unwrap();
 
         assert_bytes_eq!(g_y, g_y_tv);
         assert_bytes_eq!(ciphertext_2.content, ciphertext_2_tv.content);
