@@ -851,12 +851,16 @@ fn parse_ead(
     }
 }
 
-fn is_cbor_array(first_byte: U8) -> bool {
-    return (first_byte.declassify() & CBOR_MAJOR_ARRAY) == CBOR_MAJOR_ARRAY;
+#[inline(always)]
+fn is_cbor_uint8(byte: U8) -> bool {
+    let byte = byte.declassify();
+    return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
 }
 
-fn should_encoded_ciphersuite_be_minimal(byte1: U8, byte2: U8) -> bool {
-    return is_cbor_array(byte1) && (byte1.declassify() - CBOR_MAJOR_ARRAY) == 1;
+#[inline(always)]
+fn is_cbor_int8(byte: U8) -> bool {
+    let byte = byte.declassify();
+    return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
 }
 
 fn parse_message_1(
@@ -881,8 +885,8 @@ fn parse_message_1(
     let mut c_i = U8(0);
     let mut ead_1 = None::<EADItemHacspec>;
 
-    // check surplus array encoding
-    if !is_cbor_array(rcvd_message_1.content[0]) {
+    // first element of CBOR sequence must be an integer
+    if is_cbor_uint8(rcvd_message_1.content[0]) {
         method = rcvd_message_1.content[0];
 
         let res_suites = parse_suites_i(rcvd_message_1);
@@ -899,11 +903,8 @@ fn parse_message_1(
                 );
 
                 c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
-                // check that c_i is encoded as single-byte uint (we still do not support bstr encoding)
-                let c_i_u8 = c_i.declassify();
-                if (c_i_u8 >= CBOR_NEG_INT_1BYTE_START && c_i_u8 <= CBOR_NEG_INT_1BYTE_END)
-                    || (c_i_u8 >= CBOR_UINT_1BYTE_START && c_i_u8 <= CBOR_UINT_1BYTE_END)
-                {
+                // check that c_i is encoded as single-byte int (we still do not support bstr encoding)
+                if is_cbor_int8(c_i) || is_cbor_uint8(c_i) {
                     // if there is still more to parse, the rest will be the EAD_1
                     if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
                         // NOTE: since the current implementation only supports one EAD handler,
