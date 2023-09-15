@@ -855,17 +855,6 @@ fn is_cbor_array(first_byte: U8) -> bool {
     return (first_byte.declassify() & CBOR_MAJOR_ARRAY) == CBOR_MAJOR_ARRAY;
 }
 
-fn is_encoded_conn_id_minimal(conn_id: U8) -> bool {
-    let conn_id = conn_id.declassify();
-    return (conn_id >= 20 && conn_id <= 37) || (conn_id >= 0 && conn_id <= 17);
-}
-
-fn should_encoded_conn_id_be_minimal(conn_id_byte1: U8, conn_id_byte2: U8) -> bool {
-    return !is_encoded_conn_id_minimal(conn_id_byte1)
-        && (conn_id_byte1.declassify() == (CBOR_MAJOR_BYTE_STRING | 0x1)) // bstr with length of 1
-        && is_encoded_conn_id_minimal(conn_id_byte2);
-}
-
 fn should_encoded_ciphersuite_be_minimal(byte1: U8, byte2: U8) -> bool {
     return is_cbor_array(byte1) && (byte1.declassify() - CBOR_MAJOR_ARRAY) == 1;
 }
@@ -909,10 +898,12 @@ fn parse_message_1(
                     P256_ELEM_LEN,
                 );
 
-                // check surplus bstr encoding
                 c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
-                let c_i_lookahead = rcvd_message_1.content[4 + raw_suites_len + P256_ELEM_LEN];
-                if !should_encoded_conn_id_be_minimal(c_i, c_i_lookahead) {
+                // check that c_i is encoded as single-byte uint (we still do not support bstr encoding)
+                let c_i_u8 = c_i.declassify();
+                if (c_i_u8 >= CBOR_NEG_INT_1BYTE_START && c_i_u8 <= CBOR_NEG_INT_1BYTE_END)
+                    || (c_i_u8 >= CBOR_UINT_1BYTE_START && c_i_u8 <= CBOR_UINT_1BYTE_END)
+                {
                     // if there is still more to parse, the rest will be the EAD_1
                     if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
                         // NOTE: since the current implementation only supports one EAD handler,

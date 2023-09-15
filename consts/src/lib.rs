@@ -133,6 +133,8 @@ mod common {
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
     pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
     pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
+    pub const CBOR_UINT_1BYTE_START: u8 = 0x0u8;
+    pub const CBOR_UINT_1BYTE_END: u8 = 0x17u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
     pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
     pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
