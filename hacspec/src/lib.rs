@@ -1035,8 +1035,8 @@ fn parse_message_2(
     let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
 
     // ensure the whole message is a single CBOR sequence
-    if u8::from(rcvd_message_2.content[0]) == CBOR_BYTE_STRING
-        && u8::from(rcvd_message_2.content[1]) == (rcvd_message_2.len as u8 - 2)
+    if (rcvd_message_2.content[0] as U8).declassify() == CBOR_BYTE_STRING
+        && (rcvd_message_2.content[1] as U8).declassify() == (rcvd_message_2.len as u8 - 2)
     {
         g_y = BytesP256ElemLen::from_slice(&rcvd_message_2.content, 2, P256_ELEM_LEN);
         let ciphertext_2_len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
@@ -1750,22 +1750,37 @@ mod tests {
     #[test]
     fn test_parse_message_1_invalid_traces() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
-        assert!(parse_message_1(&message_1_tv).is_err());
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
-        assert!(parse_message_1(&message_1_tv).is_err());
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
-        assert!(parse_message_1(&message_1_tv).is_err());
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
-        assert!(parse_message_1(&message_1_tv).is_err());
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
     }
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
         let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
-        assert!(parse_message_2(&message_2_tv).is_err());
+        assert_eq!(
+            parse_message_2(&message_2_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
     }
 
     #[test]
@@ -1955,7 +1970,7 @@ mod tests {
             plaintext_2_tv_len,
         );
         let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, plaintext_2_tv_len);
-        assert!(plaintext_2.is_err());
+        assert_eq!(plaintext_2.unwrap_err(), EDHOCError::ParsingError);
 
         let plaintext_2_tv_len = PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV.len() / 2;
         let plaintext_2_tv = BytesMaxBuffer::from_slice(
@@ -1964,7 +1979,7 @@ mod tests {
             plaintext_2_tv_len,
         );
         let plaintext_2 = decode_plaintext_2(&plaintext_2_tv, plaintext_2_tv_len);
-        assert!(plaintext_2.is_err());
+        assert_eq!(plaintext_2.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
