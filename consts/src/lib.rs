@@ -137,7 +137,9 @@ mod common {
     pub const CBOR_UINT_1BYTE_END: u8 = 0x17u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
     pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
+    pub const CBOR_MAJOR_BYTE_STRING_MAX: u8 = 0x57u8;
     pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
+    pub const CBOR_MAJOR_ARRAY_MAX: u8 = 0x97u8;
     pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
 				            1 + MAX_KDF_LABEL_LEN +     // label <24 bytes as tstr
 						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
