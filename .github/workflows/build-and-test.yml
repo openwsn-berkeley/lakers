@@ -3,7 +3,7 @@ name: Build and test
 on:
   push:
     branches: [main]
-    tags: 'REL-*'
+    tags: 'v*'
   pull_request:
 
 env:
