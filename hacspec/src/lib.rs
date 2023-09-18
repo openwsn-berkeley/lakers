@@ -733,40 +733,40 @@ pub fn construct_state(
     )
 }
 
-/// the unsigned integer is encoded as a single byte
+/// Check for: an unsigned integer encoded as a single byte
 #[inline(always)]
 fn is_cbor_uint_1byte(byte: U8) -> bool {
     let byte = byte.declassify();
     return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
 }
 
-/// the unsigned integer is encoded as two bytes
+/// Check for: an unsigned integer encoded as two bytes
 #[inline(always)]
 fn is_cbor_uint_2bytes(byte: U8) -> bool {
     return byte.declassify() == CBOR_UINT_1BYTE;
 }
 
-/// the negative integer is encoded as a single byte
+/// Check for: a negative integer encoded as a single byte
 #[inline(always)]
 fn is_cbor_neg_int_1byte(byte: U8) -> bool {
     let byte = byte.declassify();
     return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
 }
 
-/// a single byte signals both bstr type and content length
+/// Check for: a bstr denoted by a single byte which encodes both type and content length
 #[inline(always)]
 fn is_cbor_bstr_1byte_prefix(byte: U8) -> bool {
     let byte = byte.declassify();
     return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
 }
 
-/// two bytes are used to signal bstr type and content length
+/// Check for: a bstr denoted by two bytes, onr for type the other for content length
 #[inline(always)]
 fn is_cbor_bstr_2bytes_prefix(byte: U8) -> bool {
     return byte.declassify() == CBOR_BYTE_STRING;
 }
 
-/// a single byte signals both array type and content length
+/// Check for: an array denoted by a single byte which encodes both type and content length
 #[inline(always)]
 fn is_cbor_array_1byte_prefix(byte: U8) -> bool {
     let byte = byte.declassify();
@@ -1182,7 +1182,6 @@ fn decode_plaintext_3(
     let mut ead_3 = None::<EADItemHacspec>;
     let mut error = EDHOCError::UnknownError;
     let mut kid = U8(0xff);
-    // skip the CBOR magic byte as we know how long the MAC is
     let mut mac_3 = BytesMac3::new();
 
     // check ID_CRED_I and MAC_3
@@ -1432,6 +1431,7 @@ fn decode_plaintext_2(
     let mut id_cred_r: U8 = U8(0xff);
     let mut mac_2 = BytesMac2::new();
 
+    // check CBOR sequence types for c_r, id_cred_r, and mac_2
     if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]))
         && (is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]))
         && (is_cbor_bstr_1byte_prefix(plaintext_2[2]))
