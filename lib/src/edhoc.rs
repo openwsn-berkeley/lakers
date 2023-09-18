@@ -672,6 +672,42 @@ pub fn construct_state(
     )
 }
 
+/// Check for: an unsigned integer encoded as a single byte
+#[inline(always)]
+fn is_cbor_uint_1byte(byte: U8) -> bool {
+    return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
+}
+
+/// Check for: an unsigned integer encoded as two bytes
+#[inline(always)]
+fn is_cbor_uint_2bytes(byte: U8) -> bool {
+    return byte == CBOR_UINT_1BYTE;
+}
+
+/// Check for: a negative integer encoded as a single byte
+#[inline(always)]
+fn is_cbor_neg_int_1byte(byte: U8) -> bool {
+    return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+}
+
+/// Check for: a bstr denoted by a single byte which encodes both type and content length
+#[inline(always)]
+fn is_cbor_bstr_1byte_prefix(byte: U8) -> bool {
+    return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
+}
+
+/// Check for: a bstr denoted by two bytes, onr for type the other for content length
+#[inline(always)]
+fn is_cbor_bstr_2bytes_prefix(byte: U8) -> bool {
+    return byte == CBOR_BYTE_STRING;
+}
+
+/// Check for: an array denoted by a single byte which encodes both type and content length
+#[inline(always)]
+fn is_cbor_array_1byte_prefix(byte: U8) -> bool {
+    return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+}
+
 fn parse_suites_i(
     rcvd_message_1: &BufferMessage1,
 ) -> Result<(BytesSuites, usize, usize), EDHOCError> {
@@ -681,57 +717,55 @@ fn parse_suites_i(
     let mut suites_i_len: usize = 0;
 
     // match based on first byte of SUITES_I, which can be either an int or an array
-    match rcvd_message_1.content[1] {
+    if is_cbor_uint_1byte(rcvd_message_1.content[1]) {
         // CBOR unsigned integer (0..=23)
-        0x00..=0x17 => {
-            suites_i[0] = rcvd_message_1.content[1];
-            suites_i_len = 1;
-            raw_suites_len = 1;
-            error = EDHOCError::Success;
-        }
+        suites_i[0] = rcvd_message_1.content[1];
+        suites_i_len = 1;
+        raw_suites_len = 1;
+        error = EDHOCError::Success;
+    } else if is_cbor_uint_2bytes(rcvd_message_1.content[1]) {
         // CBOR unsigned integer (one-byte uint8_t follows)
-        0x18 => {
-            suites_i[0] = rcvd_message_1.content[2];
-            suites_i_len = 1;
-            raw_suites_len = 2;
-            error = EDHOCError::Success;
-        }
+        suites_i[0] = rcvd_message_1.content[2];
+        suites_i_len = 1;
+        raw_suites_len = 2;
+        error = EDHOCError::Success;
+    } else if is_cbor_array_1byte_prefix(rcvd_message_1.content[1]) {
         // CBOR array (0..=23 data items follow)
-        0x80..=0x97 => {
-            // the CBOR array length is encoded in the first byte, so we extract it
-            let suites_len: usize = (rcvd_message_1.content[1] - CBOR_MAJOR_ARRAY).into();
-            raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
-            if suites_len <= EDHOC_SUITES.len() {
-                let mut j: usize = 0; // index for addressing cipher suites
-                while j < suites_len {
-                    raw_suites_len += 1;
-                    // match based on cipher suite identifier
-                    match rcvd_message_1.content[raw_suites_len] {
-                        // CBOR unsigned integer (0..23)
-                        0x00..=0x17 => {
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                            suites_i_len += 1;
-                        }
-                        // CBOR unsigned integer (one-byte uint8_t follows)
-                        0x18 => {
-                            raw_suites_len += 1; // account for the 0x18 tag byte
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                            suites_i_len += 1;
-                        }
-                        _ => {
-                            error = EDHOCError::ParsingError;
-                            break;
-                        }
+        // the CBOR array length is encoded in the first byte, so we extract it
+        let suites_len: usize = (rcvd_message_1.content[1] - CBOR_MAJOR_ARRAY).into();
+        // check surplus array encoding of ciphersuite
+        raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
+        if suites_len > 1 && suites_len <= EDHOC_SUITES.len() {
+            let mut j: usize = 0; // index for addressing cipher suites
+            while j < suites_len {
+                raw_suites_len += 1;
+                // match based on cipher suite identifier
+                match rcvd_message_1.content[raw_suites_len] {
+                    // CBOR unsigned integer (0..23)
+                    0x00..=0x17 => {
+                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                        suites_i_len += 1;
                     }
-                    j += 1;
+                    // CBOR unsigned integer (one-byte uint8_t follows)
+                    0x18 => {
+                        raw_suites_len += 1; // account for the 0x18 tag byte
+                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                        suites_i_len += 1;
+                    }
+                    _ => {
+                        error = EDHOCError::ParsingError;
+                        break;
+                    }
                 }
-                error = EDHOCError::Success;
-            } else {
-                error = EDHOCError::ParsingError;
+                j += 1;
             }
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::ParsingError;
         }
-        _ => error = EDHOCError::ParsingError,
-    };
+    } else {
+        error = EDHOCError::ParsingError;
+    }
 
     match error {
         EDHOCError::Success => Ok((suites_i, suites_i_len, raw_suites_len)),
@@ -746,12 +780,14 @@ fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADIt
 
     // assuming label is a single byte integer (negative or positive)
     let label = message.content[offset];
-    let res_label = match label {
+    let res_label = if is_cbor_uint_1byte(label) {
         // CBOR unsigned integer (0..=23)
-        label @ 0x00..=0x17 => Ok((label as u8, false)),
+        Ok((label as u8, false))
+    } else if is_cbor_neg_int_1byte(label) {
         // CBOR negative integer (-1..=-24)
-        label @ 0x20..=0x37 => Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true)),
-        _ => Err(EDHOCError::ParsingError),
+        Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
+    } else {
+        Err(EDHOCError::ParsingError)
     };
 
     if res_label.is_ok() {
@@ -794,6 +830,7 @@ fn parse_message_1(
     EDHOCError,
 > {
     let mut error: EDHOCError = EDHOCError::UnknownError;
+    let mut method: U8 = 0xff;
     let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
     let mut suites_i: BytesSuites = [0u8; SUITES_LEN];
     let mut suites_i_len: usize = 0;
@@ -801,37 +838,49 @@ fn parse_message_1(
     let mut c_i = 0;
     let mut ead_1 = None::<EADItem>;
 
-    let method = rcvd_message_1.content[0];
+    // first element of CBOR sequence must be an integer
+    if is_cbor_uint_1byte(rcvd_message_1.content[0]) {
+        method = rcvd_message_1.content[0];
+        let res_suites = parse_suites_i(rcvd_message_1);
 
-    let res_suites = parse_suites_i(rcvd_message_1);
+        if res_suites.is_ok() {
+            (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
 
-    if res_suites.is_ok() {
-        (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
+            if is_cbor_bstr_2bytes_prefix(rcvd_message_1.content[1 + raw_suites_len]) {
+                g_x.copy_from_slice(
+                    &rcvd_message_1.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN],
+                );
 
-        g_x.copy_from_slice(
-            &rcvd_message_1.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN],
-        );
-
-        c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
-
-        // if there is still more to parse, the rest will be the EAD_1
-        if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
-            if ead_res.is_ok() {
-                ead_1 = ead_res.unwrap();
-                error = EDHOCError::Success;
+                c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
+                // check that c_i is encoded as single-byte int (we still do not support bstr encoding)
+                if is_cbor_neg_int_1byte(c_i) || is_cbor_uint_1byte(c_i) {
+                    // if there is still more to parse, the rest will be the EAD_1
+                    if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
+                        // NOTE: since the current implementation only supports one EAD handler,
+                        // we assume only one EAD item
+                        let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
+                        if ead_res.is_ok() {
+                            ead_1 = ead_res.unwrap();
+                            error = EDHOCError::Success;
+                        } else {
+                            error = ead_res.unwrap_err();
+                        }
+                    } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
+                        error = EDHOCError::Success;
+                    } else {
+                        error = EDHOCError::ParsingError;
+                    }
+                } else {
+                    error = EDHOCError::ParsingError;
+                }
             } else {
-                error = ead_res.unwrap_err();
+                error = EDHOCError::ParsingError;
             }
-        } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
-            error = EDHOCError::Success;
         } else {
-            error = EDHOCError::ParsingError;
+            error = res_suites.unwrap_err();
         }
     } else {
-        error = res_suites.unwrap_err();
+        error = EDHOCError::ParsingError;
     }
 
     match error {
@@ -922,17 +971,30 @@ fn encode_message_1(
 fn parse_message_2(
     rcvd_message_2: &BufferMessage2,
 ) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
+    let mut error: EDHOCError = EDHOCError::UnknownError;
     // FIXME decode negative integers as well
     let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
-
     let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
-    ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
-    ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
-        &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
-    );
 
-    Ok((g_y, ciphertext_2))
+    // ensure the whole message is a single CBOR sequence
+    if is_cbor_bstr_2bytes_prefix(rcvd_message_2.content[0])
+        && rcvd_message_2.content[1] == (rcvd_message_2.len as u8 - 2)
+    {
+        g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
+
+        ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
+        ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
+            &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
+        );
+        error = EDHOCError::Success;
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((g_y, ciphertext_2)),
+        _ => Err(error),
+    }
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
@@ -1048,25 +1110,33 @@ fn decode_plaintext_3(
 ) -> Result<(U8, BytesMac3, Option<EADItem>), EDHOCError> {
     let mut ead_3 = None::<EADItem>;
     let mut error = EDHOCError::UnknownError;
-
-    let kid = plaintext_3.content[0usize];
-    // skip the CBOR magic byte as we know how long the MAC is
+    let mut kid: u8 = 0xff;
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-    mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
 
-    // if there is still more to parse, the rest will be the EAD_3
-    if plaintext_3.len > (2 + MAC_LENGTH_3) {
-        // NOTE: since the current implementation only supports one EAD handler,
-        // we assume only one EAD item
-        let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
-        if ead_res.is_ok() {
-            ead_3 = ead_res.unwrap();
+    // check ID_CRED_I and MAC_3
+    if (is_cbor_neg_int_1byte(plaintext_3.content[0]) || is_cbor_uint_1byte(plaintext_3.content[0]))
+        && (is_cbor_bstr_1byte_prefix(plaintext_3.content[1]))
+    {
+        kid = plaintext_3.content[0usize];
+        // skip the CBOR magic byte as we know how long the MAC is
+        mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
+
+        // if there is still more to parse, the rest will be the EAD_3
+        if plaintext_3.len > (2 + MAC_LENGTH_3) {
+            // NOTE: since the current implementation only supports one EAD handler,
+            // we assume only one EAD item
+            let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
+            if ead_res.is_ok() {
+                ead_3 = ead_res.unwrap();
+                error = EDHOCError::Success;
+            } else {
+                error = ead_res.unwrap_err();
+            }
+        } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
             error = EDHOCError::Success;
         } else {
-            error = ead_res.unwrap_err();
+            error = EDHOCError::ParsingError;
         }
-    } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
-        error = EDHOCError::Success;
     } else {
         error = EDHOCError::ParsingError;
     }
@@ -1272,29 +1342,40 @@ fn decode_plaintext_2(
 ) -> Result<(U8, U8, BytesMac2, Option<EADItem>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
     let mut ead_2 = None::<EADItem>;
-
-    let c_r = plaintext_2[0];
-    let id_cred_r = plaintext_2[1];
-    // skip cbor byte string byte as we know how long the string is
+    let mut c_r: U8 = 0xff;
+    let mut id_cred_r: U8 = 0xff;
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-    mac_2[..].copy_from_slice(&plaintext_2[3..3 + MAC_LENGTH_2]);
 
-    // if there is still more to parse, the rest will be the EAD_2
-    if plaintext_2_len > (3 + MAC_LENGTH_2) {
-        // NOTE: since the current implementation only supports one EAD handler,
-        // we assume only one EAD item
-        let ead_res = parse_ead(
-            &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-            3 + MAC_LENGTH_2,
-        );
-        if ead_res.is_ok() {
-            ead_2 = ead_res.unwrap();
+    // check CBOR sequence types for c_r, id_cred_r, and mac_2
+    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]))
+        && (is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]))
+        && (is_cbor_bstr_1byte_prefix(plaintext_2[2]))
+    // TODO: check mac length as well
+    {
+        c_r = plaintext_2[0];
+        id_cred_r = plaintext_2[1];
+        // skip cbor byte string byte as we know how long the string is
+        mac_2[..].copy_from_slice(&plaintext_2[3..3 + MAC_LENGTH_2]);
+
+        // if there is still more to parse, the rest will be the EAD_2
+        if plaintext_2_len > (3 + MAC_LENGTH_2) {
+            // NOTE: since the current implementation only supports one EAD handler,
+            // we assume only one EAD item
+            let ead_res = parse_ead(
+                &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
+                3 + MAC_LENGTH_2,
+            );
+            if ead_res.is_ok() {
+                ead_2 = ead_res.unwrap();
+                error = EDHOCError::Success;
+            } else {
+                error = ead_res.unwrap_err();
+            }
+        } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
             error = EDHOCError::Success;
         } else {
-            error = ead_res.unwrap_err();
+            error = EDHOCError::ParsingError;
         }
-    } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
-        error = EDHOCError::Success;
     } else {
         error = EDHOCError::ParsingError;
     }
@@ -1516,6 +1597,20 @@ mod tests {
     const OSCORE_MASTER_SECRET_TV: BytesCcmKeyLen = hex!("8c409a332223ad900e44f3434d2d2ce3");
     const OSCORE_MASTER_SALT_TV: Bytes8 = hex!("6163f44be862adfa");
 
+    // invalid test vectors, should result in a parsing error
+    const MESSAGE_1_INVALID_ARRAY_TV: &str =
+        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_C_I_TV: &str =
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
+    const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
+        "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
+        "0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e";
+    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: &str =
+        "5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a";
+    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: &str = "27a10442321048fa5efa2ebf920bf3";
+    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: &str = "27413248fa5efa2ebf920bf3";
+
     #[test]
     fn test_ecdh() {
         let g_xy = p256_ecdh(&X_TV, &G_Y_TV);
@@ -1597,6 +1692,42 @@ mod tests {
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
         assert!(ead_1.is_none());
+    }
+
+    #[test]
+    fn test_parse_message_1_invalid_traces() {
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
+    }
+
+    #[test]
+    fn test_parse_message_2_invalid_traces() {
+        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        assert_eq!(
+            parse_message_1(&message_2_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
     }
 
     #[test]
@@ -1728,6 +1859,23 @@ mod tests {
         let plaintext_2 = encode_plaintext_2(C_R_TV, &ID_CRED_R_TV, &MAC_2_TV, &None::<EADItem>);
 
         assert_eq!(plaintext_2, plaintext_2_tv);
+    }
+
+    #[test]
+    fn test_parse_plaintext_2_invalid_traces() {
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV);
+        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        plaintext_2_tv_buffer[..plaintext_2_tv.len]
+            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
+        let ret = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
+
+        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV);
+        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        plaintext_2_tv_buffer[..plaintext_2_tv.len]
+            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
+        let ret = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
