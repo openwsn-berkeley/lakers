@@ -743,6 +743,10 @@ mod test {
     const MESSAGE_1_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
 
+    // invalid test vectors, crypto-related
+    const MESSAGE_1_INVALID_G_X_NOT_ON_P256_CURVE_TV: &str =
+        "03025820a04e73601df544a70ba7ea1e57030f7d4b4eb7f673924e58d54ca77a5e7d4d4a0e";
+
     #[test]
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
@@ -781,6 +785,23 @@ mod test {
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
         assert!(error.is_ok());
+    }
+
+    #[test]
+    fn test_process_message_1_invalid_traces_crypto() {
+        let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_INVALID_G_X_NOT_ON_P256_CURVE_TV);
+        let mut responder = EdhocResponder::new(
+            Default::default(),
+            R,
+            G_I,
+            ID_CRED_I,
+            CRED_I,
+            ID_CRED_R,
+            CRED_R,
+        );
+        let error = responder.process_message_1(&message_1_tv);
+        assert!(error.is_err());
+        assert_eq!(error.unwrap_err(), EDHOCError::InvalidPublicKey);
     }
 
     #[test]

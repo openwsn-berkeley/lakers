@@ -120,6 +120,15 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     (private_key, public_key)
 }
 
+pub fn p256_validate_compact_public_key(public_key: &BytesP256ElemLen) -> bool {
+    let point = (
+        P256FieldElement::from_byte_seq_be(public_key),
+        p256_calculate_w(P256FieldElement::from_byte_seq_be(public_key)),
+    );
+
+    p256_validate_public_key(point)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -130,36 +130,40 @@ pub fn r_process_message_1(
                 if suites_i[suites_i_len - 1].declassify()
                     == EDHOC_SUPPORTED_SUITES[0u8].declassify()
                 {
-                    // Step 3: If EAD is present make it available to the application
-                    let ead_success = if let Some(ead_1) = ead_1 {
-                        r_process_ead_1(ead_1.to_public_item()).is_ok()
-                    } else {
-                        true
-                    };
-                    if ead_success {
-                        // hash message_1 and save the hash to the state to avoid saving the whole message
-                        h_message_1 = sha256_digest(
-                            &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
-                            message_1.len,
-                        );
+                    if p256_validate_compact_public_key(&g_x) {
+                        // Step 3: If EAD is present make it available to the application
+                        let ead_success = if let Some(ead_1) = ead_1 {
+                            r_process_ead_1(ead_1.to_public_item()).is_ok()
+                        } else {
+                            true
+                        };
+                        if ead_success {
+                            // hash message_1 and save the hash to the state to avoid saving the whole message
+                            h_message_1 = sha256_digest(
+                                &BytesMaxBuffer::from_slice(&message_1.content, 0, message_1.len),
+                                message_1.len,
+                            );
 
-                        error = EDHOCError::Success;
-                        current_state = EDHOCState::ProcessedMessage1;
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::ProcessedMessage1;
 
-                        state = construct_state(
-                            current_state,
-                            _y,
-                            c_i,
-                            g_x,
-                            _prk_3e2m,
-                            _prk_4e3m,
-                            _prk_out,
-                            _prk_exporter,
-                            h_message_1,
-                            _th_3,
-                        );
+                            state = construct_state(
+                                current_state,
+                                _y,
+                                c_i,
+                                g_x,
+                                _prk_3e2m,
+                                _prk_4e3m,
+                                _prk_out,
+                                _prk_exporter,
+                                h_message_1,
+                                _th_3,
+                            );
+                        } else {
+                            error = EDHOCError::EADError;
+                        }
                     } else {
-                        error = EDHOCError::EADError;
+                        error = EDHOCError::InvalidPublicKey;
                     }
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;

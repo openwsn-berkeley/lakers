@@ -30,10 +30,11 @@ mod common {
         MacVerificationFailed = 2,
         UnsupportedMethod = 3,
         UnsupportedCipherSuite = 4,
-        ParsingError = 5,
-        WrongState = 6,
-        EADError = 7,
-        UnknownError = 8,
+        InvalidPublicKey = 5,
+        ParsingError = 6,
+        WrongState = 7,
+        EADError = 8,
+        UnknownError = 9,
     }
 
     #[repr(C)]

@@ -301,6 +301,10 @@ mod hacspec {
 
         (private_key, public_key)
     }
+
+    pub fn p256_validate_compact_public_key(public_key: &BytesP256ElemLen) -> bool {
+        true
+    }
 }
 
 #[cfg(feature = "rust")]
@@ -560,6 +564,10 @@ mod rust {
         let public_key: [u8; P256_ELEM_LEN] = public_key[1..33].try_into().unwrap(); // return only the x coordinate
 
         (private_key, public_key)
+    }
+
+    pub fn p256_validate_compact_public_key(public_key: &BytesP256ElemLen) -> bool {
+        true
     }
 }
 
