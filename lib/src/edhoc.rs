@@ -733,33 +733,32 @@ fn parse_suites_i(
         // CBOR array (0..=23 data items follow)
         // the CBOR array length is encoded in the first byte, so we extract it
         let suites_len: usize = (rcvd_message_1.content[1] - CBOR_MAJOR_ARRAY).into();
-        // check surplus array encoding of ciphersuite
         raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
         if suites_len > 1 && suites_len <= EDHOC_SUITES.len() {
-            let mut j: usize = 0; // index for addressing cipher suites
-            while j < suites_len {
+            // cipher suite array must be at least 2 elements long, but not longer than the defined cipher suites
+            let mut error_occurred = false;
+            for j in 0..suites_len {
                 raw_suites_len += 1;
-                // match based on cipher suite identifier
-                match rcvd_message_1.content[raw_suites_len] {
-                    // CBOR unsigned integer (0..23)
-                    0x00..=0x17 => {
+                if !error_occurred {
+                    // parse based on cipher suite identifier
+                    if is_cbor_uint_1byte(rcvd_message_1.content[raw_suites_len]) {
+                        // CBOR unsigned integer (0..23)
                         suites_i[j] = rcvd_message_1.content[raw_suites_len];
                         suites_i_len += 1;
-                    }
-                    // CBOR unsigned integer (one-byte uint8_t follows)
-                    0x18 => {
+                    } else if is_cbor_uint_2bytes(rcvd_message_1.content[raw_suites_len]) {
+                        // CBOR unsigned integer (one-byte uint8_t follows)
                         raw_suites_len += 1; // account for the 0x18 tag byte
                         suites_i[j] = rcvd_message_1.content[raw_suites_len];
                         suites_i_len += 1;
-                    }
-                    _ => {
+                    } else {
                         error = EDHOCError::ParsingError;
-                        break;
+                        error_occurred = true;
                     }
                 }
-                j += 1;
             }
-            error = EDHOCError::Success;
+            if !error_occurred {
+                error = EDHOCError::Success;
+            }
         } else {
             error = EDHOCError::ParsingError;
         }
