@@ -7,19 +7,19 @@ license = "BSD"
 description = "EDHOC crypto library dispatch crate"
 
 [dependencies]
-edhoc-consts = { path = "../consts", default-features = false }
+edhoc-consts = { path = "../consts", version = "0.1.0", default-features = false }
 
 # hacspec
-edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
+edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", version = "0.1.0", optional = true }
 
 # cc2538 hardware accelerated
-edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
+edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", version = "0.1.0", optional = true }
 
 # psa
-edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, optional = true }
+edhoc-crypto-psa = { path = "./edhoc-crypto-psa", version = "0.1.0", default-features = false, optional = true }
 
 # cryptocell for nrf52840
-edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
+edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", version = "0.1.0", optional = true }
 
 [features]
 default = [  ]

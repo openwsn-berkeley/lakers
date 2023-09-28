@@ -7,4 +7,4 @@ license = "BSD"
 description = "EDHOC EAD none (just a placeholder)"
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts = { path = "../../consts", version = "0.1.0" }

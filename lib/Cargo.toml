@@ -10,11 +10,11 @@ description = "EDHOC implementation in Rust"
 hexlit = "0.5.3"
 hex = { version = "0.4.3", default-features = false }
 
-edhoc-hacspec = { path = "../hacspec", optional = true }
+edhoc-hacspec = { path = "../hacspec", version = "0.1.0", optional = true }
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
-edhoc-crypto = { path = "../crypto", default-features = false }
-edhoc-consts = { path = "../consts", default-features = false }
-edhoc-ead = { path = "../ead", default-features = false }
+edhoc-crypto = { path = "../crypto", version = "^0.1.0", default-features = false }
+edhoc-consts = { path = "../consts", version = "0.1.0", default-features = false }
+edhoc-ead = { path = "../ead", version = "0.1.0", default-features = false }
 panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }
 
 [build-dependencies]

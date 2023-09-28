@@ -7,4 +7,4 @@ license = "BSD"
 description = "EDHOC EAD zeroconf (draf-lake-authz)"
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts = { path = "../../consts", version = "0.1.0" }

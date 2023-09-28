@@ -7,10 +7,10 @@ license = "BSD"
 description = "EDHOC EAD library dispatch crate"
 
 [dependencies]
-edhoc-consts = { path = "../consts", default-features = false }
+edhoc-consts = { path = "../consts", version = "0.1.0", default-features = false }
 
-edhoc-ead-none = { path = "./edhoc-ead-none", optional = true }
-edhoc-ead-zeroconf = { path = "./edhoc-ead-zeroconf", optional = true }
+edhoc-ead-none = { path = "./edhoc-ead-none", version = "0.1.0", optional = true }
+edhoc-ead-zeroconf = { path = "./edhoc-ead-zeroconf", version = "0.1.0", optional = true }
 
 [features]
 default = [ "ead-none" ]
