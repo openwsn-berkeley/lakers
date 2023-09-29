@@ -88,23 +88,61 @@ mod common {
 
     #[derive(Debug)]
     pub struct EADItem {
-        pub label: u8,
-        pub is_critical: bool,
+        pub(crate) label: u8,
+        pub(crate) is_critical: bool,
         // TODO[ead]: have adjustable (smaller) length for this buffer
-        pub value: Option<EdhocMessageBuffer>,
+        pub(crate) value: Option<EdhocMessageBuffer>,
     }
 
-    pub trait EADTrait {
-        fn new() -> Self;
+    #[derive(Debug)]
+    #[non_exhaustive]
+    /// Error created from [EADTrait::new]
+    pub enum EADNewError {
+        /// The value given exceeds the size that is statically allocated per EAD item.
+        SizeExceeded,
+        /// The label value given at construction exceeds the range of EAD labels the library can
+        /// handle.
+        InexpressibleLabel,
+        /// The label indicates use as padding, but non-zero values were encountered.
+        InvalidPadding,
+    }
+
+    pub trait EADTrait: Sized {
+        /// Create a new EAD option
+        fn new(label: u16, is_critical: bool, value: Option<&[u8]>) -> Result<Self, EADNewError>;
+
+        // It may make sense to add a `new_padding()` function that allows adding padding with
+        // neither the null check nor the need for the caller to allocate a slice of zeros.
+
+        fn label(&self) -> u16;
+        fn is_critical(&self) -> bool;
+        fn value(&self) -> Option<&[u8]>;
     }
 
     impl EADTrait for EADItem {
-        fn new() -> Self {
-            EADItem {
-                label: 0,
-                is_critical: false,
-                value: None,
-            }
+        #[inline(always)] // Assist const propagation that removes error states
+        fn new(label: u16, is_critical: bool, value: Option<&[u8]>) -> Result<Self, EADNewError> {
+            Ok(EADItem {
+                label: label
+                    .try_into()
+                    .map_err(|_| EADNewError::InexpressibleLabel)?,
+                is_critical,
+                value: value
+                    .map(|v| v.try_into().map_err(|_| EADNewError::SizeExceeded))
+                    .transpose()?,
+            })
+        }
+
+        fn label(&self) -> u16 {
+            self.label.into()
+        }
+
+        fn is_critical(&self) -> bool {
+            self.is_critical
+        }
+
+        fn value(&self) -> Option<&[u8]> {
+            self.value.as_ref().map(|v| &v.content[..v.len])
         }
     }
 

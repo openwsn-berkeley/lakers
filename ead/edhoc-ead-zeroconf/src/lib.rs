@@ -38,13 +38,10 @@ pub fn ead_initiator_set_global_state(new_state: EADInitiatorState) {
 }
 
 pub fn i_prepare_ead_1() -> Option<EADItem> {
-    let mut ead_1 = EADItem::new();
-
-    // this ead item is critical
-    ead_1.label = EAD_ZEROCONF_LABEL;
-    ead_1.is_critical = true;
-
     // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
+    let mut ead_1 = EADItem::new(EAD_ZEROCONF_LABEL.into(), true, None)
+        // Const propagation will remove this.
+        .unwrap();
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::WaitEAD2,
@@ -65,7 +62,7 @@ pub fn i_process_ead_2(ead_2: EADItem) -> Result<(), ()> {
 }
 
 pub fn i_prepare_ead_3() -> Option<EADItem> {
-    Some(EADItem::new())
+    Some(EADItem::new(0, false, None).unwrap())
 }
 
 // responder side
@@ -116,13 +113,8 @@ pub fn r_process_ead_1(ead_1: EADItem) -> Result<(), ()> {
 }
 
 pub fn r_prepare_ead_2() -> Option<EADItem> {
-    let mut ead_2 = EADItem::new();
-
-    // add the label to the buffer (non-critical)
-    ead_2.label = EAD_ZEROCONF_LABEL;
-    ead_2.is_critical = true;
-
     // TODO: append Voucher (H(message_1), CRED_V) to the buffer
+    let ead_2 = EADItem::new(EAD_ZEROCONF_LABEL.into(), true, None).unwrap();
 
     // NOTE: see the note in lib.rs::test_ead
     // state.protocol_state = EADResponderProtocolState::WaitMessage3;
