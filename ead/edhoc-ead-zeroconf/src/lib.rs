@@ -39,7 +39,7 @@ pub fn ead_initiator_set_global_state(new_state: EADInitiatorState) {
 
 pub fn i_prepare_ead_1() -> Option<EADItem> {
     // TODO: build Voucher_Info (LOC_W, ENC_ID), and append it to the buffer
-    let mut ead_1 = EADItem::new(EAD_ZEROCONF_LABEL.into(), true, None)
+    let mut ead_1 = EADItem::new(EAD_ZEROCONF_LABEL, true, None)
         // Const propagation will remove this.
         .unwrap();
 
@@ -114,7 +114,7 @@ pub fn r_process_ead_1(ead_1: EADItem) -> Result<(), ()> {
 
 pub fn r_prepare_ead_2() -> Option<EADItem> {
     // TODO: append Voucher (H(message_1), CRED_V) to the buffer
-    let ead_2 = EADItem::new(EAD_ZEROCONF_LABEL.into(), true, None).unwrap();
+    let ead_2 = EADItem::new(EAD_ZEROCONF_LABEL, true, None).unwrap();
 
     // NOTE: see the note in lib.rs::test_ead
     // state.protocol_state = EADResponderProtocolState::WaitMessage3;

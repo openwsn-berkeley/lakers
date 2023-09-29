@@ -88,7 +88,7 @@ mod common {
 
     #[derive(Debug)]
     pub struct EADItem {
-        pub(crate) label: u8,
+        pub(crate) label: u16,
         pub(crate) is_critical: bool,
         // TODO[ead]: have adjustable (smaller) length for this buffer
         pub(crate) value: Option<EdhocMessageBuffer>,
@@ -100,9 +100,6 @@ mod common {
     pub enum EADNewError {
         /// The value given exceeds the size that is statically allocated per EAD item.
         SizeExceeded,
-        /// The label value given at construction exceeds the range of EAD labels the library can
-        /// handle.
-        InexpressibleLabel,
         /// The label indicates use as padding, but non-zero values were encountered.
         InvalidPadding,
     }
@@ -123,9 +120,7 @@ mod common {
         #[inline(always)] // Assist const propagation that removes error states
         fn new(label: u16, is_critical: bool, value: Option<&[u8]>) -> Result<Self, EADNewError> {
             Ok(EADItem {
-                label: label
-                    .try_into()
-                    .map_err(|_| EADNewError::InexpressibleLabel)?,
+                label,
                 is_critical,
                 value: value
                     .map(|v| v.try_into().map_err(|_| EADNewError::SizeExceeded))
@@ -134,7 +129,7 @@ mod common {
         }
 
         fn label(&self) -> u16 {
-            self.label.into()
+            self.label
         }
 
         fn is_critical(&self) -> bool {
@@ -149,7 +144,7 @@ mod common {
     pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
     pub const MAX_EAD_SIZE_LEN: usize = 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
-    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+    pub const EAD_ZEROCONF_LABEL: u16 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
 
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
@@ -169,8 +164,11 @@ mod common {
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
+    pub const CBOR_UINT_2BYTE: u8 = 0x19u8;
     pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
     pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
+    pub const CBOR_NEG_INT_1BYTE: u8 = 0x38u8;
+    pub const CBOR_NEG_INT_2BYTE: u8 = 0x39u8;
     pub const CBOR_UINT_1BYTE_START: u8 = 0x0u8;
     pub const CBOR_UINT_1BYTE_END: u8 = 0x17u8;
     pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
@@ -305,7 +303,7 @@ mod hacspec {
 
     #[derive(Debug)]
     pub struct EADItemHacspec {
-        pub label: U8,
+        pub label: U16,
         pub is_critical: bool,
         // TODO[ead]: have adjustable (smaller) length for this buffer
         pub value: Option<EdhocMessageBufferHacspec>,
@@ -320,15 +318,15 @@ mod hacspec {
     impl EADItemHacspecTrait for EADItemHacspec {
         fn new() -> Self {
             EADItemHacspec {
-                label: U8(0),
+                label: U16(0),
                 is_critical: false,
                 value: None,
             }
         }
         fn from_public_item(item: &EADItem) -> Self {
             EADItemHacspec {
-                label: U8(item.label),
-                is_critical: item.is_critical,
+                label: U16(item.label()),
+                is_critical: item.is_critical(),
                 value: match &item.value {
                     Some(value) => Some(EdhocMessageBufferHacspec::from_public_buffer(value)),
                     None => None,
@@ -336,14 +334,15 @@ mod hacspec {
             }
         }
         fn to_public_item(&self) -> EADItem {
-            EADItem {
-                label: self.label.declassify(),
-                is_critical: self.is_critical,
-                value: match &self.value {
-                    Some(value) => Some(value.to_public_buffer()),
-                    None => None,
-                },
-            }
+            let value_full = self
+                .value
+                .as_ref()
+                .map(|v| (v.content.to_public_array(), v.len));
+            let value = value_full
+                .as_ref()
+                .map(|(value, len)| &value[..(*len as usize)]);
+
+            EADItem::new(self.label.declassify(), self.is_critical, value).unwrap()
         }
     }
 
