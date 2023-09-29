@@ -5,5 +5,6 @@ edition = "2021"
 
 [dependencies]
 edhoc-rs = { path = "../../lib", features = [ "crypto-psa" ] }
+hexlit = "0.5.3"
 coap = { version = "0.13" }
 coap-lite = { version = "0.11.3" }

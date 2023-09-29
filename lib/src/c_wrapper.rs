@@ -40,7 +40,7 @@ impl EdhocInitiatorC {
     pub fn to_rust(&self) -> EdhocInitiator {
         EdhocInitiator::new(
             self.state,
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.i, self.i_len)) },
+            unsafe { slice::from_raw_parts(self.i, self.i_len) },
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_r, self.g_r_len)) },
             unsafe {
                 str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len))
@@ -141,7 +141,7 @@ pub unsafe extern "C" fn initiator_new(
 ) -> EdhocInitiatorC {
     EdhocInitiator::new(
         State::default(),
-        str::from_utf8_unchecked(slice::from_raw_parts(i, i_len)),
+        slice::from_raw_parts(i, i_len),
         str::from_utf8_unchecked(slice::from_raw_parts(g_r, g_r_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(id_cred_i, id_cred_i_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(cred_i, cred_i_len)),
