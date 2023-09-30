@@ -65,7 +65,7 @@ fn inner_main() -> Result<(), &'static str> {
     const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
     const C_R_TV: [u8; 1] = hex!("27");
 
-    let mut periph = pac::Peripherals::take().ok_or("unable to get peripherals")?;
+    let mut periph = unsafe { pac::Peripherals::steal() };
 
     let mut core_periph = cortex_m::Peripherals::take().unwrap();
     core_periph.DCB.enable_trace();
