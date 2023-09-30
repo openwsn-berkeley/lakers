@@ -179,7 +179,7 @@ pub fn r_prepare_message_2(
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
     c_r: u8,
-) -> Result<(State, BufferMessage2, u8), EDHOCError> {
+) -> Result<(State, BufferMessage2), EDHOCError> {
     let State(
         mut current_state,
         mut _y,
@@ -247,7 +247,7 @@ pub fn r_prepare_message_2(
     }
 
     match error {
-        EDHOCError::Success => Ok((state, message_2, c_r)),
+        EDHOCError::Success => Ok((state, message_2)),
         _ => Err(error),
     }
 }

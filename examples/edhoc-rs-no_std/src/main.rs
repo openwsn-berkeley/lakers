@@ -99,7 +99,8 @@ fn main() -> ! {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let message_1 = initiator.prepare_message_1();
+        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let message_1 = initiator.prepare_message_1(c_i);
         assert!(message_1.is_ok());
     }
 
@@ -128,16 +129,18 @@ fn main() -> ! {
             CRED_R,
         );
 
-        let ret = initiator.prepare_message_1(); // to update the state
+        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let ret = initiator.prepare_message_1(c_i); // to update the state
         assert!(ret.is_ok());
         let message_1 = ret.unwrap();
 
         let ret = responder.process_message_1(&message_1);
         assert!(ret.is_ok());
 
-        let ret = responder.prepare_message_2();
+        let c_r: u8 = generate_connection_identifier_cbor().into();
+        let ret = responder.prepare_message_2(c_r);
         assert!(ret.is_ok());
-        let (message_2, c_r) = ret.unwrap();
+        let message_2 = ret.unwrap();
         assert!(c_r != 0xff);
 
         let _c_r = initiator.process_message_2(&message_2);

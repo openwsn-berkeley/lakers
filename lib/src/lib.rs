@@ -95,12 +95,12 @@ impl<'a> EdhocResponderState<'a> {
 
     pub fn prepare_message_2(
         self: &mut EdhocResponderState<'a>,
-    ) -> Result<(BufferMessage2, u8), EDHOCError> {
+        c_r: u8,
+    ) -> Result<BufferMessage2, EDHOCError> {
         let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
         hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
             .expect("Decoding failed");
         let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
-        let c_r = generate_connection_identifier_cbor();
 
         match r_prepare_message_2(
             self.state,
@@ -112,9 +112,9 @@ impl<'a> EdhocResponderState<'a> {
             g_y,
             c_r,
         ) {
-            Ok((state, message_2, c_r)) => {
+            Ok((state, message_2)) => {
                 self.state = state;
-                Ok((message_2, c_r))
+                Ok(message_2)
             }
             Err(error) => Err(error),
         }
@@ -225,9 +225,9 @@ impl<'a> EdhocInitiatorState<'a> {
 
     pub fn prepare_message_1(
         self: &mut EdhocInitiatorState<'a>,
+        c_i: u8,
     ) -> Result<BufferMessage1, EDHOCError> {
         let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
-        let c_i = generate_connection_identifier_cbor();
 
         match i_prepare_message_1(self.state, x, g_x, c_i) {
             Ok((state, message_1)) => {
@@ -380,7 +380,8 @@ mod test {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let message_1 = initiator.prepare_message_1();
+        let c_i = generate_connection_identifier_cbor();
+        let message_1 = initiator.prepare_message_1(c_i);
         assert!(message_1.is_ok());
     }
 
@@ -431,16 +432,18 @@ mod test {
             CRED_R,
         );
 
-        let result = initiator.prepare_message_1(); // to update the state
+        let c_i: u8 = generate_connection_identifier_cbor();
+        let result = initiator.prepare_message_1(c_i); // to update the state
         assert!(result.is_ok());
 
         let error = responder.process_message_1(&result.unwrap());
         assert!(error.is_ok());
 
-        let ret = responder.prepare_message_2();
+        let c_r = generate_connection_identifier_cbor();
+        let ret = responder.prepare_message_2(c_r);
         assert!(ret.is_ok());
 
-        let (message_2, c_r) = ret.unwrap();
+        let message_2 = ret.unwrap();
 
         assert!(c_r != 0xff);
         let _c_r = initiator.process_message_2(&message_2);
@@ -524,7 +527,8 @@ mod test {
             EADResponderProtocolState::Start
         );
 
-        let message_1 = initiator.prepare_message_1().unwrap();
+        let c_i = generate_connection_identifier_cbor();
+        let message_1 = initiator.prepare_message_1(c_i).unwrap();
         assert_eq!(
             ead_initiator_state.protocol_state,
             EADInitiatorProtocolState::WaitEAD2
@@ -536,7 +540,8 @@ mod test {
             EADResponderProtocolState::ProcessedEAD1
         );
 
-        let (message_2, _c_r) = responder.prepare_message_2().unwrap();
+        let c_r = generate_connection_identifier_cbor();
+        let message_2 = responder.prepare_message_2(c_r).unwrap();
         assert_eq!(
             ead_responder_state.protocol_state,
             EADResponderProtocolState::Completed
