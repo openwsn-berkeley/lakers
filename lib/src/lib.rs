@@ -1,379 +1,343 @@
 #![cfg_attr(not(test), no_std)]
 
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
-    rust::generate_connection_identifier, rust::RustEdhocInitiator as EdhocInitiator,
-    rust::RustEdhocResponder as EdhocResponder,
+    EdhocInitiatorState as EdhocInitiator, EdhocResponderState as EdhocResponder,
 };
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
 pub use edhoc_ead::*;
 
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
 mod edhoc;
-
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
 use edhoc::*;
 
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
 mod c_wrapper;
-
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
 use c_wrapper::*;
 
-#[cfg(any(
-    feature = "rust-psa",
-    feature = "rust-psa-baremetal",
-    feature = "rust-cryptocell310"
-))]
-mod rust {
-    use super::*;
-    use edhoc_consts::*;
-    use hex::FromHex;
+use edhoc_consts::*;
+use hex::FromHex;
 
-    #[derive(Default, Copy, Clone, Debug)]
-    pub struct RustEdhocInitiator<'a> {
-        state: State,       // opaque state
-        i: &'a str,         // private authentication key of I
-        g_r: &'a str,       // public authentication key of R
-        id_cred_i: &'a str, // identifier of I's credential
-        cred_i: &'a str,    // I's full credential
-        id_cred_r: &'a str, // identifier of R's credential
-        cred_r: &'a str,    // R's full credential
-    }
+#[derive(Default, Copy, Clone, Debug)]
+pub struct EdhocInitiatorState<'a> {
+    state: State,       // opaque state
+    i: &'a str,         // private authentication key of I
+    g_r: &'a str,       // public authentication key of R
+    id_cred_i: &'a str, // identifier of I's credential
+    cred_i: &'a str,    // I's full credential
+    id_cred_r: &'a str, // identifier of R's credential
+    cred_r: &'a str,    // R's full credential
+}
 
-    #[derive(Default, Copy, Clone, Debug)]
-    pub struct RustEdhocResponder<'a> {
-        state: State,       // opaque state
-        r: &'a str,         // private authentication key of R
-        g_i: &'a str,       // public authentication key of I
-        id_cred_i: &'a str, // identifier of I's credential
-        cred_i: &'a str,    // I's full credential
-        id_cred_r: &'a str, // identifier of R's credential
-        cred_r: &'a str,    // R's full credential
-    }
+#[derive(Default, Copy, Clone, Debug)]
+pub struct EdhocResponderState<'a> {
+    state: State,       // opaque state
+    r: &'a str,         // private authentication key of R
+    g_i: &'a str,       // public authentication key of I
+    id_cred_i: &'a str, // identifier of I's credential
+    cred_i: &'a str,    // I's full credential
+    id_cred_r: &'a str, // identifier of R's credential
+    cred_r: &'a str,    // R's full credential
+}
 
-    impl<'a> RustEdhocResponder<'a> {
-        pub fn to_c(&self) -> EdhocResponderC {
-            EdhocResponderC {
-                state: self.state,
-                r: self.r.as_ptr(),
-                r_len: self.r.len(),
-                g_i: self.g_i.as_ptr(),
-                g_i_len: self.g_i.len(),
-                id_cred_i: self.id_cred_i.as_ptr(),
-                id_cred_i_len: self.id_cred_i.len(),
-                cred_i: self.cred_i.as_ptr(),
-                cred_i_len: self.cred_i.len(),
-                id_cred_r: self.id_cred_r.as_ptr(),
-                id_cred_r_len: self.id_cred_r.len(),
-                cred_r: self.cred_r.as_ptr(),
-                cred_r_len: self.cred_r.len(),
-            }
-        }
-
-        pub fn new(
-            state: State,
-            r: &'a str,
-            g_i: &'a str,
-            id_cred_i: &'a str,
-            cred_i: &'a str,
-            id_cred_r: &'a str,
-            cred_r: &'a str,
-        ) -> RustEdhocResponder<'a> {
-            assert!(r.len() == P256_ELEM_LEN * 2);
-            assert!(g_i.len() == P256_ELEM_LEN * 2);
-            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
-            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
-
-            RustEdhocResponder {
-                state: state,
-                r: r,
-                g_i: g_i,
-                id_cred_i: id_cred_i,
-                cred_i: cred_i,
-                id_cred_r: id_cred_r,
-                cred_r: cred_r,
-            }
-        }
-
-        pub fn process_message_1(
-            self: &mut RustEdhocResponder<'a>,
-            message_1: &BufferMessage1,
-        ) -> Result<(), EDHOCError> {
-            let state = r_process_message_1(self.state, message_1)?;
-            self.state = state;
-
-            Ok(())
-        }
-
-        pub fn prepare_message_2(
-            self: &mut RustEdhocResponder<'a>,
-        ) -> Result<(BufferMessage2, u8), EDHOCError> {
-            let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-            hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
-                .expect("Decoding failed");
-            let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
-            let c_r = generate_connection_identifier_cbor();
-
-            match r_prepare_message_2(
-                self.state,
-                &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
-                &cred_r,
-                self.cred_r.len() / 2,
-                &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
-                y,
-                g_y,
-                c_r,
-            ) {
-                Ok((state, message_2, c_r)) => {
-                    self.state = state;
-                    Ok((message_2, c_r))
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn process_message_3(
-            self: &mut RustEdhocResponder<'a>,
-            message_3: &BufferMessage3,
-        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-            let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-            hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
-                .expect("Decoding failed");
-
-            match r_process_message_3(
-                self.state,
-                message_3,
-                &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
-                &cred_i,
-                self.cred_i.len() / 2,
-                &<BytesP256ElemLen>::from_hex(self.g_i).expect("Decoding failed"),
-            ) {
-                Ok((state, prk_out)) => {
-                    self.state = state;
-                    Ok(prk_out)
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn edhoc_exporter(
-            self: &mut RustEdhocResponder<'a>,
-            label: u8,
-            context: &[u8],
-            length: usize,
-        ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
-            let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-            context_buf[..context.len()].copy_from_slice(context);
-
-            match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
-                Ok((state, output)) => {
-                    self.state = state;
-                    Ok(output)
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn edhoc_key_update(
-            self: &mut RustEdhocResponder<'a>,
-            context: &[u8],
-        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
-            context_buf[..context.len()].copy_from_slice(context);
-
-            match edhoc_key_update(self.state, &context_buf, context.len()) {
-                Ok((state, prk_out_new)) => {
-                    self.state = state;
-                    Ok(prk_out_new)
-                }
-                Err(error) => Err(error),
-            }
+impl<'a> EdhocResponderState<'a> {
+    pub fn to_c(&self) -> EdhocResponderC {
+        EdhocResponderC {
+            state: self.state,
+            r: self.r.as_ptr(),
+            r_len: self.r.len(),
+            g_i: self.g_i.as_ptr(),
+            g_i_len: self.g_i.len(),
+            id_cred_i: self.id_cred_i.as_ptr(),
+            id_cred_i_len: self.id_cred_i.len(),
+            cred_i: self.cred_i.as_ptr(),
+            cred_i_len: self.cred_i.len(),
+            id_cred_r: self.id_cred_r.as_ptr(),
+            id_cred_r_len: self.id_cred_r.len(),
+            cred_r: self.cred_r.as_ptr(),
+            cred_r_len: self.cred_r.len(),
         }
     }
 
-    impl<'a> RustEdhocInitiator<'a> {
-        pub fn to_c(&self) -> EdhocInitiatorC {
-            EdhocInitiatorC {
-                state: self.state,
-                i: self.i.as_ptr(),
-                i_len: self.i.len(),
-                g_r: self.g_r.as_ptr(),
-                g_r_len: self.g_r.len(),
-                id_cred_i: self.id_cred_i.as_ptr(),
-                id_cred_i_len: self.id_cred_i.len(),
-                cred_i: self.cred_i.as_ptr(),
-                cred_i_len: self.cred_i.len(),
-                id_cred_r: self.id_cred_r.as_ptr(),
-                id_cred_r_len: self.id_cred_r.len(),
-                cred_r: self.cred_r.as_ptr(),
-                cred_r_len: self.cred_r.len(),
-            }
-        }
+    pub fn new(
+        state: State,
+        r: &'a str,
+        g_i: &'a str,
+        id_cred_i: &'a str,
+        cred_i: &'a str,
+        id_cred_r: &'a str,
+        cred_r: &'a str,
+    ) -> EdhocResponderState<'a> {
+        assert!(r.len() == P256_ELEM_LEN * 2);
+        assert!(g_i.len() == P256_ELEM_LEN * 2);
+        assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+        assert!(id_cred_r.len() == ID_CRED_LEN * 2);
 
-        pub fn new(
-            state: State,
-            i: &'a str,
-            g_r: &'a str,
-            id_cred_i: &'a str,
-            cred_i: &'a str,
-            id_cred_r: &'a str,
-            cred_r: &'a str,
-        ) -> RustEdhocInitiator<'a> {
-            assert!(i.len() == P256_ELEM_LEN * 2);
-            assert!(g_r.len() == P256_ELEM_LEN * 2);
-            assert!(id_cred_i.len() == ID_CRED_LEN * 2);
-            assert!(id_cred_r.len() == ID_CRED_LEN * 2);
-
-            RustEdhocInitiator {
-                state: state,
-                i: i,
-                g_r: g_r,
-                id_cred_i: id_cred_i,
-                cred_i: cred_i,
-                id_cred_r: id_cred_r,
-                cred_r: cred_r,
-            }
-        }
-
-        pub fn prepare_message_1(
-            self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<BufferMessage1, EDHOCError> {
-            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
-            let c_i = generate_connection_identifier_cbor();
-
-            match i_prepare_message_1(self.state, x, g_x, c_i) {
-                Ok((state, message_1)) => {
-                    self.state = state;
-                    Ok(message_1)
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn process_message_2(
-            self: &mut RustEdhocInitiator<'a>,
-            message_2: &BufferMessage2,
-        ) -> Result<u8, EDHOCError> {
-            let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-            hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
-                .expect("Decoding failed");
-
-            match i_process_message_2(
-                self.state,
-                message_2,
-                &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
-                &cred_r,
-                self.cred_r.len() / 2,
-                &<BytesP256ElemLen>::from_hex(self.g_r).expect("Decoding failed"),
-                &<BytesP256ElemLen>::from_hex(self.i).expect("Decoding failed"),
-            ) {
-                Ok((state, c_r, _kid)) => {
-                    self.state = state;
-                    Ok(c_r)
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn prepare_message_3(
-            self: &mut RustEdhocInitiator<'a>,
-        ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-            let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-            hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
-                .expect("Decoding failed");
-
-            match i_prepare_message_3(
-                self.state,
-                &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
-                &cred_i,
-                self.cred_i.len() / 2,
-            ) {
-                Ok((state, message_3, prk_out)) => {
-                    self.state = state;
-                    Ok((message_3, prk_out))
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn edhoc_exporter(
-            self: &mut RustEdhocInitiator<'a>,
-            label: u8,
-            context: &[u8],
-            length: usize,
-        ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
-            let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-            context_buf[..context.len()].copy_from_slice(context);
-
-            match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
-                Ok((state, output)) => {
-                    self.state = state;
-                    Ok(output)
-                }
-                Err(error) => Err(error),
-            }
-        }
-
-        pub fn edhoc_key_update(
-            self: &mut RustEdhocInitiator<'a>,
-            context: &[u8],
-        ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-            let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
-            context_buf[..context.len()].copy_from_slice(context);
-
-            match edhoc_key_update(self.state, &context_buf, context.len()) {
-                Ok((state, prk_out_new)) => {
-                    self.state = state;
-                    Ok(prk_out_new)
-                }
-                Err(error) => Err(error),
-            }
+        EdhocResponderState {
+            state: state,
+            r: r,
+            g_i: g_i,
+            id_cred_i: id_cred_i,
+            cred_i: cred_i,
+            id_cred_r: id_cred_r,
+            cred_r: cred_r,
         }
     }
 
-    pub fn generate_connection_identifier_cbor() -> u8 {
-        let c_i = generate_connection_identifier();
-        if c_i >= 0 && c_i <= 23 {
-            return c_i as u8; // verbatim encoding of single byte integer
-        } else if c_i < 0 && c_i >= -24 {
-            // negative single byte integer encoding
-            return CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8);
-        } else {
-            return 0;
+    pub fn process_message_1(
+        self: &mut EdhocResponderState<'a>,
+        message_1: &BufferMessage1,
+    ) -> Result<(), EDHOCError> {
+        let state = r_process_message_1(self.state, message_1)?;
+        self.state = state;
+
+        Ok(())
+    }
+
+    pub fn prepare_message_2(
+        self: &mut EdhocResponderState<'a>,
+    ) -> Result<(BufferMessage2, u8), EDHOCError> {
+        let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
+            .expect("Decoding failed");
+        let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+        let c_r = generate_connection_identifier_cbor();
+
+        match r_prepare_message_2(
+            self.state,
+            &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+            &cred_r,
+            self.cred_r.len() / 2,
+            &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
+            y,
+            g_y,
+            c_r,
+        ) {
+            Ok((state, message_2, c_r)) => {
+                self.state = state;
+                Ok((message_2, c_r))
+            }
+            Err(error) => Err(error),
         }
     }
 
-    /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
-    pub fn generate_connection_identifier() -> i8 {
-        let mut conn_id = edhoc_crypto::get_random_byte() as i8;
-        while conn_id < -24 || conn_id > 23 {
-            conn_id = edhoc_crypto::get_random_byte() as i8;
+    pub fn process_message_3(
+        self: &mut EdhocResponderState<'a>,
+        message_3: &BufferMessage3,
+    ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+        let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
+            .expect("Decoding failed");
+
+        match r_process_message_3(
+            self.state,
+            message_3,
+            &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+            &cred_i,
+            self.cred_i.len() / 2,
+            &<BytesP256ElemLen>::from_hex(self.g_i).expect("Decoding failed"),
+        ) {
+            Ok((state, prk_out)) => {
+                self.state = state;
+                Ok(prk_out)
+            }
+            Err(error) => Err(error),
         }
-        conn_id
     }
+
+    pub fn edhoc_exporter(
+        self: &mut EdhocResponderState<'a>,
+        label: u8,
+        context: &[u8],
+        length: usize,
+    ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
+        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+            Ok((state, output)) => {
+                self.state = state;
+                Ok(output)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn edhoc_key_update(
+        self: &mut EdhocResponderState<'a>,
+        context: &[u8],
+    ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        match edhoc_key_update(self.state, &context_buf, context.len()) {
+            Ok((state, prk_out_new)) => {
+                self.state = state;
+                Ok(prk_out_new)
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a> EdhocInitiatorState<'a> {
+    pub fn to_c(&self) -> EdhocInitiatorC {
+        EdhocInitiatorC {
+            state: self.state,
+            i: self.i.as_ptr(),
+            i_len: self.i.len(),
+            g_r: self.g_r.as_ptr(),
+            g_r_len: self.g_r.len(),
+            id_cred_i: self.id_cred_i.as_ptr(),
+            id_cred_i_len: self.id_cred_i.len(),
+            cred_i: self.cred_i.as_ptr(),
+            cred_i_len: self.cred_i.len(),
+            id_cred_r: self.id_cred_r.as_ptr(),
+            id_cred_r_len: self.id_cred_r.len(),
+            cred_r: self.cred_r.as_ptr(),
+            cred_r_len: self.cred_r.len(),
+        }
+    }
+
+    pub fn new(
+        state: State,
+        i: &'a str,
+        g_r: &'a str,
+        id_cred_i: &'a str,
+        cred_i: &'a str,
+        id_cred_r: &'a str,
+        cred_r: &'a str,
+    ) -> EdhocInitiatorState<'a> {
+        assert!(i.len() == P256_ELEM_LEN * 2);
+        assert!(g_r.len() == P256_ELEM_LEN * 2);
+        assert!(id_cred_i.len() == ID_CRED_LEN * 2);
+        assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+
+        EdhocInitiatorState {
+            state: state,
+            i: i,
+            g_r: g_r,
+            id_cred_i: id_cred_i,
+            cred_i: cred_i,
+            id_cred_r: id_cred_r,
+            cred_r: cred_r,
+        }
+    }
+
+    pub fn prepare_message_1(
+        self: &mut EdhocInitiatorState<'a>,
+    ) -> Result<BufferMessage1, EDHOCError> {
+        let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+        let c_i = generate_connection_identifier_cbor();
+
+        match i_prepare_message_1(self.state, x, g_x, c_i) {
+            Ok((state, message_1)) => {
+                self.state = state;
+                Ok(message_1)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn process_message_2(
+        self: &mut EdhocInitiatorState<'a>,
+        message_2: &BufferMessage2,
+    ) -> Result<u8, EDHOCError> {
+        let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
+            .expect("Decoding failed");
+
+        match i_process_message_2(
+            self.state,
+            message_2,
+            &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+            &cred_r,
+            self.cred_r.len() / 2,
+            &<BytesP256ElemLen>::from_hex(self.g_r).expect("Decoding failed"),
+            &<BytesP256ElemLen>::from_hex(self.i).expect("Decoding failed"),
+        ) {
+            Ok((state, c_r, _kid)) => {
+                self.state = state;
+                Ok(c_r)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn prepare_message_3(
+        self: &mut EdhocInitiatorState<'a>,
+    ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
+        hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
+            .expect("Decoding failed");
+
+        match i_prepare_message_3(
+            self.state,
+            &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+            &cred_i,
+            self.cred_i.len() / 2,
+        ) {
+            Ok((state, message_3, prk_out)) => {
+                self.state = state;
+                Ok((message_3, prk_out))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn edhoc_exporter(
+        self: &mut EdhocInitiatorState<'a>,
+        label: u8,
+        context: &[u8],
+        length: usize,
+    ) -> Result<[u8; MAX_BUFFER_LEN], EDHOCError> {
+        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+            Ok((state, output)) => {
+                self.state = state;
+                Ok(output)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn edhoc_key_update(
+        self: &mut EdhocInitiatorState<'a>,
+        context: &[u8],
+    ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        match edhoc_key_update(self.state, &context_buf, context.len()) {
+            Ok((state, prk_out_new)) => {
+                self.state = state;
+                Ok(prk_out_new)
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+pub fn generate_connection_identifier_cbor() -> u8 {
+    let c_i = generate_connection_identifier();
+    if c_i >= 0 && c_i <= 23 {
+        return c_i as u8; // verbatim encoding of single byte integer
+    } else if c_i < 0 && c_i >= -24 {
+        // negative single byte integer encoding
+        return CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8);
+    } else {
+        return 0;
+    }
+}
+
+/// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
+pub fn generate_connection_identifier() -> i8 {
+    let mut conn_id = edhoc_crypto::get_random_byte() as i8;
+    while conn_id < -24 || conn_id > 23 {
+        conn_id = edhoc_crypto::get_random_byte() as i8;
+    }
+    conn_id
 }
 
 #[cfg(test)]
