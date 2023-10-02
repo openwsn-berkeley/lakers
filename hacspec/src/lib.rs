@@ -746,11 +746,29 @@ fn is_cbor_uint_2bytes(byte: U8) -> bool {
     return byte.declassify() == CBOR_UINT_1BYTE;
 }
 
+/// Check for: an unsigned integer encoded as three bytes
+#[inline(always)]
+fn is_cbor_uint_3bytes(byte: U8) -> bool {
+    return byte.declassify() == CBOR_UINT_2BYTE;
+}
+
 /// Check for: a negative integer encoded as a single byte
 #[inline(always)]
 fn is_cbor_neg_int_1byte(byte: U8) -> bool {
     let byte = byte.declassify();
     return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+}
+
+/// Check for: an unsigned integer encoded as two bytes
+#[inline(always)]
+fn is_cbor_neg_int_2bytes(byte: U8) -> bool {
+    return byte.declassify() == CBOR_NEG_INT_1BYTE;
+}
+
+/// Check for: an unsigned integer encoded as three bytes
+#[inline(always)]
+fn is_cbor_neg_int_3bytes(byte: U8) -> bool {
+    return byte.declassify() == CBOR_NEG_INT_2BYTE;
 }
 
 /// Check for: a bstr denoted by a single byte which encodes both type and content length
@@ -771,6 +789,81 @@ fn is_cbor_bstr_2bytes_prefix(byte: U8) -> bool {
 fn is_cbor_array_1byte_prefix(byte: U8) -> bool {
     let byte = byte.declassify();
     return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+}
+
+/// If the first CBOR item in `message` is a CBOR (unsigned or negative) integer, return its
+/// argument value, whether the number is negative, and how many bytes were consumed. Note that the
+/// argument of a negative number is offset by 1: `(0, true, _)` means -1, `(65535, true, _)` means
+/// -65536
+// This would really profit from using a regular CBOR library, or at very least looking like one;
+// that step is left for later refactoring.
+pub fn parse_cbor16(message: &BytesMessageBuffer, offset: usize) -> Option<(u16, bool, usize)> {
+    let label = message[offset];
+    if is_cbor_uint_1byte(label) {
+        // CBOR unsigned integer (0..=23)
+        Some((label.declassify().into(), false, 1))
+    } else if is_cbor_uint_2bytes(label) {
+        Some((message[offset + 1].declassify().into(), false, 2))
+    } else if is_cbor_uint_3bytes(label) {
+        Some((
+            (u16::from(message[offset + 1].declassify()) << 8)
+                + u16::from(message[offset + 2].declassify()),
+            false,
+            3,
+        ))
+    } else if is_cbor_neg_int_1byte(label) {
+        // CBOR negative integer (-1..=-24)
+        Some((
+            (label.declassify() - CBOR_NEG_INT_1BYTE_START).into(),
+            true,
+            1,
+        ))
+    } else if is_cbor_neg_int_2bytes(label) {
+        Some((message[offset + 1].declassify().into(), true, 2))
+    } else if is_cbor_neg_int_3bytes(label) {
+        Some((
+            (u16::from(message[offset + 1].declassify()) << 8)
+                + u16::from(message[offset + 2].declassify()),
+            true,
+            3,
+        ))
+    } else {
+        None
+    }
+}
+
+/// Encode a positive or negative integer into the message at the given offset, and return how many
+/// bytes were written. Note that as with parse_cbor16, the argument is offset by 1 from the
+/// absolute numeric value.
+pub fn encode_cbor16(
+    message: &mut BytesMessageBuffer,
+    offset: usize,
+    argument: u16,
+    is_negative: bool,
+) -> usize {
+    let major_bits = if is_negative {
+        CBOR_NEG_INT_1BYTE_START
+    } else {
+        CBOR_UINT_1BYTE_START
+    };
+
+    match argument {
+        0..=0x17 => {
+            message[offset] = U8(major_bits | (u8::try_from(argument).unwrap()));
+            1
+        }
+        ..=0xff => {
+            message[offset] = U8(major_bits | CBOR_UINT_1BYTE);
+            message[offset + 1] = U8(argument.try_into().unwrap());
+            2
+        }
+        _ => {
+            message[offset] = U8(major_bits | CBOR_UINT_2BYTE);
+            message[offset + 1] = U8((argument >> 8).try_into().unwrap());
+            message[offset + 2] = U8(argument as u8);
+            3
+        }
+    }
 }
 
 fn parse_suites_i(
@@ -847,30 +940,24 @@ fn parse_ead(
     let mut ead_value = None::<EdhocMessageBufferHacspec>;
 
     // assume label is a single byte integer (negative or positive)
-    let label = message.content[offset];
-    let res_label = if is_cbor_uint_1byte(label) {
-        // CBOR unsigned integer (0..=23)
-        Ok((label.declassify() as u8, false))
-    } else if is_cbor_neg_int_1byte(label) {
-        // CBOR negative integer (-1..=-24)
-        Ok((label.declassify() - (CBOR_NEG_INT_1BYTE_START - 1), true))
-    } else {
-        Err(EDHOCError::ParsingError)
-    };
+    let res_label = parse_cbor16(&message.content, offset).ok_or(EDHOCError::ParsingError);
 
     if res_label.is_ok() {
-        let (label, is_critical) = res_label.unwrap();
-        if message.len > (offset + 1) {
+        let (mut label, is_critical, consumed) = res_label.unwrap();
+        if message.len > (offset + consumed) {
             // EAD value is present
             let buffer = EdhocMessageBufferHacspec::from_slice(
                 &message.content,
-                offset + 1,
-                message.len - (offset + 1),
+                offset + consumed,
+                message.len - (offset + consumed),
             );
             ead_value = Some(buffer);
         }
+        if is_critical {
+            label = label.checked_add(1).ok_or(EDHOCError::EADError)?;
+        }
         ead_item = Some(EADItemHacspec {
-            label: U8(label),
+            label: U16(label),
             is_critical,
             value: ead_value,
         });
@@ -964,19 +1051,23 @@ fn parse_message_1(
 fn encode_ead_item(ead_1: &EADItemHacspec) -> EdhocMessageBufferHacspec {
     let mut output = EdhocMessageBufferHacspec::new();
 
-    // encode label
-    if ead_1.is_critical {
-        output.content[0] = ead_1.label + U8(CBOR_NEG_INT_1BYTE_START - 1);
+    let label = if ead_1.is_critical {
+        // A critical (padding) 0 might be constructed but makes no sense and will be encoded as
+        // regular padding.
+        ead_1.label.declassify().saturating_sub(1)
     } else {
-        output.content[0] = ead_1.label;
-    }
-    output.len = 1;
+        ead_1.label.declassify()
+    };
+    // encode label
+    let written = encode_cbor16(&mut output.content, 0, label, ead_1.is_critical);
+    output.len = written;
 
     // encode value
     if let Some(ead_1_value) = &ead_1.value {
-        output.content = output
-            .content
-            .update_slice(1, &ead_1_value.content, 0, ead_1_value.len);
+        output.content =
+            output
+                .content
+                .update_slice(written, &ead_1_value.content, 0, ead_1_value.len);
         output.len += ead_1_value.len;
     }
 
@@ -1621,7 +1712,7 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_C: &str = "0382021819";
     // message with an array having too many cipher suites (more than 9)
     const MESSAGE_1_TV_SUITE_ONLY_ERR: &str = "038A02020202020202020202";
-    const EAD_DUMMY_LABEL_TV: u8 = 0x01;
+    const EAD_DUMMY_LABEL_TV: u16 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
     const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
@@ -2131,7 +2222,7 @@ mod tests {
         let ead_tv = EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_CRITICAL_TV);
 
         let ead_item = EADItemHacspec {
-            label: U8(EAD_DUMMY_LABEL_TV),
+            label: U16(EAD_DUMMY_LABEL_TV),
             is_critical: true,
             value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
         };
@@ -2149,7 +2240,7 @@ mod tests {
         let c_i_tv = U8(C_I_TV);
         let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
         let ead_item = EADItemHacspec {
-            label: U8(EAD_DUMMY_LABEL_TV),
+            label: U16(EAD_DUMMY_LABEL_TV),
             is_critical: true,
             value: Some(EdhocMessageBufferHacspec::from_hex(EAD_DUMMY_VALUE_TV)),
         };

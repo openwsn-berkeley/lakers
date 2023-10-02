@@ -1533,7 +1533,7 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_C: &str = "0382021819";
     // message with an array having too many cipher suites (more than 9)
     const MESSAGE_1_TV_SUITE_ONLY_ERR: &str = "038A02020202020202020202";
-    const EAD_DUMMY_LABEL_TV: u8 = 0x01;
+    const EAD_DUMMY_LABEL_TV: u16 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
     const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
