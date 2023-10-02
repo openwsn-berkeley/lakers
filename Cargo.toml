@@ -2,7 +2,6 @@
 
 members = [
   "lib",
-  "hacspec",
   "ead",
   "ead/edhoc-ead-none",
   "ead/edhoc-ead-zeroconf",
@@ -20,7 +19,6 @@ members = [
 # tested on the host architecture
 default-members = [
   "lib",
-  "hacspec",
   "ead",
   "crypto",
   "crypto/edhoc-crypto-hacspec",
