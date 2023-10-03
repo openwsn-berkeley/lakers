@@ -11,9 +11,9 @@
 
 cargo_features=$1
 
-if [[ $cargo_features != "rust-cryptocell310" && $cargo_features != "rust-psa-baremetal" ]]; then
-    echo "Select one of: rust-cryptocell310, rust-psa-baremetal"
-    echo "Example: ./build_static_lib.sh rust-cryptocell310"
+if [[ $cargo_features != "cb-cryptocell310" && $cargo_features != "cb-psa-baremetal" ]]; then
+    echo "Select one of: cb-cryptocell310, cb-psa-baremetal"
+    echo "Example: ./build_static_lib.sh cb-cryptocell310"
     exit 1
 fi
 

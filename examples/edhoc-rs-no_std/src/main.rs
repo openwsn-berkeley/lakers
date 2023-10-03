@@ -32,8 +32,9 @@ fn main() -> ! {
     rtt_init_print!();
 
     // Initialize the allocator BEFORE you use it
-    // The hacspec version does some allocations in the heap
-    #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
+    // The hacspec version does some heap allocations
+    // TODO: we still don't have a baremetal version with hacspec as crypto backend, so maybe remove `HEAP`.
+    #[cfg(any(feature = "cb-hacspec"))]
     {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 1 << 10;
@@ -42,9 +43,9 @@ fn main() -> ! {
     }
 
     // Memory buffer for mbedtls
-    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
+    #[cfg(feature = "cb-psa")]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
+    #[cfg(feature = "cb-psa")]
     unsafe {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
@@ -84,12 +85,7 @@ fn main() -> ! {
         let g_xy = p256_ecdh(&x, &g_y);
         let g_yx = p256_ecdh(&y, &g_x);
 
-        // NOTE: application code is not supposed to distinguish between the rust and hacspec implementations
-        // however, it is valuable to test that the results are correct, so we distinguish it here as an exception.
-        #[cfg(any(feature = "rust-psa", feature = "rust-cryptocell310",))]
         assert_eq!(g_xy, g_yx);
-        #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
-        assert_eq!(g_xy.to_public_array(), g_yx.to_public_array());
     }
     test_p256_keys();
     println!("Test test_p256_keys passed.");

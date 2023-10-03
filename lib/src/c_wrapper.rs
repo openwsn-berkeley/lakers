@@ -3,7 +3,7 @@ use core::{slice, str};
 use edhoc_consts::*;
 
 // Panic handler for cortex-m targets
-#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
+#[cfg(any(feature = "cb-cryptocell310", feature = "cb-psa-baremetal"))]
 use panic_semihosting as _;
 
 // This function is mainly used to test the C wrapper
