@@ -52,7 +52,6 @@ mod consts {
 mod structs {
     use super::consts::*;
 
-    pub type U8 = u8; // TODO: remove
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
     pub type BytesSuites = [u8; SUITES_LEN];

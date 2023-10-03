@@ -6,7 +6,7 @@ use edhoc_ead::*;
 
 pub fn edhoc_exporter(
     state: State,
-    label: U8,
+    label: u8,
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
@@ -178,8 +178,8 @@ pub fn r_prepare_message_2(
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
-    c_r: U8,
-) -> Result<(State, BufferMessage2, U8), EDHOCError> {
+    c_r: u8,
+) -> Result<(State, BufferMessage2, u8), EDHOCError> {
     let State(
         mut current_state,
         mut _y,
@@ -381,7 +381,7 @@ pub fn i_prepare_message_1(
     mut state: State,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
-    c_i: U8,
+    c_i: u8,
 ) -> Result<(State, BufferMessage1), EDHOCError> {
     let State(
         mut current_state,
@@ -456,7 +456,7 @@ pub fn i_process_message_2(
     cred_r_len: usize,
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
-) -> Result<(State, U8, U8), EDHOCError> {
+) -> Result<(State, u8, u8), EDHOCError> {
     let State(
         mut current_state,
         x,
@@ -649,7 +649,7 @@ pub fn i_prepare_message_3(
 pub fn construct_state(
     state: EDHOCState,
     x_or_y: BytesP256ElemLen,
-    c_i: U8,
+    c_i: u8,
     gx_or_gy: BytesP256ElemLen,
     prk_3e2m: BytesHashLen,
     prk_4e3m: BytesHashLen,
@@ -674,37 +674,37 @@ pub fn construct_state(
 
 /// Check for: an unsigned integer encoded as a single byte
 #[inline(always)]
-fn is_cbor_uint_1byte(byte: U8) -> bool {
+fn is_cbor_uint_1byte(byte: u8) -> bool {
     return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
 }
 
 /// Check for: an unsigned integer encoded as two bytes
 #[inline(always)]
-fn is_cbor_uint_2bytes(byte: U8) -> bool {
+fn is_cbor_uint_2bytes(byte: u8) -> bool {
     return byte == CBOR_UINT_1BYTE;
 }
 
 /// Check for: a negative integer encoded as a single byte
 #[inline(always)]
-fn is_cbor_neg_int_1byte(byte: U8) -> bool {
+fn is_cbor_neg_int_1byte(byte: u8) -> bool {
     return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
 }
 
 /// Check for: a bstr denoted by a single byte which encodes both type and content length
 #[inline(always)]
-fn is_cbor_bstr_1byte_prefix(byte: U8) -> bool {
+fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
     return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
 }
 
 /// Check for: a bstr denoted by two bytes, onr for type the other for content length
 #[inline(always)]
-fn is_cbor_bstr_2bytes_prefix(byte: U8) -> bool {
+fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
     return byte == CBOR_BYTE_STRING;
 }
 
 /// Check for: an array denoted by a single byte which encodes both type and content length
 #[inline(always)]
-fn is_cbor_array_1byte_prefix(byte: U8) -> bool {
+fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
     return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
 }
 
@@ -819,17 +819,17 @@ fn parse_message_1(
     rcvd_message_1: &BufferMessage1,
 ) -> Result<
     (
-        U8,
+        u8,
         BytesSuites,
         usize,
         BytesP256ElemLen,
-        U8,
+        u8,
         Option<EADItem>,
     ),
     EDHOCError,
 > {
     let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut method: U8 = 0xff;
+    let mut method: u8 = 0xff;
     let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
     let mut suites_i: BytesSuites = [0u8; SUITES_LEN];
     let mut suites_i_len: usize = 0;
@@ -910,11 +910,11 @@ fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBuffer {
 }
 
 fn encode_message_1(
-    method: U8,
+    method: u8,
     suites: &BytesSuites,
     suites_len: usize,
     g_x: &BytesP256ElemLen,
-    c_i: U8,
+    c_i: u8,
     ead_1: &Option<EADItem>,
 ) -> BufferMessage1 {
     let mut output = BufferMessage1::new();
@@ -1070,7 +1070,7 @@ fn compute_th_4(
 
 fn edhoc_kdf(
     prk: &BytesHashLen,
-    label: U8,
+    label: u8,
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
@@ -1106,7 +1106,7 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(U8, BytesMac3, Option<EADItem>), EDHOCError> {
+) -> Result<(u8, BytesMac3, Option<EADItem>), EDHOCError> {
     let mut ead_3 = None::<EADItem>;
     let mut error = EDHOCError::UnknownError;
     let mut kid: u8 = 0xff;
@@ -1338,11 +1338,11 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(U8, U8, BytesMac2, Option<EADItem>), EDHOCError> {
+) -> Result<(u8, u8, BytesMac2, Option<EADItem>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
     let mut ead_2 = None::<EADItem>;
-    let mut c_r: U8 = 0xff;
-    let mut id_cred_r: U8 = 0xff;
+    let mut c_r: u8 = 0xff;
+    let mut id_cred_r: u8 = 0xff;
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
     // check CBOR sequence types for c_r, id_cred_r, and mac_2
@@ -1386,7 +1386,7 @@ fn decode_plaintext_2(
 }
 
 fn encode_plaintext_2(
-    c_r: U8,
+    c_r: u8,
     id_cred_r: &BytesIdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItem>,
