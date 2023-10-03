@@ -158,7 +158,8 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
 ) -> i8 {
     let mut initiator = (*initiator_c).to_rust();
 
-    let result = match initiator.prepare_message_1() {
+    let c_i: u8 = generate_connection_identifier_cbor().into();
+    let result = match initiator.prepare_message_1(c_i) {
         Ok(msg_1) => {
             *message_1 = msg_1;
             0
@@ -196,10 +197,11 @@ pub unsafe extern "C" fn responder_prepare_message_2(
 ) -> i8 {
     let mut responder = (*responder_c).to_rust();
 
-    let result = match responder.prepare_message_2() {
-        Ok((msg_2, c_r_res)) => {
+    let c_r_chosen: u8 = generate_connection_identifier_cbor().into();
+    let result = match responder.prepare_message_2(c_r_chosen) {
+        Ok(msg_2) => {
             *message_2 = msg_2;
-            *c_r = c_r_res;
+            *c_r = c_r_chosen;
             0
         }
         Err(err) => err as i8,

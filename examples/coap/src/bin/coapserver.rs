@@ -40,7 +40,8 @@ fn main() {
                 );
 
                 if error.is_ok() {
-                    let (message_2, c_r) = responder.prepare_message_2().unwrap();
+                    let c_r = generate_connection_identifier_cbor();
+                    let message_2 = responder.prepare_message_2(c_r).unwrap();
                     response.message.payload = Vec::from(&message_2.content[..message_2.len]);
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));
