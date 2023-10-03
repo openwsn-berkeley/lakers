@@ -91,7 +91,7 @@ jobs:
 
     - name: Generate fstar
       run: |
-        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/hacspec && cargo-hax -C --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="rust-psa, ead-none" --release \; into fstar"
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs/ && cargo-hax -C --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="rust-psa, ead-none" --release \; into fstar"
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
