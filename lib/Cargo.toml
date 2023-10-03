@@ -21,6 +21,7 @@ cbindgen = "0.24.5"
 
 [features]
 default = [ "edhoc-ead/ead-none" ]
+rust-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]
 rust-psa = [ "edhoc-consts/rust", "edhoc-crypto/psa-rust" ]
 rust-psa-baremetal = [ "edhoc-crypto/psa-rust-baremetal", "edhoc-consts/rust", "panic-semihosting" ]
 rust-cryptocell310 = [ "edhoc-consts/rust", "edhoc-crypto/cryptocell310-rust", "panic-semihosting" ]

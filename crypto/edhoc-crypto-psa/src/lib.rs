@@ -57,8 +57,7 @@ pub fn hkdf_expand(
 
     for i in 2..n {
         message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
-        message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
-            .copy_from_slice(&info[..info_len]);
+        message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len].copy_from_slice(&info[..info_len]);
         message[SHA256_DIGEST_LEN + info_len] = i as u8;
         t_i = hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
         output[i * SHA256_DIGEST_LEN..(i + 1) * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
@@ -189,8 +188,7 @@ pub fn p256_ecdh(
     let my_key = key_management::import(attributes, None, private_key).unwrap();
     let mut output_buffer: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
 
-    key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer)
-        .unwrap();
+    key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer).unwrap();
 
     output_buffer
 }
