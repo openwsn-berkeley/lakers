@@ -15,7 +15,6 @@ mod c_wrapper;
 use c_wrapper::*;
 
 use edhoc_consts::*;
-use hex::FromHex;
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct EdhocInitiatorState<'a> {
@@ -362,6 +361,7 @@ pub fn generate_connection_identifier() -> i8 {
 mod test {
     use super::*;
     use edhoc_consts::*;
+    use hex::FromHex;
     use hexlit::hex;
 
     const ID_CRED_I: &[u8] = &hex!("a104412b");
