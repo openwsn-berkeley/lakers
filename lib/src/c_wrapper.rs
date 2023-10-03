@@ -1,6 +1,7 @@
 use crate::*;
 use core::{slice, str};
 use edhoc_consts::*;
+use hexlit::hex;
 
 // Panic handler for cortex-m targets
 #[cfg(any(feature = "crypto-cryptocell310", feature = "crypto-psa-baremetal"))]
@@ -41,19 +42,11 @@ impl EdhocInitiatorC {
         EdhocInitiator::new(
             self.state,
             unsafe { slice::from_raw_parts(self.i, self.i_len) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_r, self.g_r_len)) },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len))
-            },
+            unsafe { slice::from_raw_parts(self.g_r, self.g_r_len) },
+            unsafe { slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len) },
+            unsafe { slice::from_raw_parts(self.cred_i, self.cred_i_len) },
+            unsafe { slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len) },
+            unsafe { slice::from_raw_parts(self.cred_r, self.cred_r_len) },
         )
     }
 }
@@ -79,20 +72,12 @@ impl EdhocResponderC {
     pub fn to_rust(&self) -> EdhocResponder {
         EdhocResponder::new(
             self.state,
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.r, self.r_len)) },
-            unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_i, self.g_i_len)) },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_i, self.cred_i_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len))
-            },
-            unsafe {
-                str::from_utf8_unchecked(slice::from_raw_parts(self.cred_r, self.cred_r_len))
-            },
+            unsafe { slice::from_raw_parts(self.r, self.r_len) },
+            unsafe { slice::from_raw_parts(self.g_i, self.g_i_len) },
+            unsafe { slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len) },
+            unsafe { slice::from_raw_parts(self.cred_i, self.cred_i_len) },
+            unsafe { slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len) },
+            unsafe { slice::from_raw_parts(self.cred_r, self.cred_r_len) },
         )
     }
 }
@@ -114,12 +99,12 @@ pub unsafe extern "C" fn responder_new(
 ) -> EdhocResponderC {
     EdhocResponder::new(
         State::default(),
-        str::from_utf8_unchecked(slice::from_raw_parts(r, r_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(g_i, g_i_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(id_cred_i, id_cred_i_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(cred_i, cred_i_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(id_cred_r, id_cred_r_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(cred_r, cred_r_len)),
+        slice::from_raw_parts(r, r_len),
+        slice::from_raw_parts(g_i, g_i_len),
+        slice::from_raw_parts(id_cred_i, id_cred_i_len),
+        slice::from_raw_parts(cred_i, cred_i_len),
+        slice::from_raw_parts(id_cred_r, id_cred_r_len),
+        slice::from_raw_parts(cred_r, cred_r_len),
     )
     .to_c()
 }
@@ -142,11 +127,11 @@ pub unsafe extern "C" fn initiator_new(
     EdhocInitiator::new(
         State::default(),
         slice::from_raw_parts(i, i_len),
-        str::from_utf8_unchecked(slice::from_raw_parts(g_r, g_r_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(id_cred_i, id_cred_i_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(cred_i, cred_i_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(id_cred_r, id_cred_r_len)),
-        str::from_utf8_unchecked(slice::from_raw_parts(cred_r, cred_r_len)),
+        slice::from_raw_parts(g_r, g_r_len),
+        slice::from_raw_parts(id_cred_i, id_cred_i_len),
+        slice::from_raw_parts(cred_i, cred_i_len),
+        slice::from_raw_parts(id_cred_r, id_cred_r_len),
+        slice::from_raw_parts(cred_r, cred_r_len),
     )
     .to_c()
 }
@@ -282,14 +267,13 @@ mod test_c {
 
     #[test]
     fn test_new_responder() {
-        const ID_CRED_I: &[u8] = "a104412b".as_bytes();
-        const ID_CRED_R: &[u8] = "a104410a".as_bytes();
-        const CRED_I: &[u8] = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8".as_bytes();
+        const ID_CRED_I: &[u8] = &hex!("a104412b");
+        const ID_CRED_R: &[u8] = &hex!("a104410a");
+        const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
         const G_I: &[u8] =
-            "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6".as_bytes();
-        const CRED_R: &[u8] = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072".as_bytes();
-        const R: &[u8] =
-            "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac".as_bytes();
+            &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
+        const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
+        const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
 
         let resp = unsafe {
             responder_new(

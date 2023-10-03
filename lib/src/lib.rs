@@ -19,24 +19,24 @@ use hex::FromHex;
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct EdhocInitiatorState<'a> {
-    state: State,       // opaque state
-    i: &'a [u8],        // private authentication key of I
-    g_r: &'a str,       // public authentication key of R
-    id_cred_i: &'a str, // identifier of I's credential
-    cred_i: &'a str,    // I's full credential
-    id_cred_r: &'a str, // identifier of R's credential
-    cred_r: &'a str,    // R's full credential
+    state: State,        // opaque state
+    i: &'a [u8],         // private authentication key of I
+    g_r: &'a [u8],       // public authentication key of R
+    id_cred_i: &'a [u8], // identifier of I's credential
+    cred_i: &'a [u8],    // I's full credential
+    id_cred_r: &'a [u8], // identifier of R's credential
+    cred_r: &'a [u8],    // R's full credential
 }
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct EdhocResponderState<'a> {
-    state: State,       // opaque state
-    r: &'a str,         // private authentication key of R
-    g_i: &'a str,       // public authentication key of I
-    id_cred_i: &'a str, // identifier of I's credential
-    cred_i: &'a str,    // I's full credential
-    id_cred_r: &'a str, // identifier of R's credential
-    cred_r: &'a str,    // R's full credential
+    state: State,        // opaque state
+    r: &'a [u8],         // private authentication key of R
+    g_i: &'a [u8],       // public authentication key of I
+    id_cred_i: &'a [u8], // identifier of I's credential
+    cred_i: &'a [u8],    // I's full credential
+    id_cred_r: &'a [u8], // identifier of R's credential
+    cred_r: &'a [u8],    // R's full credential
 }
 
 impl<'a> EdhocResponderState<'a> {
@@ -60,17 +60,17 @@ impl<'a> EdhocResponderState<'a> {
 
     pub fn new(
         state: State,
-        r: &'a str,
-        g_i: &'a str,
-        id_cred_i: &'a str,
-        cred_i: &'a str,
-        id_cred_r: &'a str,
-        cred_r: &'a str,
+        r: &'a [u8],
+        g_i: &'a [u8],
+        id_cred_i: &'a [u8],
+        cred_i: &'a [u8],
+        id_cred_r: &'a [u8],
+        cred_r: &'a [u8],
     ) -> EdhocResponderState<'a> {
-        assert!(r.len() == P256_ELEM_LEN * 2);
-        assert!(g_i.len() == P256_ELEM_LEN * 2);
-        assert!(id_cred_i.len() == ID_CRED_LEN * 2);
-        assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+        assert!(r.len() == P256_ELEM_LEN);
+        assert!(g_i.len() == P256_ELEM_LEN);
+        assert!(id_cred_i.len() == ID_CRED_LEN);
+        assert!(id_cred_r.len() == ID_CRED_LEN);
 
         EdhocResponderState {
             state: state,
@@ -97,17 +97,21 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         c_r: u8,
     ) -> Result<BufferMessage2, EDHOCError> {
+        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
+        // slice into r_prepare_message_2?
         let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
-            .expect("Decoding failed");
+        cred_r[..self.cred_r.len()].copy_from_slice(self.cred_r);
         let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
 
         match r_prepare_message_2(
             self.state,
-            &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+            &self
+                .id_cred_r
+                .try_into()
+                .expect("Wrong length of id_cred_r"),
             &cred_r,
-            self.cred_r.len() / 2,
-            &<BytesP256ElemLen>::from_hex(self.r).expect("Decoding failed"),
+            self.cred_r.len(),
+            self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
             c_r,
@@ -124,17 +128,21 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
+        // slice into r_process_message_3?
         let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
-            .expect("Decoding failed");
+        cred_i[..self.cred_i.len()].copy_from_slice(self.cred_i);
 
         match r_process_message_3(
             self.state,
             message_3,
-            &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+            &self
+                .id_cred_i
+                .try_into()
+                .expect("Wrong length of id_cred_i"),
             &cred_i,
-            self.cred_i.len() / 2,
-            &<BytesP256ElemLen>::from_hex(self.g_i).expect("Decoding failed"),
+            self.cred_i.len(),
+            &self.g_i.try_into().expect("Wrong length of public key"),
         ) {
             Ok((state, prk_out)) => {
                 self.state = state;
@@ -201,16 +209,16 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn new(
         state: State,
         i: &'a [u8],
-        g_r: &'a str,
-        id_cred_i: &'a str,
-        cred_i: &'a str,
-        id_cred_r: &'a str,
-        cred_r: &'a str,
+        g_r: &'a [u8],
+        id_cred_i: &'a [u8],
+        cred_i: &'a [u8],
+        id_cred_r: &'a [u8],
+        cred_r: &'a [u8],
     ) -> EdhocInitiatorState<'a> {
         assert!(i.len() == P256_ELEM_LEN);
-        assert!(g_r.len() == P256_ELEM_LEN * 2);
-        assert!(id_cred_i.len() == ID_CRED_LEN * 2);
-        assert!(id_cred_r.len() == ID_CRED_LEN * 2);
+        assert!(g_r.len() == P256_ELEM_LEN);
+        assert!(id_cred_i.len() == ID_CRED_LEN);
+        assert!(id_cred_r.len() == ID_CRED_LEN);
 
         EdhocInitiatorState {
             state: state,
@@ -242,17 +250,21 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
+        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
+        // slice into i_process_message_2?
         let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        hex::decode_to_slice(self.cred_r, &mut cred_r[..self.cred_r.len() / 2])
-            .expect("Decoding failed");
+        cred_r[..self.cred_r.len()].copy_from_slice(self.cred_r);
 
         match i_process_message_2(
             self.state,
             message_2,
-            &<BytesIdCred>::from_hex(self.id_cred_r).expect("Decoding failed"),
+            &self
+                .id_cred_r
+                .try_into()
+                .expect("Wrong length of id_cred_r"),
             &cred_r,
-            self.cred_r.len() / 2,
-            &<BytesP256ElemLen>::from_hex(self.g_r).expect("Decoding failed"),
+            self.cred_r.len(),
+            &self.g_r.try_into().expect("Wrong length of public key"),
             self.i
                 .try_into()
                 .expect("Provided initiator key (self.i) has the wrong length"),
@@ -268,15 +280,19 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn prepare_message_3(
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
+        // slice into i_prepare_message_3?
         let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        hex::decode_to_slice(self.cred_i, &mut cred_i[..self.cred_i.len() / 2])
-            .expect("Decoding failed");
+        cred_i[..self.cred_i.len()].copy_from_slice(self.cred_i);
 
         match i_prepare_message_3(
             self.state,
-            &<BytesIdCred>::from_hex(self.id_cred_i).expect("Decoding failed"),
+            &self
+                .id_cred_i
+                .try_into()
+                .expect("Wrong length of id_cred_i"),
             &cred_i,
-            self.cred_i.len() / 2,
+            self.cred_i.len(),
         ) {
             Ok((state, message_3, prk_out)) => {
                 self.state = state;
@@ -348,15 +364,16 @@ mod test {
     use edhoc_consts::*;
     use hexlit::hex;
 
-    const ID_CRED_I: &str = "a104412b";
-    const ID_CRED_R: &str = "a104410a";
-    const CRED_I: &str = "A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8";
+    const ID_CRED_I: &[u8] = &hex!("a104412b");
+    const ID_CRED_R: &[u8] = &hex!("a104410a");
+    const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-    const R: &str = "72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac";
-    const G_I: &str = "ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"; // used
-    const _G_I_Y_COORD: &str = "6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"; // not used
-    const CRED_R: &str = "A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072";
-    const G_R: &str = "bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0";
+    const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
+    const G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // used
+    const _G_I_Y_COORD: &[u8] =
+        &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
+    const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
+    const G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
     const C_R_TV: [u8; 1] = hex!("27");
 
     const MESSAGE_1_TV_FIRST_TIME: &str =
