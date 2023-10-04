@@ -936,8 +936,7 @@ fn encode_message_1(
         // several suites, will be encoded as an array
         output.content[1] = CBOR_MAJOR_ARRAY + (suites_len as u8);
         raw_suites_len += 1;
-        let mut i: usize = 0;
-        while i < suites_len {
+        for i in 0..suites_len {
             if suites[i] <= CBOR_UINT_1BYTE {
                 output.content[1 + raw_suites_len] = suites[i];
                 raw_suites_len += 1;
@@ -946,7 +945,6 @@ fn encode_message_1(
                 output.content[2 + raw_suites_len] = suites[i];
                 raw_suites_len += 2;
             }
-            i += 1;
         }
     };
 
