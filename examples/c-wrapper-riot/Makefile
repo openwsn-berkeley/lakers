@@ -7,13 +7,13 @@ BOARD ?= nrf52840dk
 INCLUDES += -I$(CURDIR)/../../target/include
 ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/libedhoc_rs.a
 
-ifeq ($(EDHOC_CRYPTO), CB_PSA)
+ifeq ($(EDHOC_CRYPTO), CRYPTO_PSA)
 	CFLAGS += -D$(EDHOC_CRYPTO)
 else
-	CFLAGS += -DCB_CRYPTOCELL310
+	CFLAGS += -DCRYPTO_CRYPTOCELL310
 endif
 
-# This is actually only needed in the CB_CRYPTOCELL310 configuration
+# This is actually only needed in the CRYPTO_CRYPTOCELL310 configuration
 CFLAGS += -DTHREAD_STACKSIZE_DEFAULT=16384 -DISR_STACKSIZE=16384
 
 USEMODULE += od

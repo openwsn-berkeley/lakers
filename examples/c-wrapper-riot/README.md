@@ -22,7 +22,7 @@ make flash term
 With `crypto-psa-baremetal`:
 
 ```bash
-make flash term EDHOC_CRYPTO=CB_PSA
+make flash term EDHOC_CRYPTO=CRYPTO_PSA
 ```
 
 # Requirements
