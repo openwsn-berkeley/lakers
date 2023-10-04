@@ -96,10 +96,6 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         c_r: u8,
     ) -> Result<BufferMessage2, EDHOCError> {
-        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
-        // slice into r_prepare_message_2?
-        let mut cred_r: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        cred_r[..self.cred_r.len()].copy_from_slice(self.cred_r);
         let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
 
         match r_prepare_message_2(
@@ -108,8 +104,7 @@ impl<'a> EdhocResponderState<'a> {
                 .id_cred_r
                 .try_into()
                 .expect("Wrong length of id_cred_r"),
-            &cred_r,
-            self.cred_r.len(),
+            self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
@@ -127,11 +122,6 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
-        // slice into r_process_message_3?
-        let mut cred_i: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        cred_i[..self.cred_i.len()].copy_from_slice(self.cred_i);
-
         match r_process_message_3(
             self.state,
             message_3,
@@ -139,8 +129,7 @@ impl<'a> EdhocResponderState<'a> {
                 .id_cred_i
                 .try_into()
                 .expect("Wrong length of id_cred_i"),
-            &cred_i,
-            self.cred_i.len(),
+            self.cred_i,
             &self.g_i.try_into().expect("Wrong length of public key"),
         ) {
             Ok((state, prk_out)) => {
@@ -249,11 +238,6 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
-        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
-        // slice into i_process_message_2?
-        let mut cred_r: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_r[..self.cred_r.len()].copy_from_slice(self.cred_r);
-
         match i_process_message_2(
             self.state,
             message_2,
@@ -261,8 +245,7 @@ impl<'a> EdhocInitiatorState<'a> {
                 .id_cred_r
                 .try_into()
                 .expect("Wrong length of id_cred_r"),
-            &cred_r,
-            self.cred_r.len(),
+            self.cred_r,
             &self.g_r.try_into().expect("Wrong length of public key"),
             self.i
                 .try_into()
@@ -279,19 +262,13 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn prepare_message_3(
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        // FIXME Is there any reason left to use a BytesMaxBuffer here instead of just passing the
-        // slice into i_prepare_message_3?
-        let mut cred_i: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_i[..self.cred_i.len()].copy_from_slice(self.cred_i);
-
         match i_prepare_message_3(
             self.state,
             &self
                 .id_cred_i
                 .try_into()
                 .expect("Wrong length of id_cred_i"),
-            &cred_i,
-            self.cred_i.len(),
+            self.cred_i,
         ) {
             Ok((state, message_3, prk_out)) => {
                 self.state = state;
