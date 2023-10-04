@@ -21,10 +21,10 @@ cbindgen = "0.24.5"
 
 [features]
 default = [ "edhoc-ead/ead-none" ]
-cb-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]
-cb-psa = [ "edhoc-crypto/psa" ]
-cb-psa-baremetal = [ "edhoc-crypto/psa-baremetal", "panic-semihosting" ]
-cb-cryptocell310 = [ "edhoc-crypto/cryptocell310", "panic-semihosting" ]
+crypto-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]
+crypto-psa = [ "edhoc-crypto/psa" ]
+crypto-psa-baremetal = [ "edhoc-crypto/psa-baremetal", "panic-semihosting" ]
+crypto-cryptocell310 = [ "edhoc-crypto/cryptocell310", "panic-semihosting" ]
 ead-none = [ "edhoc-ead/ead-none" ]
 ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
 

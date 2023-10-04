@@ -20,5 +20,5 @@ rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 
 [features]
 default = [ "psa" ]
-psa = [ "edhoc-rs/cb-psa-baremetal" ]
+psa = [ "edhoc-rs/crypto-psa-baremetal" ]
 

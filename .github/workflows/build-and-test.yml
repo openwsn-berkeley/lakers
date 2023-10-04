@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [cb-hacspec, cb-psa]
+        crypto_backend: [crypto-hacspec, crypto-psa]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [cb-hacspec, cb-psa, cb-psa-baremetal, cb-cryptocell310]
+        crypto_backend: [crypto-hacspec, crypto-psa, crypto-psa-baremetal, crypto-cryptocell310]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -80,7 +80,7 @@ jobs:
 
     - name: Generate fstar code using the main library and the hacspec crypto backend
       run: |
-        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs && cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead --no-default-features --features='cb-hacspec, ead-none' --release \; into fstar"
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs && cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead --no-default-features --features='crypto-hacspec, ead-none' --release \; into fstar"
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [cb-psa-baremetal, cb-cryptocell310]
+        crypto_backend: [crypto-psa-baremetal, crypto-cryptocell310]
 
     steps:
     - name: Checkout repo
@@ -125,7 +125,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [cb-psa]
+        crypto_backend: [crypto-psa]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -150,7 +150,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [cb-psa, cb-cryptocell310]
+        crypto_backend: [crypto-psa, crypto-cryptocell310]
         ead: [ead-none, ead-zeroconf]
 
     steps:

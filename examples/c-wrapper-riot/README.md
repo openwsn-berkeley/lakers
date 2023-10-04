@@ -8,18 +8,18 @@ See [Requirements](#requirements) below.
 First, go to the top level directory and generate the headers and static library:
 
 ```bash
-./build_for_c.sh cb-cryptocell310 # or cb-psa-baremetal
+./build_for_c.sh crypto-cryptocell310 # or crypto-psa-baremetal
 ```
 
 Then, compile and flash to the board (default is nRF52840), as shown below.
 
-With `cb-cryptocell310`:
+With `crypto-cryptocell310`:
 
 ```bash
 make flash term
 ```
 
-With `cb-psa-baremetal`:
+With `crypto-psa-baremetal`:
 
 ```bash
 make flash term EDHOC_CRYPTO=CB_PSA

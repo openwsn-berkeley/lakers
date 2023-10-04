@@ -11,9 +11,9 @@
 
 cargo_features=$1
 
-if [[ $cargo_features != "cb-cryptocell310" && $cargo_features != "cb-psa-baremetal" ]]; then
-    echo "Select one of: cb-cryptocell310, cb-psa-baremetal"
-    echo "Example: ./build_static_lib.sh cb-cryptocell310"
+if [[ $cargo_features != "crypto-cryptocell310" && $cargo_features != "crypto-psa-baremetal" ]]; then
+    echo "Select one of: crypto-cryptocell310, crypto-psa-baremetal"
+    echo "Example: ./build_static_lib.sh crypto-cryptocell310"
     exit 1
 fi
 
