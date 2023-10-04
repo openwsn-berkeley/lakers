@@ -120,36 +120,40 @@ pub fn r_process_message_1(
             if method == EDHOC_METHOD {
                 // Step 2: verify that the selected cipher suite is supported
                 if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
-                    // Step 3: If EAD is present make it available to the application
-                    let ead_success = if let Some(ead_1) = ead_1 {
-                        r_process_ead_1(ead_1).is_ok()
-                    } else {
-                        true
-                    };
-                    if ead_success {
-                        // hash message_1 and save the hash to the state to avoid saving the whole message
-                        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                        message_1_buf[..message_1.len]
-                            .copy_from_slice(&message_1.content[..message_1.len]);
-                        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+                    if p256_validate_compact_public_key(&g_x) {
+                        // Step 3: If EAD is present make it available to the application
+                        let ead_success = if let Some(ead_1) = ead_1 {
+                            r_process_ead_1(ead_1).is_ok()
+                        } else {
+                            true
+                        };
+                        if ead_success {
+                            // hash message_1 and save the hash to the state to avoid saving the whole message
+                            let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+                            message_1_buf[..message_1.len]
+                                .copy_from_slice(&message_1.content[..message_1.len]);
+                            h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
-                        error = EDHOCError::Success;
-                        current_state = EDHOCState::ProcessedMessage1;
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::ProcessedMessage1;
 
-                        state = construct_state(
-                            current_state,
-                            _y,
-                            c_i,
-                            g_x,
-                            _prk_3e2m,
-                            _prk_4e3m,
-                            _prk_out,
-                            _prk_exporter,
-                            h_message_1,
-                            _th_3,
-                        );
+                            state = construct_state(
+                                current_state,
+                                _y,
+                                c_i,
+                                g_x,
+                                _prk_3e2m,
+                                _prk_4e3m,
+                                _prk_out,
+                                _prk_exporter,
+                                h_message_1,
+                                _th_3,
+                            );
+                        } else {
+                            error = EDHOCError::EADError;
+                        }
                     } else {
-                        error = EDHOCError::EADError;
+                        error = EDHOCError::InvalidPublicKey;
                     }
                 } else {
                     error = EDHOCError::UnsupportedCipherSuite;
