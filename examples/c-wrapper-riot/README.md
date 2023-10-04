@@ -8,21 +8,21 @@ See [Requirements](#requirements) below.
 First, go to the top level directory and generate the headers and static library:
 
 ```bash
-./build_for_c.sh rust-cryptocell310 # or rust-psa-baremetal
+./build_for_c.sh crypto-cryptocell310 # or crypto-psa-baremetal
 ```
 
 Then, compile and flash to the board (default is nRF52840), as shown below.
 
-With `rust-cryptocell310`:
+With `crypto-cryptocell310`:
 
 ```bash
 make flash term
 ```
 
-With `rust-psa-baremetal`:
+With `crypto-psa-baremetal`:
 
 ```bash
-make flash term EDHOC_CRYPTO=RUST_PSA
+make flash term EDHOC_CRYPTO=CRYPTO_PSA
 ```
 
 # Requirements

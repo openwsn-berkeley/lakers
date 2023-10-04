@@ -3,7 +3,7 @@
 #include "od.h"
 #include "edhoc_rs.h"
 
-#ifdef RUST_PSA
+#ifdef CRYPTO_PSA
 extern void mbedtls_memory_buffer_alloc_init(uint8_t *buf, size_t len);
 #endif
 
@@ -20,7 +20,7 @@ int main(void)
  {
     puts("Calling edhoc-rs from C!");
 
-#ifdef RUST_PSA
+#ifdef CRYPTO_PSA
     // Memory buffer for mbedtls
     uint8_t buffer[4096 * 2] = {0};
     mbedtls_memory_buffer_alloc_init(buffer, 4096 * 2);

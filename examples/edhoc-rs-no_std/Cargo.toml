@@ -21,11 +21,8 @@ rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 
 [features]
 default = [ ]
-hacspec-cc2538 = [ "edhoc-rs/hacspec-cc2538" ]
-hacspec-psa = [ "edhoc-rs/hacspec-psa-baremetal" ]
-rust-psa = [ "edhoc-rs/rust-psa-baremetal" ]
 rtt = [ ]
-hacspec-cryptocell310 = [ "edhoc-rs/hacspec-cryptocell310" ]
-rust-cryptocell310 = [ "edhoc-rs/rust-cryptocell310" ]
+crypto-psa = [ "edhoc-rs/crypto-psa-baremetal" ]
+crypto-cryptocell310 = [ "edhoc-rs/crypto-cryptocell310" ]
 ead-none = [ "edhoc-rs/ead-none" ]
 ead-zeroconf = [ "edhoc-rs/ead-zeroconf" ]

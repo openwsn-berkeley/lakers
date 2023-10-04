@@ -1,9 +1,9 @@
-use crate::rust::*;
+use crate::*;
 use core::{slice, str};
 use edhoc_consts::*;
 
 // Panic handler for cortex-m targets
-#[cfg(any(feature = "rust-cryptocell310", feature = "rust-psa-baremetal"))]
+#[cfg(any(feature = "crypto-cryptocell310", feature = "crypto-psa-baremetal"))]
 use panic_semihosting as _;
 
 // This function is mainly used to test the C wrapper
@@ -37,8 +37,8 @@ pub struct EdhocInitiatorC {
 }
 
 impl EdhocInitiatorC {
-    pub fn to_rust(&self) -> RustEdhocInitiator {
-        RustEdhocInitiator::new(
+    pub fn to_rust(&self) -> EdhocInitiator {
+        EdhocInitiator::new(
             self.state,
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.i, self.i_len)) },
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_r, self.g_r_len)) },
@@ -76,8 +76,8 @@ pub struct EdhocResponderC {
 }
 
 impl EdhocResponderC {
-    pub fn to_rust(&self) -> RustEdhocResponder {
-        RustEdhocResponder::new(
+    pub fn to_rust(&self) -> EdhocResponder {
+        EdhocResponder::new(
             self.state,
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.r, self.r_len)) },
             unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.g_i, self.g_i_len)) },
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn responder_new(
     cred_r: *const u8,
     cred_r_len: usize,
 ) -> EdhocResponderC {
-    RustEdhocResponder::new(
+    EdhocResponder::new(
         State::default(),
         str::from_utf8_unchecked(slice::from_raw_parts(r, r_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(g_i, g_i_len)),
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn initiator_new(
     cred_r: *const u8,
     cred_r_len: usize,
 ) -> EdhocInitiatorC {
-    RustEdhocInitiator::new(
+    EdhocInitiator::new(
         State::default(),
         str::from_utf8_unchecked(slice::from_raw_parts(i, i_len)),
         str::from_utf8_unchecked(slice::from_raw_parts(g_r, g_r_len)),
@@ -158,7 +158,8 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
 ) -> i8 {
     let mut initiator = (*initiator_c).to_rust();
 
-    let result = match initiator.prepare_message_1() {
+    let c_i: u8 = generate_connection_identifier_cbor().into();
+    let result = match initiator.prepare_message_1(c_i) {
         Ok(msg_1) => {
             *message_1 = msg_1;
             0
@@ -196,10 +197,11 @@ pub unsafe extern "C" fn responder_prepare_message_2(
 ) -> i8 {
     let mut responder = (*responder_c).to_rust();
 
-    let result = match responder.prepare_message_2() {
-        Ok((msg_2, c_r_res)) => {
+    let c_r_chosen: u8 = generate_connection_identifier_cbor().into();
+    let result = match responder.prepare_message_2(c_r_chosen) {
+        Ok(msg_2) => {
             *message_2 = msg_2;
-            *c_r = c_r_res;
+            *c_r = c_r_chosen;
             0
         }
         Err(err) => err as i8,

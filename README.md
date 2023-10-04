@@ -46,7 +46,7 @@ cd ./examples/edhoc-rs-no_std
 cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="hacspec-psa, rtt" --release
 
 # build using the rust version of the lib, and hardware-accelerated crypto
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="rust-cryptocell310, rtt"
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-cryptocell310, rtt"
 ```
 
 To build **and** flash to the board, replace the word `build` with `embed` in the commands above (you may need to `cargo install cargo-embed`).

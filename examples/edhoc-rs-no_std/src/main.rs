@@ -32,8 +32,9 @@ fn main() -> ! {
     rtt_init_print!();
 
     // Initialize the allocator BEFORE you use it
-    // The hacspec version does some allocations in the heap
-    #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
+    // The hacspec version does some heap allocations
+    // TODO: we still don't have a baremetal version with hacspec as crypto backend, so maybe remove `HEAP`.
+    #[cfg(any(feature = "crypto-hacspec"))]
     {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 1 << 10;
@@ -42,9 +43,9 @@ fn main() -> ! {
     }
 
     // Memory buffer for mbedtls
-    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
+    #[cfg(feature = "crypto-psa")]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(any(feature = "hacspec-psa", feature = "rust-psa",))]
+    #[cfg(feature = "crypto-psa")]
     unsafe {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
@@ -84,12 +85,7 @@ fn main() -> ! {
         let g_xy = p256_ecdh(&x, &g_y);
         let g_yx = p256_ecdh(&y, &g_x);
 
-        // NOTE: application code is not supposed to distinguish between the rust and hacspec implementations
-        // however, it is valuable to test that the results are correct, so we distinguish it here as an exception.
-        #[cfg(any(feature = "rust-psa", feature = "rust-cryptocell310",))]
         assert_eq!(g_xy, g_yx);
-        #[cfg(any(feature = "hacspec-psa", feature = "hacspec-cryptocell310",))]
-        assert_eq!(g_xy.to_public_array(), g_yx.to_public_array());
     }
     test_p256_keys();
     println!("Test test_p256_keys passed.");
@@ -99,7 +95,8 @@ fn main() -> ! {
         let mut initiator =
             EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
-        let message_1 = initiator.prepare_message_1();
+        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let message_1 = initiator.prepare_message_1(c_i);
         assert!(message_1.is_ok());
     }
 
@@ -128,16 +125,18 @@ fn main() -> ! {
             CRED_R,
         );
 
-        let ret = initiator.prepare_message_1(); // to update the state
+        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let ret = initiator.prepare_message_1(c_i); // to update the state
         assert!(ret.is_ok());
         let message_1 = ret.unwrap();
 
         let ret = responder.process_message_1(&message_1);
         assert!(ret.is_ok());
 
-        let ret = responder.prepare_message_2();
+        let c_r: u8 = generate_connection_identifier_cbor().into();
+        let ret = responder.prepare_message_2(c_r);
         assert!(ret.is_ok());
-        let (message_2, c_r) = ret.unwrap();
+        let message_2 = ret.unwrap();
         assert!(c_r != 0xff);
 
         let _c_r = initiator.process_message_2(&message_2);

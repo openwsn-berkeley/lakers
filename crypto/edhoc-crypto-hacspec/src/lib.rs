@@ -9,9 +9,74 @@ use hacspec_p256::*;
 use hacspec_sha256::*;
 use rand::Rng;
 
+// Types and functions to aid in translation between the hacspec and non-hacspec world
+
+// TODO: the `array!` construct is not needed anymore.
+// Ideally this should be: `type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];`
+// However, it is not clear how to implement the equivalents to `from_public_slice` and friends
+//  when using the normal array construct.
+array!(BytesCcmKeyLenHacspec, AES_CCM_KEY_LEN, U8);
+array!(BytesCcmIvLenHacspec, AES_CCM_IV_LEN, U8);
+array!(BytesHashLenHacspec, SHA256_DIGEST_LEN, U8);
+array!(BytesP256ElemLenHacspec, P256_ELEM_LEN, U8);
+array!(BytesMaxBufferHacspec, MAX_BUFFER_LEN, U8);
+array!(BytesMaxInfoBufferHacspec, MAX_INFO_LEN, U8);
+array!(BytesEncStructureLenHacspec, ENC_STRUCTURE_LEN, U8);
+
+array!(BytesMessageBuffer, MAX_MESSAGE_SIZE_LEN, U8);
+
+#[derive(Debug)]
+pub struct EdhocMessageBufferHacspec {
+    pub content: BytesMessageBuffer,
+    pub len: usize,
+}
+
+pub trait MessageBufferHacspecTrait {
+    fn new() -> Self;
+    fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self;
+    fn from_seq(buffer: &Seq<U8>) -> Self;
+    fn to_public_buffer(&self) -> EdhocMessageBuffer;
+}
+
+impl MessageBufferHacspecTrait for EdhocMessageBufferHacspec {
+    fn new() -> Self {
+        EdhocMessageBufferHacspec {
+            content: BytesMessageBuffer::new(),
+            len: 0,
+        }
+    }
+    fn from_public_buffer(buffer: &EdhocMessageBuffer) -> Self {
+        let mut hacspec_buffer = EdhocMessageBufferHacspec::new();
+        hacspec_buffer.len = buffer.len;
+        hacspec_buffer.content = BytesMessageBuffer::from_public_slice(&buffer.content[..]);
+        hacspec_buffer
+    }
+    fn from_seq(buffer: &Seq<U8>) -> Self {
+        EdhocMessageBufferHacspec {
+            content: BytesMessageBuffer::from_slice(buffer, 0, buffer.len()),
+            len: buffer.len(),
+        }
+    }
+    fn to_public_buffer(&self) -> EdhocMessageBuffer {
+        let mut buffer = EdhocMessageBuffer::new();
+        buffer.content = self.content.to_public_array();
+        buffer.len = self.len;
+        buffer
+    }
+}
+
+type BufferCiphertext3Hacspec = EdhocMessageBufferHacspec;
+type BufferPlaintext3Hacspec = EdhocMessageBufferHacspec;
+
+// Public functions
+
 pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
-    let output = BytesHashLen::from_seq(&hash(&ByteSeq::from_slice(message, 0, message_len)));
-    output
+    let message: BytesMaxBufferHacspec = BytesMaxBufferHacspec::from_public_slice(message);
+
+    let output =
+        BytesHashLenHacspec::from_seq(&hash(&ByteSeq::from_slice(&message, 0, message_len)));
+
+    output.to_public_array()
 }
 
 pub fn hkdf_expand(
@@ -20,25 +85,33 @@ pub fn hkdf_expand(
     info_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let mut output = BytesMaxBuffer::new();
+    let mut output = BytesMaxBufferHacspec::new();
     output = output.update(
         0,
         &expand(
-            &ByteSeq::from_slice(prk, 0, prk.len()),
-            &ByteSeq::from_slice(info, 0, info_len),
+            &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(prk), 0, prk.len()),
+            &ByteSeq::from_slice(
+                &BytesMaxInfoBufferHacspec::from_public_slice(info),
+                0,
+                info_len,
+            ),
             length,
         )
         .unwrap(),
     );
-    output
+    output.to_public_array()
 }
 
 pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
-    let output = BytesHashLen::from_seq(&extract(
-        &ByteSeq::from_slice(salt, 0, salt.len()),
-        &ByteSeq::from_slice(ikm, 0, ikm.len()),
+    let output = BytesHashLenHacspec::from_seq(&extract(
+        &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(salt), 0, salt.len()),
+        &ByteSeq::from_slice(
+            &BytesP256ElemLenHacspec::from_public_slice(ikm),
+            0,
+            ikm.len(),
+        ),
     ));
-    output
+    output.to_public_array()
 }
 
 pub fn aes_ccm_encrypt_tag_8(
@@ -47,15 +120,21 @@ pub fn aes_ccm_encrypt_tag_8(
     ad: &BytesEncStructureLen,
     plaintext: &BufferPlaintext3,
 ) -> BufferCiphertext3 {
-    let output = BufferCiphertext3::from_seq(&encrypt_ccm(
-        ByteSeq::from_slice(ad, 0, ad.len()),
-        ByteSeq::from_slice(iv, 0, iv.len()),
+    let plaintext = BufferPlaintext3Hacspec::from_public_buffer(plaintext);
+
+    let output = BufferCiphertext3Hacspec::from_seq(&encrypt_ccm(
+        ByteSeq::from_slice(
+            &BytesEncStructureLenHacspec::from_public_slice(ad),
+            0,
+            ad.len(),
+        ),
+        ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
         ByteSeq::from_slice(&plaintext.content, 0, plaintext.len),
-        Key128::from_slice(key, 0, key.len()),
+        Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
         AES_CCM_TAG_LEN,
     ));
 
-    output
+    output.to_public_buffer()
 }
 
 pub fn aes_ccm_decrypt_tag_8(
@@ -64,15 +143,21 @@ pub fn aes_ccm_decrypt_tag_8(
     ad: &BytesEncStructureLen,
     ciphertext: &BufferCiphertext3,
 ) -> Result<BufferPlaintext3, EDHOCError> {
+    let ciphertext = BufferCiphertext3Hacspec::from_public_buffer(ciphertext);
+
     match decrypt_ccm(
-        ByteSeq::from_slice(ad, 0, ad.len()),
-        ByteSeq::from_slice(iv, 0, iv.len()),
-        Key128::from_slice(key, 0, key.len()),
+        ByteSeq::from_slice(
+            &BytesEncStructureLenHacspec::from_public_slice(ad),
+            0,
+            ad.len(),
+        ),
+        ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
+        Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
         ByteSeq::from_slice(&ciphertext.content, 0, ciphertext.len),
         ciphertext.len,
         AES_CCM_TAG_LEN,
     ) {
-        Ok(p) => Ok(BufferPlaintext3::from_seq(&p)),
+        Ok(p) => Ok(BufferPlaintext3Hacspec::from_seq(&p).to_public_buffer()),
         Err(_) => Err(EDHOCError::MacVerificationFailed),
     }
 }
@@ -81,28 +166,32 @@ pub fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
-    let scalar = P256Scalar::from_byte_seq_be(private_key);
+    let private_key = BytesP256ElemLenHacspec::from_public_slice(private_key);
+    let public_key = BytesP256ElemLenHacspec::from_public_slice(public_key);
+
+    let scalar = P256Scalar::from_byte_seq_be(&private_key);
     let point = (
-        P256FieldElement::from_byte_seq_be(public_key),
-        p256_calculate_w(P256FieldElement::from_byte_seq_be(public_key)),
+        P256FieldElement::from_byte_seq_be(&public_key),
+        p256_calculate_w(P256FieldElement::from_byte_seq_be(&public_key)),
     );
 
     // we only care about the x coordinate
     let (x, _y) = p256_point_mul(scalar, point).unwrap();
 
-    let secret = BytesP256ElemLen::from_seq(&x.to_byte_seq_be());
-    secret
+    let secret = BytesP256ElemLenHacspec::from_seq(&x.to_byte_seq_be());
+
+    secret.to_public_array()
 }
 
 #[cfg(not(feature = "hacspec-pure"))]
-pub fn get_random_byte() -> U8 {
-    U8(rand::thread_rng().gen::<u8>())
+pub fn get_random_byte() -> u8 {
+    rand::thread_rng().gen::<u8>()
 }
 
 #[cfg(not(feature = "hacspec-pure"))]
 pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     // generate a private key
-    let mut private_key = BytesP256ElemLen::new();
+    let mut private_key = BytesP256ElemLenHacspec::new();
     loop {
         for i in 0..private_key.len() {
             private_key[i] = U8(rand::thread_rng().gen::<u8>());
@@ -115,9 +204,9 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     // obtain the corresponding public key
     let scalar = P256Scalar::from_byte_seq_be(&private_key);
     let public_key_point = p256_point_mul_base(scalar).unwrap();
-    let public_key = BytesP256ElemLen::from_seq(&public_key_point.0.to_byte_seq_be());
+    let public_key = BytesP256ElemLenHacspec::from_seq(&public_key_point.0.to_byte_seq_be());
 
-    (private_key, public_key)
+    (private_key.to_public_array(), public_key.to_public_array())
 }
 
 #[cfg(test)]
@@ -135,6 +224,6 @@ mod tests {
         let g_xy = p256_ecdh(&x, &g_y);
         let g_yx = p256_ecdh(&y, &g_x);
 
-        assert_bytes_eq!(g_xy, g_yx);
+        assert_eq!(g_xy, g_yx);
     }
 }
