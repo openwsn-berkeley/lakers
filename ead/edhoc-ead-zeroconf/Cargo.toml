@@ -8,3 +8,4 @@ description = "EDHOC EAD zeroconf (draf-lake-authz)"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
+hexlit = "0.5.3"

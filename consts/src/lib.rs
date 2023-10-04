@@ -28,6 +28,7 @@ mod consts {
     pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
+    pub const CBOR_TEXT_STRING: u8 = 0x78u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
     pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
     pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
@@ -118,7 +119,7 @@ mod structs {
     );
 
     #[repr(C)]
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Copy, Clone)]
     pub struct EdhocMessageBuffer {
         pub content: [u8; MAX_MESSAGE_SIZE_LEN],
         pub len: usize,

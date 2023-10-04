@@ -509,7 +509,7 @@ mod test {
             CRED_R,
         );
 
-        ead_initiator_set_global_state(EADInitiatorState::new());
+        ead_initiator_set_global_state(EADInitiatorState::new(EdhocMessageBuffer::new()));
         let ead_initiator_state = ead_initiator_get_global_state();
         assert_eq!(
             ead_initiator_state.protocol_state,
