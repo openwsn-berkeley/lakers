@@ -8,4 +8,13 @@ description = "EDHOC EAD zeroconf (draf-lake-authz)"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
+edhoc-crypto = { path = "../../crypto", default-features = false, features = ["psa"] }
 hexlit = "0.5.3"
+
+[features]
+# FIXME: allow selection of crypto backend
+# default = [ "crypto-psa" ]
+# crypto-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]
+# crypto-psa = [ "edhoc-crypto/psa" ]
+# crypto-psa-baremetal = [ "edhoc-crypto/psa-baremetal", "panic-semihosting" ]
+# crypto-cryptocell310 = [ "edhoc-crypto/cryptocell310", "panic-semihosting" ]

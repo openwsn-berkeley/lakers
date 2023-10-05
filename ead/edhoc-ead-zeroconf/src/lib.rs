@@ -1,6 +1,7 @@
 #![no_std]
 
 use edhoc_consts::*;
+use edhoc_crypto::*;
 
 // initiator side
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
@@ -14,13 +15,24 @@ pub enum EADInitiatorProtocolState {
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct EADInitiatorState {
     pub protocol_state: EADInitiatorProtocolState,
-    pub(crate) loc_w: EdhocMessageBuffer,
+    pub(crate) u: BytesP256ElemLen, // private key of the device (U), equivalent to I in EDHOC
+    pub(crate) id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
+    pub(crate) g_w: BytesP256ElemLen, // public key of the enrollment server (W)
+    pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
 }
 
 impl EADInitiatorState {
-    pub fn new(loc_w: EdhocMessageBuffer) -> Self {
+    pub fn new(
+        u: BytesP256ElemLen,
+        id_u: EdhocMessageBuffer,
+        g_w: BytesP256ElemLen,
+        loc_w: EdhocMessageBuffer,
+    ) -> Self {
         EADInitiatorState {
             protocol_state: EADInitiatorProtocolState::Start,
+            u,
+            id_u,
+            g_w,
             loc_w,
         }
     }
@@ -30,6 +42,14 @@ impl EADInitiatorState {
 // NOTE: this is not thread-safe
 static mut EAD_INITIATOR_GLOBAL_STATE: EADInitiatorState = EADInitiatorState {
     protocol_state: EADInitiatorProtocolState::Start,
+    // FIXME: lots of wasted bytes in id_u and loc_w.
+    // they could both be &[u8], but that would require a <'a> lifetime which clashes with the static lifetime of the global state
+    u: [0u8; P256_ELEM_LEN],
+    id_u: EdhocMessageBuffer {
+        content: [0u8; MAX_MESSAGE_SIZE_LEN],
+        len: 0,
+    },
+    g_w: [0u8; P256_ELEM_LEN],
     loc_w: EdhocMessageBuffer {
         content: [0u8; MAX_MESSAGE_SIZE_LEN],
         len: 0,
@@ -48,15 +68,21 @@ pub fn ead_initiator_set_global_state(new_state: EADInitiatorState) {
 }
 
 pub fn i_prepare_ead_1() -> Option<EADItem> {
+    // TODO: receive ss as parameter
+    let ss = EDHOC_SUPPORTED_SUITES[0];
     let mut ead_1 = EADItem::new();
 
     // this ead item is critical
     ead_1.label = EAD_ZEROCONF_LABEL;
     ead_1.is_critical = true;
 
-    let loc_w = ead_initiator_get_global_state().loc_w;
-    let enc_id = build_enc_id();
-    ead_1.value = Some(encode_ead_1(loc_w, enc_id));
+    let state = ead_initiator_get_global_state();
+
+    // UNDER TEST
+    let _enc_id = build_enc_id(&state.u, &state.id_u, &state.g_w, ss);
+
+    let enc_id_dummy = build_enc_id_dummy(state.id_u, ss);
+    ead_1.value = Some(encode_ead_1(state.loc_w, enc_id_dummy));
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::WaitEAD2,
@@ -85,10 +111,107 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
 // TODO: actually implement this function
 use hexlit::hex;
 const ENC_ID: &[u8] = &hex!("4545452E4545452E4545452E");
-fn build_enc_id() -> EdhocMessageBuffer {
+fn build_enc_id_dummy(_id_u: EdhocMessageBuffer, _ss: u8) -> EdhocMessageBuffer {
     let enc_id: EdhocMessageBuffer = ENC_ID.try_into().unwrap();
-
     enc_id
+}
+
+fn build_enc_id(
+    u: &BytesP256ElemLen,
+    id_u: &EdhocMessageBuffer,
+    g_w: &BytesP256ElemLen,
+    ss: u8
+) -> EdhocMessageBuffer {
+
+    // PRK = EDHOC-Extract(salt, IKM)
+    // FIXME: salt should be 0x (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN.
+    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
+    let g_uw = p256_ecdh(u, g_w);
+    let prk = hkdf_extract(&salt, &g_uw);
+
+    // K_1 = EDHOC-Expand(PRK, info, length)
+    let k_1 = edhoc_kdf(&prk, 0, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN);
+
+    // IV_1 = EDHOC-Expand(PRK, info, length)
+    let iv_1 = edhoc_kdf(&prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_IV_LEN);
+
+    // plaintext = (ID_U: bstr)
+    let mut plaintext = EdhocMessageBuffer::new();
+    plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
+    plaintext.content[1..1 + id_u.len].copy_from_slice(&id_u.content[..id_u.len]);
+    plaintext.len = 1 + id_u.len;
+
+    // external_aad = (SS: int)
+    // ENC_ID = 'ciphertext' of COSE_Encrypt0
+    let enc_structure = encode_enc_structure(ss);
+
+    // let ciphertext = aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure, plaintext);
+
+
+    let enc_id: EdhocMessageBuffer = ENC_ID.try_into().unwrap();
+    enc_id
+}
+
+const EAD_ENC_STRUCTURE_LEN: usize = 2 + 8 + 1 + 2;
+fn encode_enc_structure(ss: u8) -> [u8; EAD_ENC_STRUCTURE_LEN] {
+    let mut encrypt0: Bytes8 = [0x00; 8];
+    encrypt0[0] = 0x45u8; // 'E'
+    encrypt0[1] = 0x6eu8; // 'n'
+    encrypt0[2] = 0x63u8; // 'c'
+    encrypt0[3] = 0x72u8; // 'r'
+    encrypt0[4] = 0x79u8; // 'y'
+    encrypt0[5] = 0x70u8; // 'p'
+    encrypt0[6] = 0x74u8; // 't'
+    encrypt0[7] = 0x30u8; // '0'
+
+    let mut enc_structure: [u8; EAD_ENC_STRUCTURE_LEN] = [0x00; EAD_ENC_STRUCTURE_LEN];
+
+    // encode Enc_structure from rfc9052 Section 5.3
+    enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array
+    enc_structure[1] = CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8;
+    enc_structure[2..2 + encrypt0.len()].copy_from_slice(&encrypt0[..]);
+    enc_structure[encrypt0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00 as u8; // 0 for zero-length byte string (empty Header)
+    enc_structure[encrypt0.len() + 3] = CBOR_MAJOR_BYTE_STRING | 0x01 as u8; // 1 for the `ss` value
+    enc_structure[encrypt0.len() + 4] = ss;
+
+    enc_structure
+}
+
+// NOTE: can we import this from the edhoc-rs main crate?
+fn edhoc_kdf(
+    prk: &BytesHashLen,
+    label: u8,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+    length: usize,
+) -> BytesMaxBuffer {
+    let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
+    let mut info_len = 0;
+
+    // construct info with inline cbor encoding
+    info[0] = label;
+    if context_len < 24 {
+        info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
+        info[2..2 + context_len].copy_from_slice(&context[..context_len]);
+        info_len = 2 + context_len;
+    } else {
+        info[1] = CBOR_BYTE_STRING;
+        info[2] = context_len as u8;
+        info[3..3 + context_len].copy_from_slice(&context[..context_len]);
+        info_len = 3 + context_len;
+    }
+    if length < 24 {
+        info[info_len] = length as u8;
+        info_len = info_len + 1;
+    } else {
+        info[info_len] = CBOR_UINT_1BYTE;
+        info[info_len + 1] = length as u8;
+        info_len = info_len + 2;
+    }
+
+    let output = hkdf_expand(prk, &info, info_len, length);
+
+    output
 }
 
 fn encode_ead_1(loc_w: EdhocMessageBuffer, enc_id: EdhocMessageBuffer) -> EdhocMessageBuffer {
@@ -113,6 +236,15 @@ mod test_initiator {
     use edhoc_consts::*;
     use hexlit::hex;
 
+    // U
+    const U: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+    const ID_U: &[u8] = &hex!("a104412b");
+
+    // V
+    // TODO...
+
+    // W
+    const G_W: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // TODO: update
     const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     // voucher_info
@@ -121,15 +253,17 @@ mod test_initiator {
 
     #[test]
     fn test_prepare_ead_1() {
-        let ead_1_value_tv: EdhocMessageBuffer = VOUCHER_INFO_TV.try_into().unwrap();
+        let u: BytesP256ElemLen = U.try_into().unwrap();
+        let id_u: EdhocMessageBuffer = ID_U.try_into().unwrap();
+        let g_w: BytesP256ElemLen = G_W.try_into().unwrap();
         let loc_w: EdhocMessageBuffer = LOC_W.try_into().unwrap();
+        let ead_1_value_tv: EdhocMessageBuffer = VOUCHER_INFO_TV.try_into().unwrap();
 
-        ead_initiator_set_global_state(EADInitiatorState::new(loc_w));
-        let ead_initiator_state = ead_initiator_get_global_state();
+        ead_initiator_set_global_state(EADInitiatorState::new(u, id_u, g_w, loc_w));
 
         let ead_1 = i_prepare_ead_1().unwrap();
         assert_eq!(
-            ead_initiator_state.protocol_state,
+            ead_initiator_get_global_state().protocol_state,
             EADInitiatorProtocolState::WaitEAD2
         );
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
