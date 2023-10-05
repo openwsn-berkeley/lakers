@@ -173,8 +173,7 @@ pub fn r_process_message_1(
 pub fn r_prepare_message_2(
     mut state: State,
     id_cred_r: &BytesIdCred,
-    cred_r: &BytesMaxBuffer,
-    cred_r_len: usize,
+    cred_r: &[u8],
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
@@ -206,7 +205,7 @@ pub fn r_prepare_message_2(
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
         // compute MAC_2
-        let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
+        let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, &th_2);
 
         let ead_2 = r_prepare_ead_2();
 
@@ -215,7 +214,7 @@ pub fn r_prepare_message_2(
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
+        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r);
 
         let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
         ct.len = plaintext_2.len;
@@ -257,8 +256,7 @@ pub fn r_process_message_3(
     mut state: State,
     message_3: &BufferMessage3,
     id_cred_i_expected: &BytesIdCred,
-    cred_i_expected: &BytesMaxBuffer,
-    cred_i_len: usize,
+    cred_i_expected: &[u8],
     g_i: &BytesP256ElemLen, // I's public DH key
 ) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
@@ -301,19 +299,13 @@ pub fn r_process_message_3(
                         prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
 
                         // compute mac_3
-                        let expected_mac_3 = compute_mac_3(
-                            &prk_4e3m,
-                            &th_3,
-                            id_cred_i_expected,
-                            cred_i_expected,
-                            cred_i_len,
-                        );
+                        let expected_mac_3 =
+                            compute_mac_3(&prk_4e3m, &th_3, id_cred_i_expected, cred_i_expected);
 
                         // verify mac_3
                         if mac_3 == expected_mac_3 {
                             error = EDHOCError::Success;
-                            let th_4 =
-                                compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
+                            let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected);
 
                             let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                             th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -452,8 +444,7 @@ pub fn i_process_message_2(
     mut state: State,
     message_2: &BufferMessage2,
     id_cred_r_expected: &BytesIdCred,
-    cred_r_expected: &BytesMaxBuffer,
-    cred_r_len: usize,
+    cred_r_expected: &[u8],
     g_r: &BytesP256ElemLen, // R's static public DH key
     i: &BytesP256ElemLen,   // I's static private DH key
 ) -> Result<(State, u8, u8), EDHOCError> {
@@ -507,13 +498,8 @@ pub fn i_process_message_2(
 
                     prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-                    let expected_mac_2 = compute_mac_2(
-                        &prk_3e2m,
-                        id_cred_r_expected,
-                        cred_r_expected,
-                        cred_r_len,
-                        &th_2,
-                    );
+                    let expected_mac_2 =
+                        compute_mac_2(&prk_3e2m, id_cred_r_expected, cred_r_expected, &th_2);
 
                     if mac_2 == expected_mac_2 {
                         if kid == id_cred_r_expected[id_cred_r_expected.len() - 1] {
@@ -523,7 +509,7 @@ pub fn i_process_message_2(
                             pt2.content[..plaintext_2_len]
                                 .copy_from_slice(&plaintext_2[..plaintext_2_len]);
                             pt2.len = plaintext_2_len;
-                            th_3 = compute_th_3(&th_2, &pt2, cred_r_expected, cred_r_len);
+                            th_3 = compute_th_3(&th_2, &pt2, cred_r_expected);
                             // message 3 processing
 
                             let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
@@ -574,8 +560,7 @@ pub fn i_process_message_2(
 pub fn i_prepare_message_3(
     mut state: State,
     id_cred_i: &BytesIdCred,
-    cred_i: &BytesMaxBuffer,
-    cred_i_len: usize,
+    cred_i: &[u8],
 ) -> Result<(State, BufferMessage3, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
@@ -594,14 +579,14 @@ pub fn i_prepare_message_3(
     let mut message_3: BufferMessage3 = BufferMessage3::new();
 
     if current_state == EDHOCState::ProcessedMessage2 {
-        let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
+        let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i);
 
         let ead_3 = i_prepare_ead_3();
 
         let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
         message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
 
-        let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
+        let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i);
 
         let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
         th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -1027,8 +1012,7 @@ fn compute_th_2(g_y: &BytesP256ElemLen, h_message_1: &BytesHashLen) -> BytesHash
 fn compute_th_3(
     th_2: &BytesHashLen,
     plaintext_2: &BufferPlaintext2,
-    cred_r: &BytesMaxBuffer,
-    cred_r_len: usize,
+    cred_r: &[u8],
 ) -> BytesHashLen {
     let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
 
@@ -1037,10 +1021,10 @@ fn compute_th_3(
     message[2..2 + th_2.len()].copy_from_slice(&th_2[..]);
     message[2 + th_2.len()..2 + th_2.len() + plaintext_2.len]
         .copy_from_slice(&plaintext_2.content[..plaintext_2.len]);
-    message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r_len]
-        .copy_from_slice(&cred_r[..cred_r_len]);
+    message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
+        .copy_from_slice(cred_r);
 
-    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r_len);
+    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
 
     output
 }
@@ -1048,8 +1032,7 @@ fn compute_th_3(
 fn compute_th_4(
     th_3: &BytesHashLen,
     plaintext_3: &BufferPlaintext3,
-    cred_i: &BytesMaxBuffer,
-    cred_i_len: usize,
+    cred_i: &[u8],
 ) -> BytesHashLen {
     let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
 
@@ -1058,10 +1041,10 @@ fn compute_th_4(
     message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
     message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len]
         .copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
-    message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i_len]
-        .copy_from_slice(&cred_i[..cred_i_len]);
+    message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
+        .copy_from_slice(cred_i);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i_len);
+    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
 
     output
 }
@@ -1272,8 +1255,7 @@ fn decrypt_message_3(
 fn encode_kdf_context(
     id_cred: &BytesIdCred,
     th: &BytesHashLen,
-    cred: &BytesMaxBuffer,
-    cred_len: usize,
+    cred: &[u8],
 ) -> (BytesMaxContextBuffer, usize) {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded
@@ -1282,10 +1264,10 @@ fn encode_kdf_context(
     output[id_cred.len()] = CBOR_BYTE_STRING;
     output[id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
     output[id_cred.len() + 2..id_cred.len() + 2 + th.len()].copy_from_slice(&th[..]);
-    output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred_len]
-        .copy_from_slice(&cred[..cred_len]);
+    output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred.len()]
+        .copy_from_slice(&cred);
 
-    let output_len = (id_cred.len() + 2 + SHA256_DIGEST_LEN + cred_len) as usize;
+    let output_len = (id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len()) as usize;
 
     (output, output_len)
 }
@@ -1294,11 +1276,10 @@ fn compute_mac_3(
     prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &BytesIdCred,
-    cred_i: &BytesMaxBuffer,
-    cred_i_len: usize,
+    cred_i: &[u8],
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i, cred_i_len);
+    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i);
 
     // compute mac_3
     let output_buf = edhoc_kdf(
@@ -1317,12 +1298,11 @@ fn compute_mac_3(
 fn compute_mac_2(
     prk_3e2m: &BytesHashLen,
     id_cred_r: &BytesIdCred,
-    cred_r: &BytesMaxBuffer,
-    cred_r_len: usize,
+    cred_r: &[u8],
     th_2: &BytesHashLen,
 ) -> BytesMac2 {
     // compute MAC_2
-    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, cred_r_len);
+    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
@@ -1755,20 +1735,16 @@ mod tests {
     #[test]
     fn test_compute_th_3() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let mut cred_r_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_r_tv[..CRED_R_TV.len()].copy_from_slice(&CRED_R_TV[..]);
 
-        let th_3 = compute_th_3(&TH_2_TV, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len());
+        let th_3 = compute_th_3(&TH_2_TV, &plaintext_2_tv, &CRED_R_TV);
         assert_eq!(th_3, TH_3_TV);
     }
 
     #[test]
     fn test_compute_th_4() {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let mut cred_i_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_i_tv[..CRED_I_TV.len()].copy_from_slice(&CRED_I_TV[..]);
 
-        let th_4 = compute_th_4(&TH_3_TV, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len());
+        let th_4 = compute_th_4(&TH_3_TV, &plaintext_3_tv, &CRED_I_TV);
         assert_eq!(th_4, TH_4_TV);
     }
 
@@ -1821,31 +1797,13 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
-        let mut cred_i_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_i_tv[..CRED_I_TV.len()].copy_from_slice(&CRED_I_TV[..]);
-
-        let mac_3 = compute_mac_3(
-            &PRK_4E3M_TV,
-            &TH_3_TV,
-            &ID_CRED_I_TV,
-            &cred_i_tv,
-            CRED_I_TV.len(),
-        );
+        let mac_3 = compute_mac_3(&PRK_4E3M_TV, &TH_3_TV, &ID_CRED_I_TV, &CRED_I_TV);
         assert_eq!(mac_3, MAC_3_TV);
     }
 
     #[test]
     fn test_compute_and_verify_mac_2() {
-        let mut cred_r_tv: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        cred_r_tv[..CRED_R_TV.len()].copy_from_slice(&CRED_R_TV[..]);
-
-        let rcvd_mac_2 = compute_mac_2(
-            &PRK_3E2M_TV,
-            &ID_CRED_R_TV,
-            &cred_r_tv,
-            CRED_R_TV.len(),
-            &TH_2_TV,
-        );
+        let rcvd_mac_2 = compute_mac_2(&PRK_3E2M_TV, &ID_CRED_R_TV, &CRED_R_TV, &TH_2_TV);
 
         assert_eq!(rcvd_mac_2, MAC_2_TV);
     }
