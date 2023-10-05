@@ -8,3 +8,11 @@ edhoc-rs = { path = "../../lib", features = [ "crypto-hacspec" ] }
 hexlit = "0.5.3"
 coap = { version = "0.13" }
 coap-lite = { version = "0.11.3" }
+
+std-embedded-nal = "^0.1.2"
+embedded-nal-minimal-coapserver = "0.3.1"
+embedded-nal = "0.6"
+coap-message = "0.2.3"
+coap-handler = "0.1.5"
+coap-handler-implementations = "0.4.2"
+coap-numbers = "0.2.3"
