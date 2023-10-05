@@ -46,16 +46,17 @@ To build an example application that works on the [nrf52840dk](https://www.nordi
 # head to the example `no_std` example
 cd ./examples/edhoc-rs-no_std
 
-# build using the psa crypto backend (software-based)
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-psa, rtt" --release
-
 # build using the cryptocell310 crypto backend (hardware-accelerated)
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-cryptocell310, rtt"
+cargo build --target="thumbv7em-none-eabihf" --release
+
+# build using the psa crypto backend (software-based)
+cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-psa, ead-none, rtt" --release
+
 ```
 
 To build **and** flash to the board, replace the word `build` with `embed` in the commands above (you may need to `cargo install cargo-embed`).
 
-For example: `cargo embed --target="thumbv7em-none-eabihf" --no-default-features --features="cryptocell310, rtt"`
+For example: `cargo embed --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-psa, ead-none, rtt"`
 
 ## Directory structure
 This library is structured as a Workspace, a feature from Cargo which makes it easy to manage more than one package / application in the same repository. Here are its the main folders:
