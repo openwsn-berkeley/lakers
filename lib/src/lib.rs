@@ -16,7 +16,7 @@ use c_wrapper::*;
 
 use edhoc_consts::*;
 
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Debug)]
 pub struct EdhocInitiatorState<'a> {
     state: State,        // opaque state
     i: &'a [u8],         // private authentication key of I
@@ -27,7 +27,7 @@ pub struct EdhocInitiatorState<'a> {
     cred_r: &'a [u8],    // R's full credential
 }
 
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Debug)]
 pub struct EdhocResponderState<'a> {
     state: State,        // opaque state
     r: &'a [u8],         // private authentication key of R
