@@ -397,7 +397,7 @@ pub fn i_prepare_message_1(
         let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
         suites_i[0..EDHOC_SUPPORTED_SUITES.len()].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-        let ead_1 = i_prepare_ead_1();
+        let ead_1 = i_prepare_ead_1(&x, suites_i[suites_i.len() - 1]);
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(
@@ -1208,7 +1208,7 @@ fn encrypt_message_3(
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3);
 
     output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
 

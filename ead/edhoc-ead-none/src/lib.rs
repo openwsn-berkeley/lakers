@@ -3,7 +3,7 @@
 use edhoc_consts::*;
 
 // initiator side
-pub fn i_prepare_ead_1() -> Option<EADItem> {
+pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
     None
 }
 

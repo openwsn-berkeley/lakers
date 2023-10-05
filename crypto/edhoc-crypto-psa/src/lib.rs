@@ -80,7 +80,7 @@ pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen
 pub fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
-    ad: &BytesEncStructureLen,
+    ad: &[u8],
     plaintext: &BufferPlaintext3,
 ) -> BufferCiphertext3 {
     psa_crypto::init().unwrap();
