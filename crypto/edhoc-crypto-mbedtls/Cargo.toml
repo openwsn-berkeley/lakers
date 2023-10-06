@@ -1,0 +1,14 @@
+[package]
+name = "edhoc-crypto-mbedtls"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mališa Vučinič <malisa.vucinic@inria.fr>"]
+license = "BSD"
+description = "EDHOC crypto library mbedTLS backend"
+
+[dependencies]
+edhoc-consts = { path = "../../consts" }
+#mbedtls = { version = "0.9.3", default-features=false, features = ["no_std_deps"] }
+mbedtls = { version = "0.9.3" }
+
+

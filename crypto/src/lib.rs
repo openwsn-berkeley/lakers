@@ -9,5 +9,8 @@ pub use edhoc_crypto_cc2538::*;
 #[cfg(any(feature = "psa", feature = "psa-rust",))]
 pub use edhoc_crypto_psa::*;
 
+#[cfg(feature = "mbedtls")]
+pub use edhoc_crypto_mbedtls::*;
+
 #[cfg(any(feature = "cryptocell310", feature = "cryptocell310-rust"))]
 pub use edhoc_crypto_cryptocell310::*;
