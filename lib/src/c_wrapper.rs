@@ -37,8 +37,28 @@ pub struct EdhocInitiatorC {
     pub cred_r_len: usize,
 }
 
+impl Default for EdhocInitiatorC {
+    fn default() -> Self {
+        Self {
+            state: Default::default(),
+            i: core::ptr::null(),
+            i_len: 0,
+            g_r: core::ptr::null(),
+            g_r_len: 0,
+            id_cred_i: core::ptr::null(),
+            id_cred_i_len: 0,
+            cred_i: core::ptr::null(),
+            cred_i_len: 0,
+            id_cred_r: core::ptr::null(),
+            id_cred_r_len: 0,
+            cred_r: core::ptr::null(),
+            cred_r_len: 0,
+        }
+    }
+}
+
 impl EdhocInitiatorC {
-    pub fn to_rust(&self) -> EdhocInitiator {
+    pub fn to_rust<'a>(self) -> EdhocInitiator<'a> {
         EdhocInitiator::new(
             self.state,
             unsafe { slice::from_raw_parts(self.i, self.i_len) },
@@ -68,8 +88,28 @@ pub struct EdhocResponderC {
     pub cred_r_len: usize,
 }
 
+impl Default for EdhocResponderC {
+    fn default() -> Self {
+        Self {
+            state: Default::default(),
+            r: core::ptr::null(),
+            r_len: 0,
+            g_i: core::ptr::null(),
+            g_i_len: 0,
+            id_cred_i: core::ptr::null(),
+            id_cred_i_len: 0,
+            cred_i: core::ptr::null(),
+            cred_i_len: 0,
+            id_cred_r: core::ptr::null(),
+            id_cred_r_len: 0,
+            cred_r: core::ptr::null(),
+            cred_r_len: 0,
+        }
+    }
+}
+
 impl EdhocResponderC {
-    pub fn to_rust(&self) -> EdhocResponder {
+    pub fn to_rust<'a>(self) -> EdhocResponder<'a> {
         EdhocResponder::new(
             self.state,
             unsafe { slice::from_raw_parts(self.r, self.r_len) },
@@ -141,7 +181,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     initiator_c: *mut EdhocInitiatorC,
     message_1: *mut EdhocMessageBuffer,
 ) -> i8 {
-    let mut initiator = (*initiator_c).to_rust();
+    let mut initiator = core::mem::take(&mut *initiator_c).to_rust();
 
     let c_i: u8 = generate_connection_identifier_cbor().into();
     let result = match initiator.prepare_message_1(c_i) {
@@ -162,7 +202,7 @@ pub unsafe extern "C" fn responder_process_message_1(
     responder_c: *mut EdhocResponderC,
     message_1: *const EdhocMessageBuffer,
 ) -> i8 {
-    let mut responder = (*responder_c).to_rust();
+    let mut responder = core::mem::take(&mut *responder_c).to_rust();
 
     let result = match responder.process_message_1(&*message_1) {
         Ok(_) => 0,
@@ -180,7 +220,7 @@ pub unsafe extern "C" fn responder_prepare_message_2(
     message_2: *mut EdhocMessageBuffer,
     c_r: *mut u8,
 ) -> i8 {
-    let mut responder = (*responder_c).to_rust();
+    let mut responder = core::mem::take(&mut *responder_c).to_rust();
 
     let c_r_chosen: u8 = generate_connection_identifier_cbor().into();
     let result = match responder.prepare_message_2(c_r_chosen) {
@@ -203,7 +243,7 @@ pub unsafe extern "C" fn initiator_process_message_2(
     message_2: *const EdhocMessageBuffer,
     c_r: *mut u8,
 ) -> i8 {
-    let mut initiator = (*initiator_c).to_rust();
+    let mut initiator = core::mem::take(&mut *initiator_c).to_rust();
 
     let result = match initiator.process_message_2(&*message_2) {
         Ok(c_r_res) => {
@@ -224,7 +264,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     message_3: *mut EdhocMessageBuffer,
     prk_out: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
-    let mut initiator = (*initiator_c).to_rust();
+    let mut initiator = core::mem::take(&mut *initiator_c).to_rust();
 
     let result = match initiator.prepare_message_3() {
         Ok((msg_3, prk_out_res)) => {
@@ -246,7 +286,7 @@ pub unsafe extern "C" fn responder_process_message_3(
     message_3: *const EdhocMessageBuffer,
     prk_out: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
-    let mut responder = (*responder_c).to_rust();
+    let mut responder = core::mem::take(&mut *responder_c).to_rust();
 
     let result = match responder.process_message_3(&*message_3) {
         Ok(prk_out_res) => {

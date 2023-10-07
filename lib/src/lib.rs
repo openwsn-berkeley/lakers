@@ -39,7 +39,7 @@ pub struct EdhocResponderState<'a> {
 }
 
 impl<'a> EdhocResponderState<'a> {
-    pub fn to_c(&self) -> EdhocResponderC {
+    pub fn to_c(self) -> EdhocResponderC {
         EdhocResponderC {
             state: self.state,
             r: self.r.as_ptr(),
@@ -82,12 +82,28 @@ impl<'a> EdhocResponderState<'a> {
         }
     }
 
+    /// Take out the state for passing into the low-level functions
+    ///
+    /// Use this in the state advancing functions when you only have &mut self need an owned State
+    /// which you don't get because it is not Copy. (If State didn't have a Default implementation,
+    /// we might use the `replace_with` crate). Note that in optimized builds, the default creation
+    /// should only become active in the error path, because the compiler can see that the write is
+    /// needless otherwise.
+    ///
+    /// Note that using this leaves a "no message was sent or received" state in self after an
+    /// error. This is preferable over leaving in the old state (for it'd allow multiple attempts
+    /// to perform the same operation, which EDHOC doesn't allow), but creating a state that errs
+    /// on all later invocations would be even better.
+    #[inline(always)]
+    fn take_state(&mut self) -> State {
+        core::mem::take(&mut self.state)
+    }
+
     pub fn process_message_1(
         self: &mut EdhocResponderState<'a>,
         message_1: &BufferMessage1,
     ) -> Result<(), EDHOCError> {
-        let state = r_process_message_1(self.state, message_1)?;
-        self.state = state;
+        self.state = r_process_message_1(self.take_state(), message_1)?;
 
         Ok(())
     }
@@ -99,7 +115,7 @@ impl<'a> EdhocResponderState<'a> {
         let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
 
         match r_prepare_message_2(
-            self.state,
+            self.take_state(),
             &self
                 .id_cred_r
                 .try_into()
@@ -123,7 +139,7 @@ impl<'a> EdhocResponderState<'a> {
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
         match r_process_message_3(
-            self.state,
+            self.take_state(),
             message_3,
             &self
                 .id_cred_i
@@ -149,7 +165,13 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter(
+            self.take_state(),
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        ) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -165,7 +187,7 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &context_buf, context.len()) {
+        match edhoc_key_update(self.take_state(), &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
@@ -176,7 +198,7 @@ impl<'a> EdhocResponderState<'a> {
 }
 
 impl<'a> EdhocInitiatorState<'a> {
-    pub fn to_c(&self) -> EdhocInitiatorC {
+    pub fn to_c(self) -> EdhocInitiatorC {
         EdhocInitiatorC {
             state: self.state,
             i: self.i.as_ptr(),
@@ -219,13 +241,30 @@ impl<'a> EdhocInitiatorState<'a> {
         }
     }
 
+    /// Take out the state for passing into the low-level functions
+    ///
+    /// Use this in the state advancing functions when you only have &mut self need an owned State
+    /// which you don't get because it is not Copy. (If State didn't have a Default implementation,
+    /// we might use the `replace_with` crate). Note that in optimized builds, the default creation
+    /// should only become active in the error path, because the compiler can see that the write is
+    /// needless otherwise.
+    ///
+    /// Note that using this leaves a "no message was sent or received" state in self after an
+    /// error. This is preferable over leaving in the old state (for it'd allow multiple attempts
+    /// to perform the same operation, which EDHOC doesn't allow), but creating a state that errs
+    /// on all later invocations would be even better.
+    #[inline(always)]
+    fn take_state(&mut self) -> State {
+        core::mem::take(&mut self.state)
+    }
+
     pub fn prepare_message_1(
         self: &mut EdhocInitiatorState<'a>,
         c_i: u8,
     ) -> Result<BufferMessage1, EDHOCError> {
         let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
 
-        match i_prepare_message_1(self.state, x, g_x, c_i) {
+        match i_prepare_message_1(self.take_state(), x, g_x, c_i) {
             Ok((state, message_1)) => {
                 self.state = state;
                 Ok(message_1)
@@ -239,7 +278,7 @@ impl<'a> EdhocInitiatorState<'a> {
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
         match i_process_message_2(
-            self.state,
+            self.take_state(),
             message_2,
             &self
                 .id_cred_r
@@ -263,7 +302,7 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
         match i_prepare_message_3(
-            self.state,
+            self.take_state(),
             &self
                 .id_cred_i
                 .try_into()
@@ -287,7 +326,13 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter(
+            self.take_state(),
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        ) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -303,7 +348,7 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &context_buf, context.len()) {
+        match edhoc_key_update(self.take_state(), &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)

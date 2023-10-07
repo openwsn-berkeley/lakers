@@ -103,7 +103,7 @@ mod structs {
     }
 
     #[repr(C)]
-    #[derive(Default, Copy, Clone, Debug)]
+    #[derive(Default, Debug)]
     pub struct State(
         pub EDHOCState,
         pub BytesP256ElemLen, // x or y, ephemeral private key of myself
