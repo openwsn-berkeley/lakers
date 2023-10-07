@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 edhoc-rs = { path = "../../lib", default-features = false }
+edhoc-crypto = { path = "../../crypto", default-features = false }
 hexlit = "0.5.3"
 
 # depend on an allocator

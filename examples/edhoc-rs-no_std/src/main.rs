@@ -13,6 +13,7 @@ use panic_semihosting as _;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
+use edhoc_crypto::{Crypto, CryptoTrait};
 use edhoc_rs::*;
 
 extern crate alloc;
@@ -80,11 +81,11 @@ fn main() -> ! {
     println!("Test test_new_initiator passed.");
 
     fn test_p256_keys() {
-        let (x, g_x) = p256_generate_key_pair();
-        let (y, g_y) = p256_generate_key_pair();
+        let (x, g_x) = Crypto::p256_generate_key_pair();
+        let (y, g_y) = Crypto::p256_generate_key_pair();
 
-        let g_xy = p256_ecdh(&x, &g_y);
-        let g_yx = p256_ecdh(&y, &g_x);
+        let g_xy = Crypto::p256_ecdh(&x, &g_y);
+        let g_yx = Crypto::p256_ecdh(&y, &g_x);
 
         assert_eq!(g_xy, g_yx);
     }

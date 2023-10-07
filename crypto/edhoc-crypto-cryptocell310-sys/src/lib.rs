@@ -8,6 +8,8 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 use core::ffi::c_void;
 use edhoc_consts::*;
 
+use edhoc_crypto_trait::Crypto as CryptoTrait;
+
 fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
     assert!(input.len() == SHA256_DIGEST_LEN / 4);
 
@@ -18,7 +20,11 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
     output
 }
 
-pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+pub struct Crypto;
+
+impl CryptoTrait for Crypto {
+
+fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
     unsafe {
@@ -33,7 +39,7 @@ pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashL
     convert_array(&buffer[0..SHA256_DIGEST_LEN / 4])
 }
 
-pub fn hkdf_expand(
+fn hkdf_expand(
     prk: &BytesHashLen,
     info: &BytesMaxInfoBuffer,
     info_len: usize,
@@ -58,7 +64,7 @@ pub fn hkdf_expand(
     buffer
 }
 
-pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
     // Implementation of HKDF-Extract as per RFC 5869
 
     // TODO generalize if salt is not provided
@@ -67,7 +73,7 @@ pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen
     output
 }
 
-pub fn aes_ccm_encrypt_tag_8(
+fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
@@ -104,7 +110,7 @@ pub fn aes_ccm_encrypt_tag_8(
     output
 }
 
-pub fn aes_ccm_decrypt_tag_8(
+fn aes_ccm_decrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
@@ -142,7 +148,7 @@ pub fn aes_ccm_decrypt_tag_8(
     }
 }
 
-pub fn p256_ecdh(
+fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
@@ -195,24 +201,7 @@ pub fn p256_ecdh(
     output
 }
 
-fn hmac_sha256(message: &mut [u8], mut key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
-    let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
-
-    unsafe {
-        CRYS_HMAC(
-            CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-            key.as_mut_ptr(),
-            key.len() as u16,
-            message.as_mut_ptr(),
-            message.len(),
-            buffer.as_mut_ptr(),
-        );
-    }
-
-    convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
-}
-
-pub fn get_random_byte() -> u8 {
+fn get_random_byte() -> u8 {
     let mut rnd_context = CRYS_RND_State_t::default();
     let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
     unsafe {
@@ -233,7 +222,7 @@ pub fn get_random_byte() -> u8 {
     buffer[0]
 }
 
-pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     let mut rnd_context = CRYS_RND_State_t::default();
     let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
     unsafe {
@@ -292,4 +281,22 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     let public_key: [u8; P256_ELEM_LEN] = public_key[1..33].try_into().unwrap(); // discard sign byte
 
     (private_key, public_key)
+}
+}
+
+fn hmac_sha256(message: &mut [u8], mut key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
+    let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
+
+    unsafe {
+        CRYS_HMAC(
+            CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
+            key.as_mut_ptr(),
+            key.len() as u16,
+            message.as_mut_ptr(),
+            message.len(),
+            buffer.as_mut_ptr(),
+        );
+    }
+
+    convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
 }

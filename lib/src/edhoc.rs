@@ -131,7 +131,7 @@ pub fn r_process_message_1(
                         let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
                         message_1_buf[..message_1.len]
                             .copy_from_slice(&message_1.content[..message_1.len]);
-                        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+                        h_message_1 = Crypto::sha256_digest(&message_1_buf, message_1.len);
 
                         error = EDHOCError::Success;
                         current_state = EDHOCState::ProcessedMessage1;
@@ -413,7 +413,7 @@ pub fn i_prepare_message_1(
         message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+        h_message_1 = Crypto::sha256_digest(&message_1_buf, message_1.len);
         error = EDHOCError::Success;
         current_state = EDHOCState::WaitMessage2;
 
@@ -1004,7 +1004,7 @@ fn compute_th_2(g_y: &BytesP256ElemLen, h_message_1: &BytesHashLen) -> BytesHash
 
     let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let th_2 = sha256_digest(&message, len);
+    let th_2 = Crypto::sha256_digest(&message, len);
 
     th_2
 }
@@ -1024,7 +1024,7 @@ fn compute_th_3(
     message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
         .copy_from_slice(cred_r);
 
-    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
+    let output = Crypto::sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
 
     output
 }
@@ -1044,7 +1044,7 @@ fn compute_th_4(
     message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
         .copy_from_slice(cred_i);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
+    let output = Crypto::sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
 
     output
 }
@@ -1080,7 +1080,7 @@ fn edhoc_kdf(
         info_len = info_len + 2;
     }
 
-    let output = hkdf_expand(prk, &info, info_len, length);
+    let output = Crypto::hkdf_expand(prk, &info, info_len, length);
 
     output
 }
@@ -1208,7 +1208,7 @@ fn encrypt_message_3(
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+    let ciphertext_3 = Crypto::aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
 
     output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
 
@@ -1234,7 +1234,7 @@ fn decrypt_message_3(
 
     let enc_structure = encode_enc_structure(th_3);
 
-    let p3 = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+    let p3 = Crypto::aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
     if p3.is_ok() {
         error = EDHOCError::Success;
@@ -1429,8 +1429,8 @@ fn compute_prk_4e3m(
     g_y: &BytesP256ElemLen,
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
-    let g_iy = p256_ecdh(i, g_y);
-    let prk_4e3m = hkdf_extract(salt_4e3m, &g_iy);
+    let g_iy = Crypto::p256_ecdh(i, g_y);
+    let prk_4e3m = Crypto::hkdf_extract(salt_4e3m, &g_iy);
 
     prk_4e3m
 }
@@ -1459,8 +1459,8 @@ fn compute_prk_3e2m(
     g_r: &BytesP256ElemLen,
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
-    let g_rx = p256_ecdh(x, g_r);
-    let prk_3e2m = hkdf_extract(salt_3e2m, &g_rx);
+    let g_rx = Crypto::p256_ecdh(x, g_r);
+    let prk_3e2m = Crypto::hkdf_extract(salt_3e2m, &g_rx);
 
     prk_3e2m
 }
@@ -1471,9 +1471,9 @@ fn compute_prk_2e(
     th_2: &BytesHashLen,
 ) -> BytesHashLen {
     // compute the shared secret
-    let g_xy = p256_ecdh(x, g_y);
+    let g_xy = Crypto::p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = hkdf_extract(th_2, &g_xy);
+    let prk_2e = Crypto::hkdf_extract(th_2, &g_xy);
 
     prk_2e
 }
@@ -1590,7 +1590,7 @@ mod tests {
 
     #[test]
     fn test_ecdh() {
-        let g_xy = p256_ecdh(&X_TV, &G_Y_TV);
+        let g_xy = Crypto::p256_ecdh(&X_TV, &G_Y_TV);
 
         assert_eq!(g_xy, G_XY_TV);
     }

@@ -9,6 +9,8 @@ use hacspec_p256::*;
 use hacspec_sha256::*;
 use rand::Rng;
 
+use edhoc_crypto_trait::Crypto as CryptoTrait;
+
 // Types and functions to aid in translation between the hacspec and non-hacspec world
 
 // TODO: the `array!` construct is not needed anymore.
@@ -70,7 +72,11 @@ type BufferPlaintext3Hacspec = EdhocMessageBufferHacspec;
 
 // Public functions
 
-pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+pub struct Crypto;
+
+impl CryptoTrait for Crypto {
+
+fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
     let message: BytesMaxBufferHacspec = BytesMaxBufferHacspec::from_public_slice(message);
 
     let output =
@@ -79,7 +85,7 @@ pub fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashL
     output.to_public_array()
 }
 
-pub fn hkdf_expand(
+fn hkdf_expand(
     prk: &BytesHashLen,
     info: &BytesMaxInfoBuffer,
     info_len: usize,
@@ -102,7 +108,7 @@ pub fn hkdf_expand(
     output.to_public_array()
 }
 
-pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
     let output = BytesHashLenHacspec::from_seq(&extract(
         &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(salt), 0, salt.len()),
         &ByteSeq::from_slice(
@@ -114,7 +120,7 @@ pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen
     output.to_public_array()
 }
 
-pub fn aes_ccm_encrypt_tag_8(
+fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
@@ -137,7 +143,7 @@ pub fn aes_ccm_encrypt_tag_8(
     output.to_public_buffer()
 }
 
-pub fn aes_ccm_decrypt_tag_8(
+fn aes_ccm_decrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
     ad: &BytesEncStructureLen,
@@ -162,7 +168,7 @@ pub fn aes_ccm_decrypt_tag_8(
     }
 }
 
-pub fn p256_ecdh(
+fn p256_ecdh(
     private_key: &BytesP256ElemLen,
     public_key: &BytesP256ElemLen,
 ) -> BytesP256ElemLen {
@@ -184,12 +190,12 @@ pub fn p256_ecdh(
 }
 
 #[cfg(not(feature = "hacspec-pure"))]
-pub fn get_random_byte() -> u8 {
+fn get_random_byte() -> u8 {
     rand::thread_rng().gen::<u8>()
 }
 
 #[cfg(not(feature = "hacspec-pure"))]
-pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     // generate a private key
     let mut private_key = BytesP256ElemLenHacspec::new();
     loop {
@@ -209,13 +215,15 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     (private_key.to_public_array(), public_key.to_public_array())
 }
 
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_p256_keys() {
-        let (x, g_x) = p256_generate_key_pair();
+        let (x, g_x) = Crypto::p256_generate_key_pair();
         assert_eq!(x.len(), 32);
         assert_eq!(g_x.len(), 32);
 
