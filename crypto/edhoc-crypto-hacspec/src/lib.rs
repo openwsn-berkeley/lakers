@@ -75,146 +75,144 @@ type BufferPlaintext3Hacspec = EdhocMessageBufferHacspec;
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
+    fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+        let message: BytesMaxBufferHacspec = BytesMaxBufferHacspec::from_public_slice(message);
 
-fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
-    let message: BytesMaxBufferHacspec = BytesMaxBufferHacspec::from_public_slice(message);
+        let output =
+            BytesHashLenHacspec::from_seq(&hash(&ByteSeq::from_slice(&message, 0, message_len)));
 
-    let output =
-        BytesHashLenHacspec::from_seq(&hash(&ByteSeq::from_slice(&message, 0, message_len)));
+        output.to_public_array()
+    }
 
-    output.to_public_array()
-}
+    fn hkdf_expand(
+        prk: &BytesHashLen,
+        info: &BytesMaxInfoBuffer,
+        info_len: usize,
+        length: usize,
+    ) -> BytesMaxBuffer {
+        let mut output = BytesMaxBufferHacspec::new();
+        output = output.update(
+            0,
+            &expand(
+                &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(prk), 0, prk.len()),
+                &ByteSeq::from_slice(
+                    &BytesMaxInfoBufferHacspec::from_public_slice(info),
+                    0,
+                    info_len,
+                ),
+                length,
+            )
+            .unwrap(),
+        );
+        output.to_public_array()
+    }
 
-fn hkdf_expand(
-    prk: &BytesHashLen,
-    info: &BytesMaxInfoBuffer,
-    info_len: usize,
-    length: usize,
-) -> BytesMaxBuffer {
-    let mut output = BytesMaxBufferHacspec::new();
-    output = output.update(
-        0,
-        &expand(
-            &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(prk), 0, prk.len()),
+    fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+        let output = BytesHashLenHacspec::from_seq(&extract(
+            &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(salt), 0, salt.len()),
             &ByteSeq::from_slice(
-                &BytesMaxInfoBufferHacspec::from_public_slice(info),
+                &BytesP256ElemLenHacspec::from_public_slice(ikm),
                 0,
-                info_len,
+                ikm.len(),
             ),
-            length,
-        )
-        .unwrap(),
-    );
-    output.to_public_array()
-}
-
-fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
-    let output = BytesHashLenHacspec::from_seq(&extract(
-        &ByteSeq::from_slice(&BytesHashLenHacspec::from_public_slice(salt), 0, salt.len()),
-        &ByteSeq::from_slice(
-            &BytesP256ElemLenHacspec::from_public_slice(ikm),
-            0,
-            ikm.len(),
-        ),
-    ));
-    output.to_public_array()
-}
-
-fn aes_ccm_encrypt_tag_8(
-    key: &BytesCcmKeyLen,
-    iv: &BytesCcmIvLen,
-    ad: &BytesEncStructureLen,
-    plaintext: &BufferPlaintext3,
-) -> BufferCiphertext3 {
-    let plaintext = BufferPlaintext3Hacspec::from_public_buffer(plaintext);
-
-    let output = BufferCiphertext3Hacspec::from_seq(&encrypt_ccm(
-        ByteSeq::from_slice(
-            &BytesEncStructureLenHacspec::from_public_slice(ad),
-            0,
-            ad.len(),
-        ),
-        ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
-        ByteSeq::from_slice(&plaintext.content, 0, plaintext.len),
-        Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
-        AES_CCM_TAG_LEN,
-    ));
-
-    output.to_public_buffer()
-}
-
-fn aes_ccm_decrypt_tag_8(
-    key: &BytesCcmKeyLen,
-    iv: &BytesCcmIvLen,
-    ad: &BytesEncStructureLen,
-    ciphertext: &BufferCiphertext3,
-) -> Result<BufferPlaintext3, EDHOCError> {
-    let ciphertext = BufferCiphertext3Hacspec::from_public_buffer(ciphertext);
-
-    match decrypt_ccm(
-        ByteSeq::from_slice(
-            &BytesEncStructureLenHacspec::from_public_slice(ad),
-            0,
-            ad.len(),
-        ),
-        ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
-        Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
-        ByteSeq::from_slice(&ciphertext.content, 0, ciphertext.len),
-        ciphertext.len,
-        AES_CCM_TAG_LEN,
-    ) {
-        Ok(p) => Ok(BufferPlaintext3Hacspec::from_seq(&p).to_public_buffer()),
-        Err(_) => Err(EDHOCError::MacVerificationFailed),
+        ));
+        output.to_public_array()
     }
-}
 
-fn p256_ecdh(
-    private_key: &BytesP256ElemLen,
-    public_key: &BytesP256ElemLen,
-) -> BytesP256ElemLen {
-    let private_key = BytesP256ElemLenHacspec::from_public_slice(private_key);
-    let public_key = BytesP256ElemLenHacspec::from_public_slice(public_key);
+    fn aes_ccm_encrypt_tag_8(
+        key: &BytesCcmKeyLen,
+        iv: &BytesCcmIvLen,
+        ad: &BytesEncStructureLen,
+        plaintext: &BufferPlaintext3,
+    ) -> BufferCiphertext3 {
+        let plaintext = BufferPlaintext3Hacspec::from_public_buffer(plaintext);
 
-    let scalar = P256Scalar::from_byte_seq_be(&private_key);
-    let point = (
-        P256FieldElement::from_byte_seq_be(&public_key),
-        p256_calculate_w(P256FieldElement::from_byte_seq_be(&public_key)),
-    );
+        let output = BufferCiphertext3Hacspec::from_seq(&encrypt_ccm(
+            ByteSeq::from_slice(
+                &BytesEncStructureLenHacspec::from_public_slice(ad),
+                0,
+                ad.len(),
+            ),
+            ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
+            ByteSeq::from_slice(&plaintext.content, 0, plaintext.len),
+            Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
+            AES_CCM_TAG_LEN,
+        ));
 
-    // we only care about the x coordinate
-    let (x, _y) = p256_point_mul(scalar, point).unwrap();
+        output.to_public_buffer()
+    }
 
-    let secret = BytesP256ElemLenHacspec::from_seq(&x.to_byte_seq_be());
+    fn aes_ccm_decrypt_tag_8(
+        key: &BytesCcmKeyLen,
+        iv: &BytesCcmIvLen,
+        ad: &BytesEncStructureLen,
+        ciphertext: &BufferCiphertext3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
+        let ciphertext = BufferCiphertext3Hacspec::from_public_buffer(ciphertext);
 
-    secret.to_public_array()
-}
-
-#[cfg(not(feature = "hacspec-pure"))]
-fn get_random_byte() -> u8 {
-    rand::thread_rng().gen::<u8>()
-}
-
-#[cfg(not(feature = "hacspec-pure"))]
-fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
-    // generate a private key
-    let mut private_key = BytesP256ElemLenHacspec::new();
-    loop {
-        for i in 0..private_key.len() {
-            private_key[i] = U8(rand::thread_rng().gen::<u8>());
-        }
-        if p256_validate_private_key(&ByteSeq::from_slice(&private_key, 0, private_key.len())) {
-            break;
+        match decrypt_ccm(
+            ByteSeq::from_slice(
+                &BytesEncStructureLenHacspec::from_public_slice(ad),
+                0,
+                ad.len(),
+            ),
+            ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
+            Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
+            ByteSeq::from_slice(&ciphertext.content, 0, ciphertext.len),
+            ciphertext.len,
+            AES_CCM_TAG_LEN,
+        ) {
+            Ok(p) => Ok(BufferPlaintext3Hacspec::from_seq(&p).to_public_buffer()),
+            Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
 
-    // obtain the corresponding public key
-    let scalar = P256Scalar::from_byte_seq_be(&private_key);
-    let public_key_point = p256_point_mul_base(scalar).unwrap();
-    let public_key = BytesP256ElemLenHacspec::from_seq(&public_key_point.0.to_byte_seq_be());
+    fn p256_ecdh(
+        private_key: &BytesP256ElemLen,
+        public_key: &BytesP256ElemLen,
+    ) -> BytesP256ElemLen {
+        let private_key = BytesP256ElemLenHacspec::from_public_slice(private_key);
+        let public_key = BytesP256ElemLenHacspec::from_public_slice(public_key);
 
-    (private_key.to_public_array(), public_key.to_public_array())
-}
+        let scalar = P256Scalar::from_byte_seq_be(&private_key);
+        let point = (
+            P256FieldElement::from_byte_seq_be(&public_key),
+            p256_calculate_w(P256FieldElement::from_byte_seq_be(&public_key)),
+        );
 
+        // we only care about the x coordinate
+        let (x, _y) = p256_point_mul(scalar, point).unwrap();
+
+        let secret = BytesP256ElemLenHacspec::from_seq(&x.to_byte_seq_be());
+
+        secret.to_public_array()
+    }
+
+    #[cfg(not(feature = "hacspec-pure"))]
+    fn get_random_byte() -> u8 {
+        rand::thread_rng().gen::<u8>()
+    }
+
+    #[cfg(not(feature = "hacspec-pure"))]
+    fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+        // generate a private key
+        let mut private_key = BytesP256ElemLenHacspec::new();
+        loop {
+            for i in 0..private_key.len() {
+                private_key[i] = U8(rand::thread_rng().gen::<u8>());
+            }
+            if p256_validate_private_key(&ByteSeq::from_slice(&private_key, 0, private_key.len())) {
+                break;
+            }
+        }
+
+        // obtain the corresponding public key
+        let scalar = P256Scalar::from_byte_seq_be(&private_key);
+        let public_key_point = p256_point_mul_base(scalar).unwrap();
+        let public_key = BytesP256ElemLenHacspec::from_seq(&public_key_point.0.to_byte_seq_be());
+
+        (private_key.to_public_array(), public_key.to_public_array())
+    }
 }
 
 #[cfg(test)]
