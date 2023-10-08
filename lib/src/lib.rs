@@ -87,7 +87,7 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_1: &BufferMessage1,
     ) -> Result<(), EDHOCError> {
-        let state = r_process_message_1(self.state, message_1)?;
+        let state = r_process_message_1::<Crypto>(self.state, message_1)?;
         self.state = state;
 
         Ok(())
@@ -99,7 +99,7 @@ impl<'a> EdhocResponderState<'a> {
     ) -> Result<BufferMessage2, EDHOCError> {
         let (y, g_y) = Crypto::p256_generate_key_pair();
 
-        match r_prepare_message_2(
+        match r_prepare_message_2::<Crypto>(
             self.state,
             &self
                 .id_cred_r
@@ -123,7 +123,7 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-        match r_process_message_3(
+        match r_process_message_3::<Crypto>(
             self.state,
             message_3,
             &self
@@ -150,7 +150,7 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter::<Crypto>(self.state, label, &context_buf, context.len(), length) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -166,7 +166,7 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &context_buf, context.len()) {
+        match edhoc_key_update::<Crypto>(self.state, &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
@@ -226,7 +226,7 @@ impl<'a> EdhocInitiatorState<'a> {
     ) -> Result<BufferMessage1, EDHOCError> {
         let (x, g_x) = Crypto::p256_generate_key_pair();
 
-        match i_prepare_message_1(self.state, x, g_x, c_i) {
+        match i_prepare_message_1::<Crypto>(self.state, x, g_x, c_i) {
             Ok((state, message_1)) => {
                 self.state = state;
                 Ok(message_1)
@@ -239,7 +239,7 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
-        match i_process_message_2(
+        match i_process_message_2::<Crypto>(
             self.state,
             message_2,
             &self
@@ -263,7 +263,7 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn prepare_message_3(
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match i_prepare_message_3(
+        match i_prepare_message_3::<Crypto>(
             self.state,
             &self
                 .id_cred_i
@@ -288,7 +288,7 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter::<Crypto>(self.state, label, &context_buf, context.len(), length) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -304,7 +304,7 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &context_buf, context.len()) {
+        match edhoc_key_update::<Crypto>(self.state, &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
