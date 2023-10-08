@@ -1,7 +1,7 @@
 #![no_std]
 
 use edhoc_consts::*;
-use edhoc_crypto::*;
+use edhoc_crypto::{Crypto, CryptoTrait};
 use edhoc_ead::*;
 
 pub fn edhoc_exporter(
