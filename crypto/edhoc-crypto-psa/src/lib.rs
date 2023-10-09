@@ -273,6 +273,10 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     (private_key, public_key)
 }
 
+pub fn p256_validate_compact_public_key(public_key: &BytesP256ElemLen) -> bool {
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
