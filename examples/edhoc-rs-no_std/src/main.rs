@@ -179,10 +179,21 @@ fn main() -> ! {
     loop {}
 }
 
-use core::ffi::{c_char, c_void};
+use core::ffi::{c_char, c_ulong, c_void};
 
 #[no_mangle]
-pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
+pub extern "C" fn strstr(_cs: *const c_char, _ct: *const c_char) -> *mut c_char {
     panic!("strstr handler!");
     core::ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn calloc(__count: c_ulong, __size: c_ulong) -> *mut c_void {
+    panic!("calloc handler!");
+    core::ptr::null_mut()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free(_ptr: *const c_void) {
+    panic!("free handler!");
 }

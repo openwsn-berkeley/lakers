@@ -28,14 +28,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [crypto-hacspec, crypto-psa]
+        crypto_backend: [crypto-hacspec, crypto-psa, crypto-mbedtls]
         ead: [ead-none, ead-zeroconf]
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Run unit tests # note that we only add `--package edhoc-hacspec` when testing the hacspec version of the lib
+    - name: Run unit tests
       run: cargo test --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast
 
 
@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [crypto-hacspec, crypto-psa, crypto-psa-baremetal, crypto-cryptocell310]
+        crypto_backend: [crypto-hacspec, crypto-psa, crypto-psa-baremetal, crypto-cryptocell310, crypto-mbedtls]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [crypto-psa-baremetal, crypto-cryptocell310]
+        crypto_backend: [crypto-psa-baremetal, crypto-cryptocell310, crypto-mbedtls]
 
     steps:
     - name: Checkout repo
@@ -130,7 +130,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [crypto-psa]
+        crypto_backend: [crypto-psa, crypto-mbedtls]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -155,7 +155,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [crypto-psa, crypto-cryptocell310]
+        crypto_backend: [crypto-psa, crypto-mbedtls, crypto-cryptocell310]
         ead: [ead-none, ead-zeroconf]
 
     steps:
