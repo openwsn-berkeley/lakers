@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { path = "../../lib", features = [ "crypto-psa" ] }
+edhoc-rs = { path = "../../lib", default-features = false }
 hexlit = "0.5.3"
 coap = { version = "0.13" }
 coap-lite = { version = "0.11.3" }
+
+[features]
+default = [ "crypto-hacspec" ]
+crypto-psa = [ "edhoc-rs/ead-none", "edhoc-rs/crypto-psa" ]
+crypto-mbedtls = [ "edhoc-rs/ead-none", "edhoc-rs/crypto-mbedtls" ]
+crypto-hacspec = [ "edhoc-rs/ead-none", "edhoc-rs/crypto-hacspec" ]

@@ -13,8 +13,8 @@ use mbedtls::hash::Md;
 use mbedtls::hash::Type::Sha256;
 use mbedtls::pk::EcGroupId;
 use mbedtls::pk::Pk;
-use mbedtls::rng;
 use mbedtls::rng::CtrDrbg;
+#[cfg(feature = "std")]
 use mbedtls::rng::OsEntropy;
 use mbedtls::rng::Random;
 
@@ -145,7 +145,7 @@ pub fn p256_ecdh(
     output_buffer
 }
 
-// FIXME this works on std using OS Entropy, fix for no_std
+#[cfg(feature = "std")]
 pub fn get_random_byte() -> u8 {
     let mut output = [0x00u8; 1];
 
@@ -160,7 +160,13 @@ pub fn get_random_byte() -> u8 {
     output[0]
 }
 
-// FIXME this works on std using OS Entropy, fix for no_std
+#[cfg(feature = "baremetal")]
+pub fn get_random_byte() -> u8 {
+    0x99
+}
+
+// This works on native using OS Entropy
+#[cfg(feature = "std")]
 pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
     let mut public_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
@@ -175,6 +181,14 @@ pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
     // export the keys to appropriate format
     private_key.copy_from_slice(&pk.ec_private().unwrap().to_binary().unwrap()[..]);
     public_key.copy_from_slice(&pk.ec_public().unwrap().x().unwrap().to_binary().unwrap()[..]);
+
+    (private_key, public_key)
+}
+
+#[cfg(feature = "baremetal")]
+pub fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    let mut private_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
+    let mut public_key: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
 
     (private_key, public_key)
 }

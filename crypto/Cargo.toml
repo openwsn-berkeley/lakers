@@ -22,7 +22,7 @@ edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, opti
 edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
 
 # mbedtls
-edhoc-crypto-mbedtls = { path = "./edhoc-crypto-mbedtls", optional = true }
+edhoc-crypto-mbedtls = { path = "./edhoc-crypto-mbedtls", default-features = false, optional = true }
 
 [features]
 default = [  ]
@@ -31,4 +31,5 @@ cc2538 = [ "edhoc-crypto-cc2538" ]
 psa = [ "edhoc-crypto-psa" ]
 psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
 cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
-mbedtls = [ "edhoc-crypto-mbedtls" ]
+mbedtls = [ "edhoc-crypto-mbedtls/std" ]
+mbedtls-baremetal = [ "edhoc-crypto-mbedtls/baremetal" ]

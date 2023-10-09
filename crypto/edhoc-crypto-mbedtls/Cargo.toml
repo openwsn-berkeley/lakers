@@ -8,7 +8,8 @@ description = "EDHOC crypto library mbedTLS backend"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
-#mbedtls = { version = "0.9.3", default-features=false, features = ["no_std_deps"] }
-mbedtls = { version = "0.9.3" }
+mbedtls = { version = "0.9.3", default-features=false }
 
-
+[features]
+std = ["mbedtls/std"]
+baremetal = ["mbedtls/no_std_deps"]
