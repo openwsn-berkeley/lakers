@@ -3,7 +3,7 @@ use core::{slice, str};
 use edhoc_consts::*;
 use hexlit::hex;
 
-use edhoc_crypto::{Crypto, CryptoTrait};
+use edhoc_crypto::{default_crypto, CryptoTrait};
 
 // Panic handler for cortex-m targets
 #[cfg(any(feature = "crypto-cryptocell310", feature = "crypto-psa-baremetal"))]
@@ -12,7 +12,7 @@ use panic_semihosting as _;
 // This function is mainly used to test the C wrapper
 #[no_mangle]
 pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_public_key: *mut u8) {
-    let (private_key, public_key) = Crypto::p256_generate_key_pair();
+    let (private_key, public_key) = default_crypto().p256_generate_key_pair();
 
     unsafe {
         // copy the arrays to the pointers received from C

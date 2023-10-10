@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
 pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::Crypto,
+    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::default_crypto,
     edhoc_crypto::CryptoTrait, EdhocInitiatorState as EdhocInitiator,
     EdhocResponderState as EdhocResponder,
 };
@@ -87,7 +87,7 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_1: &BufferMessage1,
     ) -> Result<(), EDHOCError> {
-        let state = r_process_message_1::<Crypto>(self.state, message_1)?;
+        let state = r_process_message_1(self.state, &mut default_crypto(), message_1)?;
         self.state = state;
 
         Ok(())
@@ -97,10 +97,11 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         c_r: u8,
     ) -> Result<BufferMessage2, EDHOCError> {
-        let (y, g_y) = Crypto::p256_generate_key_pair();
+        let (y, g_y) = default_crypto().p256_generate_key_pair();
 
-        match r_prepare_message_2::<Crypto>(
+        match r_prepare_message_2(
             self.state,
+            &mut default_crypto(),
             &self
                 .id_cred_r
                 .try_into()
@@ -123,8 +124,9 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-        match r_process_message_3::<Crypto>(
+        match r_process_message_3(
             self.state,
+            &mut default_crypto(),
             message_3,
             &self
                 .id_cred_i
@@ -150,7 +152,7 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter::<Crypto>(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter(self.state, &mut default_crypto(), label, &context_buf, context.len(), length) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -166,7 +168,7 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update::<Crypto>(self.state, &context_buf, context.len()) {
+        match edhoc_key_update(self.state, &mut default_crypto(), &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
@@ -224,9 +226,9 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         c_i: u8,
     ) -> Result<BufferMessage1, EDHOCError> {
-        let (x, g_x) = Crypto::p256_generate_key_pair();
+        let (x, g_x) = default_crypto().p256_generate_key_pair();
 
-        match i_prepare_message_1::<Crypto>(self.state, x, g_x, c_i) {
+        match i_prepare_message_1(self.state, &mut default_crypto(), x, g_x, c_i) {
             Ok((state, message_1)) => {
                 self.state = state;
                 Ok(message_1)
@@ -239,8 +241,9 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
-        match i_process_message_2::<Crypto>(
+        match i_process_message_2(
             self.state,
+            &mut default_crypto(),
             message_2,
             &self
                 .id_cred_r
@@ -263,8 +266,9 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn prepare_message_3(
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match i_prepare_message_3::<Crypto>(
+        match i_prepare_message_3(
             self.state,
+            &mut default_crypto(),
             &self
                 .id_cred_i
                 .try_into()
@@ -288,7 +292,7 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter::<Crypto>(self.state, label, &context_buf, context.len(), length) {
+        match edhoc_exporter(self.state, &mut default_crypto(), label, &context_buf, context.len(), length) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -304,7 +308,7 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update::<Crypto>(self.state, &context_buf, context.len()) {
+        match edhoc_key_update(self.state, &mut default_crypto(), &context_buf, context.len()) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
@@ -328,9 +332,9 @@ pub fn generate_connection_identifier_cbor() -> u8 {
 
 /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
 pub fn generate_connection_identifier() -> i8 {
-    let mut conn_id = Crypto::get_random_byte() as i8;
+    let mut conn_id = default_crypto().get_random_byte() as i8;
     while conn_id < -24 || conn_id > 23 {
-        conn_id = Crypto::get_random_byte() as i8;
+        conn_id = default_crypto().get_random_byte() as i8;
     }
     conn_id
 }

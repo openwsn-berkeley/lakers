@@ -25,7 +25,7 @@ pub extern "C" fn mbedtls_hardware_poll(
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
         let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
         psa_crypto::init().unwrap();
@@ -37,6 +37,7 @@ impl CryptoTrait for Crypto {
     // FIXME: Together with hkdf_extract, and the hmac_sha256 helper, this could be a provided
     // function.
     fn hkdf_expand(
+        &mut self,
         prk: &BytesHashLen,
         info: &BytesMaxInfoBuffer,
         info_len: usize,
@@ -76,7 +77,7 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+    fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
         // Implementation of HKDF-Extract as per RFC 5869
 
         // TODO generalize if salt is not provided
@@ -86,6 +87,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn aes_ccm_encrypt_tag_8(
+        &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
@@ -127,6 +129,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn aes_ccm_decrypt_tag_8(
+        &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
@@ -170,6 +173,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn p256_ecdh(
+        &mut self,
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,
     ) -> BytesP256ElemLen {
@@ -202,14 +206,14 @@ impl CryptoTrait for Crypto {
         output_buffer
     }
 
-    fn get_random_byte() -> u8 {
+    fn get_random_byte(&mut self) -> u8 {
         psa_crypto::init().unwrap();
         let mut buffer = [0u8; 1];
         generate_random(&mut buffer); // TODO: check return value
         buffer[0]
     }
 
-    fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    fn p256_generate_key_pair(&mut self) -> (BytesP256ElemLen, BytesP256ElemLen) {
         let alg = RawKeyAgreement::Ecdh;
         let mut usage_flags: UsageFlags = UsageFlags::default();
         usage_flags.set_export();
@@ -264,7 +268,7 @@ fn hmac_sha256(message: &[u8], key: &[u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
     s2[64..64 + message.len()].copy_from_slice(message);
 
     //    (4) apply H to the stream generated in step (3)
-    let ih = Crypto::sha256_digest(&s2, 64 + message.len());
+    let ih = Crypto.sha256_digest(&s2, 64 + message.len());
 
     //    (5) XOR (bitwise exclusive-OR) the B byte string computed in
     //        step (1) with opad
@@ -278,7 +282,7 @@ fn hmac_sha256(message: &[u8], key: &[u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
 
     //    (7) apply H to the stream generated in step (6) and output
     //        the result
-    let oh = Crypto::sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
+    let oh = Crypto.sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
 
     oh
 }

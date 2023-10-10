@@ -23,7 +23,7 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
         unsafe {
@@ -39,6 +39,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn hkdf_expand(
+        &mut self,
         prk: &BytesHashLen,
         info: &BytesMaxInfoBuffer,
         info_len: usize,
@@ -63,7 +64,7 @@ impl CryptoTrait for Crypto {
         buffer
     }
 
-    fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
+    fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
         // Implementation of HKDF-Extract as per RFC 5869
 
         // TODO generalize if salt is not provided
@@ -73,6 +74,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn aes_ccm_encrypt_tag_8(
+        &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
@@ -110,6 +112,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn aes_ccm_decrypt_tag_8(
+        &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &BytesEncStructureLen,
@@ -148,6 +151,7 @@ impl CryptoTrait for Crypto {
     }
 
     fn p256_ecdh(
+        &mut self,
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,
     ) -> BytesP256ElemLen {
@@ -200,7 +204,7 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn get_random_byte() -> u8 {
+    fn get_random_byte(&mut self) -> u8 {
         let mut rnd_context = CRYS_RND_State_t::default();
         let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
         unsafe {
@@ -221,7 +225,7 @@ impl CryptoTrait for Crypto {
         buffer[0]
     }
 
-    fn p256_generate_key_pair() -> (BytesP256ElemLen, BytesP256ElemLen) {
+    fn p256_generate_key_pair(&mut self) -> (BytesP256ElemLen, BytesP256ElemLen) {
         let mut rnd_context = CRYS_RND_State_t::default();
         let mut rnd_work_buffer = CRYS_RND_WorkBuff_t::default();
         unsafe {
