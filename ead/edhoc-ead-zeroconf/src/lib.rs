@@ -106,12 +106,12 @@ fn build_enc_id(
     ss: u8,
 ) -> EdhocMessageBuffer {
     // PRK = EDHOC-Extract(salt, IKM)
-    // FIXME: salt should be 0x (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN.
-    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
+    // FIXME: salt should be 0x (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
+    let salt_fixme: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
     let g_xw = p256_ecdh(x, g_w);
-    let prk = hkdf_extract(&salt, &g_xw);
+    let prk = hkdf_extract(&salt_fixme, &g_xw);
 
-    let (k_1, iv_1) = compute_k_1_iv_1(&prk);
+    let (k_1, iv_1) = compute_k_1_iv_1(&prk); // FIXME (wrong)
 
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
@@ -120,7 +120,7 @@ fn build_enc_id(
     plaintext.len = 1 + id_u.len;
 
     // external_aad = (SS: int)
-    // DRAFT: in Section 4.4.1. add: "The external_aad is wrapped in an enc_structure as defined in Appendix C3 of draft-ietf-lake-edhoc-22"
+    // DRAFT: ADD in Section 4.4.1: "The external_aad is wrapped in an enc_structure as defined in Section 5.3 of RFC8152."
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
@@ -136,13 +136,13 @@ fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
 
     // IV_1 = EDHOC-Expand(PRK, info = (1, h'', 0), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_1_buf = edhoc_kdf(prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN); // FIXME: context should be h'' (the empty CBOR string)
+    let iv_1_buf = edhoc_kdf(prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_IV_LEN); // FIXME: context should be h'' (the empty CBOR string)
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
 
     (k_1, iv_1)
 }
 
-const EAD_ENC_STRUCTURE_LEN: usize = 2 + 8 + 1 + 2;
+const EAD_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;
 fn encode_enc_structure(ss: u8) -> [u8; EAD_ENC_STRUCTURE_LEN] {
     let mut encrypt0: Bytes8 = [0x00; 8];
     encrypt0[0] = 0x45u8; // 'E'
@@ -228,26 +228,44 @@ mod test_initiator {
 
     // U
     const X_TV: BytesP256ElemLen =
-        hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
-    const ID_U: &[u8] = &hex!("a104412b");
+        hex!("A0C71BDBA570FFD270D90BDF416C142921F214406271FCF55B8567F079B50DA0");
+    const ID_U_TV: &[u8] = &hex!("a104412b");
 
     // V
     // TODO...
 
     // W
-    const G_W: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // FIXME: I just copied from G_R
-    const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
+    const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
+    const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
 
-    // Voucher_Info, FIXME: the ENC_ID is just a mock
+    const ENC_ID_TV: &[u8] = &hex!("8368456e637279707430404102");
+
     const VOUCHER_INFO_TV: &[u8] =
-        &hex!("7818636F61703A2F2F656E726F6C6C6D656E742E7365727665724C4545452E4545452E4545452E");
+        &hex!("58305818636f61703a2f2f656e726f6c6c6d656e742e7365727665725536b4ce1137b5687354edfac67f12bf611be1aaa1c3");
+
+    const SS_TV: u8 = 2;
+
+    #[test]
+    fn test_build_enc_id() {
+        let x: BytesP256ElemLen = X_TV.try_into().unwrap();
+        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
+        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
+        let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
+        let ss: u8 = EDHOC_SUPPORTED_SUITES[0];
+
+        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
+
+        let enc_id = build_enc_id(&x, &id_u, &g_w, ss);
+        assert_eq!(enc_id.content, enc_id_tv.content);
+    }
 
     #[test]
     fn test_prepare_ead_1() {
         let x: BytesP256ElemLen = X_TV.try_into().unwrap();
-        let id_u: EdhocMessageBuffer = ID_U.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W.try_into().unwrap();
+        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
+        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
         let ead_1_value_tv: EdhocMessageBuffer = VOUCHER_INFO_TV.try_into().unwrap();
         let ss: u8 = EDHOC_SUPPORTED_SUITES[0];
 
