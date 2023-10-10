@@ -515,12 +515,8 @@ pub fn i_process_message_2<Crypto: CryptoTrait>(
 
                     prk_3e2m = crypto.compute_prk_3e2m(&salt_3e2m, &x, g_r);
 
-                    let expected_mac_2 = crypto.compute_mac_2(
-                        &prk_3e2m,
-                        id_cred_r_expected,
-                        cred_r_expected,
-                        &th_2,
-                    );
+                    let expected_mac_2 =
+                        crypto.compute_mac_2(&prk_3e2m, id_cred_r_expected, cred_r_expected, &th_2);
 
                     if mac_2 == expected_mac_2 {
                         if kid == id_cred_r_expected[id_cred_r_expected.len() - 1] {
@@ -1024,335 +1020,320 @@ fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) ->
 // repeated for each function. (Other than that, they could all just as well be called
 // `computed_th_2(crypto, ...)` etc).
 trait CryptoExt: CryptoTrait {
+    fn compute_th_2(&mut self, g_y: &BytesP256ElemLen, h_message_1: &BytesHashLen) -> BytesHashLen {
+        let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        message[0] = CBOR_BYTE_STRING;
+        message[1] = P256_ELEM_LEN as u8;
+        message[2..2 + P256_ELEM_LEN].copy_from_slice(g_y);
+        message[2 + P256_ELEM_LEN] = CBOR_BYTE_STRING;
+        message[3 + P256_ELEM_LEN] = SHA256_DIGEST_LEN as u8;
+        message[4 + P256_ELEM_LEN..4 + P256_ELEM_LEN + SHA256_DIGEST_LEN]
+            .copy_from_slice(&h_message_1[..]);
 
-fn compute_th_2(
-    &mut self,
-    g_y: &BytesP256ElemLen,
-    h_message_1: &BytesHashLen,
-) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    message[0] = CBOR_BYTE_STRING;
-    message[1] = P256_ELEM_LEN as u8;
-    message[2..2 + P256_ELEM_LEN].copy_from_slice(g_y);
-    message[2 + P256_ELEM_LEN] = CBOR_BYTE_STRING;
-    message[3 + P256_ELEM_LEN] = SHA256_DIGEST_LEN as u8;
-    message[4 + P256_ELEM_LEN..4 + P256_ELEM_LEN + SHA256_DIGEST_LEN]
-        .copy_from_slice(&h_message_1[..]);
+        let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
+        let th_2 = self.sha256_digest(&message, len);
 
-    let th_2 = self.sha256_digest(&message, len);
-
-    th_2
-}
-
-fn compute_th_3(
-    &mut self,
-    th_2: &BytesHashLen,
-    plaintext_2: &BufferPlaintext2,
-    cred_r: &[u8],
-) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-
-    message[0] = CBOR_BYTE_STRING;
-    message[1] = th_2.len() as u8;
-    message[2..2 + th_2.len()].copy_from_slice(&th_2[..]);
-    message[2 + th_2.len()..2 + th_2.len() + plaintext_2.len]
-        .copy_from_slice(&plaintext_2.content[..plaintext_2.len]);
-    message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
-        .copy_from_slice(cred_r);
-
-    let output = self.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
-
-    output
-}
-
-fn compute_th_4(
-    &mut self,
-    th_3: &BytesHashLen,
-    plaintext_3: &BufferPlaintext3,
-    cred_i: &[u8],
-) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-
-    message[0] = CBOR_BYTE_STRING;
-    message[1] = th_3.len() as u8;
-    message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
-    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len]
-        .copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
-    message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
-        .copy_from_slice(cred_i);
-
-    let output = self.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
-
-    output
-}
-
-fn edhoc_kdf(
-    &mut self,
-    prk: &BytesHashLen,
-    label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
-    length: usize,
-) -> BytesMaxBuffer {
-    let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
-    let mut info_len = 0;
-
-    // construct info with inline cbor encoding
-    info[0] = label;
-    if context_len < 24 {
-        info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-        info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 2 + context_len;
-    } else {
-        info[1] = CBOR_BYTE_STRING;
-        info[2] = context_len as u8;
-        info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 3 + context_len;
-    }
-    if length < 24 {
-        info[info_len] = length as u8;
-        info_len = info_len + 1;
-    } else {
-        info[info_len] = CBOR_UINT_1BYTE;
-        info[info_len + 1] = length as u8;
-        info_len = info_len + 2;
+        th_2
     }
 
-    let output = self.hkdf_expand(prk, &info, info_len, length);
+    fn compute_th_3(
+        &mut self,
+        th_2: &BytesHashLen,
+        plaintext_2: &BufferPlaintext2,
+        cred_r: &[u8],
+    ) -> BytesHashLen {
+        let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
 
-    output
-}
+        message[0] = CBOR_BYTE_STRING;
+        message[1] = th_2.len() as u8;
+        message[2..2 + th_2.len()].copy_from_slice(&th_2[..]);
+        message[2 + th_2.len()..2 + th_2.len() + plaintext_2.len]
+            .copy_from_slice(&plaintext_2.content[..plaintext_2.len]);
+        message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
+            .copy_from_slice(cred_r);
 
-fn compute_k_3_iv_3(
-    &mut self,
-    prk_3e2m: &BytesHashLen,
-    th_3: &BytesHashLen,
-) -> (BytesCcmKeyLen, BytesCcmIvLen) {
-    // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
-    let mut k_3: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let mut th_3_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_3_buf[..th_3.len()].copy_from_slice(&th_3[..]);
-    let k_3_buf = self.edhoc_kdf(prk_3e2m, 3u8, &th_3_buf, th_3.len(), AES_CCM_KEY_LEN);
-    k_3[..].copy_from_slice(&k_3_buf[..AES_CCM_KEY_LEN]);
+        let output = self.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
 
-    // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
-    let mut iv_3: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_3_buf = self.edhoc_kdf(prk_3e2m, 4u8, &th_3_buf, th_3.len(), AES_CCM_IV_LEN);
-    iv_3[..].copy_from_slice(&iv_3_buf[..AES_CCM_IV_LEN]);
-
-    (k_3, iv_3)
-}
-
-// calculates ciphertext_3 wrapped in a cbor byte string
-fn encrypt_message_3(
-    &mut self,
-    prk_3e2m: &BytesHashLen,
-    th_3: &BytesHashLen,
-    plaintext_3: &BufferPlaintext3,
-) -> BufferMessage3 {
-    let mut output: BufferMessage3 = BufferMessage3::new();
-    output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
-    output.content[0] = CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8; // FIXME if plaintext_3.len + AES_CCM_TAG_LEN > 23, then should use CBOR_BYTE_STRING
-
-    let enc_structure = encode_enc_structure(th_3);
-
-    let (k_3, iv_3) = self.compute_k_3_iv_3(prk_3e2m, th_3);
-
-    let ciphertext_3 = self.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
-
-    output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
-
-    output
-}
-
-fn decrypt_message_3(
-    &mut self,
-    prk_3e2m: &BytesHashLen,
-    th_3: &BytesHashLen,
-    message_3: &BufferMessage3,
-) -> Result<BufferPlaintext3, EDHOCError> {
-    let mut error = EDHOCError::UnknownError;
-    let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
-
-    // decode message_3
-    let len = (message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING) as usize;
-
-    let mut ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new();
-    ciphertext_3.len = len;
-    ciphertext_3.content[..len].copy_from_slice(&message_3.content[1..1 + len]);
-
-    let (k_3, iv_3) = self.compute_k_3_iv_3(prk_3e2m, th_3);
-
-    let enc_structure = encode_enc_structure(th_3);
-
-    let p3 = self.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
-
-    if p3.is_ok() {
-        error = EDHOCError::Success;
-        let p3 = p3.unwrap();
-        plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
-        plaintext_3.len = p3.len;
-    } else {
-        error = p3.unwrap_err();
+        output
     }
 
-    match error {
-        EDHOCError::Success => Ok(plaintext_3),
-        _ => Err(error),
-    }
-}
+    fn compute_th_4(
+        &mut self,
+        th_3: &BytesHashLen,
+        plaintext_3: &BufferPlaintext3,
+        cred_i: &[u8],
+    ) -> BytesHashLen {
+        let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
 
-fn compute_mac_3(
-    &mut self,
-    prk_4e3m: &BytesHashLen,
-    th_3: &BytesHashLen,
-    id_cred_i: &BytesIdCred,
-    cred_i: &[u8],
-) -> BytesMac3 {
-    // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i);
+        message[0] = CBOR_BYTE_STRING;
+        message[1] = th_3.len() as u8;
+        message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
+        message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len]
+            .copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
+        message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
+            .copy_from_slice(cred_i);
 
-    // compute mac_3
-    let output_buf = self.edhoc_kdf(
-        prk_4e3m,
-        6u8, // registered label for "MAC_3"
-        &context,
-        context_len,
-        MAC_LENGTH_3,
-    );
+        let output = self.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
 
-    let mut output: BytesMac3 = [0x00; MAC_LENGTH_3];
-    output[..MAC_LENGTH_3].copy_from_slice(&output_buf[..MAC_LENGTH_3]);
-    output
-}
-
-fn compute_mac_2(
-    &mut self,
-    prk_3e2m: &BytesHashLen,
-    id_cred_r: &BytesIdCred,
-    cred_r: &[u8],
-    th_2: &BytesHashLen,
-) -> BytesMac2 {
-    // compute MAC_2
-    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r);
-
-    // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
-    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-    mac_2[..].copy_from_slice(
-        &self.edhoc_kdf(prk_3e2m, 2 as u8, &context, context_len, MAC_LENGTH_2)
-            [..MAC_LENGTH_2],
-    );
-
-    mac_2
-}
-
-fn encrypt_decrypt_ciphertext_2(
-    &mut self,
-    prk_2e: &BytesHashLen,
-    th_2: &BytesHashLen,
-    ciphertext_2: &BufferCiphertext2,
-) -> (BytesMaxBuffer, usize) {
-    // convert the transcript hash th_2 to BytesMaxContextBuffer type
-    let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
-
-    // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
-    let keystream_2 = self.edhoc_kdf(
-        prk_2e,
-        0u8,
-        &th_2_context,
-        SHA256_DIGEST_LEN,
-        ciphertext_2.len,
-    );
-
-    let mut plaintext_2: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    // decrypt/encrypt ciphertext_2
-    for i in 0..ciphertext_2.len {
-        plaintext_2[i] = ciphertext_2.content[i] ^ keystream_2[i];
+        output
     }
 
-    (plaintext_2, ciphertext_2.len)
-}
+    fn edhoc_kdf(
+        &mut self,
+        prk: &BytesHashLen,
+        label: u8,
+        context: &BytesMaxContextBuffer,
+        context_len: usize,
+        length: usize,
+    ) -> BytesMaxBuffer {
+        let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
+        let mut info_len = 0;
 
-fn compute_salt_4e3m(
-    &mut self,
-    prk_3e2m: &BytesHashLen,
-    th_3: &BytesHashLen,
-) -> BytesHashLen {
-    let mut th_3_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_3_context[..th_3.len()].copy_from_slice(&th_3[..]);
-    let salt_4e3m_buf =
-        self.edhoc_kdf(prk_3e2m, 5u8, &th_3_context, th_3.len(), SHA256_DIGEST_LEN);
-    let mut salt_4e3m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
-    salt_4e3m[..].copy_from_slice(&salt_4e3m_buf[..SHA256_DIGEST_LEN]);
+        // construct info with inline cbor encoding
+        info[0] = label;
+        if context_len < 24 {
+            info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
+            info[2..2 + context_len].copy_from_slice(&context[..context_len]);
+            info_len = 2 + context_len;
+        } else {
+            info[1] = CBOR_BYTE_STRING;
+            info[2] = context_len as u8;
+            info[3..3 + context_len].copy_from_slice(&context[..context_len]);
+            info_len = 3 + context_len;
+        }
+        if length < 24 {
+            info[info_len] = length as u8;
+            info_len = info_len + 1;
+        } else {
+            info[info_len] = CBOR_UINT_1BYTE;
+            info[info_len + 1] = length as u8;
+            info_len = info_len + 2;
+        }
 
-    salt_4e3m
-}
+        let output = self.hkdf_expand(prk, &info, info_len, length);
 
-fn compute_prk_4e3m(
-    &mut self,
-    salt_4e3m: &BytesHashLen,
-    i: &BytesP256ElemLen,
-    g_y: &BytesP256ElemLen,
-) -> BytesHashLen {
-    // compute g_rx from static R's public key and private ephemeral key
-    let g_iy = self.p256_ecdh(i, g_y);
-    let prk_4e3m = self.hkdf_extract(salt_4e3m, &g_iy);
+        output
+    }
 
-    prk_4e3m
-}
+    fn compute_k_3_iv_3(
+        &mut self,
+        prk_3e2m: &BytesHashLen,
+        th_3: &BytesHashLen,
+    ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
+        // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
+        let mut k_3: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
+        let mut th_3_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_3_buf[..th_3.len()].copy_from_slice(&th_3[..]);
+        let k_3_buf = self.edhoc_kdf(prk_3e2m, 3u8, &th_3_buf, th_3.len(), AES_CCM_KEY_LEN);
+        k_3[..].copy_from_slice(&k_3_buf[..AES_CCM_KEY_LEN]);
 
-fn compute_salt_3e2m(
-    &mut self,
-    prk_2e: &BytesHashLen,
-    th_2: &BytesHashLen,
-) -> BytesHashLen {
-    let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
+        // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
+        let mut iv_3: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
+        let iv_3_buf = self.edhoc_kdf(prk_3e2m, 4u8, &th_3_buf, th_3.len(), AES_CCM_IV_LEN);
+        iv_3[..].copy_from_slice(&iv_3_buf[..AES_CCM_IV_LEN]);
 
-    let salt_3e2m_buf = self.edhoc_kdf(
-        prk_2e,
-        1u8,
-        &th_2_context,
-        SHA256_DIGEST_LEN,
-        SHA256_DIGEST_LEN,
-    );
+        (k_3, iv_3)
+    }
 
-    let mut salt_3e2m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
-    salt_3e2m[..].copy_from_slice(&salt_3e2m_buf[..SHA256_DIGEST_LEN]);
+    // calculates ciphertext_3 wrapped in a cbor byte string
+    fn encrypt_message_3(
+        &mut self,
+        prk_3e2m: &BytesHashLen,
+        th_3: &BytesHashLen,
+        plaintext_3: &BufferPlaintext3,
+    ) -> BufferMessage3 {
+        let mut output: BufferMessage3 = BufferMessage3::new();
+        output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
+        output.content[0] = CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8; // FIXME if plaintext_3.len + AES_CCM_TAG_LEN > 23, then should use CBOR_BYTE_STRING
 
-    salt_3e2m
-}
+        let enc_structure = encode_enc_structure(th_3);
 
-fn compute_prk_3e2m(
-    &mut self,
-    salt_3e2m: &BytesHashLen,
-    x: &BytesP256ElemLen,
-    g_r: &BytesP256ElemLen,
-) -> BytesHashLen {
-    // compute g_rx from static R's public key and private ephemeral key
-    let g_rx = self.p256_ecdh(x, g_r);
-    let prk_3e2m = self.hkdf_extract(salt_3e2m, &g_rx);
+        let (k_3, iv_3) = self.compute_k_3_iv_3(prk_3e2m, th_3);
 
-    prk_3e2m
-}
+        let ciphertext_3 = self.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
 
-fn compute_prk_2e(
-    &mut self,
-    x: &BytesP256ElemLen,
-    g_y: &BytesP256ElemLen,
-    th_2: &BytesHashLen,
-) -> BytesHashLen {
-    // compute the shared secret
-    let g_xy = self.p256_ecdh(x, g_y);
-    // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = self.hkdf_extract(th_2, &g_xy);
+        output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
 
-    prk_2e
-}
+        output
+    }
 
+    fn decrypt_message_3(
+        &mut self,
+        prk_3e2m: &BytesHashLen,
+        th_3: &BytesHashLen,
+        message_3: &BufferMessage3,
+    ) -> Result<BufferPlaintext3, EDHOCError> {
+        let mut error = EDHOCError::UnknownError;
+        let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
+
+        // decode message_3
+        let len = (message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING) as usize;
+
+        let mut ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new();
+        ciphertext_3.len = len;
+        ciphertext_3.content[..len].copy_from_slice(&message_3.content[1..1 + len]);
+
+        let (k_3, iv_3) = self.compute_k_3_iv_3(prk_3e2m, th_3);
+
+        let enc_structure = encode_enc_structure(th_3);
+
+        let p3 = self.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+
+        if p3.is_ok() {
+            error = EDHOCError::Success;
+            let p3 = p3.unwrap();
+            plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
+            plaintext_3.len = p3.len;
+        } else {
+            error = p3.unwrap_err();
+        }
+
+        match error {
+            EDHOCError::Success => Ok(plaintext_3),
+            _ => Err(error),
+        }
+    }
+
+    fn compute_mac_3(
+        &mut self,
+        prk_4e3m: &BytesHashLen,
+        th_3: &BytesHashLen,
+        id_cred_i: &BytesIdCred,
+        cred_i: &[u8],
+    ) -> BytesMac3 {
+        // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
+        let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i);
+
+        // compute mac_3
+        let output_buf = self.edhoc_kdf(
+            prk_4e3m,
+            6u8, // registered label for "MAC_3"
+            &context,
+            context_len,
+            MAC_LENGTH_3,
+        );
+
+        let mut output: BytesMac3 = [0x00; MAC_LENGTH_3];
+        output[..MAC_LENGTH_3].copy_from_slice(&output_buf[..MAC_LENGTH_3]);
+        output
+    }
+
+    fn compute_mac_2(
+        &mut self,
+        prk_3e2m: &BytesHashLen,
+        id_cred_r: &BytesIdCred,
+        cred_r: &[u8],
+        th_2: &BytesHashLen,
+    ) -> BytesMac2 {
+        // compute MAC_2
+        let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r);
+
+        // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
+        let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
+        mac_2[..].copy_from_slice(
+            &self.edhoc_kdf(prk_3e2m, 2 as u8, &context, context_len, MAC_LENGTH_2)[..MAC_LENGTH_2],
+        );
+
+        mac_2
+    }
+
+    fn encrypt_decrypt_ciphertext_2(
+        &mut self,
+        prk_2e: &BytesHashLen,
+        th_2: &BytesHashLen,
+        ciphertext_2: &BufferCiphertext2,
+    ) -> (BytesMaxBuffer, usize) {
+        // convert the transcript hash th_2 to BytesMaxContextBuffer type
+        let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
+
+        // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
+        let keystream_2 = self.edhoc_kdf(
+            prk_2e,
+            0u8,
+            &th_2_context,
+            SHA256_DIGEST_LEN,
+            ciphertext_2.len,
+        );
+
+        let mut plaintext_2: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        // decrypt/encrypt ciphertext_2
+        for i in 0..ciphertext_2.len {
+            plaintext_2[i] = ciphertext_2.content[i] ^ keystream_2[i];
+        }
+
+        (plaintext_2, ciphertext_2.len)
+    }
+
+    fn compute_salt_4e3m(&mut self, prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashLen {
+        let mut th_3_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_3_context[..th_3.len()].copy_from_slice(&th_3[..]);
+        let salt_4e3m_buf =
+            self.edhoc_kdf(prk_3e2m, 5u8, &th_3_context, th_3.len(), SHA256_DIGEST_LEN);
+        let mut salt_4e3m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
+        salt_4e3m[..].copy_from_slice(&salt_4e3m_buf[..SHA256_DIGEST_LEN]);
+
+        salt_4e3m
+    }
+
+    fn compute_prk_4e3m(
+        &mut self,
+        salt_4e3m: &BytesHashLen,
+        i: &BytesP256ElemLen,
+        g_y: &BytesP256ElemLen,
+    ) -> BytesHashLen {
+        // compute g_rx from static R's public key and private ephemeral key
+        let g_iy = self.p256_ecdh(i, g_y);
+        let prk_4e3m = self.hkdf_extract(salt_4e3m, &g_iy);
+
+        prk_4e3m
+    }
+
+    fn compute_salt_3e2m(&mut self, prk_2e: &BytesHashLen, th_2: &BytesHashLen) -> BytesHashLen {
+        let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
+
+        let salt_3e2m_buf = self.edhoc_kdf(
+            prk_2e,
+            1u8,
+            &th_2_context,
+            SHA256_DIGEST_LEN,
+            SHA256_DIGEST_LEN,
+        );
+
+        let mut salt_3e2m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
+        salt_3e2m[..].copy_from_slice(&salt_3e2m_buf[..SHA256_DIGEST_LEN]);
+
+        salt_3e2m
+    }
+
+    fn compute_prk_3e2m(
+        &mut self,
+        salt_3e2m: &BytesHashLen,
+        x: &BytesP256ElemLen,
+        g_r: &BytesP256ElemLen,
+    ) -> BytesHashLen {
+        // compute g_rx from static R's public key and private ephemeral key
+        let g_rx = self.p256_ecdh(x, g_r);
+        let prk_3e2m = self.hkdf_extract(salt_3e2m, &g_rx);
+
+        prk_3e2m
+    }
+
+    fn compute_prk_2e(
+        &mut self,
+        x: &BytesP256ElemLen,
+        g_y: &BytesP256ElemLen,
+        th_2: &BytesHashLen,
+    ) -> BytesHashLen {
+        // compute the shared secret
+        let g_xy = self.p256_ecdh(x, g_y);
+        // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
+        let prk_2e = self.hkdf_extract(th_2, &g_xy);
+
+        prk_2e
+    }
 }
 
 impl<Crypto: CryptoTrait> CryptoExt for Crypto {}
@@ -1819,8 +1800,13 @@ mod tests {
         th_2_context_tv[..TH_2_TV.len()].copy_from_slice(&TH_2_TV[..]);
         const LEN_TV: usize = PLAINTEXT_2_LEN_TV;
 
-        let output =
-            default_crypto().edhoc_kdf(&PRK_2E_TV, 0u8, &th_2_context_tv, SHA256_DIGEST_LEN, LEN_TV);
+        let output = default_crypto().edhoc_kdf(
+            &PRK_2E_TV,
+            0u8,
+            &th_2_context_tv,
+            SHA256_DIGEST_LEN,
+            LEN_TV,
+        );
         for i in 0..KEYSTREAM_2_TV.len() {
             assert_eq!(KEYSTREAM_2_TV[i], output[i]);
         }
@@ -1863,13 +1849,15 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
-        let mac_3 = default_crypto().compute_mac_3(&PRK_4E3M_TV, &TH_3_TV, &ID_CRED_I_TV, &CRED_I_TV);
+        let mac_3 =
+            default_crypto().compute_mac_3(&PRK_4E3M_TV, &TH_3_TV, &ID_CRED_I_TV, &CRED_I_TV);
         assert_eq!(mac_3, MAC_3_TV);
     }
 
     #[test]
     fn test_compute_and_verify_mac_2() {
-        let rcvd_mac_2 = default_crypto().compute_mac_2(&PRK_3E2M_TV, &ID_CRED_R_TV, &CRED_R_TV, &TH_2_TV);
+        let rcvd_mac_2 =
+            default_crypto().compute_mac_2(&PRK_3E2M_TV, &ID_CRED_R_TV, &CRED_R_TV, &TH_2_TV);
 
         assert_eq!(rcvd_mac_2, MAC_2_TV);
     }

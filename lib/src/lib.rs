@@ -152,7 +152,14 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, &mut default_crypto(), label, &context_buf, context.len(), length) {
+        match edhoc_exporter(
+            self.state,
+            &mut default_crypto(),
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        ) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -168,7 +175,12 @@ impl<'a> EdhocResponderState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &mut default_crypto(), &context_buf, context.len()) {
+        match edhoc_key_update(
+            self.state,
+            &mut default_crypto(),
+            &context_buf,
+            context.len(),
+        ) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
@@ -292,7 +304,14 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_exporter(self.state, &mut default_crypto(), label, &context_buf, context.len(), length) {
+        match edhoc_exporter(
+            self.state,
+            &mut default_crypto(),
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        ) {
             Ok((state, output)) => {
                 self.state = state;
                 Ok(output)
@@ -308,7 +327,12 @@ impl<'a> EdhocInitiatorState<'a> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        match edhoc_key_update(self.state, &mut default_crypto(), &context_buf, context.len()) {
+        match edhoc_key_update(
+            self.state,
+            &mut default_crypto(),
+            &context_buf,
+            context.len(),
+        ) {
             Ok((state, prk_out_new)) => {
                 self.state = state;
                 Ok(prk_out_new)
