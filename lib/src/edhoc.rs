@@ -1103,96 +1103,6 @@ fn edhoc_kdf<Crypto: CryptoTrait>(
     output
 }
 
-fn decode_plaintext_3(
-    plaintext_3: &BufferPlaintext3,
-) -> Result<(u8, BytesMac3, Option<EADItem>), EDHOCError> {
-    let mut ead_3 = None::<EADItem>;
-    let mut error = EDHOCError::UnknownError;
-    let mut kid: u8 = 0xff;
-    let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-
-    // check ID_CRED_I and MAC_3
-    if (is_cbor_neg_int_1byte(plaintext_3.content[0]) || is_cbor_uint_1byte(plaintext_3.content[0]))
-        && (is_cbor_bstr_1byte_prefix(plaintext_3.content[1]))
-    {
-        kid = plaintext_3.content[0usize];
-        // skip the CBOR magic byte as we know how long the MAC is
-        mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
-
-        // if there is still more to parse, the rest will be the EAD_3
-        if plaintext_3.len > (2 + MAC_LENGTH_3) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
-            if ead_res.is_ok() {
-                ead_3 = ead_res.unwrap();
-                error = EDHOCError::Success;
-            } else {
-                error = ead_res.unwrap_err();
-            }
-        } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
-            error = EDHOCError::Success;
-        } else {
-            error = EDHOCError::ParsingError;
-        }
-    } else {
-        error = EDHOCError::ParsingError;
-    }
-
-    match error {
-        EDHOCError::Success => Ok((kid, mac_3, ead_3)),
-        _ => Err(error),
-    }
-}
-
-fn encode_plaintext_3(
-    id_cred_i: &BytesIdCred,
-    mac_3: &BytesMac3,
-    ead_3: &Option<EADItem>,
-) -> BufferPlaintext3 {
-    let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
-
-    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
-    plaintext_3.content[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
-    plaintext_3.len = 2 + mac_3.len();
-
-    if let Some(ead_3) = ead_3 {
-        let ead_3 = encode_ead_item(ead_3);
-        plaintext_3.content[plaintext_3.len..plaintext_3.len + ead_3.len]
-            .copy_from_slice(&ead_3.content[..ead_3.len]);
-        plaintext_3.len += ead_3.len;
-    }
-
-    plaintext_3
-}
-
-fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
-    let mut encrypt0: Bytes8 = [0x00; 8];
-    encrypt0[0] = 0x45u8; // 'E'
-    encrypt0[1] = 0x6eu8; // 'n'
-    encrypt0[2] = 0x63u8; // 'c'
-    encrypt0[3] = 0x72u8; // 'r'
-    encrypt0[4] = 0x79u8; // 'y'
-    encrypt0[5] = 0x70u8; // 'p'
-    encrypt0[6] = 0x74u8; // 't'
-    encrypt0[7] = 0x30u8; // '0'
-
-    let mut enc_structure: BytesEncStructureLen = [0x00; ENC_STRUCTURE_LEN];
-
-    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
-    enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array
-    enc_structure[1] = CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8;
-    enc_structure[2..2 + encrypt0.len()].copy_from_slice(&encrypt0[..]);
-    enc_structure[encrypt0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00 as u8; // 0 for zero-length byte string
-    enc_structure[encrypt0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
-    enc_structure[encrypt0.len() + 4] = SHA256_DIGEST_LEN as u8;
-    enc_structure[encrypt0.len() + 5..encrypt0.len() + 5 + th_3.len()].copy_from_slice(&th_3[..]);
-
-    enc_structure
-}
-
 fn compute_k_3_iv_3<Crypto: CryptoTrait>(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
@@ -1269,27 +1179,6 @@ fn decrypt_message_3<Crypto: CryptoTrait>(
     }
 }
 
-// output must hold id_cred.len() + cred.len()
-fn encode_kdf_context(
-    id_cred: &BytesIdCred,
-    th: &BytesHashLen,
-    cred: &[u8],
-) -> (BytesMaxContextBuffer, usize) {
-    // encode context in line
-    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
-    let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    output[..id_cred.len()].copy_from_slice(&id_cred[..]);
-    output[id_cred.len()] = CBOR_BYTE_STRING;
-    output[id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
-    output[id_cred.len() + 2..id_cred.len() + 2 + th.len()].copy_from_slice(&th[..]);
-    output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred.len()]
-        .copy_from_slice(&cred);
-
-    let output_len = (id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len()) as usize;
-
-    (output, output_len)
-}
-
 fn compute_mac_3<Crypto: CryptoTrait>(
     prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
@@ -1330,79 +1219,6 @@ fn compute_mac_2<Crypto: CryptoTrait>(
     );
 
     mac_2
-}
-
-fn decode_plaintext_2(
-    plaintext_2: &BytesMaxBuffer,
-    plaintext_2_len: usize,
-) -> Result<(u8, u8, BytesMac2, Option<EADItem>), EDHOCError> {
-    let mut error = EDHOCError::UnknownError;
-    let mut ead_2 = None::<EADItem>;
-    let mut c_r: u8 = 0xff;
-    let mut id_cred_r: u8 = 0xff;
-    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-
-    // check CBOR sequence types for c_r, id_cred_r, and mac_2
-    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]))
-        && (is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]))
-        && (is_cbor_bstr_1byte_prefix(plaintext_2[2]))
-    // TODO: check mac length as well
-    {
-        c_r = plaintext_2[0];
-        id_cred_r = plaintext_2[1];
-        // skip cbor byte string byte as we know how long the string is
-        mac_2[..].copy_from_slice(&plaintext_2[3..3 + MAC_LENGTH_2]);
-
-        // if there is still more to parse, the rest will be the EAD_2
-        if plaintext_2_len > (3 + MAC_LENGTH_2) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(
-                &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-                3 + MAC_LENGTH_2,
-            );
-            if ead_res.is_ok() {
-                ead_2 = ead_res.unwrap();
-                error = EDHOCError::Success;
-            } else {
-                error = ead_res.unwrap_err();
-            }
-        } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
-            error = EDHOCError::Success;
-        } else {
-            error = EDHOCError::ParsingError;
-        }
-    } else {
-        error = EDHOCError::ParsingError;
-    }
-
-    match error {
-        EDHOCError::Success => Ok((c_r, id_cred_r, mac_2, ead_2)),
-        _ => Err(error),
-    }
-}
-
-fn encode_plaintext_2(
-    c_r: u8,
-    id_cred_r: &BytesIdCred,
-    mac_2: &BytesMac2,
-    ead_2: &Option<EADItem>,
-) -> BufferPlaintext2 {
-    let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
-    plaintext_2.content[0] = c_r;
-    plaintext_2.content[1] = id_cred_r[id_cred_r.len() - 1];
-    plaintext_2.content[2] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
-    plaintext_2.content[3..3 + mac_2.len()].copy_from_slice(&mac_2[..]);
-    plaintext_2.len = 3 + mac_2.len();
-
-    if let Some(ead_2) = ead_2 {
-        let ead_2 = encode_ead_item(ead_2);
-        plaintext_2.content[plaintext_2.len..plaintext_2.len + ead_2.len]
-            .copy_from_slice(&ead_2.content[..ead_2.len]);
-        plaintext_2.len += ead_2.len;
-    }
-
-    plaintext_2
 }
 
 fn encrypt_decrypt_ciphertext_2<Crypto: CryptoTrait>(
@@ -1502,6 +1318,190 @@ fn compute_prk_2e<Crypto: CryptoTrait>(
     let prk_2e = Crypto::hkdf_extract(th_2, &g_xy);
 
     prk_2e
+}
+
+fn decode_plaintext_3(
+    plaintext_3: &BufferPlaintext3,
+) -> Result<(u8, BytesMac3, Option<EADItem>), EDHOCError> {
+    let mut ead_3 = None::<EADItem>;
+    let mut error = EDHOCError::UnknownError;
+    let mut kid: u8 = 0xff;
+    let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
+
+    // check ID_CRED_I and MAC_3
+    if (is_cbor_neg_int_1byte(plaintext_3.content[0]) || is_cbor_uint_1byte(plaintext_3.content[0]))
+        && (is_cbor_bstr_1byte_prefix(plaintext_3.content[1]))
+    {
+        kid = plaintext_3.content[0usize];
+        // skip the CBOR magic byte as we know how long the MAC is
+        mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
+
+        // if there is still more to parse, the rest will be the EAD_3
+        if plaintext_3.len > (2 + MAC_LENGTH_3) {
+            // NOTE: since the current implementation only supports one EAD handler,
+            // we assume only one EAD item
+            let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
+            if ead_res.is_ok() {
+                ead_3 = ead_res.unwrap();
+                error = EDHOCError::Success;
+            } else {
+                error = ead_res.unwrap_err();
+            }
+        } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::ParsingError;
+        }
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((kid, mac_3, ead_3)),
+        _ => Err(error),
+    }
+}
+
+fn encode_plaintext_3(
+    id_cred_i: &BytesIdCred,
+    mac_3: &BytesMac3,
+    ead_3: &Option<EADItem>,
+) -> BufferPlaintext3 {
+    let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
+
+    // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
+    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
+    plaintext_3.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
+    plaintext_3.content[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
+    plaintext_3.len = 2 + mac_3.len();
+
+    if let Some(ead_3) = ead_3 {
+        let ead_3 = encode_ead_item(ead_3);
+        plaintext_3.content[plaintext_3.len..plaintext_3.len + ead_3.len]
+            .copy_from_slice(&ead_3.content[..ead_3.len]);
+        plaintext_3.len += ead_3.len;
+    }
+
+    plaintext_3
+}
+
+fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
+    let mut encrypt0: Bytes8 = [0x00; 8];
+    encrypt0[0] = 0x45u8; // 'E'
+    encrypt0[1] = 0x6eu8; // 'n'
+    encrypt0[2] = 0x63u8; // 'c'
+    encrypt0[3] = 0x72u8; // 'r'
+    encrypt0[4] = 0x79u8; // 'y'
+    encrypt0[5] = 0x70u8; // 'p'
+    encrypt0[6] = 0x74u8; // 't'
+    encrypt0[7] = 0x30u8; // '0'
+
+    let mut enc_structure: BytesEncStructureLen = [0x00; ENC_STRUCTURE_LEN];
+
+    // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
+    enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array
+    enc_structure[1] = CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8;
+    enc_structure[2..2 + encrypt0.len()].copy_from_slice(&encrypt0[..]);
+    enc_structure[encrypt0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00 as u8; // 0 for zero-length byte string
+    enc_structure[encrypt0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
+    enc_structure[encrypt0.len() + 4] = SHA256_DIGEST_LEN as u8;
+    enc_structure[encrypt0.len() + 5..encrypt0.len() + 5 + th_3.len()].copy_from_slice(&th_3[..]);
+
+    enc_structure
+}
+
+// output must hold id_cred.len() + cred.len()
+fn encode_kdf_context(
+    id_cred: &BytesIdCred,
+    th: &BytesHashLen,
+    cred: &[u8],
+) -> (BytesMaxContextBuffer, usize) {
+    // encode context in line
+    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
+    let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+    output[..id_cred.len()].copy_from_slice(&id_cred[..]);
+    output[id_cred.len()] = CBOR_BYTE_STRING;
+    output[id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
+    output[id_cred.len() + 2..id_cred.len() + 2 + th.len()].copy_from_slice(&th[..]);
+    output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred.len()]
+        .copy_from_slice(&cred);
+
+    let output_len = (id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len()) as usize;
+
+    (output, output_len)
+}
+
+fn decode_plaintext_2(
+    plaintext_2: &BytesMaxBuffer,
+    plaintext_2_len: usize,
+) -> Result<(u8, u8, BytesMac2, Option<EADItem>), EDHOCError> {
+    let mut error = EDHOCError::UnknownError;
+    let mut ead_2 = None::<EADItem>;
+    let mut c_r: u8 = 0xff;
+    let mut id_cred_r: u8 = 0xff;
+    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
+
+    // check CBOR sequence types for c_r, id_cred_r, and mac_2
+    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]))
+        && (is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]))
+        && (is_cbor_bstr_1byte_prefix(plaintext_2[2]))
+    // TODO: check mac length as well
+    {
+        c_r = plaintext_2[0];
+        id_cred_r = plaintext_2[1];
+        // skip cbor byte string byte as we know how long the string is
+        mac_2[..].copy_from_slice(&plaintext_2[3..3 + MAC_LENGTH_2]);
+
+        // if there is still more to parse, the rest will be the EAD_2
+        if plaintext_2_len > (3 + MAC_LENGTH_2) {
+            // NOTE: since the current implementation only supports one EAD handler,
+            // we assume only one EAD item
+            let ead_res = parse_ead(
+                &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
+                3 + MAC_LENGTH_2,
+            );
+            if ead_res.is_ok() {
+                ead_2 = ead_res.unwrap();
+                error = EDHOCError::Success;
+            } else {
+                error = ead_res.unwrap_err();
+            }
+        } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
+            error = EDHOCError::Success;
+        } else {
+            error = EDHOCError::ParsingError;
+        }
+    } else {
+        error = EDHOCError::ParsingError;
+    }
+
+    match error {
+        EDHOCError::Success => Ok((c_r, id_cred_r, mac_2, ead_2)),
+        _ => Err(error),
+    }
+}
+
+fn encode_plaintext_2(
+    c_r: u8,
+    id_cred_r: &BytesIdCred,
+    mac_2: &BytesMac2,
+    ead_2: &Option<EADItem>,
+) -> BufferPlaintext2 {
+    let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
+    plaintext_2.content[0] = c_r;
+    plaintext_2.content[1] = id_cred_r[id_cred_r.len() - 1];
+    plaintext_2.content[2] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
+    plaintext_2.content[3..3 + mac_2.len()].copy_from_slice(&mac_2[..]);
+    plaintext_2.len = 3 + mac_2.len();
+
+    if let Some(ead_2) = ead_2 {
+        let ead_2 = encode_ead_item(ead_2);
+        plaintext_2.content[plaintext_2.len..plaintext_2.len + ead_2.len]
+            .copy_from_slice(&ead_2.content[..ead_2.len]);
+        plaintext_2.len += ead_2.len;
+    }
+
+    plaintext_2
 }
 
 #[cfg(test)]
