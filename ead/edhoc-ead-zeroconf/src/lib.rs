@@ -128,15 +128,15 @@ fn build_enc_id(
 }
 
 fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
-    // K_1 = EDHOC-Expand(PRK, info = (0, h'', 0), length)
+    // K_1 = EDHOC-Expand(PRK, info = (0, h'', AES_CCM_KEY_LEN), length)
     let mut k_1: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    // DRAFT: any reason for context to be 'empty CBOR string' instead of 'context_len 0-filled' ?
-    let k_1_buf = edhoc_kdf(prk, 0, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN); // FIXME: context should be h'' (the empty CBOR string)
+    let k_1_buf = edhoc_kdf(prk, 0, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN);
     k_1[..].copy_from_slice(&k_1_buf[..AES_CCM_KEY_LEN]);
 
-    // IV_1 = EDHOC-Expand(PRK, info = (1, h'', 0), length)
+    // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_KEY_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_1_buf = edhoc_kdf(prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_IV_LEN); // FIXME: context should be h'' (the empty CBOR string)
+    // NOTE (FIXME?): here we actually generate AES_CCM_KEY_LEN bytes, but then we only use AES_CCM_IV_LEN of them (next line)
+    let iv_1_buf = edhoc_kdf(prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN);
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
 
     (k_1, iv_1)
@@ -238,7 +238,10 @@ mod test_initiator {
     const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
 
-    const ENC_ID_TV: &[u8] = &hex!("8368456e637279707430404102");
+    const ENC_ID_TV: &[u8] = &hex!("71fb72788b180ebe332697d711");
+    const PRK_TV: &[u8] = &hex!("04da32d221db25db701667f9d3903374a45a9b04f25d1cb481b099a480cece04");
+    const K_1_TV: &[u8] = &hex!("95a90f115d8fc5252849a25ba5225575");
+    const IV_1_TV: &[u8] = &hex!("083cb9a00da66af4f56877fcda");
 
     const VOUCHER_INFO_TV: &[u8] =
         &hex!("58305818636f61703a2f2f656e726f6c6c6d656e742e7365727665725536b4ce1137b5687354edfac67f12bf611be1aaa1c3");
@@ -246,17 +249,29 @@ mod test_initiator {
     const SS_TV: u8 = 2;
 
     #[test]
+    fn test_compute_k_1_iv_1() {
+        let x: BytesP256ElemLen = X_TV.try_into().unwrap();
+        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+        let k_1_tv: BytesCcmKeyLen = K_1_TV.try_into().unwrap();
+        let iv_1_tv: BytesCcmIvLen = IV_1_TV.try_into().unwrap();
+        let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
+
+        let prk = hkdf_extract(&[0u8; SHA256_DIGEST_LEN], &p256_ecdh(&x, &g_w));
+        assert_eq!(prk, prk_tv);
+
+        let (k_1, iv_1) = compute_k_1_iv_1(&prk);
+        assert_eq!(iv_1, iv_1_tv);
+        assert_eq!(k_1, k_1_tv);
+    }
+
+    #[test]
     fn test_build_enc_id() {
         let x: BytesP256ElemLen = X_TV.try_into().unwrap();
         let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
         let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
-        let ss: u8 = EDHOC_SUPPORTED_SUITES[0];
 
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
-
-        let enc_id = build_enc_id(&x, &id_u, &g_w, ss);
+        let enc_id = build_enc_id(&x, &id_u, &g_w, SS_TV);
         assert_eq!(enc_id.content, enc_id_tv.content);
     }
 
