@@ -122,7 +122,7 @@ pub fn r_process_message_1(
                 if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
                     // Step 3: If EAD is present make it available to the application
                     let ead_success = if let Some(ead_1) = ead_1 {
-                        r_process_ead_1(ead_1).is_ok()
+                        r_process_ead_1(&ead_1, message_1).is_ok()
                     } else {
                         true
                     };

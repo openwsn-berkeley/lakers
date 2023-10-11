@@ -224,34 +224,163 @@ fn encode_ead_1(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> Edho
     output
 }
 
+// responder side
+#[derive(Default, PartialEq, Copy, Clone, Debug)]
+pub enum EADResponderProtocolState {
+    #[default]
+    Start,
+    ProcessedEAD1,
+    WaitEAD3,
+    Completed,
+}
+
+pub struct EADResponderState {
+    pub protocol_state: EADResponderProtocolState,
+}
+
+impl EADResponderState {
+    pub fn new() -> Self {
+        EADResponderState {
+            protocol_state: EADResponderProtocolState::Start,
+        }
+    }
+}
+
+// shared mutable global state for EAD
+// NOTE: this is not thread-safe
+static mut EAD_RESPONDER_GLOBAL_STATE: EADResponderState = EADResponderState {
+    protocol_state: EADResponderProtocolState::Start,
+};
+pub fn ead_responder_get_global_state() -> &'static EADResponderState {
+    unsafe { &EAD_RESPONDER_GLOBAL_STATE }
+}
+pub fn ead_responder_set_global_state(new_state: EADResponderState) {
+    unsafe {
+        EAD_RESPONDER_GLOBAL_STATE = new_state;
+    }
+}
+
+pub fn encode_voucher_request(
+    message_1: &EdhocMessageBuffer,
+    opaque_state: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
+    let mut output = EdhocMessageBuffer::new();
+
+    output.content[0] = CBOR_MAJOR_ARRAY | 2;
+
+    output.content[1] = CBOR_BYTE_STRING;
+    output.content[2] = message_1.len as u8;
+    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+
+    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
+    output.content[4 + message_1.len] = opaque_state.len as u8;
+    output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
+        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+
+    output.len = 5 + message_1.len + opaque_state.len;
+
+    output
+}
+
+// FIXME: receive opaque_state as parameter, but that requires changing the r_process_message_1 function signature
+use hexlit::hex;
+const OPAQUE_STATE_TV: &[u8] =
+    &hex!("827819666538303a3a623833343a643630623a373936663a38646530198bed");
+pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<(), ()> {
+    let opaque_state: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+
+    if ead_1.label != EAD_ZEROCONF_LABEL {
+        return Err(());
+    }
+    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
+    let voucher_request = encode_voucher_request(message_1, &opaque_state);
+    // TODO: implement send_voucher_request(&loc_w, &voucher_request);
+
+    ead_responder_set_global_state(EADResponderState {
+        protocol_state: EADResponderProtocolState::ProcessedEAD1,
+    });
+
+    Ok(())
+}
+
+pub fn r_prepare_ead_2() -> Option<EADItem> {
+    let mut ead_2 = EADItem::new();
+
+    // add the label to the buffer (non-critical)
+    ead_2.label = EAD_ZEROCONF_LABEL;
+    ead_2.is_critical = true;
+
+    // TODO: append Voucher (H(message_1), CRED_V) to the buffer
+
+    // NOTE: see the note in lib.rs::test_ead
+    // state.protocol_state = EADResponderProtocolState::WaitMessage3;
+    ead_responder_set_global_state(EADResponderState {
+        protocol_state: EADResponderProtocolState::Completed,
+    });
+
+    Some(ead_2)
+}
+
+pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
+    // TODO: maybe retrive CRED_U from a Credential Database
+
+    // state.protocol_state = EADResponderProtocolState::Completed;
+
+    Ok(())
+}
+
+fn parse_ead_1_value(
+    ead_1_value: &Option<EdhocMessageBuffer>,
+) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
+    let value = ead_1_value.unwrap();
+    let loc_w: EdhocMessageBuffer = value.content[4..4 + value.content[3] as usize]
+        .try_into()
+        .unwrap();
+
+    let enc_id: EdhocMessageBuffer = EdhocMessageBuffer::new();
+
+    Ok((loc_w, enc_id))
+}
+
+#[cfg(test)]
+mod test_vectors {
+    use edhoc_consts::*;
+    use hexlit::hex;
+
+    // common
+    pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711");
+
+    // U
+    pub const X_TV: BytesP256ElemLen =
+        hex!("A0C71BDBA570FFD270D90BDF416C142921F214406271FCF55B8567F079B50DA0");
+    pub const ID_U_TV: &[u8] = &hex!("a104412b");
+
+    // V
+    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+
+    // W
+    pub const G_W_TV: &[u8] =
+        &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
+    pub const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
+
+    pub const ENC_ID_TV: &[u8] = &hex!("71fb72788b180ebe332697d711");
+    pub const PRK_TV: &[u8] =
+        &hex!("04da32d221db25db701667f9d3903374a45a9b04f25d1cb481b099a480cece04");
+    pub const K_1_TV: &[u8] = &hex!("95a90f115d8fc5252849a25ba5225575");
+    pub const IV_1_TV: &[u8] = &hex!("083cb9a00da66af4f56877fcda");
+
+    pub const EAD1_VALUE_TV: &[u8] = &hex!(
+        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711"
+    );
+
+    pub const SS_TV: u8 = 2;
+}
+
 #[cfg(test)]
 mod test_initiator {
     use super::*;
     use edhoc_consts::*;
-    use hexlit::hex;
-
-    // U
-    const X_TV: BytesP256ElemLen =
-        hex!("A0C71BDBA570FFD270D90BDF416C142921F214406271FCF55B8567F079B50DA0");
-    const ID_U_TV: &[u8] = &hex!("a104412b");
-
-    // V
-    // TODO...
-
-    // W
-    const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
-    const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
-
-    const ENC_ID_TV: &[u8] = &hex!("71fb72788b180ebe332697d711");
-    const PRK_TV: &[u8] = &hex!("04da32d221db25db701667f9d3903374a45a9b04f25d1cb481b099a480cece04");
-    const K_1_TV: &[u8] = &hex!("95a90f115d8fc5252849a25ba5225575");
-    const IV_1_TV: &[u8] = &hex!("083cb9a00da66af4f56877fcda");
-
-    const EAD1_VALUE_TV: &[u8] = &hex!(
-        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711"
-    );
-
-    const SS_TV: u8 = 2;
+    use test_vectors::*;
 
     #[test]
     fn test_compute_keys() {
@@ -304,75 +433,52 @@ mod test_initiator {
     }
 }
 
-// responder side
-#[derive(Default, PartialEq, Copy, Clone, Debug)]
-pub enum EADResponderProtocolState {
-    #[default]
-    Start,
-    ProcessedEAD1,
-    WaitEAD3,
-    Completed,
-}
+#[cfg(test)]
+mod test_responder {
+    use super::*;
+    use edhoc_consts::*;
+    use hexlit::hex;
+    use test_vectors::*;
 
-pub struct EADResponderState {
-    pub protocol_state: EADResponderProtocolState,
-}
+    #[test]
+    fn test_parse_ead_1_value() {
+        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
+        let loc_w_tv: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
 
-impl EADResponderState {
-    pub fn new() -> Self {
-        EADResponderState {
-            protocol_state: EADResponderProtocolState::Start,
-        }
+        let res = parse_ead_1_value(&Some(ead_1_value_tv));
+        assert!(res.is_ok());
+        let (loc_w, enc_id) = res.unwrap();
+        assert_eq!(loc_w.content, loc_w_tv.content);
     }
-}
 
-// shared mutable global state for EAD
-// NOTE: this is not thread-safe
-static mut EAD_RESPONDER_GLOBAL_STATE: EADResponderState = EADResponderState {
-    protocol_state: EADResponderProtocolState::Start,
-};
-pub fn ead_responder_get_global_state() -> &'static EADResponderState {
-    unsafe { &EAD_RESPONDER_GLOBAL_STATE }
-}
-pub fn ead_responder_set_global_state(new_state: EADResponderState) {
-    unsafe {
-        EAD_RESPONDER_GLOBAL_STATE = new_state;
+    #[test]
+    fn test_encode_voucher_request() {
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
+
+        let voucher_request = encode_voucher_request(&message_1_tv, &opaque_state_tv);
+        assert_eq!(voucher_request.content, voucher_request_tv.content);
     }
-}
 
-pub fn r_process_ead_1(_ead_1: EADItem) -> Result<(), ()> {
-    // TODO: parse and verify the label
-    // TODO: trigger the voucher request to W
+    #[test]
+    fn test_process_ead_1() {
+        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
 
-    ead_responder_set_global_state(EADResponderState {
-        protocol_state: EADResponderProtocolState::ProcessedEAD1,
-    });
+        let ead_1 = EADItem {
+            label: EAD_ZEROCONF_LABEL,
+            is_critical: true,
+            value: Some(ead_1_value_tv),
+        };
 
-    Ok(())
-}
+        ead_responder_set_global_state(EADResponderState::new());
 
-pub fn r_prepare_ead_2() -> Option<EADItem> {
-    let mut ead_2 = EADItem::new();
-
-    // add the label to the buffer (non-critical)
-    ead_2.label = EAD_ZEROCONF_LABEL;
-    ead_2.is_critical = true;
-
-    // TODO: append Voucher (H(message_1), CRED_V) to the buffer
-
-    // NOTE: see the note in lib.rs::test_ead
-    // state.protocol_state = EADResponderProtocolState::WaitMessage3;
-    ead_responder_set_global_state(EADResponderState {
-        protocol_state: EADResponderProtocolState::Completed,
-    });
-
-    Some(ead_2)
-}
-
-pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
-    // TODO: maybe retrive CRED_U from a Credential Database
-
-    // state.protocol_state = EADResponderProtocolState::Completed;
-
-    Ok(())
+        let res = r_process_ead_1(&ead_1, &message_1_tv);
+        assert!(res.is_ok());
+        assert_eq!(
+            ead_responder_get_global_state().protocol_state,
+            EADResponderProtocolState::ProcessedEAD1
+        );
+    }
 }
