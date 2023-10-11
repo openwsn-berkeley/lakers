@@ -106,12 +106,13 @@ fn build_enc_id(
     ss: u8,
 ) -> EdhocMessageBuffer {
     // PRK = EDHOC-Extract(salt, IKM)
-    // FIXME: salt should be 0x (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
-    let salt_fixme: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
+    // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
+    //       using a larger but all-zeroes salt seems to generate the same result though.
+    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
     let g_xw = p256_ecdh(x, g_w);
-    let prk = hkdf_extract(&salt_fixme, &g_xw);
+    let prk = hkdf_extract(&salt, &g_xw);
 
-    let (k_1, iv_1) = compute_k_1_iv_1(&prk); // FIXME (wrong)
+    let (k_1, iv_1) = compute_k_1_iv_1(&prk);
 
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
@@ -120,7 +121,6 @@ fn build_enc_id(
     plaintext.len = 1 + id_u.len;
 
     // external_aad = (SS: int)
-    // DRAFT: ADD in Section 4.4.1: "The external_aad is wrapped in an enc_structure as defined in Section 5.3 of RFC8152."
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
@@ -207,15 +207,19 @@ fn edhoc_kdf(
 fn encode_ead_1(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[0] = CBOR_TEXT_STRING;
-    output.content[1] = loc_w.len as u8;
-    output.content[2..2 + loc_w.len].copy_from_slice(&loc_w.content[..loc_w.len]);
+    output.content[0] = CBOR_BYTE_STRING;
+    // put length at output.content[1] after other sizes are known
 
-    output.content[2 + loc_w.len] = CBOR_MAJOR_BYTE_STRING + enc_id.len as u8;
-    output.content[3 + loc_w.len..3 + loc_w.len + enc_id.len]
+    output.content[2] = CBOR_TEXT_STRING;
+    output.content[3] = loc_w.len as u8;
+    output.content[4..4 + loc_w.len].copy_from_slice(&loc_w.content[..loc_w.len]);
+
+    output.content[4 + loc_w.len] = CBOR_MAJOR_BYTE_STRING + enc_id.len as u8;
+    output.content[5 + loc_w.len..5 + loc_w.len + enc_id.len]
         .copy_from_slice(&enc_id.content[..enc_id.len]);
 
-    output.len = 3 + loc_w.len + enc_id.len;
+    output.len = 5 + loc_w.len + enc_id.len;
+    output.content[1] = (output.len - 2) as u8;
 
     output
 }
@@ -243,63 +247,60 @@ mod test_initiator {
     const K_1_TV: &[u8] = &hex!("95a90f115d8fc5252849a25ba5225575");
     const IV_1_TV: &[u8] = &hex!("083cb9a00da66af4f56877fcda");
 
-    const VOUCHER_INFO_TV: &[u8] =
-        &hex!("58305818636f61703a2f2f656e726f6c6c6d656e742e7365727665725536b4ce1137b5687354edfac67f12bf611be1aaa1c3");
+    const EAD1_VALUE_TV: &[u8] = &hex!(
+        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711"
+    );
 
     const SS_TV: u8 = 2;
 
     #[test]
-    fn test_compute_k_1_iv_1() {
-        let x: BytesP256ElemLen = X_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+    fn test_compute_keys() {
         let k_1_tv: BytesCcmKeyLen = K_1_TV.try_into().unwrap();
         let iv_1_tv: BytesCcmIvLen = IV_1_TV.try_into().unwrap();
         let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
 
-        let prk = hkdf_extract(&[0u8; SHA256_DIGEST_LEN], &p256_ecdh(&x, &g_w));
+        let prk = hkdf_extract(
+            &[0u8; SHA256_DIGEST_LEN],
+            &p256_ecdh(&X_TV.try_into().unwrap(), &G_W_TV.try_into().unwrap()),
+        );
         assert_eq!(prk, prk_tv);
 
         let (k_1, iv_1) = compute_k_1_iv_1(&prk);
-        assert_eq!(iv_1, iv_1_tv);
         assert_eq!(k_1, k_1_tv);
+        assert_eq!(iv_1, iv_1_tv);
     }
 
     #[test]
     fn test_build_enc_id() {
-        let x: BytesP256ElemLen = X_TV.try_into().unwrap();
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
-        let enc_id = build_enc_id(&x, &id_u, &g_w, SS_TV);
+        let enc_id = build_enc_id(
+            &X_TV.try_into().unwrap(),
+            &ID_U_TV.try_into().unwrap(),
+            &G_W_TV.try_into().unwrap(),
+            SS_TV,
+        );
         assert_eq!(enc_id.content, enc_id_tv.content);
     }
 
     #[test]
     fn test_prepare_ead_1() {
-        let x: BytesP256ElemLen = X_TV.try_into().unwrap();
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
-        let ead_1_value_tv: EdhocMessageBuffer = VOUCHER_INFO_TV.try_into().unwrap();
-        let ss: u8 = EDHOC_SUPPORTED_SUITES[0];
+        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
 
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
+        ead_initiator_set_global_state(EADInitiatorState::new(
+            ID_U_TV.try_into().unwrap(),
+            G_W_TV.try_into().unwrap(),
+            LOC_W_TV.try_into().unwrap(),
+        ));
 
-        let ead_1 = i_prepare_ead_1(&x, ss).unwrap();
+        let ead_1 = i_prepare_ead_1(&X_TV.try_into().unwrap(), SS_TV).unwrap();
         assert_eq!(
             ead_initiator_get_global_state().protocol_state,
             EADInitiatorProtocolState::WaitEAD2
         );
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
-
-        // FIXME: testing only loc_w in the absense of a ENC_ID test vector
-        assert_eq!(
-            ead_1.value.unwrap().content[0..loc_w.len + 2],
-            ead_1_value_tv.content[0..loc_w.len + 2]
-        );
-        // assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
+        assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
     }
 }
 
