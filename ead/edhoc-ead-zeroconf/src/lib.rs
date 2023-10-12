@@ -20,6 +20,8 @@ pub struct EADInitiatorState {
     pub(crate) id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub(crate) g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
+    pub(crate) prk: BytesHashLen,
+    pub(crate) voucher: BytesHashLen,
 }
 
 impl EADInitiatorState {
@@ -29,6 +31,8 @@ impl EADInitiatorState {
             id_u,
             g_w,
             loc_w,
+            prk: [0u8; SHA256_DIGEST_LEN],
+            voucher: [0u8; SHA256_DIGEST_LEN],
         }
     }
 }
@@ -48,6 +52,8 @@ static mut EAD_INITIATOR_GLOBAL_STATE: EADInitiatorState = EADInitiatorState {
         content: [0u8; MAX_MESSAGE_SIZE_LEN],
         len: 0,
     },
+    prk: [0u8; SHA256_DIGEST_LEN],
+    voucher: [0u8; SHA256_DIGEST_LEN],
 };
 pub fn ead_initiator_get_global_state() -> &'static EADInitiatorState {
     unsafe { &EAD_INITIATOR_GLOBAL_STATE }
@@ -67,7 +73,10 @@ pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
         return None;
     }
 
-    let enc_id = build_enc_id(x, &state.id_u, &state.g_w, ss);
+    // PRK = EDHOC-Extract(salt, IKM)
+    let prk = compute_prk(x, &state.g_w);
+
+    let enc_id = build_enc_id(&prk, &state.id_u, ss);
     let value = Some(encode_ead_1(&state.loc_w, &enc_id));
 
     let ead_1 = EADItem {
@@ -78,18 +87,25 @@ pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::WaitEAD2,
+        prk,
         ..ead_initiator_get_global_state_own()
     });
 
     Some(ead_1)
 }
 
-pub fn i_process_ead_2(_ead_2: EADItem) -> Result<(), ()> {
-    // TODO: verify the label
-    // TODO: verify the voucher
+pub fn i_process_ead_2(
+    ead_2: EADItem,
+    cred_v: &EdhocMessageBuffer,
+    h_message_1: &BytesHashLen,
+) -> Result<(), ()> {
+    let state = ead_initiator_get_global_state();
+
+    let voucher = verify_voucher(&ead_2.value.unwrap(), h_message_1, cred_v, &state.prk)?;
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::Completed,
+        voucher,
         ..ead_initiator_get_global_state_own()
     });
 
@@ -100,15 +116,37 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
     Some(EADItem::new())
 }
 
+fn parse_ead_2_value(ead_2_value: &Option<EdhocMessageBuffer>) -> Result<BytesHashLen, ()> {
+    let value = ead_2_value.unwrap();
+    let voucher: BytesHashLen = value.content[2..2 + SHA256_DIGEST_LEN].try_into().unwrap();
+
+    let enc_id: EdhocMessageBuffer = EdhocMessageBuffer::new();
+
+    Ok(voucher)
+}
+
+fn verify_voucher(
+    received_voucher: &EdhocMessageBuffer,
+    h_message_1: &BytesHashLen,
+    cred_v: &EdhocMessageBuffer,
+    prk: &BytesHashLen,
+) -> Result<BytesHashLen, ()> {
+    let computed_voucher = prepare_voucher(h_message_1, cred_v, prk);
+    if received_voucher.content == computed_voucher.content {
+        let mut voucher_mac: BytesHashLen = Default::default();
+        voucher_mac[..SHA256_DIGEST_LEN]
+            .copy_from_slice(&computed_voucher.content[2..2 + SHA256_DIGEST_LEN]);
+        return Ok(voucher_mac);
+    } else {
+        return Err(());
+    }
+}
+
 fn build_enc_id(
-    x: &BytesP256ElemLen, // ephemeral key of U
+    prk: &BytesHashLen, // ephemeral key of U
     id_u: &EdhocMessageBuffer,
-    g_w: &BytesP256ElemLen,
     ss: u8,
 ) -> EdhocMessageBuffer {
-    // PRK = EDHOC-Extract(salt, IKM)
-    let prk = compute_prk(x, g_w);
-
     let (k_1, iv_1) = compute_k_1_iv_1(&prk);
 
     // plaintext = (ID_U: bstr)
@@ -402,13 +440,21 @@ fn handle_voucher_request(
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
     let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
-    let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
-
     let prk = compute_prk(&w, &g_x);
-    let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
-    let voucher = encode_voucher(&voucher_mac);
 
-    Ok(encode_voucher_response(&message_1, &voucher, &opaque_state))
+    let voucher = prepare_voucher(&h_message_1, cred_v, &prk);
+    let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
+    Ok(voucher_response)
+}
+
+fn prepare_voucher(
+    h_message_1: &BytesHashLen,
+    cred_v: &EdhocMessageBuffer,
+    prk: &BytesP256ElemLen,
+) -> EdhocMessageBuffer {
+    let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
+    let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
+    encode_voucher(&voucher_mac)
 }
 
 fn parse_voucher_request(
@@ -586,11 +632,11 @@ mod test_initiator {
     #[test]
     fn test_build_enc_id() {
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
+        let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
 
         let enc_id = build_enc_id(
-            &X_TV.try_into().unwrap(),
+            &PRK_TV.try_into().unwrap(),
             &ID_U_TV.try_into().unwrap(),
-            &G_W_TV.try_into().unwrap(),
             SS_TV,
         );
         assert_eq!(enc_id.content, enc_id_tv.content);
@@ -614,6 +660,47 @@ mod test_initiator {
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
+    }
+
+    #[test]
+    fn test_verify_voucher() {
+        let voucher_tv = VOUCHER_TV.try_into().unwrap();
+        let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
+        let cred_v_tv = CRED_V_TV.try_into().unwrap();
+        let prk_tv = PRK_TV.try_into().unwrap();
+        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+
+        let res = verify_voucher(&voucher_tv, &h_message_1_tv, &cred_v_tv, &prk_tv);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), voucher_mac_tv);
+    }
+
+    #[test]
+    fn test_process_ead_2() {
+        let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
+        let cred_v_tv = CRED_V_TV.try_into().unwrap();
+        let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
+
+        let ead_2_tv = EADItem {
+            label: EAD_ZEROCONF_LABEL,
+            is_critical: true,
+            value: Some(ead_2_value_tv),
+        };
+
+        let mut state = EADInitiatorState::new(
+            ID_U_TV.try_into().unwrap(),
+            G_W_TV.try_into().unwrap(),
+            LOC_W_TV.try_into().unwrap(),
+        );
+        state.prk = PRK_TV.try_into().unwrap();
+        ead_initiator_set_global_state(state);
+
+        let res = i_process_ead_2(ead_2_tv, &cred_v_tv, &h_message_1_tv);
+        assert!(res.is_ok());
+        assert_eq!(
+            ead_initiator_get_global_state().protocol_state,
+            EADInitiatorProtocolState::Completed
+        );
     }
 }
 
@@ -739,10 +826,12 @@ mod test_enrollment_server {
 
     #[test]
     fn test_encode_voucher() {
-        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+        let h_message_1: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
+        let cred_v: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
+        let prk: BytesHashLen = PRK_TV.try_into().unwrap();
         let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
 
-        let voucher = encode_voucher(&voucher_mac_tv);
+        let voucher = prepare_voucher(&h_message_1, &cred_v, &prk);
         assert_eq!(voucher.content, voucher_tv.content);
     }
 

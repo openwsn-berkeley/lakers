@@ -207,7 +207,7 @@ pub fn r_prepare_message_2(
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, &th_2);
 
-        let ead_2 = r_prepare_ead_2();
+        let ead_2 = r_prepare_ead_2(&EdhocMessageBuffer::new());
 
         // compute ciphertext_2
         let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2);
@@ -488,7 +488,7 @@ pub fn i_process_message_2(
 
                 // Step 3: If EAD is present make it available to the application
                 let ead_success = if let Some(ead_2) = ead_2 {
-                    i_process_ead_2(ead_2).is_ok()
+                    i_process_ead_2(ead_2, cred_r_expected, &h_message_1).is_ok()
                 } else {
                     true
                 };
