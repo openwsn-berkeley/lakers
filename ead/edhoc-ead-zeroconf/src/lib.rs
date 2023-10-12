@@ -106,11 +106,7 @@ fn build_enc_id(
     ss: u8,
 ) -> EdhocMessageBuffer {
     // PRK = EDHOC-Extract(salt, IKM)
-    // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
-    //       using a larger but all-zeroes salt seems to generate the same result though.
-    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
-    let g_xw = p256_ecdh(x, g_w);
-    let prk = hkdf_extract(&salt, &g_xw);
+    let prk = compute_prk(x, g_w);
 
     let (k_1, iv_1) = compute_k_1_iv_1(&prk);
 
@@ -125,6 +121,14 @@ fn build_enc_id(
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
     aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
+}
+
+fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
+    // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
+    //       using a larger but all-zeroes salt seems to generate the same result though.
+    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
+    let g_ab = p256_ecdh(a, g_b);
+    hkdf_extract(&salt, &g_ab)
 }
 
 fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
@@ -270,7 +274,7 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
     if ead_1.label != EAD_ZEROCONF_LABEL {
         return Err(());
     }
-    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
+    let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
     let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
     // TODO: implement send_voucher_request(&loc_w, &voucher_request);
@@ -347,6 +351,8 @@ pub fn encode_voucher_request(
 fn handle_voucher_request(
     vreq: &EdhocMessageBuffer,
     cred_v: &EdhocMessageBuffer,
+    w: &BytesP256ElemLen,   // TODO: have w be in the state of W
+    g_x: &BytesP256ElemLen, // TODO: get g_x from message_1
 ) -> Result<(), ()> {
     let (message_1, opaque_state) = parse_voucher_request(vreq)?;
 
@@ -355,33 +361,14 @@ fn handle_voucher_request(
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
     let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
-    // let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
+    let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
 
-    // let voucher_content = compute_voucher_content(&voucher_input);
+    let prk = compute_prk(&w, &g_x);
+    let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
+    let voucher = encode_voucher(&voucher_mac);
 
-    // Ok(encode_voucher(&voucher_content))
+    // Ok(encode_voucher_response(&message_1, &voucher, &opaque_state))
     Ok(())
-}
-
-fn encode_voucher_input(
-    h_message_1: &EdhocMessageBuffer,
-    cred_v: &EdhocMessageBuffer,
-) -> EdhocMessageBuffer {
-    let mut voucher_input = EdhocMessageBuffer::new();
-
-    voucher_input.content[0] = CBOR_BYTE_STRING;
-    voucher_input.content[1] = h_message_1.len as u8;
-    voucher_input.content[2..2 + h_message_1.len]
-        .copy_from_slice(&h_message_1.content[..h_message_1.len]);
-
-    voucher_input.content[2 + h_message_1.len] = CBOR_BYTE_STRING;
-    voucher_input.content[3 + h_message_1.len] = cred_v.len as u8;
-    voucher_input.content[4 + h_message_1.len..4 + h_message_1.len + cred_v.len]
-        .copy_from_slice(&cred_v.content[..cred_v.len]);
-
-    voucher_input.len = 4 + h_message_1.len + cred_v.len;
-
-    voucher_input
 }
 
 fn parse_voucher_request(
@@ -408,6 +395,49 @@ fn parse_voucher_request(
     Ok((message_1, opaque_state))
 }
 
+fn encode_voucher_input(
+    h_message_1: &BytesHashLen,
+    cred_v: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
+    let mut voucher_input = EdhocMessageBuffer::new();
+
+    voucher_input.content[0] = CBOR_BYTE_STRING;
+    voucher_input.content[1] = SHA256_DIGEST_LEN as u8;
+    voucher_input.content[2..2 + SHA256_DIGEST_LEN]
+        .copy_from_slice(&h_message_1[..SHA256_DIGEST_LEN]);
+
+    voucher_input.content[2 + SHA256_DIGEST_LEN] = CBOR_BYTE_STRING;
+    voucher_input.content[3 + SHA256_DIGEST_LEN] = cred_v.len as u8;
+    voucher_input.content[4 + SHA256_DIGEST_LEN..4 + SHA256_DIGEST_LEN + cred_v.len]
+        .copy_from_slice(&cred_v.content[..cred_v.len]);
+
+    voucher_input.len = 4 + SHA256_DIGEST_LEN + cred_v.len;
+
+    voucher_input
+}
+
+fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -> BytesHashLen {
+    let mut voucher_mac: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
+
+    let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
+    context[..voucher_input.len].copy_from_slice(&voucher_input.content[..voucher_input.len]);
+
+    let voucher_mac_buf = edhoc_kdf(prk, 2, &context, voucher_input.len, SHA256_DIGEST_LEN);
+    voucher_mac[..SHA256_DIGEST_LEN].copy_from_slice(&voucher_mac_buf[..SHA256_DIGEST_LEN]);
+
+    voucher_mac
+}
+
+fn encode_voucher(voucher_mac: &BytesHashLen) -> EdhocMessageBuffer {
+    let mut voucher = EdhocMessageBuffer::new();
+    voucher.content[0] = CBOR_BYTE_STRING;
+    voucher.content[1] = SHA256_DIGEST_LEN as u8;
+    voucher.content[2..2 + SHA256_DIGEST_LEN].copy_from_slice(&voucher_mac[..SHA256_DIGEST_LEN]);
+    voucher.len = 2 + SHA256_DIGEST_LEN;
+
+    voucher
+}
+
 #[cfg(test)]
 mod test_vectors {
     use edhoc_consts::*;
@@ -418,11 +448,15 @@ mod test_vectors {
     pub const ID_U_TV: &[u8] = &hex!("a104412b");
     pub const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
+    pub const G_X_TV: &[u8] =
+        &hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
 
     // V
     pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 
     // W
+    pub const W_TV: &[u8] =
+        &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
     pub const G_W_TV: &[u8] =
         &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     pub const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
@@ -447,6 +481,10 @@ mod test_vectors {
     pub const H_MESSAGE_1_TV: &[u8] =
         &hex!("970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139");
     pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    pub const VOUCHER_MAC_TV: &[u8] =
+        &hex!("7409bf8d5eb7ff6a1ff8be5b6729b75b9b4a58df4593c90681306d4b6ce9ffb0");
+    pub const VOUCHER_TV: &[u8] =
+        &hex!("58207409bf8d5eb7ff6a1ff8be5b6729b75b9b4a58df4593c90681306d4b6ce9ffb0");
 }
 
 #[cfg(test)]
@@ -461,13 +499,12 @@ mod test_initiator {
         let iv_1_tv: BytesCcmIvLen = IV_1_TV.try_into().unwrap();
         let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
 
-        let prk = hkdf_extract(
-            &[0u8; SHA256_DIGEST_LEN],
-            &p256_ecdh(&X_TV.try_into().unwrap(), &G_W_TV.try_into().unwrap()),
-        );
-        assert_eq!(prk, prk_tv);
+        let prk_xw = compute_prk(&X_TV.try_into().unwrap(), &G_W_TV.try_into().unwrap());
+        let prk_wx = compute_prk(&W_TV.try_into().unwrap(), &G_X_TV.try_into().unwrap());
+        assert_eq!(prk_xw, prk_tv);
+        assert_eq!(prk_xw, prk_wx);
 
-        let (k_1, iv_1) = compute_k_1_iv_1(&prk);
+        let (k_1, iv_1) = compute_k_1_iv_1(&prk_xw);
         assert_eq!(k_1, k_1_tv);
         assert_eq!(iv_1, iv_1_tv);
     }
@@ -510,7 +547,6 @@ mod test_initiator {
 mod test_responder {
     use super::*;
     use edhoc_consts::*;
-    use hexlit::hex;
     use test_vectors::*;
 
     #[test]
@@ -560,7 +596,6 @@ mod test_responder {
 mod test_enrollment_server {
     use super::*;
     use edhoc_consts::*;
-    use hexlit::hex;
     use test_vectors::*;
 
     #[test]
@@ -578,12 +613,31 @@ mod test_enrollment_server {
 
     #[test]
     fn test_encode_voucher_input() {
-        let h_message_1_tv: EdhocMessageBuffer = H_MESSAGE_1_TV.try_into().unwrap();
+        let h_message_1_tv: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
         let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
 
         let voucher_input = encode_voucher_input(&h_message_1_tv, &cred_v_tv);
         assert_eq!(voucher_input.content, voucher_input_tv.content);
+    }
+
+    #[test]
+    fn test_compute_voucher_mac() {
+        let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
+        let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
+        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+
+        let voucher_mac = compute_voucher_mac(&prk_tv, &voucher_input_tv);
+        assert_eq!(voucher_mac, voucher_mac_tv);
+    }
+
+    #[test]
+    fn test_encode_voucher() {
+        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+
+        let voucher = encode_voucher(&voucher_mac_tv);
+        assert_eq!(voucher.content, voucher_tv.content);
     }
 
     #[test]
