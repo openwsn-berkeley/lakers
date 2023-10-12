@@ -260,28 +260,6 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
     }
 }
 
-pub fn encode_voucher_request(
-    message_1: &EdhocMessageBuffer,
-    opaque_state: &EdhocMessageBuffer,
-) -> EdhocMessageBuffer {
-    let mut output = EdhocMessageBuffer::new();
-
-    output.content[0] = CBOR_MAJOR_ARRAY | 2;
-
-    output.content[1] = CBOR_BYTE_STRING;
-    output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
-
-    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
-    output.content[4 + message_1.len] = opaque_state.len as u8;
-    output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
-        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
-
-    output.len = 5 + message_1.len + opaque_state.len;
-
-    output
-}
-
 // FIXME: receive opaque_state as parameter, but that requires changing the r_process_message_1 function signature
 use hexlit::hex;
 const OPAQUE_STATE_TV: &[u8] =
@@ -294,6 +272,7 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
     }
     let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
     let voucher_request = encode_voucher_request(message_1, &opaque_state);
+
     // TODO: implement send_voucher_request(&loc_w, &voucher_request);
 
     ead_responder_set_global_state(EADResponderState {
@@ -342,38 +321,132 @@ fn parse_ead_1_value(
     Ok((loc_w, enc_id))
 }
 
+pub fn encode_voucher_request(
+    message_1: &EdhocMessageBuffer,
+    opaque_state: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
+    let mut output = EdhocMessageBuffer::new();
+
+    output.content[0] = CBOR_MAJOR_ARRAY | 2;
+
+    output.content[1] = CBOR_BYTE_STRING;
+    output.content[2] = message_1.len as u8;
+    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+
+    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
+    output.content[4 + message_1.len] = opaque_state.len as u8;
+    output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
+        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+
+    output.len = 5 + message_1.len + opaque_state.len;
+
+    output
+}
+
+// enrollment server
+fn handle_voucher_request(
+    vreq: &EdhocMessageBuffer,
+    cred_v: &EdhocMessageBuffer,
+) -> Result<(), ()> {
+    let (message_1, opaque_state) = parse_voucher_request(vreq)?;
+
+    // // compute hash
+    let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+    message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+    let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+
+    // let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
+
+    // let voucher_content = compute_voucher_content(&voucher_input);
+
+    // Ok(encode_voucher(&voucher_content))
+    Ok(())
+}
+
+fn encode_voucher_input(
+    h_message_1: &EdhocMessageBuffer,
+    cred_v: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
+    let mut voucher_input = EdhocMessageBuffer::new();
+
+    voucher_input.content[0] = CBOR_BYTE_STRING;
+    voucher_input.content[1] = h_message_1.len as u8;
+    voucher_input.content[2..2 + h_message_1.len]
+        .copy_from_slice(&h_message_1.content[..h_message_1.len]);
+
+    voucher_input.content[2 + h_message_1.len] = CBOR_BYTE_STRING;
+    voucher_input.content[3 + h_message_1.len] = cred_v.len as u8;
+    voucher_input.content[4 + h_message_1.len..4 + h_message_1.len + cred_v.len]
+        .copy_from_slice(&cred_v.content[..cred_v.len]);
+
+    voucher_input.len = 4 + h_message_1.len + cred_v.len;
+
+    voucher_input
+}
+
+fn parse_voucher_request(
+    vreq: &EdhocMessageBuffer,
+) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
+    let mut message_1: EdhocMessageBuffer = EdhocMessageBuffer::new();
+    let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
+
+    if vreq.content[0] != (CBOR_MAJOR_ARRAY | 2) || vreq.content[1] != CBOR_BYTE_STRING {
+        return Err(());
+    }
+
+    message_1.len = vreq.content[2] as usize;
+    message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
+
+    if vreq.content[3 + message_1.len] != CBOR_BYTE_STRING {
+        return Err(());
+    }
+
+    opaque_state.len = vreq.content[4 + message_1.len] as usize;
+    opaque_state.content[..opaque_state.len]
+        .copy_from_slice(&vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len]);
+
+    Ok((message_1, opaque_state))
+}
+
 #[cfg(test)]
 mod test_vectors {
     use edhoc_consts::*;
     use hexlit::hex;
 
-    // common
-    pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711");
-
+    // inputs
     // U
-    pub const X_TV: BytesP256ElemLen =
-        hex!("A0C71BDBA570FFD270D90BDF416C142921F214406271FCF55B8567F079B50DA0");
     pub const ID_U_TV: &[u8] = &hex!("a104412b");
+    pub const X_TV: BytesP256ElemLen =
+        hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
 
     // V
-    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 
     // W
     pub const G_W_TV: &[u8] =
         &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     pub const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
 
-    pub const ENC_ID_TV: &[u8] = &hex!("71fb72788b180ebe332697d711");
-    pub const PRK_TV: &[u8] =
-        &hex!("04da32d221db25db701667f9d3903374a45a9b04f25d1cb481b099a480cece04");
-    pub const K_1_TV: &[u8] = &hex!("95a90f115d8fc5252849a25ba5225575");
-    pub const IV_1_TV: &[u8] = &hex!("083cb9a00da66af4f56877fcda");
-
-    pub const EAD1_VALUE_TV: &[u8] = &hex!(
-        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d71fb72788b180ebe332697d711"
-    );
-
+    // computed artifacts
+    // EAD_1
     pub const SS_TV: u8 = 2;
+    pub const ENC_ID_TV: &[u8] = &hex!("9a3155137f2be07ee91c51ec23");
+    pub const PRK_TV: &[u8] =
+        &hex!("d40f1601b577dbe7827bb3a20e0d16f7231c3a25225c1ed733f9094050d59666");
+    pub const K_1_TV: &[u8] = &hex!("6f2a9112801a5011aa33576b5c7862ad");
+    pub const IV_1_TV: &[u8] = &hex!("cd6676432b510ed2b7a7f7d5a7");
+    pub const EAD1_VALUE_TV: &[u8] = &hex!(
+        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23"
+    );
+    pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
+
+    // VREQ
+    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+
+    // VRES
+    pub const H_MESSAGE_1_TV: &[u8] =
+        &hex!("970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139");
+    pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 }
 
 #[cfg(test)]
@@ -480,5 +553,45 @@ mod test_responder {
             ead_responder_get_global_state().protocol_state,
             EADResponderProtocolState::ProcessedEAD1
         );
+    }
+}
+
+#[cfg(test)]
+mod test_enrollment_server {
+    use super::*;
+    use edhoc_consts::*;
+    use hexlit::hex;
+    use test_vectors::*;
+
+    #[test]
+    fn test_parse_voucher_request() {
+        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+
+        let voucher_request = parse_voucher_request(&voucher_request_tv);
+        assert!(voucher_request.is_ok());
+        let (message_1, opaque_state) = voucher_request.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(opaque_state.content, opaque_state_tv.content);
+    }
+
+    #[test]
+    fn test_encode_voucher_input() {
+        let h_message_1_tv: EdhocMessageBuffer = H_MESSAGE_1_TV.try_into().unwrap();
+        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
+        let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
+
+        let voucher_input = encode_voucher_input(&h_message_1_tv, &cred_v_tv);
+        assert_eq!(voucher_input.content, voucher_input_tv.content);
+    }
+
+    #[test]
+    fn test_handle_voucher_request() {
+        // let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
+        // let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+
+        // let voucher_response = handle_voucher_request(&voucher_request_tv);
+        // assert_eq!(voucher_response.content, voucher_response_tv.content);
     }
 }

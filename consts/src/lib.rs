@@ -6,7 +6,9 @@ pub use structs::*;
 mod consts {
     use super::structs::*;
 
-    pub const MAX_MESSAGE_SIZE_LEN: usize = 128; // need 128 to handle EAD fields
+    // TODO: find a way to configure the buffer size
+    // need 128 to handle EAD fields, and 256 for the EAD_1 voucher
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
     pub const MAX_EAD_SIZE_LEN: usize = 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
     pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
