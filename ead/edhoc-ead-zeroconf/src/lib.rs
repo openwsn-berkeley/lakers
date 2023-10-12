@@ -3,7 +3,8 @@
 use edhoc_consts::*;
 use edhoc_crypto::*;
 
-// initiator side
+// ---- initiator side (device)
+
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 pub enum EADInitiatorProtocolState {
     #[default]
@@ -228,7 +229,8 @@ fn encode_ead_1(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> Edho
     output
 }
 
-// responder side
+// ---- responder side (authenticator)
+
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
 pub enum EADResponderProtocolState {
     #[default]
@@ -264,7 +266,7 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
     }
 }
 
-// FIXME: receive opaque_state as parameter, but that requires changing the r_process_message_1 function signature
+// FIXME: do some plumbing to receive opaque_state as parameter
 use hexlit::hex;
 const OPAQUE_STATE_TV: &[u8] =
     &hex!("827819666538303a3a623833343a643630623a373936663a38646530198bed");
@@ -286,14 +288,15 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
     Ok(())
 }
 
-pub fn r_prepare_ead_2() -> Option<EADItem> {
+pub fn r_prepare_ead_2(voucher_response: &EdhocMessageBuffer) -> Option<EADItem> {
     let mut ead_2 = EADItem::new();
 
-    // add the label to the buffer (non-critical)
+    // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' already parsed
+    let (_message_1, voucher, _opaque_state) = parse_voucher_response(voucher_response).unwrap();
+
     ead_2.label = EAD_ZEROCONF_LABEL;
     ead_2.is_critical = true;
-
-    // TODO: append Voucher (H(message_1), CRED_V) to the buffer
+    ead_2.value = Some(voucher);
 
     // NOTE: see the note in lib.rs::test_ead
     // state.protocol_state = EADResponderProtocolState::WaitMessage3;
@@ -310,6 +313,43 @@ pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
     // state.protocol_state = EADResponderProtocolState::Completed;
 
     Ok(())
+}
+
+fn parse_voucher_response(
+    voucher_response: &EdhocMessageBuffer,
+) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer, EdhocMessageBuffer), ()> {
+    let mut message_1 = EdhocMessageBuffer::new();
+    let mut voucher = EdhocMessageBuffer::new();
+    let mut opaque_state = EdhocMessageBuffer::new();
+
+    let array_size = voucher_response.content[0] - CBOR_MAJOR_ARRAY;
+
+    if !(array_size == 2 || array_size == 3) || voucher_response.content[1] != CBOR_BYTE_STRING {
+        return Err(());
+    }
+
+    message_1.len = voucher_response.content[2] as usize;
+    message_1.content[..message_1.len]
+        .copy_from_slice(&voucher_response.content[3..3 + message_1.len]);
+
+    if voucher_response.content[3 + message_1.len] != CBOR_BYTE_STRING {
+        return Err(());
+    }
+    voucher.len = voucher_response.content[4 + message_1.len] as usize;
+    voucher.content[..voucher.len].copy_from_slice(
+        &voucher_response.content[5 + message_1.len..5 + message_1.len + voucher.len],
+    );
+
+    if voucher_response.content[5 + message_1.len + voucher.len] != CBOR_BYTE_STRING {
+        return Err(());
+    }
+    opaque_state.len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
+    opaque_state.content[..opaque_state.len].copy_from_slice(
+        &voucher_response.content
+            [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len],
+    );
+
+    Ok((message_1, voucher, opaque_state))
 }
 
 fn parse_ead_1_value(
@@ -347,7 +387,8 @@ pub fn encode_voucher_request(
     output
 }
 
-// enrollment server
+// ---- enrollment server side
+
 fn handle_voucher_request(
     vreq: &EdhocMessageBuffer,
     cred_v: &EdhocMessageBuffer,
@@ -514,6 +555,10 @@ mod test_vectors {
         &hex!("d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
     pub const VOUCHER_TV: &[u8] =
         &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
+
+    // EAD_2
+    pub const EAD2_VALUE_TV: &[u8] =
+        &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
 }
 
 #[cfg(test)]
@@ -618,6 +663,38 @@ mod test_responder {
             ead_responder_get_global_state().protocol_state,
             EADResponderProtocolState::ProcessedEAD1
         );
+    }
+
+    #[test]
+    fn test_parse_voucher_response() {
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+
+        let res = parse_voucher_response(&voucher_response_tv);
+        assert!(res.is_ok());
+        let (message_1, voucher, opaque_state) = res.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(voucher.content, voucher_tv.content);
+        assert_eq!(opaque_state.content, opaque_state_tv.content);
+    }
+
+    #[test]
+    fn test_r_prepare_ead_2() {
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
+
+        ead_responder_set_global_state(EADResponderState::new());
+
+        let ead_2 = r_prepare_ead_2(&voucher_response_tv).unwrap();
+        assert_eq!(
+            ead_responder_get_global_state().protocol_state,
+            EADResponderProtocolState::Completed
+        );
+        assert_eq!(ead_2.label, EAD_ZEROCONF_LABEL);
+        assert_eq!(ead_2.is_critical, true);
+        assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
     }
 }
 

@@ -681,7 +681,7 @@ fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
     return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
 }
 
-/// Check for: a bstr denoted by two bytes, onr for type the other for content length
+/// Check for: a bstr denoted by two bytes, one for type the other for content length
 #[inline(always)]
 fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
     return byte == CBOR_BYTE_STRING;
