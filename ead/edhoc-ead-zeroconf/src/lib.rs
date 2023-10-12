@@ -353,10 +353,10 @@ fn handle_voucher_request(
     cred_v: &EdhocMessageBuffer,
     w: &BytesP256ElemLen,   // TODO: have w be in the state of W
     g_x: &BytesP256ElemLen, // TODO: get g_x from message_1
-) -> Result<(), ()> {
+) -> Result<EdhocMessageBuffer, ()> {
     let (message_1, opaque_state) = parse_voucher_request(vreq)?;
 
-    // // compute hash
+    // compute hash
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
     let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
@@ -367,8 +367,7 @@ fn handle_voucher_request(
     let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
     let voucher = encode_voucher(&voucher_mac);
 
-    // Ok(encode_voucher_response(&message_1, &voucher, &opaque_state))
-    Ok(())
+    Ok(encode_voucher_response(&message_1, &voucher, &opaque_state))
 }
 
 fn parse_voucher_request(
@@ -438,6 +437,35 @@ fn encode_voucher(voucher_mac: &BytesHashLen) -> EdhocMessageBuffer {
     voucher
 }
 
+fn encode_voucher_response(
+    message_1: &EdhocMessageBuffer,
+    voucher: &EdhocMessageBuffer,
+    opaque_state: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
+    let mut output = EdhocMessageBuffer::new();
+
+    output.content[0] = CBOR_MAJOR_ARRAY | 3;
+
+    output.content[1] = CBOR_BYTE_STRING;
+    output.content[2] = message_1.len as u8;
+    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+
+    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
+    output.content[4 + message_1.len] = voucher.len as u8;
+    output.content[5 + message_1.len..5 + message_1.len + voucher.len]
+        .copy_from_slice(&voucher.content[..voucher.len]);
+
+    output.content[5 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
+    output.content[6 + message_1.len + voucher.len] = opaque_state.len as u8;
+    output.content
+        [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len]
+        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+
+    output.len = 7 + message_1.len + voucher.len + opaque_state.len;
+
+    output
+}
+
 #[cfg(test)]
 mod test_vectors {
     use edhoc_consts::*;
@@ -478,13 +506,14 @@ mod test_vectors {
     pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 
     // VRES
+    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
     pub const H_MESSAGE_1_TV: &[u8] =
-        &hex!("970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139");
-    pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820970e81d2e895926118ec650f718fb754937429fdb957122a64e952dbaee03139585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+        &hex!("c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb");
+    pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
     pub const VOUCHER_MAC_TV: &[u8] =
-        &hex!("7409bf8d5eb7ff6a1ff8be5b6729b75b9b4a58df4593c90681306d4b6ce9ffb0");
+        &hex!("d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
     pub const VOUCHER_TV: &[u8] =
-        &hex!("58207409bf8d5eb7ff6a1ff8be5b6729b75b9b4a58df4593c90681306d4b6ce9ffb0");
+        &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
 }
 
 #[cfg(test)]
@@ -641,11 +670,28 @@ mod test_enrollment_server {
     }
 
     #[test]
-    fn test_handle_voucher_request() {
-        // let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
-        // let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+    fn test_encode_voucher_response() {
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        // let voucher_response = handle_voucher_request(&voucher_request_tv);
-        // assert_eq!(voucher_response.content, voucher_response_tv.content);
+        let voucher_response =
+            encode_voucher_response(&message_1_tv, &voucher_tv, &opaque_state_tv);
+        assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+
+    #[test]
+    fn test_handle_voucher_request() {
+        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
+        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
+        let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
+        let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+
+        let res = handle_voucher_request(&voucher_request_tv, &cred_v_tv, &w_tv, &g_x_tv);
+        assert!(res.is_ok());
+        let voucher_response = res.unwrap();
+        assert_eq!(voucher_response.content, voucher_response_tv.content);
     }
 }
