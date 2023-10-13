@@ -2,12 +2,19 @@
 
 use edhoc_consts::*;
 
+// TODO: the function signatures should not be necessarily the same as the zeroconf version
+//       find a way to be generic on this part.
+
 // initiator side
-pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
+pub fn i_prepare_ead_1(_x: &BytesP256ElemLen, _ss: u8) -> Option<EADItem> {
     None
 }
 
-pub fn i_process_ead_2(ead_2: EADItem) -> Result<(), ()> {
+pub fn i_process_ead_2(
+    _ead_2: EADItem,
+    _cred_v_u8: &[u8],
+    _h_message_1: &BytesHashLen,
+) -> Result<(), ()> {
     Ok(())
 }
 
@@ -16,14 +23,14 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
 }
 
 // responder side
-pub fn r_process_ead_1(ead_1: EADItem) -> Result<(), ()> {
+pub fn r_process_ead_1(_ead_1: &EADItem, _message_1: &BufferMessage1) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn r_prepare_ead_2() -> Option<EADItem> {
+pub fn r_prepare_ead_2(_voucher_response: &Option<EdhocMessageBuffer>) -> Option<EADItem> {
     None
 }
 
-pub fn r_process_ead_3(ead_3: EADItem) -> Result<(), ()> {
+pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
     Ok(())
 }

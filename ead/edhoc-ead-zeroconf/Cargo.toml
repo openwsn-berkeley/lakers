@@ -13,6 +13,5 @@ hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = t
 hexlit = "0.5.3"
 
 [features]
-default = [ "crypto-psa" ]
 crypto-psa = [ "edhoc-crypto/psa" ]
 crypto-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]

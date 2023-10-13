@@ -96,12 +96,17 @@ pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
 
 pub fn i_process_ead_2(
     ead_2: EADItem,
-    cred_v: &EdhocMessageBuffer,
+    cred_v_u8: &[u8],
     h_message_1: &BytesHashLen,
 ) -> Result<(), ()> {
     let state = ead_initiator_get_global_state();
 
-    let voucher = verify_voucher(&ead_2.value.unwrap(), h_message_1, cred_v, &state.prk)?;
+    // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
+    let mut cred_v = EdhocMessageBuffer::new();
+    cred_v.len = cred_v_u8.len();
+    cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
+
+    let voucher = verify_voucher(&ead_2.value.unwrap(), h_message_1, &cred_v, &state.prk)?;
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::Completed,
@@ -322,23 +327,30 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
     Ok(())
 }
 
-pub fn r_prepare_ead_2(voucher_response: &EdhocMessageBuffer) -> Option<EADItem> {
-    let mut ead_2 = EADItem::new();
+pub fn r_prepare_ead_2(voucher_response: &Option<EdhocMessageBuffer>) -> Option<EADItem> {
+    let mut output: Option<EADItem> = None;
 
-    // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' already parsed
-    let (_message_1, voucher, _opaque_state) = parse_voucher_response(voucher_response).unwrap();
+    if let Some(voucher_response) = voucher_response {
+        let mut ead_2 = EADItem::new();
 
-    ead_2.label = EAD_ZEROCONF_LABEL;
-    ead_2.is_critical = true;
-    ead_2.value = Some(voucher);
+        // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' part, already parsed
+        let (_message_1, voucher, _opaque_state) =
+            parse_voucher_response(voucher_response).unwrap();
+
+        output = Some(EADItem {
+            label: EAD_ZEROCONF_LABEL,
+            is_critical: true,
+            value: Some(voucher),
+        });
+    }
 
     // NOTE: see the note in lib.rs::test_ead
-    // state.protocol_state = EADResponderProtocolState::WaitMessage3;
+    // set as completed even if the voucher response is not present
     ead_responder_set_global_state(EADResponderState {
         protocol_state: EADResponderProtocolState::Completed,
     });
 
-    Some(ead_2)
+    output
 }
 
 pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
@@ -362,11 +374,10 @@ fn parse_voucher_response(
     let mut message_1 = EdhocMessageBuffer::new();
     let mut voucher = EdhocMessageBuffer::new();
 
-    let array_size = voucher_response.content[0] - CBOR_MAJOR_ARRAY;
+    let array_byte = voucher_response.content[0];
+    let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
 
-    if !(array_size == 2 || array_size == 3)
-        || !is_cbor_bstr_2bytes_prefix(voucher_response.content[1])
-    {
+    if !(array_size == 2 || array_size == 3) {
         return Err(());
     }
 
@@ -475,7 +486,8 @@ fn parse_voucher_request(
 ) -> Result<(EdhocMessageBuffer, Option<EdhocMessageBuffer>), ()> {
     let mut message_1: EdhocMessageBuffer = EdhocMessageBuffer::new();
 
-    let array_size = vreq.content[0] - CBOR_MAJOR_ARRAY;
+    let array_byte = vreq.content[0];
+    let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
 
     if (array_size != 1 && array_size != 2) || !is_cbor_bstr_2bytes_prefix(vreq.content[1]) {
         return Err(());
@@ -714,7 +726,7 @@ mod test_initiator {
     #[test]
     fn test_process_ead_2() {
         let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
-        let cred_v_tv = CRED_V_TV.try_into().unwrap();
+        let cred_v_tv: &[u8] = CRED_V_TV.try_into().unwrap();
         let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
 
         let ead_2_tv = EADItem {
@@ -731,7 +743,7 @@ mod test_initiator {
         state.prk = PRK_TV.try_into().unwrap();
         ead_initiator_set_global_state(state);
 
-        let res = i_process_ead_2(ead_2_tv, &cred_v_tv, &h_message_1_tv);
+        let res = i_process_ead_2(ead_2_tv, cred_v_tv, &h_message_1_tv);
         assert!(res.is_ok());
         assert_eq!(
             ead_initiator_get_global_state().protocol_state,
@@ -808,7 +820,7 @@ mod test_responder {
 
         ead_responder_set_global_state(EADResponderState::new());
 
-        let ead_2 = r_prepare_ead_2(&voucher_response_tv).unwrap();
+        let ead_2 = r_prepare_ead_2(&Some(voucher_response_tv)).unwrap();
         assert_eq!(
             ead_responder_get_global_state().protocol_state,
             EADResponderProtocolState::Completed
