@@ -304,18 +304,14 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
     }
 }
 
-// FIXME: do some plumbing to receive opaque_state as parameter
-use hexlit::hex;
-const OPAQUE_STATE_TV: &[u8] =
-    &hex!("827819666538303a3a623833343a643630623a373936663a38646530198bed");
 pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<(), ()> {
-    let opaque_state: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+    let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
     if ead_1.label != EAD_ZEROCONF_LABEL {
         return Err(());
     }
     let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
-    let voucher_request = encode_voucher_request(message_1, &Some(opaque_state));
+    let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
     // TODO: implement send_voucher_request(&loc_w, &voucher_request);
 
@@ -419,13 +415,13 @@ pub fn encode_voucher_request(
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[0] = CBOR_MAJOR_ARRAY | 2;
-
     output.content[1] = CBOR_BYTE_STRING;
     output.content[2] = message_1.len as u8;
     output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
     if let Some(opaque_state) = opaque_state {
+        output.content[0] = CBOR_MAJOR_ARRAY | 2;
+
         output.content[3 + message_1.len] = CBOR_BYTE_STRING;
         output.content[4 + message_1.len] = opaque_state.len as u8;
         output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
@@ -433,6 +429,7 @@ pub fn encode_voucher_request(
 
         output.len = 5 + message_1.len + opaque_state.len;
     } else {
+        output.content[0] = CBOR_MAJOR_ARRAY | 1;
         output.len = 3 + message_1.len;
     }
 
@@ -551,8 +548,6 @@ fn encode_voucher_response(
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[0] = CBOR_MAJOR_ARRAY | 3;
-
     output.content[1] = CBOR_BYTE_STRING;
     output.content[2] = message_1.len as u8;
     output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
@@ -563,6 +558,8 @@ fn encode_voucher_response(
         .copy_from_slice(&voucher.content[..voucher.len]);
 
     if let Some(opaque_state) = opaque_state {
+        output.content[0] = CBOR_MAJOR_ARRAY | 3;
+
         output.content[5 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
         output.content[6 + message_1.len + voucher.len] = opaque_state.len as u8;
         output.content
@@ -571,6 +568,7 @@ fn encode_voucher_response(
 
         output.len = 7 + message_1.len + voucher.len + opaque_state.len;
     } else {
+        output.content[0] = CBOR_MAJOR_ARRAY | 2;
         output.len = 5 + message_1.len + voucher.len;
     }
 
@@ -614,10 +612,10 @@ mod test_vectors {
     pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
 
     // VREQ
-    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8158520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
 
     // VRES
-    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
     pub const H_MESSAGE_1_TV: &[u8] =
         &hex!("c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb");
     pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
@@ -629,6 +627,15 @@ mod test_vectors {
     // EAD_2
     pub const EAD2_VALUE_TV: &[u8] =
         &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
+
+    // ---- Traces for stateless operation (prefixed with SLO)
+    // VREQ
+    pub const OPAQUE_STATE_TV: &[u8] =
+        &hex!("827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const SLO_VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+
+    // VRES
+    pub const SLO_VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 }
 
 #[cfg(test)]
@@ -686,6 +693,9 @@ mod test_initiator {
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
     }
 
+    // stateful operation tests
+
+    // stateless operation tests
     #[test]
     fn test_verify_voucher() {
         let voucher_tv = VOUCHER_TV.try_into().unwrap();
@@ -748,10 +758,9 @@ mod test_responder {
     #[test]
     fn test_encode_voucher_request() {
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
 
-        let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
+        let voucher_request = encode_voucher_request(&message_1_tv, &None);
         assert_eq!(voucher_request.content, voucher_request_tv.content);
     }
 
@@ -781,14 +790,13 @@ mod test_responder {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1.content, message_1_tv.content);
         assert_eq!(voucher.content, voucher_tv.content);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+        assert!(opaque_state.is_none());
     }
 
     #[test]
@@ -807,6 +815,32 @@ mod test_responder {
         assert_eq!(ead_2.is_critical, true);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
     }
+
+    // tests for the statelss operation mode
+    #[test]
+    fn slo_test_encode_voucher_request() {
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
+
+        let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
+        assert_eq!(voucher_request.content, voucher_request_tv.content);
+    }
+
+    #[test]
+    fn slo_test_parse_voucher_response() {
+        let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+
+        let res = parse_voucher_response(&voucher_response_tv);
+        assert!(res.is_ok());
+        let (message_1, voucher, opaque_state) = res.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(voucher.content, voucher_tv.content);
+        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+    }
 }
 
 #[cfg(test)]
@@ -814,19 +848,6 @@ mod test_enrollment_server {
     use super::*;
     use edhoc_consts::*;
     use test_vectors::*;
-
-    #[test]
-    fn test_parse_voucher_request() {
-        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
-
-        let voucher_request = parse_voucher_request(&voucher_request_tv);
-        assert!(voucher_request.is_ok());
-        let (message_1, opaque_state) = voucher_request.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
-    }
 
     #[test]
     fn test_encode_voucher_input() {
@@ -864,11 +885,23 @@ mod test_enrollment_server {
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
-        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
         let voucher_response =
             encode_voucher_response(&message_1_tv, &voucher_tv, &Some(opaque_state_tv));
         assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+
+    #[test]
+    fn test_parse_voucher_request() {
+        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+
+        let voucher_request = parse_voucher_request(&voucher_request_tv);
+        assert!(voucher_request.is_ok());
+        let (message_1, opaque_state) = voucher_request.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert!(opaque_state.is_none());
     }
 
     #[test]
@@ -878,6 +911,34 @@ mod test_enrollment_server {
         let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+
+        let res = handle_voucher_request(&voucher_request_tv, &cred_v_tv, &w_tv, &g_x_tv);
+        assert!(res.is_ok());
+        let voucher_response = res.unwrap();
+        assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+
+    // tests for the statelss operation mode
+    #[test]
+    fn slo_test_parse_voucher_request() {
+        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+
+        let voucher_request = parse_voucher_request(&voucher_request_tv);
+        assert!(voucher_request.is_ok());
+        let (message_1, opaque_state) = voucher_request.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+    }
+
+    #[test]
+    fn slo_test_handle_voucher_request() {
+        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
+        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
+        let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
+        let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
+        let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
         let res = handle_voucher_request(&voucher_request_tv, &cred_v_tv, &w_tv, &g_x_tv);
         assert!(res.is_ok());
