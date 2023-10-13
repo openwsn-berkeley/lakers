@@ -364,7 +364,9 @@ fn parse_voucher_response(
 
     let array_size = voucher_response.content[0] - CBOR_MAJOR_ARRAY;
 
-    if !(array_size == 2 || array_size == 3) || voucher_response.content[1] != CBOR_BYTE_STRING {
+    if !(array_size == 2 || array_size == 3)
+        || !is_cbor_bstr_2bytes_prefix(voucher_response.content[1])
+    {
         return Err(());
     }
 
@@ -381,7 +383,7 @@ fn parse_voucher_response(
     );
 
     if array_size == 3 {
-        if voucher_response.content[5 + message_1.len + voucher.len] != CBOR_BYTE_STRING {
+        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[5 + message_1.len + voucher.len]) {
             return Err(());
         }
         let mut opaque_state = EdhocMessageBuffer::new();
@@ -475,7 +477,7 @@ fn parse_voucher_request(
 
     let array_size = vreq.content[0] - CBOR_MAJOR_ARRAY;
 
-    if (array_size != 1 && array_size != 2) || vreq.content[1] != CBOR_BYTE_STRING {
+    if (array_size != 1 && array_size != 2) || !is_cbor_bstr_2bytes_prefix(vreq.content[1]) {
         return Err(());
     }
 
@@ -483,7 +485,7 @@ fn parse_voucher_request(
     message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
 
     if array_size == 2 {
-        if vreq.content[3 + message_1.len] != CBOR_BYTE_STRING {
+        if !is_cbor_bstr_2bytes_prefix(vreq.content[3 + message_1.len]) {
             return Err(());
         }
         let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();

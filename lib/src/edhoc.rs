@@ -657,42 +657,6 @@ pub fn construct_state(
     )
 }
 
-/// Check for: an unsigned integer encoded as a single byte
-#[inline(always)]
-fn is_cbor_uint_1byte(byte: u8) -> bool {
-    return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
-}
-
-/// Check for: an unsigned integer encoded as two bytes
-#[inline(always)]
-fn is_cbor_uint_2bytes(byte: u8) -> bool {
-    return byte == CBOR_UINT_1BYTE;
-}
-
-/// Check for: a negative integer encoded as a single byte
-#[inline(always)]
-fn is_cbor_neg_int_1byte(byte: u8) -> bool {
-    return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
-}
-
-/// Check for: a bstr denoted by a single byte which encodes both type and content length
-#[inline(always)]
-fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
-    return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
-}
-
-/// Check for: a bstr denoted by two bytes, one for type the other for content length
-#[inline(always)]
-fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
-    return byte == CBOR_BYTE_STRING;
-}
-
-/// Check for: an array denoted by a single byte which encodes both type and content length
-#[inline(always)]
-fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
-    return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
-}
-
 fn parse_suites_i(
     rcvd_message_1: &BufferMessage1,
 ) -> Result<(BytesSuites, usize, usize), EDHOCError> {
