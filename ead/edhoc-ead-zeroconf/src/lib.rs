@@ -315,7 +315,7 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
         return Err(());
     }
     let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
-    let voucher_request = encode_voucher_request(message_1, &opaque_state);
+    let voucher_request = encode_voucher_request(message_1, &Some(opaque_state));
 
     // TODO: implement send_voucher_request(&loc_w, &voucher_request);
 
@@ -355,10 +355,16 @@ pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
 
 fn parse_voucher_response(
     voucher_response: &EdhocMessageBuffer,
-) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer, EdhocMessageBuffer), ()> {
+) -> Result<
+    (
+        EdhocMessageBuffer,
+        EdhocMessageBuffer,
+        Option<EdhocMessageBuffer>,
+    ),
+    (),
+> {
     let mut message_1 = EdhocMessageBuffer::new();
     let mut voucher = EdhocMessageBuffer::new();
-    let mut opaque_state = EdhocMessageBuffer::new();
 
     let array_size = voucher_response.content[0] - CBOR_MAJOR_ARRAY;
 
@@ -378,16 +384,20 @@ fn parse_voucher_response(
         &voucher_response.content[5 + message_1.len..5 + message_1.len + voucher.len],
     );
 
-    if voucher_response.content[5 + message_1.len + voucher.len] != CBOR_BYTE_STRING {
-        return Err(());
+    if array_size == 3 {
+        if voucher_response.content[5 + message_1.len + voucher.len] != CBOR_BYTE_STRING {
+            return Err(());
+        }
+        let mut opaque_state = EdhocMessageBuffer::new();
+        opaque_state.len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
+        opaque_state.content[..opaque_state.len].copy_from_slice(
+            &voucher_response.content[7 + message_1.len + voucher.len
+                ..7 + message_1.len + voucher.len + opaque_state.len],
+        );
+        return Ok((message_1, voucher, Some(opaque_state)));
+    } else {
+        return Ok((message_1, voucher, None));
     }
-    opaque_state.len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
-    opaque_state.content[..opaque_state.len].copy_from_slice(
-        &voucher_response.content
-            [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len],
-    );
-
-    Ok((message_1, voucher, opaque_state))
 }
 
 fn parse_ead_1_value(
@@ -405,7 +415,7 @@ fn parse_ead_1_value(
 
 pub fn encode_voucher_request(
     message_1: &EdhocMessageBuffer,
-    opaque_state: &EdhocMessageBuffer,
+    opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
@@ -415,12 +425,16 @@ pub fn encode_voucher_request(
     output.content[2] = message_1.len as u8;
     output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
-    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
-    output.content[4 + message_1.len] = opaque_state.len as u8;
-    output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
-        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+    if let Some(opaque_state) = opaque_state {
+        output.content[3 + message_1.len] = CBOR_BYTE_STRING;
+        output.content[4 + message_1.len] = opaque_state.len as u8;
+        output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
+            .copy_from_slice(&opaque_state.content[..opaque_state.len]);
 
-    output.len = 5 + message_1.len + opaque_state.len;
+        output.len = 5 + message_1.len + opaque_state.len;
+    } else {
+        output.len = 3 + message_1.len;
+    }
 
     output
 }
@@ -459,26 +473,32 @@ fn prepare_voucher(
 
 fn parse_voucher_request(
     vreq: &EdhocMessageBuffer,
-) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
+) -> Result<(EdhocMessageBuffer, Option<EdhocMessageBuffer>), ()> {
     let mut message_1: EdhocMessageBuffer = EdhocMessageBuffer::new();
-    let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
 
-    if vreq.content[0] != (CBOR_MAJOR_ARRAY | 2) || vreq.content[1] != CBOR_BYTE_STRING {
+    let array_size = vreq.content[0] - CBOR_MAJOR_ARRAY;
+
+    if (array_size != 1 && array_size != 2) || vreq.content[1] != CBOR_BYTE_STRING {
         return Err(());
     }
 
     message_1.len = vreq.content[2] as usize;
     message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
 
-    if vreq.content[3 + message_1.len] != CBOR_BYTE_STRING {
-        return Err(());
+    if array_size == 2 {
+        if vreq.content[3 + message_1.len] != CBOR_BYTE_STRING {
+            return Err(());
+        }
+        let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
+        opaque_state.len = vreq.content[4 + message_1.len] as usize;
+        opaque_state.content[..opaque_state.len].copy_from_slice(
+            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len],
+        );
+
+        Ok((message_1, Some(opaque_state)))
+    } else {
+        Ok((message_1, None))
     }
-
-    opaque_state.len = vreq.content[4 + message_1.len] as usize;
-    opaque_state.content[..opaque_state.len]
-        .copy_from_slice(&vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len]);
-
-    Ok((message_1, opaque_state))
 }
 
 fn encode_voucher_input(
@@ -527,7 +547,7 @@ fn encode_voucher(voucher_mac: &BytesHashLen) -> EdhocMessageBuffer {
 fn encode_voucher_response(
     message_1: &EdhocMessageBuffer,
     voucher: &EdhocMessageBuffer,
-    opaque_state: &EdhocMessageBuffer,
+    opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
@@ -542,13 +562,17 @@ fn encode_voucher_response(
     output.content[5 + message_1.len..5 + message_1.len + voucher.len]
         .copy_from_slice(&voucher.content[..voucher.len]);
 
-    output.content[5 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
-    output.content[6 + message_1.len + voucher.len] = opaque_state.len as u8;
-    output.content
-        [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len]
-        .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+    if let Some(opaque_state) = opaque_state {
+        output.content[5 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
+        output.content[6 + message_1.len + voucher.len] = opaque_state.len as u8;
+        output.content
+            [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len]
+            .copy_from_slice(&opaque_state.content[..opaque_state.len]);
 
-    output.len = 7 + message_1.len + voucher.len + opaque_state.len;
+        output.len = 7 + message_1.len + voucher.len + opaque_state.len;
+    } else {
+        output.len = 5 + message_1.len + voucher.len;
+    }
 
     output
 }
@@ -727,7 +751,7 @@ mod test_responder {
         let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
 
-        let voucher_request = encode_voucher_request(&message_1_tv, &opaque_state_tv);
+        let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
         assert_eq!(voucher_request.content, voucher_request_tv.content);
     }
 
@@ -764,7 +788,7 @@ mod test_responder {
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1.content, message_1_tv.content);
         assert_eq!(voucher.content, voucher_tv.content);
-        assert_eq!(opaque_state.content, opaque_state_tv.content);
+        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
     }
 
     #[test]
@@ -801,7 +825,7 @@ mod test_enrollment_server {
         assert!(voucher_request.is_ok());
         let (message_1, opaque_state) = voucher_request.unwrap();
         assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(opaque_state.content, opaque_state_tv.content);
+        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
     }
 
     #[test]
@@ -843,7 +867,7 @@ mod test_enrollment_server {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
         let voucher_response =
-            encode_voucher_response(&message_1_tv, &voucher_tv, &opaque_state_tv);
+            encode_voucher_response(&message_1_tv, &voucher_tv, &Some(opaque_state_tv));
         assert_eq!(voucher_response.content, voucher_response_tv.content);
     }
 
