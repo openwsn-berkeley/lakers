@@ -99,6 +99,11 @@ pub fn i_process_ead_2(
     cred_v_u8: &[u8],
     h_message_1: &BytesHashLen,
 ) -> Result<(), ()> {
+    if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
+        return Err(());
+    }
+    let ead_2_value = ead_2.value.unwrap();
+
     let state = ead_initiator_get_global_state();
 
     // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
@@ -106,7 +111,7 @@ pub fn i_process_ead_2(
     cred_v.len = cred_v_u8.len();
     cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
 
-    let voucher = verify_voucher(&ead_2.value.unwrap(), h_message_1, &cred_v, &state.prk)?;
+    let voucher = verify_voucher(&ead_2_value, h_message_1, &cred_v, &state.prk)?;
 
     ead_initiator_set_global_state(EADInitiatorState {
         protocol_state: EADInitiatorProtocolState::Completed,
@@ -119,15 +124,6 @@ pub fn i_process_ead_2(
 
 pub fn i_prepare_ead_3() -> Option<EADItem> {
     Some(EADItem::new())
-}
-
-fn parse_ead_2_value(ead_2_value: &Option<EdhocMessageBuffer>) -> Result<BytesHashLen, ()> {
-    let value = ead_2_value.unwrap();
-    let voucher: BytesHashLen = value.content[2..2 + SHA256_DIGEST_LEN].try_into().unwrap();
-
-    let enc_id: EdhocMessageBuffer = EdhocMessageBuffer::new();
-
-    Ok(voucher)
 }
 
 fn verify_voucher(
@@ -312,11 +308,13 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
 pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<(), ()> {
     let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
-    if ead_1.label != EAD_ZEROCONF_LABEL {
+    if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
         return Err(());
     }
-    let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1.value)?;
-    let voucher_request = encode_voucher_request(message_1, &opaque_state);
+    let ead_1_value = ead_1.value.unwrap();
+
+    let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1_value)?;
+    let _voucher_request = encode_voucher_request(message_1, &opaque_state);
 
     // TODO: implement send_voucher_request(&loc_w, &voucher_request);
 
@@ -331,8 +329,6 @@ pub fn r_prepare_ead_2(voucher_response: &Option<EdhocMessageBuffer>) -> Option<
     let mut output: Option<EADItem> = None;
 
     if let Some(voucher_response) = voucher_response {
-        let mut ead_2 = EADItem::new();
-
         // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' part, already parsed
         let (_message_1, voucher, _opaque_state) =
             parse_voucher_response(voucher_response).unwrap();
@@ -410,9 +406,8 @@ fn parse_voucher_response(
 }
 
 fn parse_ead_1_value(
-    ead_1_value: &Option<EdhocMessageBuffer>,
+    value: &EdhocMessageBuffer,
 ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
-    let value = ead_1_value.unwrap();
     let loc_w: EdhocMessageBuffer = value.content[4..4 + value.content[3] as usize]
         .try_into()
         .unwrap();
@@ -763,7 +758,7 @@ mod test_responder {
         let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
         let loc_w_tv: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
 
-        let res = parse_ead_1_value(&Some(ead_1_value_tv));
+        let res = parse_ead_1_value(&ead_1_value_tv);
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
         assert_eq!(loc_w.content, loc_w_tv.content);
