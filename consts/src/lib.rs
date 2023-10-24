@@ -23,7 +23,8 @@ mod consts {
     pub const AES_CCM_KEY_LEN: usize = 16;
     pub const AES_CCM_IV_LEN: usize = 13;
     pub const AES_CCM_TAG_LEN: usize = 8;
-    pub const MAC_LENGTH_2: usize = 8;
+    pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
+    pub const MAC_LENGTH_2: usize = MAC_LENGTH;
     pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 
     // maximum supported length of connection identifier for R
@@ -225,6 +226,12 @@ mod cbor {
     #[inline(always)]
     pub fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
         return byte == CBOR_BYTE_STRING;
+    }
+
+    /// Check for: a tstr denoted by two bytes, one for type the other for content length
+    #[inline(always)]
+    pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
+        return byte == CBOR_TEXT_STRING;
     }
 
     /// Check for: an array denoted by a single byte which encodes both type and content length

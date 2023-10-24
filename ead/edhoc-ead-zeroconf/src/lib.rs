@@ -77,7 +77,7 @@ pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
     let prk = compute_prk(x, &state.g_w);
 
     let enc_id = build_enc_id(&prk, &state.id_u, ss);
-    let value = Some(encode_ead_1(&state.loc_w, &enc_id));
+    let value = Some(encode_ead_1_value(&state.loc_w, &enc_id));
 
     let ead_1 = EADItem {
         label: EAD_ZEROCONF_LABEL,
@@ -248,7 +248,10 @@ fn edhoc_kdf(
     output
 }
 
-fn encode_ead_1(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EdhocMessageBuffer {
+fn encode_ead_1_value(
+    loc_w: &EdhocMessageBuffer,
+    enc_id: &EdhocMessageBuffer,
+) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
     output.content[0] = CBOR_BYTE_STRING;
@@ -373,28 +376,41 @@ fn parse_voucher_response(
     let array_byte = voucher_response.content[0];
     let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
 
-    if !(array_size == 2 || array_size == 3) {
+    if array_size != 2 && array_size != 3 {
         return Err(());
     }
 
-    message_1.len = voucher_response.content[2] as usize;
+    let message_1_len = voucher_response.content[2] as usize;
+    if !is_cbor_bstr_2bytes_prefix(voucher_response.content[1])
+        || message_1_len > (voucher_response.len - MAC_LENGTH)
+    {
+        return Err(());
+    }
+    message_1.len = message_1_len;
     message_1.content[..message_1.len]
         .copy_from_slice(&voucher_response.content[3..3 + message_1.len]);
 
-    if voucher_response.content[3 + message_1.len] != CBOR_BYTE_STRING {
+    let voucher_len = voucher_response.content[4 + message_1.len] as usize;
+    if !is_cbor_bstr_2bytes_prefix(voucher_response.content[3 + message_1.len])
+        || voucher_len > (voucher_response.len - message_1.len)
+    // TODO: actually check that voucher_len == MAC_LENGTH
+    {
         return Err(());
     }
-    voucher.len = voucher_response.content[4 + message_1.len] as usize;
+    voucher.len = voucher_len;
     voucher.content[..voucher.len].copy_from_slice(
         &voucher_response.content[5 + message_1.len..5 + message_1.len + voucher.len],
     );
 
     if array_size == 3 {
-        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[5 + message_1.len + voucher.len]) {
+        let opaque_state_len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
+        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[5 + message_1.len + voucher.len])
+            || opaque_state_len > (voucher_response.len - voucher.len - message_1.len)
+        {
             return Err(());
         }
         let mut opaque_state = EdhocMessageBuffer::new();
-        opaque_state.len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
+        opaque_state.len = opaque_state_len;
         opaque_state.content[..opaque_state.len].copy_from_slice(
             &voucher_response.content[7 + message_1.len + voucher.len
                 ..7 + message_1.len + voucher.len + opaque_state.len],
@@ -408,11 +424,28 @@ fn parse_voucher_response(
 fn parse_ead_1_value(
     value: &EdhocMessageBuffer,
 ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
-    let loc_w: EdhocMessageBuffer = value.content[4..4 + value.content[3] as usize]
+    let value_len = value.content[1] as usize;
+    if !is_cbor_bstr_2bytes_prefix(value.content[0]) || value_len != (value.len - 2) {
+        return Err(());
+    }
+
+    let loc_w_len = value.content[3] as usize;
+    if !is_cbor_tstr_2bytes_prefix(value.content[2]) || loc_w_len >= value_len {
+        return Err(());
+    }
+
+    let loc_w: EdhocMessageBuffer = value.content[4..4 + loc_w_len].try_into().unwrap();
+
+    let enc_id_len = (value.content[4 + loc_w_len] - CBOR_MAJOR_BYTE_STRING) as usize;
+    if !is_cbor_bstr_1byte_prefix(value.content[4 + loc_w_len])
+        || enc_id_len >= (value_len - loc_w_len)
+    {
+        return Err(());
+    }
+
+    let enc_id: EdhocMessageBuffer = value.content[5 + loc_w_len..5 + loc_w_len + enc_id_len]
         .try_into()
         .unwrap();
-
-    let enc_id: EdhocMessageBuffer = EdhocMessageBuffer::new();
 
     Ok((loc_w, enc_id))
 }
@@ -484,19 +517,26 @@ fn parse_voucher_request(
     let array_byte = vreq.content[0];
     let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
 
-    if (array_size != 1 && array_size != 2) || !is_cbor_bstr_2bytes_prefix(vreq.content[1]) {
+    if array_size != 1 && array_size != 2 {
         return Err(());
     }
 
-    message_1.len = vreq.content[2] as usize;
+    let message_1_len = vreq.content[2] as usize;
+    if !is_cbor_bstr_2bytes_prefix(vreq.content[1]) || message_1_len > vreq.len {
+        return Err(());
+    }
+    message_1.len = message_1_len;
     message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
 
     if array_size == 2 {
-        if !is_cbor_bstr_2bytes_prefix(vreq.content[3 + message_1.len]) {
+        let opaque_state_len = vreq.content[4 + message_1.len] as usize;
+        if !is_cbor_bstr_2bytes_prefix(vreq.content[3 + message_1.len])
+            || opaque_state_len > (vreq.len - message_1.len)
+        {
             return Err(());
         }
         let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
-        opaque_state.len = vreq.content[4 + message_1.len] as usize;
+        opaque_state.len = opaque_state_len;
         opaque_state.content[..opaque_state.len].copy_from_slice(
             &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len],
         );
@@ -672,7 +712,6 @@ mod test_initiator {
     #[test]
     fn test_build_enc_id() {
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
-        let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
 
         let enc_id = build_enc_id(
             &PRK_TV.try_into().unwrap(),
@@ -757,11 +796,13 @@ mod test_responder {
     fn test_parse_ead_1_value() {
         let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
         let loc_w_tv: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
+        let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
         let res = parse_ead_1_value(&ead_1_value_tv);
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
         assert_eq!(loc_w.content, loc_w_tv.content);
+        assert_eq!(enc_id.content, enc_id_tv.content);
     }
 
     #[test]
