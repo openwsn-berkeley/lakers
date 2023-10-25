@@ -29,6 +29,7 @@ mod consts {
     pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
     pub const MAC_LENGTH_2: usize = MAC_LENGTH;
     pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
+    pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
     // maximum supported length of connection identifier for R
     pub const MAX_KDF_CONTEXT_LEN: usize = 150;
@@ -69,6 +70,7 @@ mod structs {
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
     pub type BufferPlaintext2 = EdhocMessageBuffer;
     pub type BufferPlaintext3 = EdhocMessageBuffer;
+    pub type BytesMac = [u8; MAC_LENGTH];
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
     pub type BufferMessage1 = EdhocMessageBuffer;

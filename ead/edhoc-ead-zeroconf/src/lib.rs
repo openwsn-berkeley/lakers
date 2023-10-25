@@ -21,7 +21,7 @@ pub struct EADInitiatorState {
     pub(crate) g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
     pub(crate) prk: BytesHashLen,
-    pub(crate) voucher: BytesHashLen,
+    pub(crate) voucher: BytesMac,
 }
 
 impl EADInitiatorState {
@@ -32,7 +32,7 @@ impl EADInitiatorState {
             g_w,
             loc_w,
             prk: [0u8; SHA256_DIGEST_LEN],
-            voucher: [0u8; SHA256_DIGEST_LEN],
+            voucher: [0u8; MAC_LENGTH],
         }
     }
 }
@@ -53,7 +53,7 @@ static mut EAD_INITIATOR_GLOBAL_STATE: EADInitiatorState = EADInitiatorState {
         len: 0,
     },
     prk: [0u8; SHA256_DIGEST_LEN],
-    voucher: [0u8; SHA256_DIGEST_LEN],
+    voucher: [0u8; MAC_LENGTH],
 };
 pub fn ead_initiator_get_global_state() -> &'static EADInitiatorState {
     unsafe { &EAD_INITIATOR_GLOBAL_STATE }
@@ -131,12 +131,11 @@ fn verify_voucher(
     h_message_1: &BytesHashLen,
     cred_v: &EdhocMessageBuffer,
     prk: &BytesHashLen,
-) -> Result<BytesHashLen, ()> {
+) -> Result<BytesMac, ()> {
     let computed_voucher = prepare_voucher(h_message_1, cred_v, prk);
     if received_voucher.content == computed_voucher.content {
-        let mut voucher_mac: BytesHashLen = Default::default();
-        voucher_mac[..SHA256_DIGEST_LEN]
-            .copy_from_slice(&computed_voucher.content[2..2 + SHA256_DIGEST_LEN]);
+        let mut voucher_mac: BytesMac = Default::default();
+        voucher_mac[..MAC_LENGTH].copy_from_slice(&computed_voucher.content[1..1 + MAC_LENGTH]);
         return Ok(voucher_mac);
     } else {
         return Err(());
@@ -394,7 +393,7 @@ fn parse_voucher_response(
 
     let message_1_len = voucher_response.content[2] as usize;
     if !is_cbor_bstr_2bytes_prefix(voucher_response.content[1])
-        || message_1_len > (voucher_response.len - MAC_LENGTH)
+        || message_1_len > (voucher_response.len - ENCODED_VOUCHER_LEN)
     {
         return Err(());
     }
@@ -402,21 +401,19 @@ fn parse_voucher_response(
     message_1.content[..message_1.len]
         .copy_from_slice(&voucher_response.content[3..3 + message_1.len]);
 
-    let voucher_len = voucher_response.content[4 + message_1.len] as usize;
-    if !is_cbor_bstr_2bytes_prefix(voucher_response.content[3 + message_1.len])
-        || voucher_len > (voucher_response.len - message_1.len)
-    // TODO: actually check that voucher_len == MAC_LENGTH
-    {
+    let voucher_byte = voucher_response.content[3 + message_1.len];
+    let voucher_len = (voucher_byte - (voucher_byte & CBOR_MAJOR_BYTE_STRING)) as usize;
+    if !is_cbor_bstr_1byte_prefix(voucher_byte) || voucher_len != ENCODED_VOUCHER_LEN {
         return Err(());
     }
     voucher.len = voucher_len;
     voucher.content[..voucher.len].copy_from_slice(
-        &voucher_response.content[5 + message_1.len..5 + message_1.len + voucher.len],
+        &voucher_response.content[4 + message_1.len..4 + message_1.len + voucher.len],
     );
 
     if array_size == 3 {
-        let opaque_state_len = voucher_response.content[6 + message_1.len + voucher.len] as usize;
-        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[5 + message_1.len + voucher.len])
+        let opaque_state_len = voucher_response.content[5 + message_1.len + voucher.len] as usize;
+        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[4 + message_1.len + voucher.len])
             || opaque_state_len > (voucher_response.len - voucher.len - message_1.len)
         {
             return Err(());
@@ -424,8 +421,8 @@ fn parse_voucher_response(
         let mut opaque_state = EdhocMessageBuffer::new();
         opaque_state.len = opaque_state_len;
         opaque_state.content[..opaque_state.len].copy_from_slice(
-            &voucher_response.content[7 + message_1.len + voucher.len
-                ..7 + message_1.len + voucher.len + opaque_state.len],
+            &voucher_response.content[6 + message_1.len + voucher.len
+                ..6 + message_1.len + voucher.len + opaque_state.len],
         );
         return Ok((message_1, voucher, Some(opaque_state)));
     } else {
@@ -580,24 +577,23 @@ fn encode_voucher_input(
     voucher_input
 }
 
-fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -> BytesHashLen {
-    let mut voucher_mac: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
+fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -> BytesMac {
+    let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
 
     let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
     context[..voucher_input.len].copy_from_slice(&voucher_input.content[..voucher_input.len]);
 
-    let voucher_mac_buf = edhoc_kdf(prk, 2, &context, voucher_input.len, SHA256_DIGEST_LEN);
-    voucher_mac[..SHA256_DIGEST_LEN].copy_from_slice(&voucher_mac_buf[..SHA256_DIGEST_LEN]);
+    let voucher_mac_buf = edhoc_kdf(prk, 2, &context, voucher_input.len, MAC_LENGTH);
+    voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
 
     voucher_mac
 }
 
-fn encode_voucher(voucher_mac: &BytesHashLen) -> EdhocMessageBuffer {
+fn encode_voucher(voucher_mac: &BytesMac) -> EdhocMessageBuffer {
     let mut voucher = EdhocMessageBuffer::new();
-    voucher.content[0] = CBOR_BYTE_STRING;
-    voucher.content[1] = SHA256_DIGEST_LEN as u8;
-    voucher.content[2..2 + SHA256_DIGEST_LEN].copy_from_slice(&voucher_mac[..SHA256_DIGEST_LEN]);
-    voucher.len = 2 + SHA256_DIGEST_LEN;
+    voucher.content[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
+    voucher.content[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
+    voucher.len = 1 + MAC_LENGTH;
 
     voucher
 }
@@ -613,24 +609,23 @@ fn encode_voucher_response(
     output.content[2] = message_1.len as u8;
     output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
-    output.content[3 + message_1.len] = CBOR_BYTE_STRING;
-    output.content[4 + message_1.len] = voucher.len as u8;
-    output.content[5 + message_1.len..5 + message_1.len + voucher.len]
+    output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + voucher.len as u8;
+    output.content[4 + message_1.len..4 + message_1.len + voucher.len]
         .copy_from_slice(&voucher.content[..voucher.len]);
 
     if let Some(opaque_state) = opaque_state {
         output.content[0] = CBOR_MAJOR_ARRAY | 3;
 
-        output.content[5 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
-        output.content[6 + message_1.len + voucher.len] = opaque_state.len as u8;
+        output.content[4 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
+        output.content[5 + message_1.len + voucher.len] = opaque_state.len as u8;
         output.content
-            [7 + message_1.len + voucher.len..7 + message_1.len + voucher.len + opaque_state.len]
+            [6 + message_1.len + voucher.len..6 + message_1.len + voucher.len + opaque_state.len]
             .copy_from_slice(&opaque_state.content[..opaque_state.len]);
 
-        output.len = 7 + message_1.len + voucher.len + opaque_state.len;
+        output.len = 6 + message_1.len + voucher.len + opaque_state.len;
     } else {
         output.content[0] = CBOR_MAJOR_ARRAY | 2;
-        output.len = 5 + message_1.len + voucher.len;
+        output.len = 4 + message_1.len + voucher.len;
     }
 
     output
@@ -676,18 +671,15 @@ mod test_vectors {
     pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8158520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
 
     // VRES
-    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
+    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec234948298007fa00c20e40");
     pub const H_MESSAGE_1_TV: &[u8] =
         &hex!("c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb");
     pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    pub const VOUCHER_MAC_TV: &[u8] =
-        &hex!("d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
-    pub const VOUCHER_TV: &[u8] =
-        &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
+    pub const VOUCHER_MAC_TV: &[u8] = &hex!("298007fa00c20e40");
+    pub const VOUCHER_TV: &[u8] = &hex!("48298007fa00c20e40");
 
     // EAD_2
-    pub const EAD2_VALUE_TV: &[u8] =
-        &hex!("5820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9");
+    pub const EAD2_VALUE_TV: &[u8] = &hex!("48298007fa00c20e40");
 
     // ---- Traces for stateless operation (prefixed with SLO)
     // VREQ
@@ -696,7 +688,7 @@ mod test_vectors {
     pub const SLO_VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 
     // VRES
-    pub const SLO_VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec2358225820d99c86cf666f614d82cc3cfd0fb53cfa393f463f42ece49e38b056808ad5dfc9581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const SLO_VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec234948298007fa00c20e40581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 }
 
 #[cfg(test)]
@@ -762,7 +754,7 @@ mod test_initiator {
         let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
         let cred_v_tv = CRED_V_TV.try_into().unwrap();
         let prk_tv = PRK_TV.try_into().unwrap();
-        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+        let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
         let res = verify_voucher(&voucher_tv, &h_message_1_tv, &cred_v_tv, &prk_tv);
         assert!(res.is_ok());
@@ -925,14 +917,14 @@ mod test_enrollment_server {
     fn test_compute_voucher_mac() {
         let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
-        let voucher_mac_tv: BytesHashLen = VOUCHER_MAC_TV.try_into().unwrap();
+        let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
         let voucher_mac = compute_voucher_mac(&prk_tv, &voucher_input_tv);
         assert_eq!(voucher_mac, voucher_mac_tv);
     }
 
     #[test]
-    fn test_encode_voucher() {
+    fn test_prepare_voucher() {
         let h_message_1: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
         let cred_v: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
         let prk: BytesHashLen = PRK_TV.try_into().unwrap();
