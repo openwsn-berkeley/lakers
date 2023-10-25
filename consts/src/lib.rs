@@ -10,9 +10,12 @@ mod consts {
     // TODO: find a way to configure the buffer size
     // need 128 to handle EAD fields, and 256 for the EAD_1 voucher
     pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
-    pub const MAX_EAD_SIZE_LEN: usize = 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+
+    pub const MAX_EAD_SIZE_LEN: usize = 64;
     pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+    pub const EAD_ZEROCONF_INFO_K_1_LABEL: u8 = 0x0;
+    pub const EAD_ZEROCONF_INFO_IV_1_LABEL: u8 = 0x1;
 
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;

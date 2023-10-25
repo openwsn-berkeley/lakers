@@ -174,13 +174,25 @@ fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
 fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_1 = EDHOC-Expand(PRK, info = (0, h'', AES_CCM_KEY_LEN), length)
     let mut k_1: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let k_1_buf = edhoc_kdf(prk, 0, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN);
+    let k_1_buf = edhoc_kdf(
+        prk,
+        EAD_ZEROCONF_INFO_K_1_LABEL,
+        &[0x00; MAX_KDF_CONTEXT_LEN],
+        0,
+        AES_CCM_KEY_LEN,
+    );
     k_1[..].copy_from_slice(&k_1_buf[..AES_CCM_KEY_LEN]);
 
     // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_KEY_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
     // NOTE (FIXME?): here we actually generate AES_CCM_KEY_LEN bytes, but then we only use AES_CCM_IV_LEN of them (next line)
-    let iv_1_buf = edhoc_kdf(prk, 1, &[0x00; MAX_KDF_CONTEXT_LEN], 0, AES_CCM_KEY_LEN);
+    let iv_1_buf = edhoc_kdf(
+        prk,
+        EAD_ZEROCONF_INFO_IV_1_LABEL,
+        &[0x00; MAX_KDF_CONTEXT_LEN],
+        0,
+        AES_CCM_KEY_LEN,
+    );
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
 
     (k_1, iv_1)
