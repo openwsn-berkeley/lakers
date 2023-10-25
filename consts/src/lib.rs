@@ -70,7 +70,6 @@ mod structs {
     pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
     pub type BufferPlaintext2 = EdhocMessageBuffer;
     pub type BufferPlaintext3 = EdhocMessageBuffer;
-    pub type BytesMac = [u8; MAC_LENGTH];
     pub type BytesMac2 = [u8; MAC_LENGTH_2];
     pub type BytesMac3 = [u8; MAC_LENGTH_3];
     pub type BufferMessage1 = EdhocMessageBuffer;
@@ -85,6 +84,9 @@ mod structs {
     pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
     pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
     pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
+
+    pub type BytesMac = [u8; MAC_LENGTH];
+    pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 
     #[repr(C)]
     #[derive(Default, PartialEq, Copy, Clone, Debug)]

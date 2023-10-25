@@ -102,7 +102,8 @@ pub fn i_process_ead_2(
     if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
         return Err(());
     }
-    let ead_2_value = ead_2.value.unwrap();
+    let mut ead_2_value: BytesEncodedVoucher = Default::default();
+    ead_2_value[..].copy_from_slice(&ead_2.value.unwrap().content[..ENCODED_VOUCHER_LEN]);
 
     let state = ead_initiator_get_global_state();
 
@@ -127,15 +128,15 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
 }
 
 fn verify_voucher(
-    received_voucher: &EdhocMessageBuffer,
+    received_voucher: &BytesEncodedVoucher,
     h_message_1: &BytesHashLen,
     cred_v: &EdhocMessageBuffer,
     prk: &BytesHashLen,
 ) -> Result<BytesMac, ()> {
-    let computed_voucher = prepare_voucher(h_message_1, cred_v, prk);
-    if received_voucher.content == computed_voucher.content {
+    let prepared_voucher = &prepare_voucher(h_message_1, cred_v, prk);
+    if received_voucher == prepared_voucher {
         let mut voucher_mac: BytesMac = Default::default();
-        voucher_mac[..MAC_LENGTH].copy_from_slice(&computed_voucher.content[1..1 + MAC_LENGTH]);
+        voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
         return Ok(voucher_mac);
     } else {
         return Err(());
@@ -347,14 +348,16 @@ pub fn r_prepare_ead_2(voucher_response: &Option<EdhocMessageBuffer>) -> Option<
         let (_message_1, voucher, _opaque_state) =
             parse_voucher_response(voucher_response).unwrap();
 
+        let mut voucher_value = EdhocMessageBuffer::new();
+        voucher_value.len = ENCODED_VOUCHER_LEN;
+        voucher_value.content[..ENCODED_VOUCHER_LEN].copy_from_slice(&voucher[..]);
         output = Some(EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
-            value: Some(voucher),
+            value: Some(voucher_value),
         });
     }
 
-    // NOTE: see the note in lib.rs::test_ead
     // set as completed even if the voucher response is not present
     ead_responder_set_global_state(EADResponderState {
         protocol_state: EADResponderProtocolState::Completed,
@@ -376,13 +379,13 @@ fn parse_voucher_response(
 ) -> Result<
     (
         EdhocMessageBuffer,
-        EdhocMessageBuffer,
+        BytesEncodedVoucher,
         Option<EdhocMessageBuffer>,
     ),
     (),
 > {
     let mut message_1 = EdhocMessageBuffer::new();
-    let mut voucher = EdhocMessageBuffer::new();
+    let mut voucher: BytesEncodedVoucher = Default::default();
 
     let array_byte = voucher_response.content[0];
     let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
@@ -406,23 +409,24 @@ fn parse_voucher_response(
     if !is_cbor_bstr_1byte_prefix(voucher_byte) || voucher_len != ENCODED_VOUCHER_LEN {
         return Err(());
     }
-    voucher.len = voucher_len;
-    voucher.content[..voucher.len].copy_from_slice(
-        &voucher_response.content[4 + message_1.len..4 + message_1.len + voucher.len],
+    voucher[..].copy_from_slice(
+        &voucher_response.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN],
     );
 
     if array_size == 3 {
-        let opaque_state_len = voucher_response.content[5 + message_1.len + voucher.len] as usize;
-        if !is_cbor_bstr_2bytes_prefix(voucher_response.content[4 + message_1.len + voucher.len])
-            || opaque_state_len > (voucher_response.len - voucher.len - message_1.len)
+        let opaque_state_len =
+            voucher_response.content[5 + message_1.len + ENCODED_VOUCHER_LEN] as usize;
+        if !is_cbor_bstr_2bytes_prefix(
+            voucher_response.content[4 + message_1.len + ENCODED_VOUCHER_LEN],
+        ) || opaque_state_len > (voucher_response.len - ENCODED_VOUCHER_LEN - message_1.len)
         {
             return Err(());
         }
         let mut opaque_state = EdhocMessageBuffer::new();
         opaque_state.len = opaque_state_len;
         opaque_state.content[..opaque_state.len].copy_from_slice(
-            &voucher_response.content[6 + message_1.len + voucher.len
-                ..6 + message_1.len + voucher.len + opaque_state.len],
+            &voucher_response.content[6 + message_1.len + ENCODED_VOUCHER_LEN
+                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len],
         );
         return Ok((message_1, voucher, Some(opaque_state)));
     } else {
@@ -512,7 +516,7 @@ fn prepare_voucher(
     h_message_1: &BytesHashLen,
     cred_v: &EdhocMessageBuffer,
     prk: &BytesP256ElemLen,
-) -> EdhocMessageBuffer {
+) -> BytesEncodedVoucher {
     let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
     let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
     encode_voucher(&voucher_mac)
@@ -589,18 +593,17 @@ fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -
     voucher_mac
 }
 
-fn encode_voucher(voucher_mac: &BytesMac) -> EdhocMessageBuffer {
-    let mut voucher = EdhocMessageBuffer::new();
-    voucher.content[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
-    voucher.content[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
-    voucher.len = 1 + MAC_LENGTH;
+fn encode_voucher(voucher_mac: &BytesMac) -> BytesEncodedVoucher {
+    let mut voucher: BytesEncodedVoucher = Default::default();
+    voucher[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
+    voucher[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
 
     voucher
 }
 
 fn encode_voucher_response(
     message_1: &EdhocMessageBuffer,
-    voucher: &EdhocMessageBuffer,
+    voucher: &BytesEncodedVoucher,
     opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
@@ -609,23 +612,23 @@ fn encode_voucher_response(
     output.content[2] = message_1.len as u8;
     output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
-    output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + voucher.len as u8;
-    output.content[4 + message_1.len..4 + message_1.len + voucher.len]
-        .copy_from_slice(&voucher.content[..voucher.len]);
+    output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8;
+    output.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN]
+        .copy_from_slice(&voucher[..]);
 
     if let Some(opaque_state) = opaque_state {
         output.content[0] = CBOR_MAJOR_ARRAY | 3;
 
-        output.content[4 + message_1.len + voucher.len] = CBOR_BYTE_STRING;
-        output.content[5 + message_1.len + voucher.len] = opaque_state.len as u8;
-        output.content
-            [6 + message_1.len + voucher.len..6 + message_1.len + voucher.len + opaque_state.len]
+        output.content[4 + message_1.len + ENCODED_VOUCHER_LEN] = CBOR_BYTE_STRING;
+        output.content[5 + message_1.len + ENCODED_VOUCHER_LEN] = opaque_state.len as u8;
+        output.content[6 + message_1.len + ENCODED_VOUCHER_LEN
+            ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len]
             .copy_from_slice(&opaque_state.content[..opaque_state.len]);
 
-        output.len = 6 + message_1.len + voucher.len + opaque_state.len;
+        output.len = 6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len;
     } else {
         output.content[0] = CBOR_MAJOR_ARRAY | 2;
-        output.len = 4 + message_1.len + voucher.len;
+        output.len = 4 + message_1.len + ENCODED_VOUCHER_LEN;
     }
 
     output
@@ -843,13 +846,13 @@ mod test_responder {
     fn test_parse_voucher_response() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(voucher.content, voucher_tv.content);
+        assert_eq!(voucher, voucher_tv);
         assert!(opaque_state.is_none());
     }
 
@@ -885,14 +888,14 @@ mod test_responder {
     fn slo_test_parse_voucher_response() {
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(voucher.content, voucher_tv.content);
+        assert_eq!(voucher, voucher_tv);
         assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
     }
 }
@@ -928,16 +931,16 @@ mod test_enrollment_server {
         let h_message_1: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
         let cred_v: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
         let prk: BytesHashLen = PRK_TV.try_into().unwrap();
-        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
         let voucher = prepare_voucher(&h_message_1, &cred_v, &prk);
-        assert_eq!(voucher.content, voucher_tv.content);
+        assert_eq!(voucher, voucher_tv);
     }
 
     #[test]
     fn test_encode_voucher_response() {
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: EdhocMessageBuffer = VOUCHER_TV.try_into().unwrap();
+        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
