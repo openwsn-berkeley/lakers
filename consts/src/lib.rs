@@ -281,4 +281,36 @@ mod helpers {
 
         (info, info_len)
     }
+
+    /// Parse a CBOR-encoded credential and return the public key and the kid
+    /// The parsing is rather naîve: assumes kid is a single byte, does not check key type/curve, etc.
+    pub fn parse_cred(cred: &[u8]) -> (BytesP256ElemLen, u8) {
+        let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
+
+        let kid_offset: usize = 3 + subject_len + 8;
+        let kid = cred[kid_offset];
+
+        let mut g_a: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
+        let g_a_x_offset: usize = kid_offset + 6;
+        g_a.copy_from_slice(&cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]);
+
+        (g_a, kid)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::helpers::*;
+    use hexlit::hex;
+
+    const CRED_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    const G_A_TV: &[u8] = &hex!("BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F0");
+    const KID_TV: u8 = 0x32;
+
+    #[test]
+    fn test_parse_cred() {
+        let (g_a, kid) = parse_cred(CRED_TV);
+        assert_eq!(g_a, G_A_TV);
+        assert_eq!(kid, KID_TV);
+    }
 }
