@@ -1013,6 +1013,7 @@ fn compute_th_4(
     output
 }
 
+// TODO: consider moving this to a new 'edhoc crypto primnitives' module
 fn edhoc_kdf(
     prk: &BytesHashLen,
     label: u8,
@@ -1020,32 +1021,8 @@ fn edhoc_kdf(
     context_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
-    let mut info_len = 0;
-
-    // construct info with inline cbor encoding
-    info[0] = label;
-    if context_len < 24 {
-        info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-        info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 2 + context_len;
-    } else {
-        info[1] = CBOR_BYTE_STRING;
-        info[2] = context_len as u8;
-        info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 3 + context_len;
-    }
-    if length < 24 {
-        info[info_len] = length as u8;
-        info_len = info_len + 1;
-    } else {
-        info[info_len] = CBOR_UINT_1BYTE;
-        info[info_len + 1] = length as u8;
-        info_len = info_len + 2;
-    }
-
+    let (info, info_len) = encode_info(label, context, context_len, length);
     let output = hkdf_expand(prk, &info, info_len, length);
-
     output
 }
 

@@ -1,21 +1,16 @@
 #![no_std]
 
-pub use cbor::*;
 pub use consts::*;
+pub use helpers::*;
 pub use structs::*;
 
 mod consts {
     use super::structs::*;
 
     // TODO: find a way to configure the buffer size
-    // need 128 to handle EAD fields, and 256 for the EAD_1 voucher
+    // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
     pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
-
-    pub const MAX_EAD_SIZE_LEN: usize = 64;
-    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
-    pub const EAD_ZEROCONF_INFO_K_1_LABEL: u8 = 0x0;
-    pub const EAD_ZEROCONF_INFO_IV_1_LABEL: u8 = 0x1;
 
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
@@ -56,6 +51,12 @@ mod consts {
 
     pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
+
+    pub const MAX_EAD_SIZE_LEN: usize = 64;
+    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+    pub const EAD_ZEROCONF_INFO_K_1_LABEL: u8 = 0x0;
+    pub const EAD_ZEROCONF_INFO_IV_1_LABEL: u8 = 0x1;
+    pub const EAD_ZEROCONF_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;
 }
 
 mod structs {
@@ -202,8 +203,9 @@ mod structs {
     }
 }
 
-mod cbor {
+mod helpers {
     use super::consts::*;
+    use super::structs::*;
 
     /// Check for: an unsigned integer encoded as a single byte
     #[inline(always)]
@@ -245,5 +247,38 @@ mod cbor {
     #[inline(always)]
     pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
         return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+    }
+
+    pub fn encode_info(
+        label: u8,
+        context: &BytesMaxContextBuffer,
+        context_len: usize,
+        length: usize,
+    ) -> (BytesMaxInfoBuffer, usize) {
+        let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
+
+        // construct info with inline cbor encoding
+        info[0] = label;
+        let mut info_len = if context_len < 24 {
+            info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
+            info[2..2 + context_len].copy_from_slice(&context[..context_len]);
+            2 + context_len
+        } else {
+            info[1] = CBOR_BYTE_STRING;
+            info[2] = context_len as u8;
+            info[3..3 + context_len].copy_from_slice(&context[..context_len]);
+            3 + context_len
+        };
+
+        info_len = if length < 24 {
+            info[info_len] = length as u8;
+            info_len + 1
+        } else {
+            info[info_len] = CBOR_UINT_1BYTE;
+            info[info_len + 1] = length as u8;
+            info_len + 2
+        };
+
+        (info, info_len)
     }
 }

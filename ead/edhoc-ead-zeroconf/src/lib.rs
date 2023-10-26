@@ -174,7 +174,7 @@ fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
 fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_1 = EDHOC-Expand(PRK, info = (0, h'', AES_CCM_KEY_LEN), length)
     let mut k_1: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let k_1_buf = edhoc_kdf(
+    let k_1_buf = edhoc_kdf_expand(
         prk,
         EAD_ZEROCONF_INFO_K_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
@@ -185,7 +185,7 @@ fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
 
     // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_IV_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_1_buf = edhoc_kdf(
+    let iv_1_buf = edhoc_kdf_expand(
         prk,
         EAD_ZEROCONF_INFO_IV_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
@@ -197,8 +197,7 @@ fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     (k_1, iv_1)
 }
 
-const EAD_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;
-fn encode_enc_structure(ss: u8) -> [u8; EAD_ENC_STRUCTURE_LEN] {
+fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] {
     let mut encrypt0: Bytes8 = [0x00; 8];
     encrypt0[0] = 0x45u8; // 'E'
     encrypt0[1] = 0x6eu8; // 'n'
@@ -209,7 +208,8 @@ fn encode_enc_structure(ss: u8) -> [u8; EAD_ENC_STRUCTURE_LEN] {
     encrypt0[6] = 0x74u8; // 't'
     encrypt0[7] = 0x30u8; // '0'
 
-    let mut enc_structure: [u8; EAD_ENC_STRUCTURE_LEN] = [0x00; EAD_ENC_STRUCTURE_LEN];
+    let mut enc_structure: [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] =
+        [0x00; EAD_ZEROCONF_ENC_STRUCTURE_LEN];
 
     // encode Enc_structure from rfc9052 Section 5.3
     enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array
@@ -222,40 +222,16 @@ fn encode_enc_structure(ss: u8) -> [u8; EAD_ENC_STRUCTURE_LEN] {
     enc_structure
 }
 
-// NOTE: can we import this from the edhoc-rs main crate?
-fn edhoc_kdf(
+// TODO: consider moving this to a new 'edhoc crypto primnitives' module
+fn edhoc_kdf_expand(
     prk: &BytesHashLen,
     label: u8,
     context: &BytesMaxContextBuffer,
     context_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
-
-    // construct info with inline cbor encoding
-    info[0] = label;
-    let mut info_len = if context_len < 24 {
-        info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-        info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-        2 + context_len
-    } else {
-        info[1] = CBOR_BYTE_STRING;
-        info[2] = context_len as u8;
-        info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-        3 + context_len
-    };
-
-    info_len = if length < 24 {
-        info[info_len] = length as u8;
-        info_len + 1
-    } else {
-        info[info_len] = CBOR_UINT_1BYTE;
-        info[info_len + 1] = length as u8;
-        info_len + 2
-    };
-
+    let (info, info_len) = encode_info(label, context, context_len, length);
     let output = hkdf_expand(prk, &info, info_len, length);
-
     output
 }
 
@@ -586,7 +562,7 @@ fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -
     let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
     context[..voucher_input.len].copy_from_slice(&voucher_input.content[..voucher_input.len]);
 
-    let voucher_mac_buf = edhoc_kdf(prk, 2, &context, voucher_input.len, MAC_LENGTH);
+    let voucher_mac_buf = edhoc_kdf_expand(prk, 2, &context, voucher_input.len, MAC_LENGTH);
     voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
 
     voucher_mac
