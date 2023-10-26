@@ -208,6 +208,8 @@ impl<'a> EdhocInitiatorState<'a> {
         assert!(id_cred_i.len() == ID_CRED_LEN);
         assert!(id_cred_r.len() == ID_CRED_LEN);
 
+        // let (cred_i, _kid) = parse_cred(cred_i);
+
         EdhocInitiatorState {
             state: state,
             i: i,
@@ -362,12 +364,16 @@ mod test {
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
         let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        // let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
+        // let _initiator = EdhocInitiator::new(state, I, CRED_I, None);
     }
 
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
         let _responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        // let _responder = EdhocResponder::new(state, R, CRED_R, Some(CRED_I));
+        // let _responder = EdhocResponder::new(state, R, CRED_R, None);
     }
 
     #[test]

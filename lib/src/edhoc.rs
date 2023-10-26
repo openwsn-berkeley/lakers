@@ -1013,7 +1013,7 @@ fn compute_th_4(
     output
 }
 
-// TODO: consider moving this to a new 'edhoc crypto primnitives' module
+// TODO: consider moving this to a new 'edhoc crypto primitives' module
 fn edhoc_kdf(
     prk: &BytesHashLen,
     label: u8,
