@@ -165,7 +165,7 @@ fn build_enc_id(
 
 fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
     // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
-    //       using a larger but all-zeroes salt seems to generate the same result though.
+    //       nevertheless, using a salt of HashLen zeros works as well (see RFC 5869, Section 2.2).
     let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
     let g_ab = p256_ecdh(a, g_b);
     hkdf_extract(&salt, &g_ab)
@@ -183,15 +183,14 @@ fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     );
     k_1[..].copy_from_slice(&k_1_buf[..AES_CCM_KEY_LEN]);
 
-    // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_KEY_LEN), length)
+    // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_IV_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    // NOTE (FIXME?): here we actually generate AES_CCM_KEY_LEN bytes, but then we only use AES_CCM_IV_LEN of them (next line)
     let iv_1_buf = edhoc_kdf(
         prk,
         EAD_ZEROCONF_INFO_IV_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
-        AES_CCM_KEY_LEN,
+        AES_CCM_IV_LEN,
     );
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
 
@@ -660,38 +659,38 @@ mod test_vectors {
     // computed artifacts
     // EAD_1
     pub const SS_TV: u8 = 2;
-    pub const ENC_ID_TV: &[u8] = &hex!("9a3155137f2be07ee91c51ec23");
+    pub const ENC_ID_TV: &[u8] = &hex!("da9784962883c96ed01ff122c3");
     pub const PRK_TV: &[u8] =
         &hex!("d40f1601b577dbe7827bb3a20e0d16f7231c3a25225c1ed733f9094050d59666");
     pub const K_1_TV: &[u8] = &hex!("6f2a9112801a5011aa33576b5c7862ad");
-    pub const IV_1_TV: &[u8] = &hex!("cd6676432b510ed2b7a7f7d5a7");
+    pub const IV_1_TV: &[u8] = &hex!("d31bc0d128349f290e79f0bde3");
     pub const EAD1_VALUE_TV: &[u8] = &hex!(
-        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23"
+        "58287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c3"
     );
-    pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
+    pub const MESSAGE_1_WITH_EAD_TV: &[u8] = &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c3");
 
     // VREQ
-    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8158520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23");
+    pub const VOUCHER_REQUEST_TV: &[u8] = &hex!("8158520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c3");
 
     // VRES
-    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec234948298007fa00c20e40");
+    pub const VOUCHER_RESPONSE_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c34948c783671337f75bd5");
     pub const H_MESSAGE_1_TV: &[u8] =
-        &hex!("c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb");
-    pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820c37b6590c1feefaf5a5b64f68db9bc5aa005283c53dfc5760d920399bbd8e6fb585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    pub const VOUCHER_MAC_TV: &[u8] = &hex!("298007fa00c20e40");
-    pub const VOUCHER_TV: &[u8] = &hex!("48298007fa00c20e40");
+        &hex!("a1004dfd2c64777980d9c84f100f93a9cac511ae38f56b2210530c945d186c24");
+    pub const VOUCHER_INPUT_TV: &[u8] = &hex!("5820a1004dfd2c64777980d9c84f100f93a9cac511ae38f56b2210530c945d186c24585fa2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    pub const VOUCHER_MAC_TV: &[u8] = &hex!("c783671337f75bd5");
+    pub const VOUCHER_TV: &[u8] = &hex!("48c783671337f75bd5");
 
     // EAD_2
-    pub const EAD2_VALUE_TV: &[u8] = &hex!("48298007fa00c20e40");
+    pub const EAD2_VALUE_TV: &[u8] = &hex!("48c783671337f75bd5");
 
     // ---- Traces for stateless operation (prefixed with SLO)
     // VREQ
-    pub const OPAQUE_STATE_TV: &[u8] =
+    pub const SLO_OPAQUE_STATE_TV: &[u8] =
         &hex!("827819666538303a3a623833343a643630623a373936663a38646530198bed");
-    pub const SLO_VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec23581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const SLO_VOUCHER_REQUEST_TV: &[u8] = &hex!("8258520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c3581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 
     // VRES
-    pub const SLO_VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724d9a3155137f2be07ee91c51ec234948298007fa00c20e40581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
+    pub const SLO_VOUCHER_RESPONSE_TV: &[u8] = &hex!("8358520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c34948c783671337f75bd5581f827819666538303a3a623833343a643630623a373936663a38646530198bed");
 }
 
 #[cfg(test)]
@@ -877,7 +876,7 @@ mod test_responder {
     #[test]
     fn slo_test_encode_voucher_request() {
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
 
         let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
@@ -889,7 +888,7 @@ mod test_responder {
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
@@ -941,7 +940,7 @@ mod test_enrollment_server {
     fn test_encode_voucher_response() {
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
         let voucher_response =
@@ -980,7 +979,7 @@ mod test_enrollment_server {
     fn slo_test_parse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = OPAQUE_STATE_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
 
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
