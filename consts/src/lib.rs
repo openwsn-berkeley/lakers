@@ -137,6 +137,15 @@ mod structs {
         pub len: usize,
     }
 
+    impl Default for EdhocMessageBuffer {
+        fn default() -> Self {
+            EdhocMessageBuffer {
+                content: [0; MAX_MESSAGE_SIZE_LEN],
+                len: 0,
+            }
+        }
+    }
+
     pub trait MessageBufferTrait {
         fn new() -> Self;
         fn from_hex(hex: &str) -> Self;
@@ -202,35 +211,29 @@ mod structs {
         }
     }
 
+    #[derive(Default, Copy, Clone, Debug)]
     pub struct Credential<'a> {
-        pub value: &'a EdhocMessageBuffer,
+        pub value: EdhocMessageBuffer,
         pub g: &'a [u8],
         pub kid: u8,
     }
 
-    pub trait CredentialTrait<'a> {
-        fn new(value: &'a EdhocMessageBuffer) -> Self;
-        fn parse_cred(cred: &'a EdhocMessageBuffer) -> (&'a [u8], u8);
-        fn get_id_cred(self) -> BytesIdCred;
-    }
-
-    impl<'a> CredentialTrait<'a> for Credential<'a> {
-        fn new(value: &'a EdhocMessageBuffer) -> Self {
+    impl<'a> Credential<'a> {
+        pub fn new(value: &'a [u8]) -> Self {
             let (g, kid) = Self::parse_cred(value);
+            let value: EdhocMessageBuffer = value.try_into().unwrap();
 
             Credential { value, kid, g }
         }
 
-        /// Parse a CBOR-encoded credential and return the public key and the id_cred
-        /// The parsing is rather naîve: assumes kid is a single byte, does not check key type/curve, etc.
-        fn parse_cred(cred: &'a EdhocMessageBuffer) -> (&'a [u8], u8) {
-            let subject_len = (cred.content[2] - CBOR_MAJOR_TEXT_STRING) as usize;
+        pub fn parse_cred(cred: &'a [u8]) -> (&'a [u8], u8) {
+            let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
             let id_cred_offset: usize = 3 + subject_len + 8;
             let g_a_x_offset: usize = id_cred_offset + 6;
 
             (
-                &cred.content[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN],
-                cred.content[id_cred_offset],
+                &cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN],
+                cred[id_cred_offset],
             )
         }
 
@@ -331,9 +334,7 @@ mod test {
 
     #[test]
     fn test_parse_cred() {
-        let cred_tv: EdhocMessageBuffer = CRED_TV.try_into().unwrap();
-
-        let (g_a, kid) = Credential::parse_cred(&cred_tv);
+        let (g_a, kid) = Credential::parse_cred(CRED_TV);
         assert_eq!(g_a, G_A_TV);
         assert_eq!(kid, ID_CRED_TV[3]);
     }
@@ -342,9 +343,9 @@ mod test {
     fn test_new_credential() {
         let cred_tv: EdhocMessageBuffer = CRED_TV.try_into().unwrap();
 
-        let cred = Credential::new(&cred_tv);
+        let cred = Credential::new(CRED_TV);
         assert_eq!(cred.g, G_A_TV);
         assert_eq!(cred.kid, ID_CRED_TV[3]);
-        assert_eq!(cred.value, &cred_tv);
+        assert_eq!(cred.value, cred_tv);
     }
 }

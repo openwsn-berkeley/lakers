@@ -38,6 +38,14 @@ pub struct EdhocResponderState<'a> {
     cred_r: &'a [u8],    // R's full credential
 }
 
+#[derive(Default, Copy, Clone, Debug)]
+pub struct EdhocResponderState_new<'a> {
+    state: State,                   // opaque state
+    r: &'a [u8],                    // private authentication key of R
+    cred_i: Option<Credential<'a>>, // R's full credential (if provided)
+    cred_r: Credential<'a>,         // I's full credential
+}
+
 impl<'a> EdhocResponderState<'a> {
     pub fn to_c(&self) -> EdhocResponderC {
         EdhocResponderC {
@@ -79,6 +87,27 @@ impl<'a> EdhocResponderState<'a> {
             cred_i: cred_i,
             id_cred_r: id_cred_r,
             cred_r: cred_r,
+        }
+    }
+
+    pub fn new_new(
+        state: State,
+        r: &'a [u8],
+        cred_i: Option<&'a [u8]>,
+        cred_r: &'a [u8],
+    ) -> EdhocResponderState_new<'a> {
+        assert!(r.len() == P256_ELEM_LEN);
+
+        let cred_i = match cred_i {
+            Some(cred_i) => Some(Credential::new(cred_i)),
+            None => None,
+        };
+
+        EdhocResponderState_new {
+            state,
+            r,
+            cred_i,
+            cred_r: Credential::new(cred_r),
         }
     }
 
@@ -364,16 +393,16 @@ mod test {
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
         let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        // let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
-        // let _initiator = EdhocInitiator::new(state, I, CRED_I, None);
     }
 
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
         let _responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
-        // let _responder = EdhocResponder::new(state, R, CRED_R, Some(CRED_I));
-        // let _responder = EdhocResponder::new(state, R, CRED_R, None);
+
+        // drafts of possible new API
+        let _responder = EdhocResponder::new_new(state, R, Some(CRED_I), CRED_R);
+        // let _responder = EdhocResponder::new(state, R, Credential::new(&cred_r), None);
     }
 
     #[test]
