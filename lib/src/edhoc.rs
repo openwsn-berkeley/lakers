@@ -255,9 +255,7 @@ pub fn r_prepare_message_2(
 pub fn r_process_message_3(
     mut state: State,
     message_3: &BufferMessage3,
-    id_cred_i_expected: &BytesIdCred,
-    cred_i_expected: &[u8],
-    g_i: &BytesP256ElemLen, // I's public DH key
+    cred_i_expected: &Credential,
 ) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
@@ -292,20 +290,32 @@ pub fn r_process_message_3(
                 };
                 if ead_success {
                     // compare the kid received with the kid expected in id_cred_i
-                    if kid == id_cred_i_expected[id_cred_i_expected.len() - 1] {
+                    if kid == cred_i_expected.get_id_cred()[ID_CRED_LEN - 1] {
                         // compute salt_4e3m
                         let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                         // TODO compute prk_4e3m
-                        prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+                        prk_4e3m = compute_prk_4e3m(
+                            &salt_4e3m,
+                            &y,
+                            cred_i_expected.g.try_into().expect("wrong key length"),
+                        );
 
                         // compute mac_3
-                        let expected_mac_3 =
-                            compute_mac_3(&prk_4e3m, &th_3, id_cred_i_expected, cred_i_expected);
+                        let expected_mac_3 = compute_mac_3(
+                            &prk_4e3m,
+                            &th_3,
+                            &cred_i_expected.get_id_cred(),
+                            cred_i_expected.get_value_as_slice(),
+                        );
 
                         // verify mac_3
                         if mac_3 == expected_mac_3 {
                             error = EDHOCError::Success;
-                            let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected);
+                            let th_4 = compute_th_4(
+                                &th_3,
+                                &plaintext_3,
+                                cred_i_expected.get_value_as_slice(),
+                            );
 
                             let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                             th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);

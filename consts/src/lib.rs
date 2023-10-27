@@ -237,8 +237,12 @@ mod structs {
             )
         }
 
-        fn get_id_cred(self) -> BytesIdCred {
+        pub fn get_id_cred(self) -> BytesIdCred {
             [0xa1, 0x04, 0x41, self.kid]
+        }
+
+        pub fn get_value_as_slice(&'a self) -> &'a [u8] {
+            &self.value.content[..self.value.len]
         }
     }
 }

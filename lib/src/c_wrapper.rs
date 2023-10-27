@@ -25,14 +25,8 @@ pub struct EdhocInitiatorC {
     pub state: State,
     pub i: *const u8,
     pub i_len: usize,
-    pub g_r: *const u8,
-    pub g_r_len: usize,
-    pub id_cred_i: *const u8,
-    pub id_cred_i_len: usize,
     pub cred_i: *const u8,
     pub cred_i_len: usize,
-    pub id_cred_r: *const u8,
-    pub id_cred_r_len: usize,
     pub cred_r: *const u8,
     pub cred_r_len: usize,
 }
@@ -42,11 +36,8 @@ impl EdhocInitiatorC {
         EdhocInitiator::new(
             self.state,
             unsafe { slice::from_raw_parts(self.i, self.i_len) },
-            unsafe { slice::from_raw_parts(self.g_r, self.g_r_len) },
-            unsafe { slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len) },
             unsafe { slice::from_raw_parts(self.cred_i, self.cred_i_len) },
-            unsafe { slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len) },
-            unsafe { slice::from_raw_parts(self.cred_r, self.cred_r_len) },
+            unsafe { Some(slice::from_raw_parts(self.cred_r, self.cred_r_len)) },
         )
     }
 }
@@ -56,14 +47,8 @@ pub struct EdhocResponderC {
     pub state: State,
     pub r: *const u8,
     pub r_len: usize,
-    pub g_i: *const u8,
-    pub g_i_len: usize,
-    pub id_cred_i: *const u8,
-    pub id_cred_i_len: usize,
     pub cred_i: *const u8,
     pub cred_i_len: usize,
-    pub id_cred_r: *const u8,
-    pub id_cred_r_len: usize,
     pub cred_r: *const u8,
     pub cred_r_len: usize,
 }
@@ -73,10 +58,7 @@ impl EdhocResponderC {
         EdhocResponder::new(
             self.state,
             unsafe { slice::from_raw_parts(self.r, self.r_len) },
-            unsafe { slice::from_raw_parts(self.g_i, self.g_i_len) },
-            unsafe { slice::from_raw_parts(self.id_cred_i, self.id_cred_i_len) },
-            unsafe { slice::from_raw_parts(self.cred_i, self.cred_i_len) },
-            unsafe { slice::from_raw_parts(self.id_cred_r, self.id_cred_r_len) },
+            unsafe { Some(slice::from_raw_parts(self.cred_i, self.cred_i_len)) },
             unsafe { slice::from_raw_parts(self.cred_r, self.cred_r_len) },
         )
     }
@@ -86,24 +68,15 @@ impl EdhocResponderC {
 pub unsafe extern "C" fn responder_new(
     r: *const u8,
     r_len: usize,
-    g_i: *const u8,
-    g_i_len: usize,
-    id_cred_i: *const u8,
-    id_cred_i_len: usize,
     cred_i: *const u8,
     cred_i_len: usize,
-    id_cred_r: *const u8,
-    id_cred_r_len: usize,
     cred_r: *const u8,
     cred_r_len: usize,
 ) -> EdhocResponderC {
     EdhocResponder::new(
         State::default(),
         slice::from_raw_parts(r, r_len),
-        slice::from_raw_parts(g_i, g_i_len),
-        slice::from_raw_parts(id_cred_i, id_cred_i_len),
-        slice::from_raw_parts(cred_i, cred_i_len),
-        slice::from_raw_parts(id_cred_r, id_cred_r_len),
+        Some(slice::from_raw_parts(cred_i, cred_i_len)),
         slice::from_raw_parts(cred_r, cred_r_len),
     )
     .to_c()
@@ -113,25 +86,16 @@ pub unsafe extern "C" fn responder_new(
 pub unsafe extern "C" fn initiator_new(
     i: *const u8,
     i_len: usize,
-    g_r: *const u8,
-    g_r_len: usize,
-    id_cred_i: *const u8,
-    id_cred_i_len: usize,
     cred_i: *const u8,
     cred_i_len: usize,
-    id_cred_r: *const u8,
-    id_cred_r_len: usize,
     cred_r: *const u8,
     cred_r_len: usize,
 ) -> EdhocInitiatorC {
     EdhocInitiator::new(
         State::default(),
         slice::from_raw_parts(i, i_len),
-        slice::from_raw_parts(g_r, g_r_len),
-        slice::from_raw_parts(id_cred_i, id_cred_i_len),
         slice::from_raw_parts(cred_i, cred_i_len),
-        slice::from_raw_parts(id_cred_r, id_cred_r_len),
-        slice::from_raw_parts(cred_r, cred_r_len),
+        Some(slice::from_raw_parts(cred_r, cred_r_len)),
     )
     .to_c()
 }
@@ -279,14 +243,8 @@ mod test_c {
             responder_new(
                 R.as_ptr(),
                 R.len(),
-                G_I.as_ptr(),
-                G_I.len(),
-                ID_CRED_I.as_ptr(),
-                ID_CRED_I.len(),
                 CRED_I.as_ptr(),
                 CRED_I.len(),
-                ID_CRED_R.as_ptr(),
-                ID_CRED_R.len(),
                 CRED_R.as_ptr(),
                 CRED_R.len(),
             )
