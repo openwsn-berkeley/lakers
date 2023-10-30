@@ -28,8 +28,8 @@ pub struct EdhocInitiatorState<'a> {
 pub struct EdhocResponderState<'a> {
     state: State,                   // opaque state
     r: &'a [u8],                    // private authentication key of R
-    cred_i: Option<Credential<'a>>, // R's full credential (if provided)
-    cred_r: Credential<'a>,         // I's full credential
+    cred_i: Option<Credential<'a>>, // I's full credential (if provided)
+    cred_r: Credential<'a>,         // R's full credential
 }
 
 impl<'a> EdhocResponderState<'a> {

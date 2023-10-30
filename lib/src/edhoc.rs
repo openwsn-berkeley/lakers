@@ -497,12 +497,17 @@ pub fn i_process_message_2(
                 c_r = c_r_2;
 
                 // Step 3: If EAD is present make it available to the application
-                let ead_success = if let Some(ead_2) = ead_2 {
-                    i_process_ead_2(ead_2, cred_r_expected, &h_message_1).is_ok()
+                let (ead_ok, r_already_authenticated) = if let Some(ead_2) = ead_2 {
+                    let ead_ok = i_process_ead_2(ead_2, cred_r_expected, &h_message_1).is_ok();
+                    // at this point, in case of EAD = zeroconf:
+                    // - the Voucher has been verified
+                    // - and thus cred_r (aka cred_v) can be considered trusted
+                    (ead_ok, true)
                 } else {
-                    true
+                    (true, false)
                 };
-                if ead_success {
+
+                if ead_ok {
                     // verify mac_2
                     let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
@@ -512,7 +517,9 @@ pub fn i_process_message_2(
                         compute_mac_2(&prk_3e2m, id_cred_r_expected, cred_r_expected, &th_2);
 
                     if mac_2 == expected_mac_2 {
-                        if kid == id_cred_r_expected[id_cred_r_expected.len() - 1] {
+                        if r_already_authenticated
+                            || kid == id_cred_r_expected[id_cred_r_expected.len() - 1]
+                        {
                             // step is actually from processing of message_3
                             // but we do it here to avoid storing plaintext_2 in State
                             let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
