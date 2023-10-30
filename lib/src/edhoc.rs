@@ -1285,40 +1285,54 @@ fn compute_mac_2(
 fn decode_plaintext_2(
     plaintext_2: &BytesMaxBuffer,
     plaintext_2_len: usize,
-) -> Result<(u8, u8, BytesMac2, Option<EADItem>), EDHOCError> {
+) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
     let mut error = EDHOCError::UnknownError;
     let mut ead_2 = None::<EADItem>;
     let mut c_r: u8 = 0xff;
-    let mut id_cred_r: u8 = 0xff;
+    let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-    // check CBOR sequence types for c_r, id_cred_r, and mac_2
-    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]))
-        && (is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]))
-        && (is_cbor_bstr_1byte_prefix(plaintext_2[2]))
-    // TODO: check mac length as well
-    {
+    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0])) {
         c_r = plaintext_2[0];
-        id_cred_r = plaintext_2[1];
-        // skip cbor byte string byte as we know how long the string is
-        mac_2[..].copy_from_slice(&plaintext_2[3..3 + MAC_LENGTH_2]);
 
-        // if there is still more to parse, the rest will be the EAD_2
-        if plaintext_2_len > (3 + MAC_LENGTH_2) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(
-                &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-                3 + MAC_LENGTH_2,
-            );
-            if ead_res.is_ok() {
-                ead_2 = ead_res.unwrap();
+        let offset_cred =
+            if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
+                id_cred_r = IdCred::CompactKid(plaintext_2[1]);
+                2
+            } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
+                && cbor_bstr_2bytes_len(plaintext_2[2]) < plaintext_2_len
+            {
+                let cred_len = cbor_bstr_2bytes_len(plaintext_2[2]);
+                let cred = Credential::new(&plaintext_2[3..3 + cred_len]);
+                id_cred_r = IdCred::FullCredential(&cred);
+                3 + cred_len
+            } else {
+                0xffff
+            };
+
+        if offset_cred < 0xffff {
+            // skip cbor byte string byte as we know how long the string is
+            mac_2[..].copy_from_slice(&plaintext_2[offset_cred..offset_cred + MAC_LENGTH_2]);
+
+            // if there is still more to parse, the rest will be the EAD_2
+            if plaintext_2_len > (offset_cred + MAC_LENGTH_2) {
+                // NOTE: since the current implementation only supports one EAD handler,
+                // we assume only one EAD item
+                let ead_res = parse_ead(
+                    &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
+                    offset_cred + MAC_LENGTH_2,
+                );
+                if ead_res.is_ok() {
+                    ead_2 = ead_res.unwrap();
+                    error = EDHOCError::Success;
+                } else {
+                    error = ead_res.unwrap_err();
+                }
+            } else if plaintext_2_len == (offset_cred + MAC_LENGTH_2) {
                 error = EDHOCError::Success;
             } else {
-                error = ead_res.unwrap_err();
+                error = EDHOCError::ParsingError;
             }
-        } else if plaintext_2_len == (3 + MAC_LENGTH_2) {
-            error = EDHOCError::Success;
         } else {
             error = EDHOCError::ParsingError;
         }

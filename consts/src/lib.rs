@@ -287,6 +287,12 @@ mod helpers {
         return byte == CBOR_BYTE_STRING;
     }
 
+    /// Return the length of a bstr denoted by two bytes
+    #[inline(always)]
+    pub fn cbor_bstr_2bytes_len(byte: u8) -> usize {
+        (byte - (byte & CBOR_BYTE_STRING)) as usize
+    }
+
     /// Check for: a tstr denoted by two bytes, one for type the other for content length
     #[inline(always)]
     pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
