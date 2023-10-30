@@ -211,6 +211,12 @@ mod structs {
         }
     }
 
+    #[derive(Debug)]
+    pub enum IdCred<'a> {
+        CompactKid(u8),
+        FullCredential(&'a Credential<'a>),
+    }
+
     #[derive(Default, Copy, Clone, Debug)]
     pub struct Credential<'a> {
         pub value: EdhocMessageBuffer,

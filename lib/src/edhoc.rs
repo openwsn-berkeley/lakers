@@ -172,8 +172,7 @@ pub fn r_process_message_1(
 
 pub fn r_prepare_message_2(
     mut state: State,
-    id_cred_r: &BytesIdCred,
-    cred_r: &[u8],
+    cred_r: &Credential,
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
@@ -205,16 +204,28 @@ pub fn r_prepare_message_2(
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
         // compute MAC_2
-        let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, &th_2);
+        let mac_2 = compute_mac_2(
+            &prk_3e2m,
+            &cred_r.get_id_cred(),
+            cred_r.get_value_as_slice(),
+            &th_2,
+        );
 
         let ead_2 = r_prepare_ead_2(&None);
+
+        let id_cred_r = if ead_2.is_some() {
+            // NOTE: assume EAD_2 is for zeroconf
+            IdCred::FullCredential(cred_r)
+        } else {
+            IdCred::CompactKid(cred_r.kid)
+        };
 
         // compute ciphertext_2
         let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2);
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r);
+        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r.get_value_as_slice());
 
         let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
         ct.len = plaintext_2.len;
@@ -1323,16 +1334,29 @@ fn decode_plaintext_2(
 
 fn encode_plaintext_2(
     c_r: u8,
-    id_cred_r: &BytesIdCred,
+    id_cred_r: IdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItem>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
+    let mut offset_cred = 0;
     plaintext_2.content[0] = c_r;
-    plaintext_2.content[1] = id_cred_r[id_cred_r.len() - 1];
-    plaintext_2.content[2] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
-    plaintext_2.content[3..3 + mac_2.len()].copy_from_slice(&mac_2[..]);
-    plaintext_2.len = 3 + mac_2.len();
+
+    let offset_cred = match id_cred_r {
+        IdCred::CompactKid(kid) => {
+            plaintext_2.content[1] = kid;
+            2
+        }
+        IdCred::FullCredential(cred) => {
+            plaintext_2.content[1..1 + cred.value.len]
+                .copy_from_slice(&cred.value.content[..cred.value.len]);
+            1 + cred.value.len
+        }
+    };
+
+    plaintext_2.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
+    plaintext_2.content[1 + offset_cred..1 + offset_cred + mac_2.len()].copy_from_slice(&mac_2[..]);
+    plaintext_2.len = 1 + offset_cred + mac_2.len();
 
     if let Some(ead_2) = ead_2 {
         let ead_2 = encode_ead_item(ead_2);
@@ -1769,7 +1793,12 @@ mod tests {
     #[test]
     fn test_encode_plaintext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let plaintext_2 = encode_plaintext_2(C_R_TV, &ID_CRED_R_TV, &MAC_2_TV, &None::<EADItem>);
+        let plaintext_2 = encode_plaintext_2(
+            C_R_TV,
+            IdCred::CompactKid(ID_CRED_R_TV[ID_CRED_R_TV.len() - 1]),
+            &MAC_2_TV,
+            &None::<EADItem>,
+        );
 
         assert_eq!(plaintext_2, plaintext_2_tv);
     }

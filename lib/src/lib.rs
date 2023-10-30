@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![allow(warnings)]
 
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
@@ -85,8 +86,7 @@ impl<'a> EdhocResponderState<'a> {
 
         match r_prepare_message_2(
             self.state,
-            &self.cred_r.get_id_cred(),
-            &self.cred_r.value.content[..self.cred_r.value.len],
+            &self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
