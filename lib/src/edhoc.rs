@@ -172,7 +172,7 @@ pub fn r_process_message_1(
 
 pub fn r_prepare_message_2(
     mut state: State,
-    cred_r: &Credential,
+    cred_r: &[u8],
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
@@ -204,12 +204,7 @@ pub fn r_prepare_message_2(
         prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
 
         // compute MAC_2
-        let mac_2 = compute_mac_2(
-            &prk_3e2m,
-            &cred_r.get_id_cred(),
-            cred_r.get_value_as_slice(),
-            &th_2,
-        );
+        let mac_2 = compute_mac_2(&prk_3e2m, &get_id_cred(cred_r), cred_r, &th_2);
 
         let ead_2 = r_prepare_ead_2(&None);
 
@@ -217,7 +212,8 @@ pub fn r_prepare_message_2(
             // NOTE: assume EAD_2 is for zeroconf
             IdCred::FullCredential(cred_r)
         } else {
-            IdCred::CompactKid(cred_r.kid)
+            let (_g_r, kid) = parse_cred(cred_r);
+            IdCred::CompactKid(kid)
         };
 
         // compute ciphertext_2
@@ -225,7 +221,7 @@ pub fn r_prepare_message_2(
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r.get_value_as_slice());
+        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r);
 
         let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
         ct.len = plaintext_2.len;
@@ -266,7 +262,7 @@ pub fn r_prepare_message_2(
 pub fn r_process_message_3(
     mut state: State,
     message_3: &BufferMessage3,
-    cred_i_expected: &Credential,
+    cred_i_expected: &[u8],
 ) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
@@ -300,33 +296,27 @@ pub fn r_process_message_3(
                     true
                 };
                 if ead_success {
+                    let (g_i, kid_i) = parse_cred(cred_i_expected);
+
                     // compare the kid received with the kid expected in id_cred_i
-                    if kid == cred_i_expected.get_id_cred()[ID_CRED_LEN - 1] {
+                    if kid == kid_i {
                         // compute salt_4e3m
                         let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                         // TODO compute prk_4e3m
-                        prk_4e3m = compute_prk_4e3m(
-                            &salt_4e3m,
-                            &y,
-                            cred_i_expected.g.try_into().expect("wrong key length"),
-                        );
+                        prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, &g_i);
 
                         // compute mac_3
                         let expected_mac_3 = compute_mac_3(
                             &prk_4e3m,
                             &th_3,
-                            &cred_i_expected.get_id_cred(),
-                            cred_i_expected.get_value_as_slice(),
+                            &get_id_cred(cred_i_expected),
+                            cred_i_expected,
                         );
 
                         // verify mac_3
                         if mac_3 == expected_mac_3 {
                             error = EDHOCError::Success;
-                            let th_4 = compute_th_4(
-                                &th_3,
-                                &plaintext_3,
-                                cred_i_expected.get_value_as_slice(),
-                            );
+                            let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected);
 
                             let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                             th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -464,10 +454,8 @@ pub fn i_prepare_message_1(
 pub fn i_process_message_2(
     mut state: State,
     message_2: &BufferMessage2,
-    id_cred_r_expected: &BytesIdCred,
-    cred_r_expected: &[u8],
-    g_r: &BytesP256ElemLen, // R's static public DH key
-    i: &BytesP256ElemLen,   // I's static private DH key
+    cred_r_expected: Option<&[u8]>,
+    i: &BytesP256ElemLen, // I's static private DH key
 ) -> Result<(State, u8, u8), EDHOCError> {
     let State(
         mut current_state,
@@ -504,67 +492,85 @@ pub fn i_process_message_2(
             let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
             if plaintext_2_decoded.is_ok() {
-                let (c_r_2, kid, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+                let (c_r_2, id_cred, mac_2, ead_2) = plaintext_2_decoded.unwrap();
                 c_r = c_r_2;
 
                 // Step 3: If EAD is present make it available to the application
-                let (ead_ok, r_already_authenticated) = if let Some(ead_2) = ead_2 {
-                    let ead_ok = i_process_ead_2(ead_2, cred_r_expected, &h_message_1).is_ok();
-                    // at this point, in case of EAD = zeroconf:
-                    // - the Voucher has been verified
-                    // - and thus cred_r (aka cred_v) can be considered trusted
-                    (ead_ok, true)
+                let (ead_ok, r_authenticated_via_ead, cred_r) = if let Some(ead_2) = ead_2 {
+                    if let IdCred::FullCredential(full_cred) = id_cred {
+                        let ead_ok = i_process_ead_2(ead_2, full_cred, &h_message_1).is_ok();
+                        // at this point, in case of EAD = zeroconf, if it works it means that:
+                        // - the Voucher has been verified
+                        // - the received cred_r (aka cred_v) has been authenticated
+                        (ead_ok, ead_ok, Some(full_cred))
+                    } else {
+                        (false, false, None)
+                    }
                 } else {
-                    (true, false)
+                    if cred_r_expected.is_some() {
+                        if let IdCred::CompactKid(compact_kid) = id_cred {
+                            kid = compact_kid;
+                            (true, false, cred_r_expected)
+                        } else {
+                            (true, false, None)
+                        }
+                    } else {
+                        (true, false, None)
+                    }
                 };
 
                 if ead_ok {
-                    // verify mac_2
-                    let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+                    if cred_r.is_some() {
+                        let cred_r = cred_r.unwrap();
+                        let (g_r, kid_r) = parse_cred(cred_r);
 
-                    prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+                        // verify mac_2
+                        let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
-                    let expected_mac_2 =
-                        compute_mac_2(&prk_3e2m, id_cred_r_expected, cred_r_expected, &th_2);
+                        prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &g_r);
 
-                    if mac_2 == expected_mac_2 {
-                        if r_already_authenticated
-                            || kid == id_cred_r_expected[id_cred_r_expected.len() - 1]
-                        {
-                            // step is actually from processing of message_3
-                            // but we do it here to avoid storing plaintext_2 in State
-                            let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
-                            pt2.content[..plaintext_2_len]
-                                .copy_from_slice(&plaintext_2[..plaintext_2_len]);
-                            pt2.len = plaintext_2_len;
-                            th_3 = compute_th_3(&th_2, &pt2, cred_r_expected);
-                            // message 3 processing
+                        let expected_mac_2 =
+                            compute_mac_2(&prk_3e2m, &get_id_cred(cred_r), &cred_r, &th_2);
 
-                            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                        if mac_2 == expected_mac_2 {
+                            if r_authenticated_via_ead || kid == kid_r {
+                                // step is actually from processing of message_3
+                                // but we do it here to avoid storing plaintext_2 in State
+                                let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
+                                pt2.content[..plaintext_2_len]
+                                    .copy_from_slice(&plaintext_2[..plaintext_2_len]);
+                                pt2.len = plaintext_2_len;
+                                th_3 = compute_th_3(&th_2, &pt2, &cred_r);
+                                // message 3 processing
 
-                            prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                            error = EDHOCError::Success;
-                            current_state = EDHOCState::ProcessedMessage2;
+                                prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
-                            state = construct_state(
-                                current_state,
-                                x,
-                                _c_i,
-                                g_y,
-                                prk_3e2m,
-                                prk_4e3m,
-                                _prk_out,
-                                _prk_exporter,
-                                h_message_1,
-                                th_3,
-                            );
+                                error = EDHOCError::Success;
+                                current_state = EDHOCState::ProcessedMessage2;
+
+                                state = construct_state(
+                                    current_state,
+                                    x,
+                                    _c_i,
+                                    g_y,
+                                    prk_3e2m,
+                                    prk_4e3m,
+                                    _prk_out,
+                                    _prk_exporter,
+                                    h_message_1,
+                                    th_3,
+                                );
+                            } else {
+                                // Unknown peer
+                                error = EDHOCError::UnknownPeer;
+                            }
                         } else {
-                            // Unknown peer
-                            error = EDHOCError::UnknownPeer;
+                            error = EDHOCError::MacVerificationFailed;
                         }
                     } else {
-                        error = EDHOCError::MacVerificationFailed;
+                        error = EDHOCError::UnknownPeer;
                     }
                 } else {
                     error = EDHOCError::EADError;
@@ -1295,7 +1301,7 @@ fn decode_plaintext_2(
     if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0])) {
         c_r = plaintext_2[0];
 
-        let offset_cred =
+        let mut offset =
             if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
                 id_cred_r = IdCred::CompactKid(plaintext_2[1]);
                 2
@@ -1303,24 +1309,24 @@ fn decode_plaintext_2(
                 && cbor_bstr_2bytes_len(plaintext_2[2]) < plaintext_2_len
             {
                 let cred_len = cbor_bstr_2bytes_len(plaintext_2[2]);
-                let cred = Credential::new(&plaintext_2[3..3 + cred_len]);
-                id_cred_r = IdCred::FullCredential(&cred);
+                id_cred_r = IdCred::FullCredential(&plaintext_2[3..3 + cred_len]);
                 3 + cred_len
             } else {
-                0xffff
+                0xff
             };
 
-        if offset_cred < 0xffff {
-            // skip cbor byte string byte as we know how long the string is
-            mac_2[..].copy_from_slice(&plaintext_2[offset_cred..offset_cred + MAC_LENGTH_2]);
+        if offset < 0xff {
+            // skip cbor string byte as we know how long the string is
+            offset += 1;
+            mac_2[..].copy_from_slice(&plaintext_2[offset..offset + MAC_LENGTH_2]);
 
             // if there is still more to parse, the rest will be the EAD_2
-            if plaintext_2_len > (offset_cred + MAC_LENGTH_2) {
+            if plaintext_2_len > (offset + MAC_LENGTH_2) {
                 // NOTE: since the current implementation only supports one EAD handler,
                 // we assume only one EAD item
                 let ead_res = parse_ead(
                     &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-                    offset_cred + MAC_LENGTH_2,
+                    offset + MAC_LENGTH_2,
                 );
                 if ead_res.is_ok() {
                     ead_2 = ead_res.unwrap();
@@ -1328,7 +1334,7 @@ fn decode_plaintext_2(
                 } else {
                     error = ead_res.unwrap_err();
                 }
-            } else if plaintext_2_len == (offset_cred + MAC_LENGTH_2) {
+            } else if plaintext_2_len == (offset + MAC_LENGTH_2) {
                 error = EDHOCError::Success;
             } else {
                 error = EDHOCError::ParsingError;
@@ -1362,9 +1368,8 @@ fn encode_plaintext_2(
             2
         }
         IdCred::FullCredential(cred) => {
-            plaintext_2.content[1..1 + cred.value.len]
-                .copy_from_slice(&cred.value.content[..cred.value.len]);
-            1 + cred.value.len
+            plaintext_2.content[1..1 + cred.len()].copy_from_slice(cred);
+            1 + cred.len()
         }
     };
 
@@ -1846,6 +1851,10 @@ mod tests {
         assert!(plaintext_2.is_ok());
         let (c_r, id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(c_r, C_R_TV);
+        let id_cred_r = match id_cred_r {
+            IdCred::CompactKid(id_cred_r) => id_cred_r,
+            _ => panic!("Invalid ID_CRED_R"),
+        };
         assert_eq!(id_cred_r, ID_CRED_R_TV[3]);
         assert_eq!(mac_2, MAC_2_TV);
         assert!(ead_2.is_none());

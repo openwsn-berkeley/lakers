@@ -214,42 +214,7 @@ mod structs {
     #[derive(Debug)]
     pub enum IdCred<'a> {
         CompactKid(u8),
-        FullCredential(&'a Credential<'a>),
-    }
-
-    #[derive(Default, Copy, Clone, Debug)]
-    pub struct Credential<'a> {
-        pub value: EdhocMessageBuffer,
-        pub g: &'a [u8],
-        pub kid: u8,
-    }
-
-    impl<'a> Credential<'a> {
-        pub fn new(value: &'a [u8]) -> Self {
-            let (g, kid) = Self::parse_cred(value);
-            let value: EdhocMessageBuffer = value.try_into().unwrap();
-
-            Credential { value, kid, g }
-        }
-
-        pub fn parse_cred(cred: &'a [u8]) -> (&'a [u8], u8) {
-            let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
-            let id_cred_offset: usize = 3 + subject_len + 8;
-            let g_a_x_offset: usize = id_cred_offset + 6;
-
-            (
-                &cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN],
-                cred[id_cred_offset],
-            )
-        }
-
-        pub fn get_id_cred(self) -> BytesIdCred {
-            [0xa1, 0x04, 0x41, self.kid]
-        }
-
-        pub fn get_value_as_slice(&'a self) -> &'a [u8] {
-            &self.value.content[..self.value.len]
-        }
+        FullCredential(&'a [u8]),
     }
 }
 
@@ -337,11 +302,29 @@ mod helpers {
 
         (info, info_len)
     }
+
+    pub fn parse_cred<'a>(cred: &'a [u8]) -> (BytesP256ElemLen, u8) {
+        let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
+        let id_cred_offset: usize = 3 + subject_len + 8;
+        let g_a_x_offset: usize = id_cred_offset + 6;
+
+        (
+            cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
+                .try_into()
+                .expect("Wrong key length"),
+            cred[id_cred_offset],
+        )
+    }
+
+    pub fn get_id_cred<'a>(cred: &'a [u8]) -> BytesIdCred {
+        let (_g, kid) = parse_cred(cred);
+        [0xa1, 0x04, 0x41, kid]
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::structs::*;
+    use super::helpers::*;
     use hexlit::hex;
 
     const CRED_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
@@ -350,18 +333,9 @@ mod test {
 
     #[test]
     fn test_parse_cred() {
-        let (g_a, kid) = Credential::parse_cred(CRED_TV);
+        let (g_a, kid) = parse_cred(CRED_TV);
         assert_eq!(g_a, G_A_TV);
         assert_eq!(kid, ID_CRED_TV[3]);
-    }
-
-    #[test]
-    fn test_new_credential() {
-        let cred_tv: EdhocMessageBuffer = CRED_TV.try_into().unwrap();
-
-        let cred = Credential::new(CRED_TV);
-        assert_eq!(cred.g, G_A_TV);
-        assert_eq!(cred.kid, ID_CRED_TV[3]);
-        assert_eq!(cred.value, cred_tv);
+        assert_eq!(get_id_cred(CRED_TV), ID_CRED_TV);
     }
 }
