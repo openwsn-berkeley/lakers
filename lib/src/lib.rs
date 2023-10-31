@@ -192,12 +192,10 @@ impl<'a> EdhocInitiatorState<'a> {
         self: &mut EdhocInitiatorState<'a>,
         message_2: &BufferMessage2,
     ) -> Result<u8, EDHOCError> {
-        let cred_r = self.cred_r.unwrap();
-
         match i_process_message_2(
             self.state,
             message_2,
-            Some(&cred_r),
+            self.cred_r,
             self.i
                 .try_into()
                 .expect("Wrong length of initiator private key"),
@@ -419,9 +417,11 @@ mod test {
     const ID_U: &[u8] = &hex!("a104412b");
 
     // V
-    // TODO...
+    pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 
     // W
+    pub const W_TV: &[u8] =
+        &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
     const G_W: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // TODO: update
     const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
@@ -429,7 +429,7 @@ mod test {
     #[test]
     fn test_ead_zeroconf() {
         let state_initiator: EdhocState = Default::default();
-        let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, Some(CRED_R));
+        let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, None);
         let state_responder: EdhocState = Default::default();
         let mut responder = EdhocResponderState::new(state_responder, R, Some(CRED_I), CRED_R);
 
@@ -451,6 +451,12 @@ mod test {
             ead_responder_state.protocol_state,
             EADResponderProtocolState::Start
         );
+
+        let w: BytesP256ElemLen = W_TV.try_into().unwrap();
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+        ));
 
         let c_i = generate_connection_identifier_cbor();
         let message_1 = initiator.prepare_message_1(c_i).unwrap();

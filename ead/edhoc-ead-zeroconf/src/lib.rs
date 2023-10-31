@@ -263,16 +263,19 @@ pub enum EADResponderProtocolState {
     ProcessedEAD1,
     WaitEAD3,
     Completed,
+    Error,
 }
 
 pub struct EADResponderState {
     pub protocol_state: EADResponderProtocolState,
+    pub(crate) voucher_response: Option<EdhocMessageBuffer>,
 }
 
 impl EADResponderState {
     pub fn new() -> Self {
         EADResponderState {
             protocol_state: EADResponderProtocolState::Start,
+            voucher_response: None,
         }
     }
 }
@@ -281,6 +284,7 @@ impl EADResponderState {
 // NOTE: this is not thread-safe
 static mut EAD_RESPONDER_GLOBAL_STATE: EADResponderState = EADResponderState {
     protocol_state: EADResponderProtocolState::Start,
+    voucher_response: None,
 };
 pub fn ead_responder_get_global_state() -> &'static EADResponderState {
     unsafe { &EAD_RESPONDER_GLOBAL_STATE }
@@ -291,7 +295,7 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
     }
 }
 
-pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<(), ()> {
+pub fn r_process_ead_1(ead_1: &EADItem, message_1: &EdhocMessageBuffer) -> Result<(), ()> {
     let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
     if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
@@ -299,25 +303,37 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &BufferMessage1) -> Result<()
     }
     let ead_1_value = ead_1.value.unwrap();
 
-    let (_loc_w, _enc_id) = parse_ead_1_value(&ead_1_value)?;
-    let _voucher_request = encode_voucher_request(message_1, &opaque_state);
+    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1_value)?;
+    let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
-    // TODO: implement send_voucher_request(&loc_w, &voucher_request);
+    // TODO:
+    // - implement voucher_response = send_voucher_request(&loc_w, &voucher_request);
+    // - save voucher_response in global state
+    let voucher_response = mock_send_voucher_request(&loc_w, &voucher_request, message_1);
 
-    ead_responder_set_global_state(EADResponderState {
-        protocol_state: EADResponderProtocolState::ProcessedEAD1,
-    });
-
-    Ok(())
+    if let Ok(voucher_response) = voucher_response {
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::ProcessedEAD1,
+            voucher_response: Some(voucher_response),
+        });
+        return Ok(());
+    } else {
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::Error,
+            voucher_response: None,
+        });
+        return Err(());
+    }
 }
 
-pub fn r_prepare_ead_2(voucher_response: &Option<EdhocMessageBuffer>) -> Option<EADItem> {
+pub fn r_prepare_ead_2() -> Option<EADItem> {
     let mut output: Option<EADItem> = None;
+    let state = ead_responder_get_global_state();
 
-    if let Some(voucher_response) = voucher_response {
+    if let Some(voucher_response) = state.voucher_response {
         // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' part, already parsed
         let (_message_1, voucher, _opaque_state) =
-            parse_voucher_response(voucher_response).unwrap();
+            parse_voucher_response(&voucher_response).unwrap();
 
         let mut voucher_value = EdhocMessageBuffer::new();
         voucher_value.len = ENCODED_VOUCHER_LEN;
@@ -332,6 +348,7 @@ pub fn r_prepare_ead_2(voucher_response: &Option<EdhocMessageBuffer>) -> Option<
     // set as completed even if the voucher response is not present
     ead_responder_set_global_state(EADResponderState {
         protocol_state: EADResponderProtocolState::Completed,
+        voucher_response: None,
     });
 
     output
@@ -461,7 +478,54 @@ pub fn encode_voucher_request(
     output
 }
 
-// ---- enrollment server side
+// ---- enrollment server side (W)
+// core functions + mock implementation
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct MockEADServerState {
+    pub(crate) cred_v: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
+    pub(crate) w: BytesP256ElemLen,        // public key of the enrollment server (W)
+}
+impl MockEADServerState {
+    pub fn new(cred_v: &[u8], w: BytesP256ElemLen) -> Self {
+        let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
+        MockEADServerState { cred_v, w }
+    }
+}
+static mut MOCK_EAD_SERVER_GLOBAL_STATE: MockEADServerState = MockEADServerState {
+    cred_v: EdhocMessageBuffer {
+        content: [0u8; MAX_MESSAGE_SIZE_LEN],
+        len: 0,
+    },
+    w: [0; P256_ELEM_LEN],
+};
+pub fn mock_ead_server_get_global_state() -> &'static MockEADServerState {
+    unsafe { &MOCK_EAD_SERVER_GLOBAL_STATE }
+}
+pub fn mock_ead_server_get_global_state_own() -> MockEADServerState {
+    unsafe { MOCK_EAD_SERVER_GLOBAL_STATE }
+}
+pub fn mock_ead_server_set_global_state(new_state: MockEADServerState) {
+    unsafe {
+        MOCK_EAD_SERVER_GLOBAL_STATE = new_state;
+    }
+}
+
+fn mock_send_voucher_request(
+    _loc_w: &EdhocMessageBuffer,
+    voucher_request: &EdhocMessageBuffer,
+    message_1: &EdhocMessageBuffer, // only needed to get g_x
+) -> Result<EdhocMessageBuffer, ()> {
+    let server_state = mock_ead_server_get_global_state();
+
+    // // HACK: inline parsing of message_1 to get g_x, only works when method: u8 and suites_i: [u8; 2]
+    // let mut g_x: BytesP256ElemLen = Default::default();
+    // g_x.copy_from_slice(&message_1.content[6..6 + P256_ELEM_LEN]);
+    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) =
+        parse_message_1(message_1).unwrap();
+
+    handle_voucher_request(voucher_request, &server_state.cred_v, &server_state.w, &g_x)
+}
 
 fn handle_voucher_request(
     vreq: &EdhocMessageBuffer,
@@ -805,6 +869,11 @@ mod test_responder {
 
         ead_responder_set_global_state(EADResponderState::new());
 
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+        ));
+
         let res = r_process_ead_1(&ead_1, &message_1_tv);
         assert!(res.is_ok());
         assert_eq!(
@@ -832,9 +901,12 @@ mod test_responder {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
-        ead_responder_set_global_state(EADResponderState::new());
+        ead_responder_set_global_state(EADResponderState {
+            voucher_response: Some(voucher_response_tv),
+            ..EADResponderState::new()
+        });
 
-        let ead_2 = r_prepare_ead_2(&Some(voucher_response_tv)).unwrap();
+        let ead_2 = r_prepare_ead_2().unwrap();
         assert_eq!(
             ead_responder_get_global_state().protocol_state,
             EADResponderProtocolState::Completed

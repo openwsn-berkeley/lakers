@@ -27,7 +27,7 @@ pub fn r_process_ead_1(_ead_1: &EADItem, _message_1: &BufferMessage1) -> Result<
     Ok(())
 }
 
-pub fn r_prepare_ead_2(_voucher_response: &Option<EdhocMessageBuffer>) -> Option<EADItem> {
+pub fn r_prepare_ead_2() -> Option<EADItem> {
     None
 }
 

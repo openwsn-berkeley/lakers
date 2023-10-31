@@ -206,7 +206,7 @@ pub fn r_prepare_message_2(
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, &get_id_cred(cred_r), cred_r, &th_2);
 
-        let ead_2 = r_prepare_ead_2(&None);
+        let ead_2 = r_prepare_ead_2();
 
         let id_cred_r = if ead_2.is_some() {
             // NOTE: assume EAD_2 is for zeroconf
@@ -691,186 +691,6 @@ pub fn construct_state(
     )
 }
 
-fn parse_suites_i(
-    rcvd_message_1: &BufferMessage1,
-) -> Result<(BytesSuites, usize, usize), EDHOCError> {
-    let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut raw_suites_len = 0;
-    let mut suites_i = [0u8; SUITES_LEN];
-    let mut suites_i_len: usize = 0;
-
-    // match based on first byte of SUITES_I, which can be either an int or an array
-    if is_cbor_uint_1byte(rcvd_message_1.content[1]) {
-        // CBOR unsigned integer (0..=23)
-        suites_i[0] = rcvd_message_1.content[1];
-        suites_i_len = 1;
-        raw_suites_len = 1;
-        error = EDHOCError::Success;
-    } else if is_cbor_uint_2bytes(rcvd_message_1.content[1]) {
-        // CBOR unsigned integer (one-byte uint8_t follows)
-        suites_i[0] = rcvd_message_1.content[2];
-        suites_i_len = 1;
-        raw_suites_len = 2;
-        error = EDHOCError::Success;
-    } else if is_cbor_array_1byte_prefix(rcvd_message_1.content[1]) {
-        // CBOR array (0..=23 data items follow)
-        // the CBOR array length is encoded in the first byte, so we extract it
-        let suites_len: usize = (rcvd_message_1.content[1] - CBOR_MAJOR_ARRAY).into();
-        raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
-        if suites_len > 1 && suites_len <= EDHOC_SUITES.len() {
-            // cipher suite array must be at least 2 elements long, but not longer than the defined cipher suites
-            let mut error_occurred = false;
-            for j in 0..suites_len {
-                raw_suites_len += 1;
-                if !error_occurred {
-                    // parse based on cipher suite identifier
-                    if is_cbor_uint_1byte(rcvd_message_1.content[raw_suites_len]) {
-                        // CBOR unsigned integer (0..23)
-                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                        suites_i_len += 1;
-                    } else if is_cbor_uint_2bytes(rcvd_message_1.content[raw_suites_len]) {
-                        // CBOR unsigned integer (one-byte uint8_t follows)
-                        raw_suites_len += 1; // account for the 0x18 tag byte
-                        suites_i[j] = rcvd_message_1.content[raw_suites_len];
-                        suites_i_len += 1;
-                    } else {
-                        error = EDHOCError::ParsingError;
-                        error_occurred = true;
-                    }
-                }
-            }
-            if !error_occurred {
-                error = EDHOCError::Success;
-            }
-        } else {
-            error = EDHOCError::ParsingError;
-        }
-    } else {
-        error = EDHOCError::ParsingError;
-    }
-
-    match error {
-        EDHOCError::Success => Ok((suites_i, suites_i_len, raw_suites_len)),
-        _ => Err(error),
-    }
-}
-
-fn parse_ead(message: &EdhocMessageBuffer, offset: usize) -> Result<Option<EADItem>, EDHOCError> {
-    let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut ead_item = None::<EADItem>;
-    let mut ead_value = None::<EdhocMessageBuffer>;
-
-    // assuming label is a single byte integer (negative or positive)
-    let label = message.content[offset];
-    let res_label = if is_cbor_uint_1byte(label) {
-        // CBOR unsigned integer (0..=23)
-        Ok((label as u8, false))
-    } else if is_cbor_neg_int_1byte(label) {
-        // CBOR negative integer (-1..=-24)
-        Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
-    } else {
-        Err(EDHOCError::ParsingError)
-    };
-
-    if res_label.is_ok() {
-        let (label, is_critical) = res_label.unwrap();
-        if message.len > (offset + 1) {
-            // EAD value is present
-            let mut buffer = EdhocMessageBuffer::new();
-            buffer.content[..message.len - (offset + 1)]
-                .copy_from_slice(&message.content[offset + 1..message.len]);
-            buffer.len = message.len - (offset + 1);
-            ead_value = Some(buffer);
-        }
-        ead_item = Some(EADItem {
-            label,
-            is_critical,
-            value: ead_value,
-        });
-        error = EDHOCError::Success;
-    } else {
-        error = res_label.unwrap_err();
-    }
-
-    match error {
-        EDHOCError::Success => Ok(ead_item),
-        _ => Err(error),
-    }
-}
-
-fn parse_message_1(
-    rcvd_message_1: &BufferMessage1,
-) -> Result<
-    (
-        u8,
-        BytesSuites,
-        usize,
-        BytesP256ElemLen,
-        u8,
-        Option<EADItem>,
-    ),
-    EDHOCError,
-> {
-    let mut error: EDHOCError = EDHOCError::UnknownError;
-    let mut method: u8 = 0xff;
-    let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    let mut suites_i: BytesSuites = [0u8; SUITES_LEN];
-    let mut suites_i_len: usize = 0;
-    let mut raw_suites_len: usize = 0;
-    let mut c_i = 0;
-    let mut ead_1 = None::<EADItem>;
-
-    // first element of CBOR sequence must be an integer
-    if is_cbor_uint_1byte(rcvd_message_1.content[0]) {
-        method = rcvd_message_1.content[0];
-        let res_suites = parse_suites_i(rcvd_message_1);
-
-        if res_suites.is_ok() {
-            (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
-
-            if is_cbor_bstr_2bytes_prefix(rcvd_message_1.content[1 + raw_suites_len]) {
-                g_x.copy_from_slice(
-                    &rcvd_message_1.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN],
-                );
-
-                c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
-                // check that c_i is encoded as single-byte int (we still do not support bstr encoding)
-                if is_cbor_neg_int_1byte(c_i) || is_cbor_uint_1byte(c_i) {
-                    // if there is still more to parse, the rest will be the EAD_1
-                    if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
-                        // NOTE: since the current implementation only supports one EAD handler,
-                        // we assume only one EAD item
-                        let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
-                        if ead_res.is_ok() {
-                            ead_1 = ead_res.unwrap();
-                            error = EDHOCError::Success;
-                        } else {
-                            error = ead_res.unwrap_err();
-                        }
-                    } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
-                        error = EDHOCError::Success;
-                    } else {
-                        error = EDHOCError::ParsingError;
-                    }
-                } else {
-                    error = EDHOCError::ParsingError;
-                }
-            } else {
-                error = EDHOCError::ParsingError;
-            }
-        } else {
-            error = res_suites.unwrap_err();
-        }
-    } else {
-        error = EDHOCError::ParsingError;
-    }
-
-    match error {
-        EDHOCError::Success => Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)),
-        _ => Err(error),
-    }
-}
-
 fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
@@ -1306,11 +1126,12 @@ fn decode_plaintext_2(
                 id_cred_r = IdCred::CompactKid(plaintext_2[1]);
                 2
             } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
-                && cbor_bstr_2bytes_len(plaintext_2[2]) < plaintext_2_len
+                && is_cbor_uint_2bytes(plaintext_2[2])
+                && (plaintext_2[3] as usize) < plaintext_2_len
             {
-                let cred_len = cbor_bstr_2bytes_len(plaintext_2[2]);
-                id_cred_r = IdCred::FullCredential(&plaintext_2[3..3 + cred_len]);
-                3 + cred_len
+                let cred_len = plaintext_2[3] as usize;
+                id_cred_r = IdCred::FullCredential(&plaintext_2[4..4 + cred_len]);
+                4 + cred_len
             } else {
                 0xff
             };
@@ -1368,8 +1189,11 @@ fn encode_plaintext_2(
             2
         }
         IdCred::FullCredential(cred) => {
-            plaintext_2.content[1..1 + cred.len()].copy_from_slice(cred);
-            1 + cred.len()
+            plaintext_2.content[1] = CBOR_BYTE_STRING;
+            plaintext_2.content[2] = CBOR_UINT_1BYTE;
+            plaintext_2.content[3] = cred.len() as u8;
+            plaintext_2.content[4..4 + cred.len()].copy_from_slice(cred);
+            4 + cred.len()
         }
     };
 
