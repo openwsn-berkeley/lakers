@@ -780,9 +780,6 @@ mod test_initiator {
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
     }
 
-    // stateful operation tests
-
-    // stateless operation tests
     #[test]
     fn test_verify_voucher() {
         let voucher_tv = VOUCHER_TV.try_into().unwrap();
@@ -912,32 +909,6 @@ mod test_responder {
         assert_eq!(ead_2.is_critical, true);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
     }
-
-    // tests for the statelss operation mode
-    #[test]
-    fn slo_test_encode_voucher_request() {
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
-        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
-
-        let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
-        assert_eq!(voucher_request.content, voucher_request_tv.content);
-    }
-
-    #[test]
-    fn slo_test_parse_voucher_response() {
-        let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
-        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
-
-        let res = parse_voucher_response(&voucher_response_tv);
-        assert!(res.is_ok());
-        let (message_1, voucher, opaque_state) = res.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(voucher, voucher_tv);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
-    }
 }
 
 #[cfg(test)]
@@ -1014,8 +985,39 @@ mod test_enrollment_server {
         let voucher_response = res.unwrap();
         assert_eq!(voucher_response.content, voucher_response_tv.content);
     }
+}
 
-    // tests for the statelss operation mode
+#[cfg(test)]
+mod test_stateless_operation {
+    use super::*;
+    use edhoc_consts::*;
+    use test_vectors::*;
+
+    #[test]
+    fn slo_test_encode_voucher_request() {
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
+        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
+
+        let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
+        assert_eq!(voucher_request.content, voucher_request_tv.content);
+    }
+
+    #[test]
+    fn slo_test_parse_voucher_response() {
+        let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
+        let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
+
+        let res = parse_voucher_response(&voucher_response_tv);
+        assert!(res.is_ok());
+        let (message_1, voucher, opaque_state) = res.unwrap();
+        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(voucher, voucher_tv);
+        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+    }
+
     #[test]
     fn slo_test_parse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();

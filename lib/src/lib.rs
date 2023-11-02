@@ -353,7 +353,7 @@ mod test {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, Some(CRED_R));
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state_responder, R, Some(CRED_I), CRED_R);
+        let mut responder = EdhocResponderState::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor();
         let result = initiator.prepare_message_1(c_i); // to update the state
@@ -480,13 +480,10 @@ mod test {
 
         initiator.process_message_2(&message_2).unwrap();
 
-        // FIXME! uncomment and fix this assertion
-        //        it fails because we are trying to run a handshake with zeroconf BUT we don't have a W
-        //        a possible solution is to create a mocked W
-        // assert_eq!(
-        //     ead_initiator_state.protocol_state,
-        //     EADInitiatorProtocolState::Completed
-        // );
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::Completed
+        );
 
         let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 
