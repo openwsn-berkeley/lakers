@@ -21,8 +21,7 @@ fn main() {
     println!("Client request: {}", url);
 
     let state: EdhocState = Default::default();
-    let mut initiator =
-        EdhocInitiator::new(state, &I, &G_R, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
+    let mut initiator = EdhocInitiator::new(state, &I, &CRED_I, Some(&CRED_R));
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
