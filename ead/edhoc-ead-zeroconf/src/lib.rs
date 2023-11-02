@@ -143,11 +143,7 @@ fn verify_voucher(
     }
 }
 
-fn build_enc_id(
-    prk: &BytesHashLen, // ephemeral key of U
-    id_u: &EdhocMessageBuffer,
-    ss: u8,
-) -> EdhocMessageBuffer {
+fn build_enc_id(prk: &BytesHashLen, id_u: &EdhocMessageBuffer, ss: u8) -> EdhocMessageBuffer {
     let (k_1, iv_1) = compute_k_1_iv_1(&prk);
 
     // plaintext = (ID_U: bstr)
@@ -480,7 +476,7 @@ fn handle_voucher_request(
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
     let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
 
-    let prk = compute_prk(&w, &g_x);
+    let prk = compute_prk(w, g_x);
 
     let voucher = prepare_voucher(&h_message_1, cred_v, &prk);
     let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
