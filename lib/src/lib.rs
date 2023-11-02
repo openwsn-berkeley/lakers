@@ -29,24 +29,24 @@ pub struct EdhocInitiatorState<'a> {
 pub struct EdhocResponderState<'a> {
     state: State,             // opaque state
     r: &'a [u8],              // private authentication key of R
-    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
     cred_r: &'a [u8],         // R's full credential
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
 }
 
 impl<'a> EdhocResponderState<'a> {
     pub fn new(
         state: State,
         r: &'a [u8],
-        cred_i: Option<&'a [u8]>,
         cred_r: &'a [u8],
+        cred_i: Option<&'a [u8]>,
     ) -> EdhocResponderState<'a> {
         assert!(r.len() == P256_ELEM_LEN);
 
         EdhocResponderState {
             state,
             r,
+            cred_r,
             cred_i,
-            cred_r: cred_r,
         }
     }
 
@@ -56,10 +56,10 @@ impl<'a> EdhocResponderState<'a> {
             state: self.state,
             r: self.r.as_ptr(),
             r_len: self.r.len(),
-            cred_i: cred_i.as_ptr(),
-            cred_i_len: cred_i.len(),
             cred_r: self.cred_r.as_ptr(),
             cred_r_len: self.cred_r.len(),
+            cred_i: cred_i.as_ptr(),
+            cred_i_len: cred_i.len(),
         }
     }
 
@@ -310,8 +310,8 @@ mod test {
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
-        let _responder = EdhocResponderState::new(state, R, Some(CRED_I), CRED_R);
-        let _responder = EdhocResponderState::new(state, R, None, CRED_R);
+        let _responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
+        let _responder = EdhocResponderState::new(state, R, CRED_R, None);
     }
 
     #[test]
@@ -329,7 +329,7 @@ mod test {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state, R, Some(CRED_I), CRED_R);
+        let mut responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -413,8 +413,8 @@ mod test {
     }
 
     // U
-    const U: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-    const ID_U: &[u8] = &hex!("a104412b");
+    const U_TV: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+    const ID_U_TV: &[u8] = &hex!("a104412b");
 
     // V
     pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
@@ -431,10 +431,10 @@ mod test {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, None);
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state_responder, R, Some(CRED_I), CRED_V_TV);
+        let mut responder = EdhocResponderState::new(state_responder, R, CRED_V_TV, Some(CRED_I));
 
-        let u: BytesP256ElemLen = U.try_into().unwrap();
-        let id_u: EdhocMessageBuffer = ID_U.try_into().unwrap();
+        let u: BytesP256ElemLen = U_TV.try_into().unwrap();
+        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
         let g_w: BytesP256ElemLen = G_W.try_into().unwrap();
         let loc_w: EdhocMessageBuffer = LOC_W.try_into().unwrap();
         ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));

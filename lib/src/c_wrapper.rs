@@ -58,8 +58,8 @@ impl EdhocResponderC {
         EdhocResponder::new(
             self.state,
             unsafe { slice::from_raw_parts(self.r, self.r_len) },
-            unsafe { Some(slice::from_raw_parts(self.cred_i, self.cred_i_len)) },
             unsafe { slice::from_raw_parts(self.cred_r, self.cred_r_len) },
+            unsafe { Some(slice::from_raw_parts(self.cred_i, self.cred_i_len)) },
         )
     }
 }
@@ -76,8 +76,8 @@ pub unsafe extern "C" fn responder_new(
     EdhocResponder::new(
         State::default(),
         slice::from_raw_parts(r, r_len),
-        Some(slice::from_raw_parts(cred_i, cred_i_len)),
         slice::from_raw_parts(cred_r, cred_r_len),
+        Some(slice::from_raw_parts(cred_i, cred_i_len)),
     )
     .to_c()
 }
