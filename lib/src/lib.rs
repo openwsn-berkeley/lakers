@@ -422,7 +422,7 @@ mod test {
     // W
     pub const W_TV: &[u8] =
         &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
-    const G_W: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // TODO: update
+    const G_W: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     #[cfg(feature = "ead-zeroconf")]
@@ -431,7 +431,7 @@ mod test {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, None);
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state_responder, R, Some(CRED_I), CRED_R);
+        let mut responder = EdhocResponderState::new(state_responder, R, Some(CRED_I), CRED_V_TV);
 
         let u: BytesP256ElemLen = U.try_into().unwrap();
         let id_u: EdhocMessageBuffer = ID_U.try_into().unwrap();

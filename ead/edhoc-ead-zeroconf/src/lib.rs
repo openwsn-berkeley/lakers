@@ -518,9 +518,6 @@ fn mock_send_voucher_request(
 ) -> Result<EdhocMessageBuffer, ()> {
     let server_state = mock_ead_server_get_global_state();
 
-    // // HACK: inline parsing of message_1 to get g_x, only works when method: u8 and suites_i: [u8; 2]
-    // let mut g_x: BytesP256ElemLen = Default::default();
-    // g_x.copy_from_slice(&message_1.content[6..6 + P256_ELEM_LEN]);
     let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) =
         parse_message_1(message_1).unwrap();
 
