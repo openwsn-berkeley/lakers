@@ -122,7 +122,7 @@ pub fn r_process_message_1(
                 if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
                     // Step 3: If EAD is present make it available to the application
                     let ead_success = if let Some(ead_1) = ead_1 {
-                        r_process_ead_1(ead_1).is_ok()
+                        r_process_ead_1(&ead_1, message_1).is_ok()
                     } else {
                         true
                     };
@@ -207,7 +207,7 @@ pub fn r_prepare_message_2(
         // compute MAC_2
         let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, &th_2);
 
-        let ead_2 = r_prepare_ead_2();
+        let ead_2 = r_prepare_ead_2(&None);
 
         // compute ciphertext_2
         let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2);
@@ -397,7 +397,7 @@ pub fn i_prepare_message_1(
         let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
         suites_i[0..EDHOC_SUPPORTED_SUITES.len()].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-        let ead_1 = i_prepare_ead_1();
+        let ead_1 = i_prepare_ead_1(&x, suites_i[suites_i.len() - 1]);
 
         // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
         message_1 = encode_message_1(
@@ -488,7 +488,7 @@ pub fn i_process_message_2(
 
                 // Step 3: If EAD is present make it available to the application
                 let ead_success = if let Some(ead_2) = ead_2 {
-                    i_process_ead_2(ead_2).is_ok()
+                    i_process_ead_2(ead_2, cred_r_expected, &h_message_1).is_ok()
                 } else {
                     true
                 };
@@ -655,42 +655,6 @@ pub fn construct_state(
         h_message_1,
         th_3,
     )
-}
-
-/// Check for: an unsigned integer encoded as a single byte
-#[inline(always)]
-fn is_cbor_uint_1byte(byte: u8) -> bool {
-    return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
-}
-
-/// Check for: an unsigned integer encoded as two bytes
-#[inline(always)]
-fn is_cbor_uint_2bytes(byte: u8) -> bool {
-    return byte == CBOR_UINT_1BYTE;
-}
-
-/// Check for: a negative integer encoded as a single byte
-#[inline(always)]
-fn is_cbor_neg_int_1byte(byte: u8) -> bool {
-    return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
-}
-
-/// Check for: a bstr denoted by a single byte which encodes both type and content length
-#[inline(always)]
-fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
-    return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
-}
-
-/// Check for: a bstr denoted by two bytes, onr for type the other for content length
-#[inline(always)]
-fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
-    return byte == CBOR_BYTE_STRING;
-}
-
-/// Check for: an array denoted by a single byte which encodes both type and content length
-#[inline(always)]
-fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
-    return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
 }
 
 fn parse_suites_i(
@@ -1049,6 +1013,7 @@ fn compute_th_4(
     output
 }
 
+// TODO: consider moving this to a new 'edhoc crypto primnitives' module
 fn edhoc_kdf(
     prk: &BytesHashLen,
     label: u8,
@@ -1056,32 +1021,8 @@ fn edhoc_kdf(
     context_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
-    let mut info_len = 0;
-
-    // construct info with inline cbor encoding
-    info[0] = label;
-    if context_len < 24 {
-        info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-        info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 2 + context_len;
-    } else {
-        info[1] = CBOR_BYTE_STRING;
-        info[2] = context_len as u8;
-        info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-        info_len = 3 + context_len;
-    }
-    if length < 24 {
-        info[info_len] = length as u8;
-        info_len = info_len + 1;
-    } else {
-        info[info_len] = CBOR_UINT_1BYTE;
-        info[info_len + 1] = length as u8;
-        info_len = info_len + 2;
-    }
-
+    let (info, info_len) = encode_info(label, context, context_len, length);
     let output = hkdf_expand(prk, &info, info_len, length);
-
     output
 }
 
@@ -1208,7 +1149,7 @@ fn encrypt_message_3(
 
     let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
 
-    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3);
+    let ciphertext_3 = aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3);
 
     output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
 

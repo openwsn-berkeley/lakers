@@ -117,17 +117,13 @@ pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen
 pub fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
-    ad: &BytesEncStructureLen,
+    ad: &[u8],
     plaintext: &BufferPlaintext3,
 ) -> BufferCiphertext3 {
     let plaintext = BufferPlaintext3Hacspec::from_public_buffer(plaintext);
 
     let output = BufferCiphertext3Hacspec::from_seq(&encrypt_ccm(
-        ByteSeq::from_slice(
-            &BytesEncStructureLenHacspec::from_public_slice(ad),
-            0,
-            ad.len(),
-        ),
+        ByteSeq::from_public_slice(ad),
         ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
         ByteSeq::from_slice(&plaintext.content, 0, plaintext.len),
         Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),

@@ -8,3 +8,10 @@ description = "EDHOC EAD zeroconf (draf-lake-authz)"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
+edhoc-crypto = { path = "../../crypto", default-features = false }
+hacspec-lib = { version = "0.1.0-beta.1", default-features = false, optional = true }
+hexlit = "0.5.3"
+
+[features]
+crypto-psa = [ "edhoc-crypto/psa" ]
+crypto-hacspec = ["hacspec-lib/std", "edhoc-crypto/hacspec" ]

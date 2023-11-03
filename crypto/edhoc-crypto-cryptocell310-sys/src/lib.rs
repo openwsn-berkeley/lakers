@@ -70,14 +70,16 @@ pub fn hkdf_extract(salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen
 pub fn aes_ccm_encrypt_tag_8(
     key: &BytesCcmKeyLen,
     iv: &BytesCcmIvLen,
-    ad: &BytesEncStructureLen,
+    ad: &[u8],
     plaintext: &BufferPlaintext3,
 ) -> BufferCiphertext3 {
     let mut output: BufferCiphertext3 = BufferCiphertext3::new();
     let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
     let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
+    let mut aesccm_ad = [0x00u8; ENC_STRUCTURE_LEN];
 
     aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
+    aesccm_ad[0..ad.len()].copy_from_slice(&ad[..]);
 
     let err = unsafe {
         CC_AESCCM(
@@ -86,7 +88,7 @@ pub fn aes_ccm_encrypt_tag_8(
             CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
             iv.clone().as_mut_ptr(),
             iv.len() as u8,
-            ad.clone().as_mut_ptr(),
+            aesccm_ad.as_mut_ptr(),
             ad.len() as u32,
             plaintext.content.clone().as_mut_ptr(),
             plaintext.len as u32,

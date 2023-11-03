@@ -1,15 +1,16 @@
 #![no_std]
 
 pub use consts::*;
+pub use helpers::*;
 pub use structs::*;
 
 mod consts {
     use super::structs::*;
 
-    pub const MAX_MESSAGE_SIZE_LEN: usize = 64;
-    pub const MAX_EAD_SIZE_LEN: usize = 64;
+    // TODO: find a way to configure the buffer size
+    // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
+    pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
     pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
-    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
 
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
@@ -20,14 +21,17 @@ mod consts {
     pub const AES_CCM_KEY_LEN: usize = 16;
     pub const AES_CCM_IV_LEN: usize = 13;
     pub const AES_CCM_TAG_LEN: usize = 8;
-    pub const MAC_LENGTH_2: usize = 8;
+    pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
+    pub const MAC_LENGTH_2: usize = MAC_LENGTH;
     pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
+    pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
     // maximum supported length of connection identifier for R
     pub const MAX_KDF_CONTEXT_LEN: usize = 150;
     pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
     pub const MAX_BUFFER_LEN: usize = 220;
     pub const CBOR_BYTE_STRING: u8 = 0x58u8;
+    pub const CBOR_TEXT_STRING: u8 = 0x78u8;
     pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
     pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
     pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
@@ -47,6 +51,12 @@ mod consts {
 
     pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
+
+    pub const MAX_EAD_SIZE_LEN: usize = 64;
+    pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
+    pub const EAD_ZEROCONF_INFO_K_1_LABEL: u8 = 0x0;
+    pub const EAD_ZEROCONF_INFO_IV_1_LABEL: u8 = 0x1;
+    pub const EAD_ZEROCONF_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;
 }
 
 mod structs {
@@ -75,6 +85,9 @@ mod structs {
     pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
     pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
     pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
+
+    pub type BytesMac = [u8; MAC_LENGTH];
+    pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 
     #[repr(C)]
     #[derive(Default, PartialEq, Copy, Clone, Debug)]
@@ -118,7 +131,7 @@ mod structs {
     );
 
     #[repr(C)]
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Copy, Clone)]
     pub struct EdhocMessageBuffer {
         pub content: [u8; MAX_MESSAGE_SIZE_LEN],
         pub len: usize,
@@ -187,5 +200,85 @@ mod structs {
                 value: None,
             }
         }
+    }
+}
+
+mod helpers {
+    use super::consts::*;
+    use super::structs::*;
+
+    /// Check for: an unsigned integer encoded as a single byte
+    #[inline(always)]
+    pub fn is_cbor_uint_1byte(byte: u8) -> bool {
+        return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
+    }
+
+    /// Check for: an unsigned integer encoded as two bytes
+    #[inline(always)]
+    pub fn is_cbor_uint_2bytes(byte: u8) -> bool {
+        return byte == CBOR_UINT_1BYTE;
+    }
+
+    /// Check for: a negative integer encoded as a single byte
+    #[inline(always)]
+    pub fn is_cbor_neg_int_1byte(byte: u8) -> bool {
+        return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+    }
+
+    /// Check for: a bstr denoted by a single byte which encodes both type and content length
+    #[inline(always)]
+    pub fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
+        return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
+    }
+
+    /// Check for: a bstr denoted by two bytes, one for type the other for content length
+    #[inline(always)]
+    pub fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
+        return byte == CBOR_BYTE_STRING;
+    }
+
+    /// Check for: a tstr denoted by two bytes, one for type the other for content length
+    #[inline(always)]
+    pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
+        return byte == CBOR_TEXT_STRING;
+    }
+
+    /// Check for: an array denoted by a single byte which encodes both type and content length
+    #[inline(always)]
+    pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
+        return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+    }
+
+    pub fn encode_info(
+        label: u8,
+        context: &BytesMaxContextBuffer,
+        context_len: usize,
+        length: usize,
+    ) -> (BytesMaxInfoBuffer, usize) {
+        let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
+
+        // construct info with inline cbor encoding
+        info[0] = label;
+        let mut info_len = if context_len < 24 {
+            info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
+            info[2..2 + context_len].copy_from_slice(&context[..context_len]);
+            2 + context_len
+        } else {
+            info[1] = CBOR_BYTE_STRING;
+            info[2] = context_len as u8;
+            info[3..3 + context_len].copy_from_slice(&context[..context_len]);
+            3 + context_len
+        };
+
+        info_len = if length < 24 {
+            info[info_len] = length as u8;
+            info_len + 1
+        } else {
+            info[info_len] = CBOR_UINT_1BYTE;
+            info[info_len + 1] = length as u8;
+            info_len + 2
+        };
+
+        (info, info_len)
     }
 }
