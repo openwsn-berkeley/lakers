@@ -497,6 +497,7 @@ pub fn i_process_message_2(
 
                 // Step 3: If EAD is present make it available to the application
                 let (ead_ok, r_authenticated_via_ead, cred_r) = if let Some(ead_2) = ead_2 {
+                    // if EAD-zeroconf is present, then id_cred must contain a full credential
                     if let IdCred::FullCredential(full_cred) = id_cred {
                         let ead_ok = i_process_ead_2(ead_2, full_cred, &h_message_1).is_ok();
                         // at this point, in case of EAD = zeroconf, if it works it means that:

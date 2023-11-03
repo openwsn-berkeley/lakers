@@ -68,10 +68,10 @@ impl EdhocResponderC {
 pub unsafe extern "C" fn responder_new(
     r: *const u8,
     r_len: usize,
-    cred_i: *const u8,
-    cred_i_len: usize,
     cred_r: *const u8,
     cred_r_len: usize,
+    cred_i: *const u8,
+    cred_i_len: usize,
 ) -> EdhocResponderC {
     EdhocResponder::new(
         State::default(),
