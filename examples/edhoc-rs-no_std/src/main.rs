@@ -73,7 +73,7 @@ fn main() -> ! {
 
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
-        let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
     }
 
     test_new_initiator();
@@ -93,8 +93,7 @@ fn main() -> ! {
 
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
-        let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let mut initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
         let message_1 = initiator.prepare_message_1(c_i);
@@ -106,25 +105,9 @@ fn main() -> ! {
 
     fn test_handshake() {
         let state_initiator: EdhocState = Default::default();
-        let mut initiator = EdhocInitiator::new(
-            state_initiator,
-            I,
-            G_R,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponder::new(
-            state_responder,
-            R,
-            G_I,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
         let ret = initiator.prepare_message_1(c_i); // to update the state

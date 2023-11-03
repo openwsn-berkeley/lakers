@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![allow(warnings)]
 
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::*,
@@ -18,67 +19,47 @@ use edhoc_consts::*;
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct EdhocInitiatorState<'a> {
-    state: State,        // opaque state
-    i: &'a [u8],         // private authentication key of I
-    g_r: &'a [u8],       // public authentication key of R
-    id_cred_i: &'a [u8], // identifier of I's credential
-    cred_i: &'a [u8],    // I's full credential
-    id_cred_r: &'a [u8], // identifier of R's credential
-    cred_r: &'a [u8],    // R's full credential
+    state: State,             // opaque state
+    i: &'a [u8],              // private authentication key of I
+    cred_i: &'a [u8],         // I's full credential
+    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
 }
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct EdhocResponderState<'a> {
-    state: State,        // opaque state
-    r: &'a [u8],         // private authentication key of R
-    g_i: &'a [u8],       // public authentication key of I
-    id_cred_i: &'a [u8], // identifier of I's credential
-    cred_i: &'a [u8],    // I's full credential
-    id_cred_r: &'a [u8], // identifier of R's credential
-    cred_r: &'a [u8],    // R's full credential
+    state: State,             // opaque state
+    r: &'a [u8],              // private authentication key of R
+    cred_r: &'a [u8],         // R's full credential
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
 }
 
 impl<'a> EdhocResponderState<'a> {
+    pub fn new(
+        state: State,
+        r: &'a [u8],
+        cred_r: &'a [u8],
+        cred_i: Option<&'a [u8]>,
+    ) -> EdhocResponderState<'a> {
+        assert!(r.len() == P256_ELEM_LEN);
+
+        EdhocResponderState {
+            state,
+            r,
+            cred_r,
+            cred_i,
+        }
+    }
+
     pub fn to_c(&self) -> EdhocResponderC {
+        let cred_i = self.cred_i.unwrap_or_default();
         EdhocResponderC {
             state: self.state,
             r: self.r.as_ptr(),
             r_len: self.r.len(),
-            g_i: self.g_i.as_ptr(),
-            g_i_len: self.g_i.len(),
-            id_cred_i: self.id_cred_i.as_ptr(),
-            id_cred_i_len: self.id_cred_i.len(),
-            cred_i: self.cred_i.as_ptr(),
-            cred_i_len: self.cred_i.len(),
-            id_cred_r: self.id_cred_r.as_ptr(),
-            id_cred_r_len: self.id_cred_r.len(),
             cred_r: self.cred_r.as_ptr(),
             cred_r_len: self.cred_r.len(),
-        }
-    }
-
-    pub fn new(
-        state: State,
-        r: &'a [u8],
-        g_i: &'a [u8],
-        id_cred_i: &'a [u8],
-        cred_i: &'a [u8],
-        id_cred_r: &'a [u8],
-        cred_r: &'a [u8],
-    ) -> EdhocResponderState<'a> {
-        assert!(r.len() == P256_ELEM_LEN);
-        assert!(g_i.len() == P256_ELEM_LEN);
-        assert!(id_cred_i.len() == ID_CRED_LEN);
-        assert!(id_cred_r.len() == ID_CRED_LEN);
-
-        EdhocResponderState {
-            state: state,
-            r: r,
-            g_i: g_i,
-            id_cred_i: id_cred_i,
-            cred_i: cred_i,
-            id_cred_r: id_cred_r,
-            cred_r: cred_r,
+            cred_i: cred_i.as_ptr(),
+            cred_i_len: cred_i.len(),
         }
     }
 
@@ -100,11 +81,7 @@ impl<'a> EdhocResponderState<'a> {
 
         match r_prepare_message_2(
             self.state,
-            &self
-                .id_cred_r
-                .try_into()
-                .expect("Wrong length of id_cred_r"),
-            self.cred_r,
+            &self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
@@ -122,16 +99,7 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-        match r_process_message_3(
-            self.state,
-            message_3,
-            &self
-                .id_cred_i
-                .try_into()
-                .expect("Wrong length of id_cred_i"),
-            self.cred_i,
-            &self.g_i.try_into().expect("Wrong length of public key"),
-        ) {
+        match r_process_message_3(self.state, message_3, self.cred_i.unwrap()) {
             Ok((state, prk_out)) => {
                 self.state = state;
                 Ok(prk_out)
@@ -176,46 +144,32 @@ impl<'a> EdhocResponderState<'a> {
 }
 
 impl<'a> EdhocInitiatorState<'a> {
+    pub fn new(
+        state: State,
+        i: &'a [u8],
+        cred_i: &'a [u8],
+        cred_r: Option<&'a [u8]>,
+    ) -> EdhocInitiatorState<'a> {
+        assert!(i.len() == P256_ELEM_LEN);
+
+        EdhocInitiatorState {
+            state,
+            i,
+            cred_i,
+            cred_r,
+        }
+    }
+
     pub fn to_c(&self) -> EdhocInitiatorC {
+        let cred_r = self.cred_r.unwrap_or_default();
         EdhocInitiatorC {
             state: self.state,
             i: self.i.as_ptr(),
             i_len: self.i.len(),
-            g_r: self.g_r.as_ptr(),
-            g_r_len: self.g_r.len(),
-            id_cred_i: self.id_cred_i.as_ptr(),
-            id_cred_i_len: self.id_cred_i.len(),
             cred_i: self.cred_i.as_ptr(),
             cred_i_len: self.cred_i.len(),
-            id_cred_r: self.id_cred_r.as_ptr(),
-            id_cred_r_len: self.id_cred_r.len(),
-            cred_r: self.cred_r.as_ptr(),
-            cred_r_len: self.cred_r.len(),
-        }
-    }
-
-    pub fn new(
-        state: State,
-        i: &'a [u8],
-        g_r: &'a [u8],
-        id_cred_i: &'a [u8],
-        cred_i: &'a [u8],
-        id_cred_r: &'a [u8],
-        cred_r: &'a [u8],
-    ) -> EdhocInitiatorState<'a> {
-        assert!(i.len() == P256_ELEM_LEN);
-        assert!(g_r.len() == P256_ELEM_LEN);
-        assert!(id_cred_i.len() == ID_CRED_LEN);
-        assert!(id_cred_r.len() == ID_CRED_LEN);
-
-        EdhocInitiatorState {
-            state: state,
-            i: i,
-            g_r: g_r,
-            id_cred_i: id_cred_i,
-            cred_i: cred_i,
-            id_cred_r: id_cred_r,
-            cred_r: cred_r,
+            cred_r: cred_r.as_ptr(),
+            cred_r_len: cred_r.len(),
         }
     }
 
@@ -241,15 +195,10 @@ impl<'a> EdhocInitiatorState<'a> {
         match i_process_message_2(
             self.state,
             message_2,
-            &self
-                .id_cred_r
-                .try_into()
-                .expect("Wrong length of id_cred_r"),
             self.cred_r,
-            &self.g_r.try_into().expect("Wrong length of public key"),
             self.i
                 .try_into()
-                .expect("Provided initiator key (self.i) has the wrong length"),
+                .expect("Wrong length of initiator private key"),
         ) {
             Ok((state, c_r, _kid)) => {
                 self.state = state;
@@ -262,14 +211,7 @@ impl<'a> EdhocInitiatorState<'a> {
     pub fn prepare_message_3(
         self: &mut EdhocInitiatorState<'a>,
     ) -> Result<(BufferMessage3, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match i_prepare_message_3(
-            self.state,
-            &self
-                .id_cred_i
-                .try_into()
-                .expect("Wrong length of id_cred_i"),
-            self.cred_i,
-        ) {
+        match i_prepare_message_3(self.state, &get_id_cred(self.cred_i), self.cred_i) {
             Ok((state, message_3, prk_out)) => {
                 self.state = state;
                 Ok((message_3, prk_out))
@@ -361,20 +303,21 @@ mod test {
     #[test]
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
-        let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _initiator = EdhocInitiatorState::new(state, I, CRED_I, Some(CRED_R));
+        let _initiator = EdhocInitiatorState::new(state, I, CRED_I, None);
     }
 
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
-        let _responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
+        let _responder = EdhocResponderState::new(state, R, CRED_R, None);
     }
 
     #[test]
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
-        let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let mut initiator = EdhocInitiatorState::new(state, I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor();
         let message_1 = initiator.prepare_message_1(c_i);
@@ -386,8 +329,7 @@ mod test {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
-        let mut responder =
-            EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let mut responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -405,29 +347,13 @@ mod test {
         assert!(conn_id >= -24 && conn_id <= 23);
     }
 
-    #[cfg(not(feature = "ead-zeroconf"))]
+    #[cfg(feature = "ead-none")]
     #[test]
     fn test_handshake() {
         let state_initiator: EdhocState = Default::default();
-        let mut initiator = EdhocInitiator::new(
-            state_initiator,
-            I,
-            G_R,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, Some(CRED_R));
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponder::new(
-            state_responder,
-            R,
-            G_I,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut responder = EdhocResponderState::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor();
         let result = initiator.prepare_message_1(c_i); // to update the state
@@ -487,42 +413,28 @@ mod test {
     }
 
     // U
-    const U: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-    const ID_U: &[u8] = &hex!("a104412b");
+    const U_TV: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+    const ID_U_TV: &[u8] = &hex!("a104412b");
 
     // V
-    // TODO...
+    pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
 
     // W
-    const G_W: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // TODO: update
+    pub const W_TV: &[u8] =
+        &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
+    const G_W: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_zeroconf() {
         let state_initiator: EdhocState = Default::default();
-        let mut initiator = EdhocInitiator::new(
-            state_initiator,
-            I,
-            G_R,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut initiator = EdhocInitiatorState::new(state_initiator, I, CRED_I, None);
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponder::new(
-            state_responder,
-            R,
-            G_I,
-            ID_CRED_I,
-            CRED_I,
-            ID_CRED_R,
-            CRED_R,
-        );
+        let mut responder = EdhocResponderState::new(state_responder, R, CRED_V_TV, Some(CRED_I));
 
-        let u: BytesP256ElemLen = U.try_into().unwrap();
-        let id_u: EdhocMessageBuffer = ID_U.try_into().unwrap();
+        let u: BytesP256ElemLen = U_TV.try_into().unwrap();
+        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
         let g_w: BytesP256ElemLen = G_W.try_into().unwrap();
         let loc_w: EdhocMessageBuffer = LOC_W.try_into().unwrap();
         ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
@@ -539,6 +451,12 @@ mod test {
             ead_responder_state.protocol_state,
             EADResponderProtocolState::Start
         );
+
+        let w: BytesP256ElemLen = W_TV.try_into().unwrap();
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+        ));
 
         let c_i = generate_connection_identifier_cbor();
         let message_1 = initiator.prepare_message_1(c_i).unwrap();
@@ -562,13 +480,10 @@ mod test {
 
         initiator.process_message_2(&message_2).unwrap();
 
-        // FIXME! uncomment and fix this assertion
-        //        it fails because we are trying to run a handshake with zeroconf BUT we don't have a W
-        //        a possible solution is to create a mocked W
-        // assert_eq!(
-        //     ead_initiator_state.protocol_state,
-        //     EADInitiatorProtocolState::Completed
-        // );
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::Completed
+        );
 
         let (message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 

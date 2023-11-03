@@ -32,8 +32,7 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let state = EdhocState::default();
-                let mut responder =
-                    EdhocResponder::new(state, &R, &G_I, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
+                let mut responder = EdhocResponder::new(state, &R, &CRED_R, Some(&CRED_I));
 
                 let error = responder.process_message_1(
                     &request.message.payload[1..]
