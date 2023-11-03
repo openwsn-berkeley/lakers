@@ -496,6 +496,7 @@ pub fn i_process_message_2(
                 c_r = c_r_2;
 
                 // Step 3: If EAD is present make it available to the application
+                // TODO: rewrite so that the logic is more clear
                 let (ead_ok, r_authenticated_via_ead, cred_r) = if let Some(ead_2) = ead_2 {
                     // if EAD-zeroconf is present, then id_cred must contain a full credential
                     if let IdCred::FullCredential(full_cred) = id_cred {
@@ -1122,22 +1123,22 @@ fn decode_plaintext_2(
     if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0])) {
         c_r = plaintext_2[0];
 
-        let mut offset =
-            if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
-                id_cred_r = IdCred::CompactKid(plaintext_2[1]);
-                2
-            } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
-                && is_cbor_uint_2bytes(plaintext_2[2])
-                && (plaintext_2[3] as usize) < plaintext_2_len
-            {
-                let cred_len = plaintext_2[3] as usize;
-                id_cred_r = IdCred::FullCredential(&plaintext_2[4..4 + cred_len]);
-                4 + cred_len
-            } else {
-                0xff
-            };
+        let res = if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
+            id_cred_r = IdCred::CompactKid(plaintext_2[1]);
+            Ok(2)
+        } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
+            && is_cbor_uint_2bytes(plaintext_2[2])
+            && (plaintext_2[3] as usize) < plaintext_2_len
+        {
+            let cred_len = plaintext_2[3] as usize;
+            id_cred_r = IdCred::FullCredential(&plaintext_2[4..4 + cred_len]);
+            Ok(4 + cred_len)
+        } else {
+            Err(())
+        };
 
-        if offset < 0xff {
+        if res.is_ok() {
+            let mut offset = res.unwrap();
             // skip cbor string byte as we know how long the string is
             offset += 1;
             mac_2[..].copy_from_slice(&plaintext_2[offset..offset + MAC_LENGTH_2]);

@@ -305,9 +305,14 @@ mod helpers {
     }
 
     pub fn parse_cred<'a>(cred: &'a [u8]) -> (BytesP256ElemLen, u8) {
+        // NOTE: this routine is only guaranteed to work with credentials from lake-traces
+        const CCS_PREFIX_LEN: usize = 3;
+        const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
+        const COSE_KEY_FIRST_ITEMS_LEN: usize = 6;
+
         let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
-        let id_cred_offset: usize = 3 + subject_len + 8;
-        let g_a_x_offset: usize = id_cred_offset + 6;
+        let id_cred_offset: usize = CCS_PREFIX_LEN + subject_len + CNF_AND_COSE_KEY_PREFIX_LEN;
+        let g_a_x_offset: usize = id_cred_offset + COSE_KEY_FIRST_ITEMS_LEN;
 
         (
             cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
