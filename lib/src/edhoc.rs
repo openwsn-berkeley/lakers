@@ -474,6 +474,7 @@ pub fn i_process_message_2(
     let mut error = EDHOCError::UnknownError;
     let mut c_r = 0xffu8; // invalidate c_r
     let mut kid = 0xffu8; // invalidate kid
+    let mut g_r: BytesP256ElemLen = Default::default();
     let mut cred_r = None;
 
     if current_state == EDHOCState::WaitMessage2 {
@@ -500,7 +501,8 @@ pub fn i_process_message_2(
                     // 1. Does ID_CRED_X point to a stored authentication credential? YES
                     // IMPL: compare cred_r_expected with id_cred
                     //   IMPL: assume cred_r_expected is well formed
-                    let (_g_r, kid_expected) = parse_cred(cred_r_expected).unwrap();
+                    let (g_r_expected, kid_expected) = parse_cred(cred_r_expected).unwrap();
+                    g_r = g_r_expected;
                     let credentials_match = match id_cred {
                         IdCred::CompactKid(kid) => kid == kid_expected,
                         IdCred::FullCredential(cred_r_received) => {
@@ -532,16 +534,17 @@ pub fn i_process_message_2(
                         //    Is the validation successful?
                         // IMPL: parse_cred(cred_r) and check it is valid
                         match parse_cred(cred_r_received) {
-                            Ok(_) => {
+                            Ok((g_r_received, _kid_received)) => {
                                 // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
                                 // IMPL,TODO: we just skip this step for now
 
                                 // 7. Store CRED_X as valid and trusted.
                                 //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
                                 // IMPL: cred_r = id_cred
+                                g_r = g_r_received;
                                 Some(cred_r_received)
                             }
-                            Err(error) => None,
+                            Err(_) => None,
                         }
                     } else {
                         // IMPL: should have gotten a full credential
@@ -558,10 +561,6 @@ pub fn i_process_message_2(
                     // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
                     // IMPL: we are sure valid_cred_r is a full credential
 
-                    // IMPL: invoking ead_2 processing regardless of valid_cred_r authorization (REMOVE??)
-                    // if ead_2 is some:
-                    //   ead_2_result, r_trusted_via_ead = process(ead_2, valid_cred_r)
-
                     // Step 3: If EAD is present make it available to the application
                     let ead_res = if let Some(ead_2) = ead_2 {
                         // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
@@ -573,12 +572,7 @@ pub fn i_process_message_2(
                         Ok(())
                     };
 
-                    // validate valid_cred_r.
-                    // if cred_r_validated(REMOVE??) or r_trusted_via_ead(REMOVE):
-
                     if ead_res.is_ok() {
-                        let (g_r, _kid_r) = parse_cred(valid_cred_r).unwrap(); // FIXME
-
                         // verify mac_2
                         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
