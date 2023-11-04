@@ -12,6 +12,7 @@ pub enum EADInitiatorProtocolState {
     Start,
     WaitEAD2,
     Completed, // TODO[ead]: check if it is really ok to consider Completed after processing EAD_2
+    Error,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -112,15 +113,23 @@ pub fn i_process_ead_2(
     cred_v.len = cred_v_u8.len();
     cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
 
-    let voucher = verify_voucher(&ead_2_value, h_message_1, &cred_v, &state.prk)?;
-
-    ead_initiator_set_global_state(EADInitiatorState {
-        protocol_state: EADInitiatorProtocolState::Completed,
-        voucher,
-        ..ead_initiator_get_global_state_own()
-    });
-
-    Ok(())
+    match verify_voucher(&ead_2_value, h_message_1, &cred_v, &state.prk) {
+        Ok(voucher) => {
+            ead_initiator_set_global_state(EADInitiatorState {
+                protocol_state: EADInitiatorProtocolState::Completed,
+                voucher,
+                ..ead_initiator_get_global_state_own()
+            });
+            Ok(())
+        }
+        Err(_) => {
+            ead_initiator_set_global_state(EADInitiatorState {
+                protocol_state: EADInitiatorProtocolState::Error,
+                ..ead_initiator_get_global_state_own()
+            });
+            Err(())
+        }
+    }
 }
 
 pub fn i_prepare_ead_3() -> Option<EADItem> {

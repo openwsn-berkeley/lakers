@@ -304,26 +304,36 @@ mod helpers {
         (info, info_len)
     }
 
-    pub fn parse_cred<'a>(cred: &'a [u8]) -> (BytesP256ElemLen, u8) {
+    pub fn parse_cred<'a>(cred: &'a [u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
         // NOTE: this routine is only guaranteed to work with credentials from lake-traces
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
         const COSE_KEY_FIRST_ITEMS_LEN: usize = 6;
 
+        if cred.len()
+            < 3 + CCS_PREFIX_LEN
+                + 1
+                + CNF_AND_COSE_KEY_PREFIX_LEN
+                + COSE_KEY_FIRST_ITEMS_LEN
+                + P256_ELEM_LEN
+        {
+            return Err(EDHOCError::ParsingError);
+        }
+
         let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
         let id_cred_offset: usize = CCS_PREFIX_LEN + subject_len + CNF_AND_COSE_KEY_PREFIX_LEN;
         let g_a_x_offset: usize = id_cred_offset + COSE_KEY_FIRST_ITEMS_LEN;
 
-        (
+        Ok((
             cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
                 .try_into()
                 .expect("Wrong key length"),
             cred[id_cred_offset],
-        )
+        ))
     }
 
     pub fn get_id_cred<'a>(cred: &'a [u8]) -> BytesIdCred {
-        let (_g, kid) = parse_cred(cred);
+        let (_g, kid) = parse_cred(cred).unwrap();
         [0xa1, 0x04, 0x41, kid]
     }
 }
@@ -530,7 +540,9 @@ mod test {
 
     #[test]
     fn test_parse_cred() {
-        let (g_a, kid) = parse_cred(CRED_TV);
+        let res = parse_cred(CRED_TV);
+        assert!(res.is_ok());
+        let (g_a, kid) = res.unwrap();
         assert_eq!(g_a, G_A_TV);
         assert_eq!(kid, ID_CRED_TV[3]);
         assert_eq!(get_id_cred(CRED_TV), ID_CRED_TV);
