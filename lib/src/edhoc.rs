@@ -212,7 +212,7 @@ pub fn r_prepare_message_2(
             // NOTE: assume EAD_2 is for zeroconf
             IdCred::FullCredential(cred_r)
         } else {
-            let (_g_r, kid) = parse_cred(cred_r);
+            let (_g_r, kid) = parse_cred(cred_r).unwrap(); // FIXME
             IdCred::CompactKid(kid)
         };
 
@@ -296,7 +296,7 @@ pub fn r_process_message_3(
                     true
                 };
                 if ead_success {
-                    let (g_i, kid_i) = parse_cred(cred_i_expected);
+                    let (g_i, kid_i) = parse_cred(cred_i_expected).unwrap(); // FIXME
 
                     // compare the kid received with the kid expected in id_cred_i
                     if kid == kid_i {
@@ -474,6 +474,7 @@ pub fn i_process_message_2(
     let mut error = EDHOCError::UnknownError;
     let mut c_r = 0xffu8; // invalidate c_r
     let mut kid = 0xffu8; // invalidate kid
+    let mut cred_r = None;
 
     if current_state == EDHOCState::WaitMessage2 {
         let res = parse_message_2(message_2);
@@ -495,87 +496,138 @@ pub fn i_process_message_2(
                 let (c_r_2, id_cred, mac_2, ead_2) = plaintext_2_decoded.unwrap();
                 c_r = c_r_2;
 
-                // Step 3: If EAD is present make it available to the application
-                // TODO: rewrite so that the logic is more clear
-                let (ead_ok, r_authenticated_via_ead, cred_r) = if let Some(ead_2) = ead_2 {
-                    // if EAD-zeroconf is present, then id_cred must contain a full credential
-                    if let IdCred::FullCredential(full_cred) = id_cred {
-                        let ead_ok = i_process_ead_2(ead_2, full_cred, &h_message_1).is_ok();
-                        // at this point, in case of EAD = zeroconf, if it works it means that:
-                        // - the Voucher has been verified
-                        // - the received cred_r (aka cred_v) has been authenticated
-                        (ead_ok, ead_ok, Some(full_cred))
+                cred_r = if let Some(cred_r_expected) = cred_r_expected {
+                    // 1. Does ID_CRED_X point to a stored authentication credential? YES
+                    // IMPL: compare cred_r_expected with id_cred
+                    //   IMPL: assume cred_r_expected is well formed
+                    let (_g_r, kid_expected) = parse_cred(cred_r_expected).unwrap();
+                    let credentials_match = match id_cred {
+                        IdCred::CompactKid(kid) => kid == kid_expected,
+                        IdCred::FullCredential(cred_r_received) => {
+                            cred_r_expected == cred_r_received
+                        }
+                    };
+
+                    // 2. Is this authentication credential still valid?
+                    // IMPL,TODO: check cred_r_expected is still valid
+
+                    // Continue by considering CRED_X as the authentication credential of the other peer.
+                    // IMPL: ready to proceed, including process ead_2
+
+                    if credentials_match {
+                        Some(cred_r_expected)
                     } else {
-                        (false, false, None)
+                        None
                     }
                 } else {
-                    if cred_r_expected.is_some() {
-                        if let IdCred::CompactKid(compact_kid) = id_cred {
-                            kid = compact_kid;
-                            (true, false, cred_r_expected)
-                        } else {
-                            (true, false, None)
+                    // 1. Does ID_CRED_X point to a stored authentication credential? NO
+                    // IMPL: cred_r_expected provided by application is None
+                    //       id_cred must be a full credential
+                    if let IdCred::FullCredential(cred_r_received) = id_cred {
+                        // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+
+                        // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+                        // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+                        //    Is the validation successful?
+                        // IMPL: parse_cred(cred_r) and check it is valid
+                        match parse_cred(cred_r_received) {
+                            Ok(_) => {
+                                // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                                // IMPL,TODO: we just skip this step for now
+
+                                // 7. Store CRED_X as valid and trusted.
+                                //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                                // IMPL: cred_r = id_cred
+                                Some(cred_r_received)
+                            }
+                            Err(error) => None,
                         }
                     } else {
-                        (true, false, None)
+                        // IMPL: should have gotten a full credential
+                        None
                     }
                 };
 
-                if ead_ok {
-                    if cred_r.is_some() {
-                        let cred_r = cred_r.unwrap();
-                        let (g_r, kid_r) = parse_cred(cred_r);
+                // 8. Is this authentication credential good to use in the context of this EDHOC session?
+                // IMPL,TODO: we just skip this step for now
+
+                // IMPL: stop if cred_r is None
+                if let Some(valid_cred_r) = cred_r {
+                    // Phase 2:
+                    // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
+                    // IMPL: we are sure valid_cred_r is a full credential
+
+                    // IMPL: invoking ead_2 processing regardless of valid_cred_r authorization (REMOVE??)
+                    // if ead_2 is some:
+                    //   ead_2_result, r_trusted_via_ead = process(ead_2, valid_cred_r)
+
+                    // Step 3: If EAD is present make it available to the application
+                    let ead_res = if let Some(ead_2) = ead_2 {
+                        // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
+                        // at this point, in case of EAD = zeroconf, if it works it means that:
+                        // - the Voucher has been verified
+                        // - the received valid_cred_r (aka cred_v) has been authenticated
+                        i_process_ead_2(ead_2, valid_cred_r, &h_message_1)
+                    } else {
+                        Ok(())
+                    };
+
+                    // validate valid_cred_r.
+                    // if cred_r_validated(REMOVE??) or r_trusted_via_ead(REMOVE):
+
+                    if ead_res.is_ok() {
+                        let (g_r, _kid_r) = parse_cred(valid_cred_r).unwrap(); // FIXME
 
                         // verify mac_2
                         let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
 
                         prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, &g_r);
 
-                        let expected_mac_2 =
-                            compute_mac_2(&prk_3e2m, &get_id_cred(cred_r), &cred_r, &th_2);
+                        let expected_mac_2 = compute_mac_2(
+                            &prk_3e2m,
+                            &get_id_cred(valid_cred_r),
+                            &valid_cred_r,
+                            &th_2,
+                        );
 
                         if mac_2 == expected_mac_2 {
-                            if r_authenticated_via_ead || kid == kid_r {
-                                // step is actually from processing of message_3
-                                // but we do it here to avoid storing plaintext_2 in State
-                                let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
-                                pt2.content[..plaintext_2_len]
-                                    .copy_from_slice(&plaintext_2[..plaintext_2_len]);
-                                pt2.len = plaintext_2_len;
-                                th_3 = compute_th_3(&th_2, &pt2, &cred_r);
-                                // message 3 processing
+                            // step is actually from processing of message_3
+                            // but we do it here to avoid storing plaintext_2 in State
+                            let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
+                            pt2.content[..plaintext_2_len]
+                                .copy_from_slice(&plaintext_2[..plaintext_2_len]);
+                            pt2.len = plaintext_2_len;
+                            th_3 = compute_th_3(&th_2, &pt2, &valid_cred_r);
+                            // message 3 processing
 
-                                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                            let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
 
-                                prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                            prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
 
-                                error = EDHOCError::Success;
-                                current_state = EDHOCState::ProcessedMessage2;
+                            error = EDHOCError::Success;
+                            current_state = EDHOCState::ProcessedMessage2;
 
-                                state = construct_state(
-                                    current_state,
-                                    x,
-                                    _c_i,
-                                    g_y,
-                                    prk_3e2m,
-                                    prk_4e3m,
-                                    _prk_out,
-                                    _prk_exporter,
-                                    h_message_1,
-                                    th_3,
-                                );
-                            } else {
-                                // Unknown peer
-                                error = EDHOCError::UnknownPeer;
-                            }
+                            state = construct_state(
+                                current_state,
+                                x,
+                                _c_i,
+                                g_y,
+                                prk_3e2m,
+                                prk_4e3m,
+                                _prk_out,
+                                _prk_exporter,
+                                h_message_1,
+                                th_3,
+                            );
                         } else {
                             error = EDHOCError::MacVerificationFailed;
                         }
                     } else {
-                        error = EDHOCError::UnknownPeer;
+                        error = EDHOCError::EADError;
                     }
                 } else {
-                    error = EDHOCError::EADError;
+                    error = EDHOCError::UnknownPeer;
                 }
             } else {
                 error = EDHOCError::ParsingError;
