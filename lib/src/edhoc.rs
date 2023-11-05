@@ -262,7 +262,7 @@ pub fn r_prepare_message_2(
 pub fn r_process_message_3(
     mut state: State,
     message_3: &BufferMessage3,
-    cred_i_expected: &[u8],
+    cred_i_expected: Option<&[u8]>,
 ) -> Result<(State, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
@@ -278,6 +278,8 @@ pub fn r_process_message_3(
     ) = state;
 
     let mut error = EDHOCError::UnknownError;
+    let mut g_i: BytesP256ElemLen = Default::default();
+    let mut cred_i = None;
 
     if current_state == EDHOCState::WaitMessage3 {
         let plaintext_3 = decrypt_message_3(&prk_3e2m, &th_3, message_3);
@@ -287,26 +289,92 @@ pub fn r_process_message_3(
             let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
             if decoded_p3_res.is_ok() {
+                // The implementation currently supports the following two cases on handling the credentials:
+                // 1. R receives a kid and has a corresponding CRED_x passed in as cred_i_expected
+                // 2. R receives CRED_x by value in the message and uses it
+                // TODO: add support for fetching CRED_x based on kid received in the message
                 let (id_cred_i, mac_3, ead_3) = decoded_p3_res.unwrap();
 
-                // Step 3: If EAD is present make it available to the application
-                let ead_success = if let Some(ead_3) = ead_3 {
-                    r_process_ead_3(ead_3).is_ok()
-                } else {
-                    true
-                };
-                if ead_success {
-                    let (g_i, kid_i_expected) = parse_cred(cred_i_expected).unwrap(); // FIXME
-
-                    // compare the kid received with the kid expected in id_cred_i
+                // Processing of auth credentials according to draft-tiloca-lake-implem-cons
+                // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
+                cred_i = if let Some(cred_i_expected) = cred_i_expected {
+                    // 1. Does ID_CRED_X point to a stored authentication credential? YES
+                    // IMPL: compare cred_i_expected with id_cred
+                    //   IMPL: assume cred_i_expected is well formed
+                    let (g_i_expected, kid_expected) = parse_cred(cred_i_expected).unwrap();
+                    g_i = g_i_expected;
                     let credentials_match = match id_cred_i {
-                        IdCred::CompactKid(kid) => kid == kid_i_expected,
+                        IdCred::CompactKid(kid) => kid == kid_expected,
                         IdCred::FullCredential(cred_i_received) => {
                             cred_i_expected == cred_i_received
                         }
                     };
 
+                    // 2. Is this authentication credential still valid?
+                    // IMPL,TODO: check cred_r_expected is still valid
+
+                    // Continue by considering CRED_X as the authentication credential of the other peer.
+                    // IMPL: ready to proceed, including process ead_2
+
                     if credentials_match {
+                        Some(cred_i_expected)
+                    } else {
+                        None
+                    }
+                } else {
+                    // 1. Does ID_CRED_X point to a stored authentication credential? NO
+                    // IMPL: cred_i_expected provided by application is None
+                    //       id_cred must be a full credential
+                    if let IdCred::FullCredential(cred_i_received) = id_cred_i {
+                        // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+
+                        // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+                        // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+                        //    Is the validation successful?
+                        // IMPL: parse_cred(cred_r) and check it is valid
+                        match parse_cred(cred_i_received) {
+                            Ok((g_i_received, _kid_received)) => {
+                                // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                                // IMPL,TODO: we just skip this step for now
+
+                                // 7. Store CRED_X as valid and trusted.
+                                //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                                // IMPL: cred_r = id_cred
+                                g_i = g_i_received;
+                                Some(cred_i_received)
+                            }
+                            Err(_) => None,
+                        }
+                    } else {
+                        // IMPL: should have gotten a full credential
+                        None
+                    }
+                };
+
+                // 8. Is this authentication credential good to use in the context of this EDHOC session?
+                // IMPL,TODO: we just skip this step for now
+
+                // IMPL: stop if cred_r is None
+                if let Some(valid_cred_i) = cred_i {
+                    // Phase 2:
+                    // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
+                    // IMPL: we are sure valid_cred_i is a full credential
+
+                    // Step 3: If EAD is present make it available to the application
+                    let ead_res = if let Some(ead_3) = ead_3 {
+                        // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
+                        // at this point, in case of EAD = zeroconf, if it works it means that:
+                        // - the Voucher has been verified
+                        // - the received valid_cred_i (aka cred_i) has been authenticated
+                        r_process_ead_3(ead_3)
+                    } else {
+                        Ok(())
+                    };
+
+                    if ead_res.is_ok() {
+                        // verify mac_3
+
                         // compute salt_4e3m
                         let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                         // TODO compute prk_4e3m
@@ -316,14 +384,14 @@ pub fn r_process_message_3(
                         let expected_mac_3 = compute_mac_3(
                             &prk_4e3m,
                             &th_3,
-                            &get_id_cred(cred_i_expected),
-                            cred_i_expected,
+                            &get_id_cred(valid_cred_i),
+                            valid_cred_i,
                         );
 
                         // verify mac_3
                         if mac_3 == expected_mac_3 {
                             error = EDHOCError::Success;
-                            let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected);
+                            let th_4 = compute_th_4(&th_3, &plaintext_3, valid_cred_i);
 
                             let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                             th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -365,10 +433,10 @@ pub fn r_process_message_3(
                             error = EDHOCError::MacVerificationFailed;
                         }
                     } else {
-                        error = EDHOCError::UnknownPeer;
+                        error = EDHOCError::EADError;
                     }
                 } else {
-                    error = EDHOCError::EADError;
+                    error = EDHOCError::UnknownPeer;
                 }
             } else {
                 error = decoded_p3_res.unwrap_err();

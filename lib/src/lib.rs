@@ -99,7 +99,7 @@ impl<'a> EdhocResponderState<'a> {
         self: &mut EdhocResponderState<'a>,
         message_3: &BufferMessage3,
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
-        match r_process_message_3(self.state, message_3, self.cred_i.unwrap()) {
+        match r_process_message_3(self.state, message_3, self.cred_i) {
             Ok((state, prk_out)) => {
                 self.state = state;
                 Ok(prk_out)
