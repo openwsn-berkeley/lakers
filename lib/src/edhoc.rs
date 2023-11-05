@@ -287,7 +287,7 @@ pub fn r_process_message_3(
             let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
             if decoded_p3_res.is_ok() {
-                let (kid, mac_3, ead_3) = decoded_p3_res.unwrap();
+                let (id_cred_i, mac_3, ead_3) = decoded_p3_res.unwrap();
 
                 // Step 3: If EAD is present make it available to the application
                 let ead_success = if let Some(ead_3) = ead_3 {
@@ -296,10 +296,17 @@ pub fn r_process_message_3(
                     true
                 };
                 if ead_success {
-                    let (g_i, kid_i) = parse_cred(cred_i_expected).unwrap(); // FIXME
+                    let (g_i, kid_i_expected) = parse_cred(cred_i_expected).unwrap(); // FIXME
 
                     // compare the kid received with the kid expected in id_cred_i
-                    if kid == kid_i {
+                    let credentials_match = match id_cred_i {
+                        IdCred::CompactKid(kid) => kid == kid_i_expected,
+                        IdCred::FullCredential(cred_i_received) => {
+                            cred_i_expected == cred_i_received
+                        }
+                    };
+
+                    if credentials_match {
                         // compute salt_4e3m
                         let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
                         // TODO compute prk_4e3m
@@ -930,33 +937,58 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(u8, BytesMac3, Option<EADItem>), EDHOCError> {
+) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
     let mut ead_3 = None::<EADItem>;
     let mut error = EDHOCError::UnknownError;
     let mut kid: u8 = 0xff;
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
+    let mut id_cred_i: IdCred = IdCred::CompactKid(0xFF);
 
     // check ID_CRED_I and MAC_3
-    if (is_cbor_neg_int_1byte(plaintext_3.content[0]) || is_cbor_uint_1byte(plaintext_3.content[0]))
-        && (is_cbor_bstr_1byte_prefix(plaintext_3.content[1]))
+    let res = if (is_cbor_neg_int_1byte(plaintext_3.content[0])
+        || is_cbor_uint_1byte(plaintext_3.content[0]))
     {
+        // KID
         kid = plaintext_3.content[0usize];
-        // skip the CBOR magic byte as we know how long the MAC is
-        mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
+        id_cred_i = IdCred::CompactKid(plaintext_3.content[0usize]);
+        Ok(1)
+    } else if is_cbor_bstr_2bytes_prefix(plaintext_3.content[0])
+        && is_cbor_uint_2bytes(plaintext_3.content[1])
+        && (plaintext_3.content[2] as usize) < plaintext_3.len
+    {
+        // full credential
+        let cred_len = plaintext_3.content[2] as usize;
+        id_cred_i = IdCred::FullCredential(&plaintext_3.content[3..3 + cred_len]);
+        Ok(3 + cred_len)
+    } else {
+        // error
+        Err(())
+    };
 
-        // if there is still more to parse, the rest will be the EAD_3
-        if plaintext_3.len > (2 + MAC_LENGTH_3) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
-            if ead_res.is_ok() {
-                ead_3 = ead_res.unwrap();
+    if res.is_ok() {
+        let mut offset = res.unwrap();
+
+        if (is_cbor_bstr_1byte_prefix(plaintext_3.content[1])) {
+            // skip the CBOR magic byte as we know how long the MAC is
+            offset += 1;
+            mac_3[..].copy_from_slice(&plaintext_3.content[offset..offset + MAC_LENGTH_3]);
+
+            // if there is still more to parse, the rest will be the EAD_3
+            if plaintext_3.len > (offset + MAC_LENGTH_3) {
+                // NOTE: since the current implementation only supports one EAD handler,
+                // we assume only one EAD item
+                let ead_res = parse_ead(plaintext_3, offset + MAC_LENGTH_3);
+                if ead_res.is_ok() {
+                    ead_3 = ead_res.unwrap();
+                    error = EDHOCError::Success;
+                } else {
+                    error = ead_res.unwrap_err();
+                }
+            } else if plaintext_3.len == (offset + MAC_LENGTH_3) {
                 error = EDHOCError::Success;
             } else {
-                error = ead_res.unwrap_err();
+                error = EDHOCError::ParsingError;
             }
-        } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
-            error = EDHOCError::Success;
         } else {
             error = EDHOCError::ParsingError;
         }
@@ -965,7 +997,7 @@ fn decode_plaintext_3(
     }
 
     match error {
-        EDHOCError::Success => Ok((kid, mac_3, ead_3)),
+        EDHOCError::Success => Ok((id_cred_i, mac_3, ead_3)),
         _ => Err(error),
     }
 }
@@ -1789,7 +1821,12 @@ mod tests {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
 
-        let (kid, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
+        let (id_cred_i, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
+
+        let kid = match id_cred_i {
+            IdCred::CompactKid(id_cred_i) => id_cred_i,
+            _ => panic!("Invalid ID_CRED_I"),
+        };
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(kid, kid_tv);
