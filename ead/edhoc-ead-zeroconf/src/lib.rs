@@ -1,7 +1,7 @@
 #![no_std]
 
 use edhoc_consts::*;
-use edhoc_crypto::*;
+use edhoc_crypto::{default_crypto, CryptoTrait};
 
 // ---- initiator side (device)
 
@@ -165,15 +165,15 @@ fn build_enc_id(prk: &BytesHashLen, id_u: &EdhocMessageBuffer, ss: u8) -> EdhocM
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
+    default_crypto().aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
 }
 
 fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
     // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
     //       nevertheless, using a salt of HashLen zeros works as well (see RFC 5869, Section 2.2).
     let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
-    let g_ab = p256_ecdh(a, g_b);
-    hkdf_extract(&salt, &g_ab)
+    let g_ab = default_crypto().p256_ecdh(a, g_b);
+    default_crypto().hkdf_extract(&salt, &g_ab)
 }
 
 fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
@@ -236,7 +236,7 @@ fn edhoc_kdf_expand(
     length: usize,
 ) -> BytesMaxBuffer {
     let (info, info_len) = encode_info(label, context, context_len, length);
-    let output = hkdf_expand(prk, &info, info_len, length);
+    let output = default_crypto().hkdf_expand(prk, &info, info_len, length);
     output
 }
 
@@ -544,7 +544,7 @@ fn handle_voucher_request(
     // compute hash
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
-    let h_message_1 = sha256_digest(&message_1_buf, message_1.len);
+    let h_message_1 = default_crypto().sha256_digest(&message_1_buf, message_1.len);
 
     let prk = compute_prk(w, g_x);
 

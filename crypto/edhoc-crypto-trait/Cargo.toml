@@ -1,0 +1,7 @@
+[package]
+name = "edhoc-crypto-trait"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+edhoc-consts = { path = "../../consts", default-features = false }
