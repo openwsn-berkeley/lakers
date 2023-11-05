@@ -32,17 +32,17 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let state = EdhocState::default();
-                let mut responder = EdhocResponder::new(state, &R, &CRED_R, Some(&CRED_I));
+                let responder = EdhocResponder::new(state, &R, &CRED_R, Some(&CRED_I));
 
-                let error = responder.process_message_1(
+                let result = responder.process_message_1(
                     &request.message.payload[1..]
                         .try_into()
                         .expect("wrong length"),
                 );
 
-                if error.is_ok() {
+                if let Ok(responder) = result {
                     let c_r = generate_connection_identifier_cbor();
-                    let message_2 = responder.prepare_message_2(c_r).unwrap();
+                    let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
                     response.message.payload = Vec::from(&message_2.content[..message_2.len]);
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));
@@ -51,24 +51,21 @@ fn main() {
                 // potentially message 3
                 println!("Received message 3");
                 let c_r_rcvd = request.message.payload[0];
-                let (index, mut responder, ec) = lookup_state(c_r_rcvd, edhoc_connections).unwrap();
-                edhoc_connections = ec;
+                // FIXME let's better not *panic here
+                let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let prk_out = responder.process_message_3(
+                let result = responder.process_message_3(
                     &request.message.payload[1..]
                         .try_into()
                         .expect("wrong length"),
                 );
-
-                if prk_out.is_err() {
-                    println!("EDHOC processing error: {:?}", prk_out);
-                    // FIXME remove state from edhoc_connections
+                let Ok((mut responder, prk_out)) = result else {
+                    println!("EDHOC processing error: {:?}", response);
+                    // We don't get another chance, it's popped and can't be used any further
+                    // anyway legally
                     continue;
-                }
-
-                // update edhoc connection
-                edhoc_connections[index] = (c_r_rcvd, responder);
+                };
 
                 // send empty ack back
                 response.message.payload = b"".to_vec();
@@ -106,14 +103,16 @@ fn main() {
     }
 }
 
-fn lookup_state<'a>(
-    c_r_rcvd: u8,
-    edhoc_protocol_states: Vec<(u8, EdhocResponder<'a>)>,
-) -> Result<(usize, EdhocResponder<'a>, Vec<(u8, EdhocResponder)>), EDHOCError> {
+fn take_state<R>(c_r_rcvd: u8, edhoc_protocol_states: &mut Vec<(u8, R)>) -> Result<R, EDHOCError> {
     for (i, element) in edhoc_protocol_states.iter().enumerate() {
         let (c_r, responder) = element;
         if *c_r == c_r_rcvd {
-            return Ok((i, *responder, edhoc_protocol_states));
+            let max_index = edhoc_protocol_states.len() - 1;
+            edhoc_protocol_states.swap(i, max_index);
+            let Some((_c_r, responder)) = edhoc_protocol_states.pop() else {
+                unreachable!();
+            };
+            return Ok(responder);
         }
     }
     return Err(EDHOCError::WrongState);

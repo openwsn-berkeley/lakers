@@ -3,7 +3,7 @@
 
 pub use {
     edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto::default_crypto,
-    edhoc_crypto_trait::Crypto as CryptoTrait, EdhocResponderState as EdhocResponder,
+    edhoc_crypto_trait::Crypto as CryptoTrait,
 };
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
@@ -43,24 +43,45 @@ pub struct EdhocInitiatorDone {
     state: State, // opaque state
 }
 
-#[derive(Default, Copy, Clone, Debug)]
-pub struct EdhocResponderState<'a> {
+#[derive(Default, Debug)]
+pub struct EdhocResponder<'a> {
     state: State,             // opaque state
     r: &'a [u8],              // private authentication key of R
     cred_r: &'a [u8],         // R's full credential
     cred_i: Option<&'a [u8]>, // I's full credential (if provided)
 }
 
-impl<'a> EdhocResponderState<'a> {
+#[derive(Default, Debug)]
+pub struct EdhocResponderBuildM2<'a> {
+    state: State,             // opaque state
+    r: &'a [u8],              // private authentication key of R
+    cred_r: &'a [u8],         // R's full credential
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
+}
+
+#[derive(Default, Debug)]
+pub struct EdhocResponderWaitM3<'a> {
+    state: State,             // opaque state
+    r: &'a [u8],              // private authentication key of R
+    cred_r: &'a [u8],         // R's full credential
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
+}
+
+#[derive(Default, Debug)]
+pub struct EdhocResponderDone {
+    state: State, // opaque state
+}
+
+impl<'a> EdhocResponder<'a> {
     pub fn new(
         state: State,
         r: &'a [u8],
         cred_r: &'a [u8],
         cred_i: Option<&'a [u8]>,
-    ) -> EdhocResponderState<'a> {
+    ) -> EdhocResponder<'a> {
         assert!(r.len() == P256_ELEM_LEN);
 
-        EdhocResponderState {
+        EdhocResponder {
             state,
             r,
             cred_r,
@@ -69,19 +90,25 @@ impl<'a> EdhocResponderState<'a> {
     }
 
     pub fn process_message_1(
-        self: &mut EdhocResponderState<'a>,
+        self,
         message_1: &BufferMessage1,
-    ) -> Result<(), EDHOCError> {
+    ) -> Result<EdhocResponderBuildM2<'a>, EDHOCError> {
         let state = r_process_message_1(self.state, &mut default_crypto(), message_1)?;
-        self.state = state;
 
-        Ok(())
+        Ok(EdhocResponderBuildM2 {
+            state,
+            r: self.r,
+            cred_r: self.cred_r,
+            cred_i: self.cred_i,
+        })
     }
+}
 
+impl<'a> EdhocResponderBuildM2<'a> {
     pub fn prepare_message_2(
-        self: &mut EdhocResponderState<'a>,
+        self,
         c_r: u8,
-    ) -> Result<BufferMessage2, EDHOCError> {
+    ) -> Result<(EdhocResponderWaitM3<'a>, BufferMessage2), EDHOCError> {
         let (y, g_y) = default_crypto().p256_generate_key_pair();
 
         match r_prepare_message_2(
@@ -93,34 +120,40 @@ impl<'a> EdhocResponderState<'a> {
             g_y,
             c_r,
         ) {
-            Ok((state, message_2)) => {
-                self.state = state;
-                Ok(message_2)
-            }
+            Ok((state, message_2)) => Ok((
+                EdhocResponderWaitM3 {
+                    state,
+                    r: self.r,
+                    cred_r: self.cred_r,
+                    cred_i: self.cred_i,
+                },
+                message_2,
+            )),
             Err(error) => Err(error),
         }
     }
+}
 
+impl<'a> EdhocResponderWaitM3<'a> {
     pub fn process_message_3(
-        self: &mut EdhocResponderState<'a>,
+        self,
         message_3: &BufferMessage3,
-    ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
+    ) -> Result<(EdhocResponderDone, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
         match r_process_message_3(
             self.state,
             &mut default_crypto(),
             message_3,
             self.cred_i.unwrap(),
         ) {
-            Ok((state, prk_out)) => {
-                self.state = state;
-                Ok(prk_out)
-            }
+            Ok((state, prk_out)) => Ok((EdhocResponderDone { state }, prk_out)),
             Err(error) => Err(error),
         }
     }
+}
 
+impl EdhocResponderDone {
     pub fn edhoc_exporter(
-        self: &mut EdhocResponderState<'a>,
+        &mut self,
         label: u8,
         context: &[u8],
         length: usize,
@@ -145,7 +178,7 @@ impl<'a> EdhocResponderState<'a> {
     }
 
     pub fn edhoc_key_update(
-        self: &mut EdhocResponderState<'a>,
+        &mut self,
         context: &[u8],
     ) -> Result<[u8; SHA256_DIGEST_LEN], EDHOCError> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
@@ -353,8 +386,8 @@ mod test {
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
-        let _responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
-        let _responder = EdhocResponderState::new(state, R, CRED_R, None);
+        let _responder = EdhocResponder::new(state, R, CRED_R, Some(CRED_I));
+        let _responder = EdhocResponder::new(state, R, CRED_R, None);
     }
 
     #[test]
@@ -372,12 +405,16 @@ mod test {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let state: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state, R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(state, R, CRED_R, Some(CRED_I));
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
         assert!(error.is_err());
         assert_eq!(error.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
+
+        // We need to create a new responder -- no message is supposed to be processed twice by a
+        // responder or initiator
+        let responder = EdhocResponder::new(state, R, CRED_R, Some(CRED_I));
 
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
@@ -396,30 +433,25 @@ mod test {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state_responder, R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor();
         let (initiator, result) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
 
-        let error = responder.process_message_1(&result);
-        assert!(error.is_ok());
+        let responder = responder.process_message_1(&result).unwrap();
 
         let c_r = generate_connection_identifier_cbor();
-        let ret = responder.prepare_message_2(c_r);
-        assert!(ret.is_ok());
-
-        let message_2 = ret.unwrap();
+        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
 
         assert!(c_r != 0xff);
         let (initiator, _) = initiator.process_message_2(&message_2).unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 
-        let r_prk_out = responder.process_message_3(&message_3);
-        assert!(r_prk_out.is_ok());
+        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
 
         // check that prk_out is equal at initiator and responder side
-        assert_eq!(i_prk_out, r_prk_out.unwrap());
+        assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
         let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
@@ -469,7 +501,7 @@ mod test {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, None);
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponderState::new(state_responder, R, CRED_V_TV, Some(CRED_I));
+        let responder = EdhocResponder::new(state_responder, R, CRED_V_TV, Some(CRED_I));
 
         let u: BytesP256ElemLen = U_TV.try_into().unwrap();
         let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
@@ -503,14 +535,14 @@ mod test {
             EADInitiatorProtocolState::WaitEAD2
         );
 
-        responder.process_message_1(&message_1).unwrap();
+        let responder = responder.process_message_1(&message_1).unwrap();
         assert_eq!(
             ead_responder_state.protocol_state,
             EADResponderProtocolState::ProcessedEAD1
         );
 
         let c_r = generate_connection_identifier_cbor();
-        let message_2 = responder.prepare_message_2(c_r).unwrap();
+        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
         assert_eq!(
             ead_responder_state.protocol_state,
             EADResponderProtocolState::Completed
@@ -525,7 +557,7 @@ mod test {
 
         let (initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 
-        let r_prk_out = responder.process_message_3(&message_3).unwrap();
+        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
         assert_eq!(i_prk_out, r_prk_out);
         assert_eq!(
             ead_responder_state.protocol_state,
