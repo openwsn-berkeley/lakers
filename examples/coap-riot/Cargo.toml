@@ -1,0 +1,50 @@
+[package]
+name = "edhoc-coap-riot"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[lib]
+crate-type = ["staticlib"]
+
+[profile.release]
+# Setting the panic mode has little effect on the built code (as Rust on RIOT
+# supports no unwinding), but setting it allows builds on native without using
+# the nightly-only lang_items feature.
+panic = "abort"
+# This is a typical set of options that helps Rust binaries stay small
+lto = true
+codegen-units = 1
+opt-level = "s"
+
+[dependencies]
+riot-wrappers = { version = "^0.8", features = [ "set_panic_handler", "panic_handler_format", "with_embedded_nal" ] }
+
+coap-message-demos = { git = "https://gitlab.com/chrysn/coap-message-demos/", default-features = false }
+coap-handler-implementations = "0.4"
+riot-coap-handler-demos = { git = "https://gitlab.com/etonomy/riot-module-examples/", features = [ "vfs" ] }
+
+edhoc-rs = { path = "../../lib", default-features = false }
+hexlit = "0.5.3"
+heapless = "0.7"
+
+embedded-nal-minimal-coapserver = "0.3.1"
+embedded-nal = "0.6"
+coap-message = "0.2.3"
+coap-handler = "0.1.5"
+coap-numbers = "0.2.3"
+
+embedded-alloc = "0.5.0"
+
+# While currently this exmple does not use any RIOT modules implemented in
+# Rust, that may change; it is best practice for any RIOT application that has
+# its own top-level Rust crate to include rust_riotmodules from inside
+# RIOTBASE.
+rust_riotmodules = { path = "/Users/geovane/Developer/inria/dev/RIOT-FORK/sys/rust_riotmodules/" }
+
+[features]
+default = [ "crypto-cryptocell310", "ead-none" ]
+crypto-psa = [ "edhoc-rs/crypto-psa-baremetal" ]
+crypto-cryptocell310 = [ "edhoc-rs/crypto-cryptocell310" ]
+ead-none = [ "edhoc-rs/ead-none" ]
+ead-zeroconf = [ "edhoc-rs/ead-zeroconf" ]
