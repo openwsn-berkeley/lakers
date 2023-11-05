@@ -13,9 +13,6 @@ pub use edhoc_ead::*;
 mod edhoc;
 use edhoc::*;
 
-mod c_wrapper;
-use c_wrapper::*;
-
 use edhoc_consts::*;
 
 #[derive(Default, Copy, Clone, Debug)]
@@ -48,19 +45,6 @@ impl<'a> EdhocResponderState<'a> {
             r,
             cred_r,
             cred_i,
-        }
-    }
-
-    pub fn to_c(&self) -> EdhocResponderC {
-        let cred_i = self.cred_i.unwrap_or_default();
-        EdhocResponderC {
-            state: self.state,
-            r: self.r.as_ptr(),
-            r_len: self.r.len(),
-            cred_r: self.cred_r.as_ptr(),
-            cred_r_len: self.cred_r.len(),
-            cred_i: cred_i.as_ptr(),
-            cred_i_len: cred_i.len(),
         }
     }
 
@@ -176,19 +160,6 @@ impl<'a> EdhocInitiatorState<'a> {
             i,
             cred_i,
             cred_r,
-        }
-    }
-
-    pub fn to_c(&self) -> EdhocInitiatorC {
-        let cred_r = self.cred_r.unwrap_or_default();
-        EdhocInitiatorC {
-            state: self.state,
-            i: self.i.as_ptr(),
-            i_len: self.i.len(),
-            cred_i: self.cred_i.as_ptr(),
-            cred_i_len: self.cred_i.len(),
-            cred_r: cred_r.as_ptr(),
-            cred_r_len: cred_r.len(),
         }
     }
 
