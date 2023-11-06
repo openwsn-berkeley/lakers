@@ -20,7 +20,7 @@ fn main() {
     let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
 
-    let state: EdhocState = Default::default();
+    let state = Default::default();
     let mut initiator = EdhocInitiator::new(state, &I, &CRED_I, Some(&CRED_R));
 
     // Send Message 1 over CoAP and convert the response to byte
@@ -55,8 +55,8 @@ fn main() {
         println!("EDHOC exchange successfully completed");
         println!("PRK_out: {:02x?}", prk_out);
 
-        let mut _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
-        let mut _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+        let mut _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        let mut _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
 
         println!("OSCORE secret: {:02x?}", _oscore_secret);
         println!("OSCORE salt: {:02x?}", _oscore_salt);
@@ -70,8 +70,8 @@ fn main() {
         println!("PRK_out after key update: {:02x?}?", prk_out_new);
 
         // compute OSCORE secret and salt after key update
-        _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
-        _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+        _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+        _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
 
         println!("OSCORE secret after key update: {:02x?}", _oscore_secret);
         println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
