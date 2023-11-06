@@ -66,7 +66,8 @@ jobs:
     needs: unit-tests
     runs-on: ubuntu-latest
     if: >-
-      vars.SHOULD_GENERATE_FSTAR == 'true' || (vars.SHOULD_GENERATE_FSTAR == 'true' && github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags'))
+      ${{ vars.SHOULD_GENERATE_FSTAR == 'true' }} &&
+      ((github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')))
 
     steps:
     - name: Checkout edhoc-rs
