@@ -65,9 +65,10 @@ jobs:
   generate-fstar:
     needs: unit-tests
     runs-on: ubuntu-latest
-    if: >-
-      ${{ vars.SHOULD_GENERATE_FSTAR == 'true' }} &&
-      ((github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')))
+    if: false
+    # FIXME: commenting out until we fix hax execution
+    # if: >-
+      # ((github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')))
 
     steps:
     - name: Checkout edhoc-rs
