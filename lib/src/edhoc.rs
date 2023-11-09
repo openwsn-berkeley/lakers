@@ -14,7 +14,7 @@ pub fn edhoc_exporter(
     length: usize,
 ) -> BytesMaxBuffer {
     let State(
-        current_state,
+        _current_state,
         _x_or_y,
         _c_i,
         _gy_or_gx,
@@ -36,7 +36,7 @@ pub fn edhoc_key_update(
     context_len: usize,
 ) -> BytesHashLen {
     let State(
-        current_state,
+        _current_state,
         _x_or_y,
         _c_i,
         _gy_or_gx,
@@ -81,7 +81,7 @@ pub fn r_process_message_1(
     message_1: &BufferMessage1,
 ) -> Result<State<ProcessedMessage1>, EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         _y,
         mut c_i,
         g_x,
@@ -153,7 +153,7 @@ pub fn r_prepare_message_2(
     c_r: u8,
 ) -> Result<(State<WaitMessage3>, BufferMessage2), EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         mut _y,
         _c_i,
         g_x,
@@ -230,7 +230,7 @@ pub fn r_process_message_3(
     cred_i_expected: Option<&[u8]>,
 ) -> Result<(State<Completed>, BytesHashLen), EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         y,
         _c_i,
         _g_x,
@@ -421,7 +421,7 @@ pub fn i_prepare_message_1(
     c_i: u8,
 ) -> Result<(State<WaitMessage2>, BufferMessage1), EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         mut _x,
         mut _c_i,
         _g_y,
@@ -482,7 +482,7 @@ pub fn i_process_message_2(
     i: &BytesP256ElemLen, // I's static private DH key
 ) -> Result<(State<ProcessedMessage2>, u8, u8), EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         x,
         _c_i,
         g_y,
@@ -657,7 +657,7 @@ pub fn i_prepare_message_3(
     cred_i: &[u8],
 ) -> Result<(State<Completed>, BufferMessage3, BytesHashLen), EDHOCError> {
     let State(
-        mut current_state,
+        _current_state,
         _x,
         _c_i,
         _g_y,
