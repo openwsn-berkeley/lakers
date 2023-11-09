@@ -49,7 +49,6 @@ pub fn edhoc_key_update(
     ) = state;
 
     let mut prk_new_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    let mut error = EDHOCError::UnknownError;
 
     // new PRK_out
     prk_new_buf = edhoc_kdf(
@@ -228,7 +227,7 @@ pub fn r_process_message_3(
     state: State<WaitMessage3>,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
-    cred_i_expected: &[u8],
+    cred_i_expected: Option<&[u8]>,
 ) -> Result<(State<Completed>, BytesHashLen), EDHOCError> {
     let State(
         mut current_state,
@@ -243,6 +242,9 @@ pub fn r_process_message_3(
         th_3,
     ) = state;
 
+    let mut g_i: BytesP256ElemLen = Default::default();
+    let mut cred_i = None;
+
     let plaintext_3 = decrypt_message_3(crypto, &prk_3e2m, &th_3, message_3);
 
     if plaintext_3.is_ok() {
@@ -250,19 +252,90 @@ pub fn r_process_message_3(
         let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
         if decoded_p3_res.is_ok() {
-            let (kid, mac_3, ead_3) = decoded_p3_res.unwrap();
+            // The implementation currently supports the following two cases on handling the credentials:
+            // 1. R receives a kid and has a corresponding CRED_x passed in as cred_i_expected
+            // 2. R receives CRED_x by value in the message and uses it
+            // TODO: add support for fetching CRED_x based on kid received in the message
+            let (id_cred_i, mac_3, ead_3) = decoded_p3_res.unwrap();
 
-            // Step 3: If EAD is present make it available to the application
-            let ead_success = if let Some(ead_3) = ead_3 {
-                r_process_ead_3(ead_3).is_ok()
+            // Processing of auth credentials according to draft-tiloca-lake-implem-cons
+            // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
+            cred_i = if let Some(cred_i_expected) = cred_i_expected {
+                // 1. Does ID_CRED_X point to a stored authentication credential? YES
+                // IMPL: compare cred_i_expected with id_cred
+                //   IMPL: assume cred_i_expected is well formed
+                let (g_i_expected, kid_expected) = parse_cred(cred_i_expected).unwrap();
+                g_i = g_i_expected;
+                let credentials_match = match id_cred_i {
+                    IdCred::CompactKid(kid) => kid == kid_expected,
+                    IdCred::FullCredential(cred_i_received) => cred_i_expected == cred_i_received,
+                };
+
+                // 2. Is this authentication credential still valid?
+                // IMPL,TODO: check cred_r_expected is still valid
+
+                // Continue by considering CRED_X as the authentication credential of the other peer.
+                // IMPL: ready to proceed, including process ead_2
+
+                if credentials_match {
+                    Some(cred_i_expected)
+                } else {
+                    None
+                }
             } else {
-                true
-            };
-            if ead_success {
-                let (g_i, kid_i) = parse_cred(cred_i_expected).unwrap(); // FIXME
+                // 1. Does ID_CRED_X point to a stored authentication credential? NO
+                // IMPL: cred_i_expected provided by application is None
+                //       id_cred must be a full credential
+                if let IdCred::FullCredential(cred_i_received) = id_cred_i {
+                    // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
 
-                // compare the kid received with the kid expected in id_cred_i
-                if kid == kid_i {
+                    // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+                    // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+                    //    Is the validation successful?
+                    // IMPL: parse_cred(cred_r) and check it is valid
+                    match parse_cred(cred_i_received) {
+                        Ok((g_i_received, _kid_received)) => {
+                            // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                            // IMPL,TODO: we just skip this step for now
+
+                            // 7. Store CRED_X as valid and trusted.
+                            //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                            // IMPL: cred_r = id_cred
+                            g_i = g_i_received;
+                            Some(cred_i_received)
+                        }
+                        Err(_) => None,
+                    }
+                } else {
+                    // IMPL: should have gotten a full credential
+                    None
+                }
+            };
+
+            // 8. Is this authentication credential good to use in the context of this EDHOC session?
+            // IMPL,TODO: we just skip this step for now
+
+            // IMPL: stop if cred_r is None
+            if let Some(valid_cred_i) = cred_i {
+                // Phase 2:
+                // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
+                // IMPL: we are sure valid_cred_i is a full credential
+
+                // Step 3: If EAD is present make it available to the application
+                let ead_res = if let Some(ead_3) = ead_3 {
+                    // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
+                    // at this point, in case of EAD = zeroconf, if it works it means that:
+                    // - the Voucher has been verified
+                    // - the received valid_cred_i (aka cred_i) has been authenticated
+                    r_process_ead_3(ead_3)
+                } else {
+                    Ok(())
+                };
+
+                if ead_res.is_ok() {
+                    // verify mac_3
+
                     // compute salt_4e3m
                     let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
                     // TODO compute prk_4e3m
@@ -273,13 +346,13 @@ pub fn r_process_message_3(
                         crypto,
                         &prk_4e3m,
                         &th_3,
-                        &get_id_cred(cred_i_expected),
-                        cred_i_expected,
+                        &get_id_cred(valid_cred_i),
+                        valid_cred_i,
                     );
 
                     // verify mac_3
                     if mac_3 == expected_mac_3 {
-                        let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, cred_i_expected);
+                        let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, valid_cred_i);
 
                         let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                         th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -326,10 +399,10 @@ pub fn r_process_message_3(
                         Err(EDHOCError::MacVerificationFailed)
                     }
                 } else {
-                    Err(EDHOCError::UnknownPeer)
+                    Err(EDHOCError::EADError)
                 }
             } else {
-                Err(EDHOCError::EADError)
+                Err(EDHOCError::UnknownPeer)
             }
         } else {
             Err(decoded_p3_res.unwrap_err())
@@ -843,32 +916,56 @@ fn edhoc_kdf(
 
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
-) -> Result<(u8, BytesMac3, Option<EADItem>), EDHOCError> {
+) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
     let kid: u8;
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
+    let id_cred_i: IdCred;
 
     // check ID_CRED_I and MAC_3
-    if (is_cbor_neg_int_1byte(plaintext_3.content[0]) || is_cbor_uint_1byte(plaintext_3.content[0]))
-        && (is_cbor_bstr_1byte_prefix(plaintext_3.content[1]))
+    let res = if (is_cbor_neg_int_1byte(plaintext_3.content[0])
+        || is_cbor_uint_1byte(plaintext_3.content[0]))
     {
+        // KID
         kid = plaintext_3.content[0usize];
-        // skip the CBOR magic byte as we know how long the MAC is
-        mac_3[..].copy_from_slice(&plaintext_3.content[2..2 + MAC_LENGTH_3]);
+        let id_cred_i = IdCred::CompactKid(plaintext_3.content[0usize]);
+        Ok((1, id_cred_i))
+    } else if is_cbor_bstr_2bytes_prefix(plaintext_3.content[0])
+        && is_cbor_uint_2bytes(plaintext_3.content[1])
+        && (plaintext_3.content[2] as usize) < plaintext_3.len
+    {
+        // full credential
+        let cred_len = plaintext_3.content[2] as usize;
+        id_cred_i = IdCred::FullCredential(&plaintext_3.content[3..3 + cred_len]);
+        Ok((3 + cred_len, id_cred_i))
+    } else {
+        // error
+        Err(())
+    };
 
-        // if there is still more to parse, the rest will be the EAD_3
-        if plaintext_3.len > (2 + MAC_LENGTH_3) {
-            // NOTE: since the current implementation only supports one EAD handler,
-            // we assume only one EAD item
-            let ead_res = parse_ead(plaintext_3, 2 + MAC_LENGTH_3);
-            if ead_res.is_ok() {
-                let ead_3 = ead_res.unwrap();
+    if res.is_ok() {
+        let (mut offset, id_cred_i) = res.unwrap();
 
-                Ok((kid, mac_3, ead_3))
+        if (is_cbor_bstr_1byte_prefix(plaintext_3.content[1])) {
+            // skip the CBOR magic byte as we know how long the MAC is
+            offset += 1;
+            mac_3[..].copy_from_slice(&plaintext_3.content[offset..offset + MAC_LENGTH_3]);
+
+            // if there is still more to parse, the rest will be the EAD_3
+            if plaintext_3.len > (offset + MAC_LENGTH_3) {
+                // NOTE: since the current implementation only supports one EAD handler,
+                // we assume only one EAD item
+                let ead_res = parse_ead(plaintext_3, offset + MAC_LENGTH_3);
+                if ead_res.is_ok() {
+                    let ead_3 = ead_res.unwrap();
+                    Ok((id_cred_i, mac_3, ead_3))
+                } else {
+                    Err(ead_res.unwrap_err())
+                }
+            } else if plaintext_3.len == (offset + MAC_LENGTH_3) {
+                Ok((id_cred_i, mac_3, None))
             } else {
-                Err(ead_res.unwrap_err())
+                Err(EDHOCError::ParsingError)
             }
-        } else if plaintext_3.len == (2 + MAC_LENGTH_3) {
-            Ok((kid, mac_3, None))
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -1759,7 +1856,12 @@ mod tests {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
 
-        let (kid, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
+        let (id_cred_i, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
+
+        let kid = match id_cred_i {
+            IdCred::CompactKid(id_cred_i) => id_cred_i,
+            _ => panic!("Invalid ID_CRED_I"),
+        };
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(kid, kid_tv);
