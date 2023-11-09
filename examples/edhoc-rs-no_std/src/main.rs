@@ -73,7 +73,7 @@ fn main() -> ! {
     const C_R_TV: [u8; 1] = hex!("27");
 
     fn test_new_initiator() {
-        let state: EdhocState = Default::default();
+        let state = Default::default();
         let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
     }
 
@@ -93,7 +93,7 @@ fn main() -> ! {
     println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let state: EdhocState = Default::default();
+        let state = Default::default();
         let mut initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
@@ -105,9 +105,9 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
-        let state_initiator: EdhocState = Default::default();
+        let state_initiator = Default::default();
         let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
-        let state_responder: EdhocState = Default::default();
+        let state_responder = Default::default();
         let responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
@@ -130,17 +130,13 @@ fn main() -> ! {
 
         // derive OSCORE secret and salt at both sides and compare
         let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(i_oscore_secret.is_ok());
         let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(i_oscore_salt.is_ok());
 
         let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(r_oscore_secret.is_ok());
         let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(r_oscore_salt.is_ok());
 
-        assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
-        assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
+        assert_eq!(i_oscore_secret, r_oscore_secret);
+        assert_eq!(i_oscore_salt, r_oscore_salt);
     }
 
     test_handshake();
