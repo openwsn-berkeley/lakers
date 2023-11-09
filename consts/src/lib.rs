@@ -252,7 +252,6 @@ mod structs {
 
 mod cbor {
     use super::consts::*;
-    use super::structs::*;
 
     /// Check for: an unsigned integer encoded as a single byte
     #[inline(always)]
@@ -377,7 +376,7 @@ mod common_edhoc_parsing {
         rcvd_message_1: &BufferMessage1,
     ) -> Result<(BytesSuites, usize, usize), EDHOCError> {
         let mut error: EDHOCError = EDHOCError::UnknownError;
-        let mut raw_suites_len = 0;
+        let mut raw_suites_len;
         let mut suites_i = [0u8; SUITES_LEN];
         let mut suites_i_len: usize = 0;
 
@@ -438,7 +437,7 @@ mod common_edhoc_parsing {
         message: &EdhocMessageBuffer,
         offset: usize,
     ) -> Result<Option<EADItem>, EDHOCError> {
-        let mut ead_item = None::<EADItem>;
+        let ead_item;
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
@@ -487,12 +486,12 @@ mod common_edhoc_parsing {
         ),
         EDHOCError,
     > {
-        let mut method: u8 = 0xff;
+        let method: u8;
         let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-        let mut suites_i: BytesSuites = [0u8; SUITES_LEN];
-        let mut suites_i_len: usize = 0;
-        let mut raw_suites_len: usize = 0;
-        let mut c_i = 0;
+        let suites_i: BytesSuites;
+        let suites_i_len: usize;
+        let raw_suites_len: usize;
+        let c_i;
 
         // first element of CBOR sequence must be an integer
         if is_cbor_uint_1byte(rcvd_message_1.content[0]) {

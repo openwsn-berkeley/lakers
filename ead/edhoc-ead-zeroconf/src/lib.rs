@@ -738,7 +738,6 @@ mod test_vectors {
 #[cfg(test)]
 mod test_initiator {
     use super::*;
-    use edhoc_consts::*;
     use test_vectors::*;
 
     #[test]
@@ -834,7 +833,6 @@ mod test_initiator {
 #[cfg(test)]
 mod test_responder {
     use super::*;
-    use edhoc_consts::*;
     use test_vectors::*;
 
     #[test]
@@ -923,7 +921,6 @@ mod test_responder {
 #[cfg(test)]
 mod test_enrollment_server {
     use super::*;
-    use edhoc_consts::*;
     use test_vectors::*;
 
     #[test]
@@ -999,7 +996,6 @@ mod test_enrollment_server {
 #[cfg(test)]
 mod test_stateless_operation {
     use super::*;
-    use edhoc_consts::*;
     use test_vectors::*;
 
     #[test]
