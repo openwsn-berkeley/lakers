@@ -139,12 +139,7 @@ impl<'a> EdhocResponderWaitM3<'a> {
         self,
         message_3: &BufferMessage3,
     ) -> Result<(EdhocResponderDone, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match r_process_message_3(
-            self.state,
-            &mut default_crypto(),
-            message_3,
-            self.cred_i.unwrap(),
-        ) {
+        match r_process_message_3(self.state, &mut default_crypto(), message_3, self.cred_i) {
             Ok((state, prk_out)) => Ok((EdhocResponderDone { state }, prk_out)),
             Err(error) => Err(error),
         }

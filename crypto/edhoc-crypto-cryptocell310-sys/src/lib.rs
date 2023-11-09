@@ -68,7 +68,7 @@ impl CryptoTrait for Crypto {
         // Implementation of HKDF-Extract as per RFC 5869
 
         // TODO generalize if salt is not provided
-        let output = hmac_sha256(&mut ikm.clone()[..], *salt);
+        let output = self.hmac_sha256(&mut ikm.clone()[..], *salt);
 
         output
     }
@@ -289,19 +289,25 @@ impl CryptoTrait for Crypto {
     }
 }
 
-fn hmac_sha256(message: &mut [u8], mut key: [u8; SHA256_DIGEST_LEN]) -> BytesHashLen {
-    let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
+impl Crypto {
+    fn hmac_sha256(
+        &mut self,
+        message: &mut [u8],
+        mut key: [u8; SHA256_DIGEST_LEN],
+    ) -> BytesHashLen {
+        let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
-    unsafe {
-        CRYS_HMAC(
-            CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-            key.as_mut_ptr(),
-            key.len() as u16,
-            message.as_mut_ptr(),
-            message.len(),
-            buffer.as_mut_ptr(),
-        );
+        unsafe {
+            CRYS_HMAC(
+                CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
+                key.as_mut_ptr(),
+                key.len() as u16,
+                message.as_mut_ptr(),
+                message.len(),
+                buffer.as_mut_ptr(),
+            );
+        }
+
+        convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
     }
-
-    convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
 }
