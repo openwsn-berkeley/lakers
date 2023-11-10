@@ -108,34 +108,25 @@ fn main() -> ! {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
         let state_responder: EdhocState = Default::default();
-        let mut responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
-        let ret = initiator.prepare_message_1(c_i); // to update the state
-        assert!(ret.is_ok());
-        let message_1 = ret.unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
 
-        let ret = responder.process_message_1(&message_1);
-        assert!(ret.is_ok());
+        let responder = responder.process_message_1(&message_1).unwrap();
 
         let c_r: u8 = generate_connection_identifier_cbor().into();
-        let ret = responder.prepare_message_2(c_r);
-        assert!(ret.is_ok());
-        let message_2 = ret.unwrap();
+        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
         assert!(c_r != 0xff);
 
-        let _c_r = initiator.process_message_2(&message_2);
-        assert!(_c_r.is_ok());
+        let (initiator, _c_r) = initiator.process_message_2(&message_2).unwrap();
 
-        let ret = initiator.prepare_message_3();
-        assert!(ret.is_ok());
-        let (message_3, i_prk_out) = ret.unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 
-        let r_prk_out = responder.process_message_3(&message_3);
-        assert!(r_prk_out.is_ok());
+        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
 
         // check that prk_out is equal at initiator and responder side
-        assert_eq!(i_prk_out, r_prk_out.unwrap());
+        assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
         let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0

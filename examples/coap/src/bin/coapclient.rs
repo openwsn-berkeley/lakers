@@ -26,7 +26,7 @@ fn main() {
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
     let c_i = generate_connection_identifier_cbor();
-    let message_1 = initiator.prepare_message_1(c_i).unwrap();
+    let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
     msg_1_buf.extend_from_slice(&message_1.content[..message_1.len]);
     println!("message_1 len = {}", msg_1_buf.len());
 
@@ -37,15 +37,15 @@ fn main() {
     println!("response_vec = {:02x?}", response.message.payload);
     println!("message_2 len = {}", response.message.payload.len());
 
-    let c_r = initiator.process_message_2(
+    let m2result = initiator.process_message_2(
         &response.message.payload[..]
             .try_into()
             .expect("wrong length"),
     );
 
-    if c_r.is_ok() {
-        let mut msg_3 = Vec::from([c_r.unwrap()]);
-        let (message_3, prk_out) = initiator.prepare_message_3().unwrap();
+    if let Ok((initiator, c_r)) = m2result {
+        let mut msg_3 = Vec::from([c_r]);
+        let (mut initiator, message_3, prk_out) = initiator.prepare_message_3().unwrap();
         msg_3.extend_from_slice(&message_3.content[..message_3.len]);
         println!("message_3 len = {}", msg_3.len());
 
@@ -76,6 +76,6 @@ fn main() {
         println!("OSCORE secret after key update: {:02x?}", _oscore_secret);
         println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
     } else {
-        panic!("Message 2 processing error: {:#?}", c_r);
+        panic!("Message 2 processing error: {:#?}", m2result);
     }
 }
