@@ -895,8 +895,7 @@ fn decode_plaintext_3(
     if res.is_ok() {
         let (mut offset, id_cred_i) = res.unwrap();
 
-        if (is_cbor_bstr_1byte_prefix(plaintext_3.content[1])) {
-            // FIXME[urgent]: should access [offset] instead of [1]
+        if (is_cbor_bstr_1byte_prefix(plaintext_3.get(offset)?)) {
             // skip the CBOR magic byte as we know how long the MAC is
             offset += 1;
             mac_3[..].copy_from_slice(&plaintext_3.get_slice(offset, offset + MAC_LENGTH_3)?);

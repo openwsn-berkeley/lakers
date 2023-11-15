@@ -160,6 +160,7 @@ pub enum AccessError {
 
 impl From<AccessError> for EDHOCError {
     fn from(error: AccessError) -> Self {
+        // TODO: can we make this conversion more robust, i.e. what if the access fails but the reason is not ParsingError?
         match error {
             AccessError::OutOfBounds => EDHOCError::ParsingError,
         }
