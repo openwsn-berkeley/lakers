@@ -32,7 +32,13 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let state = EdhocState::default();
-                let responder = EdhocResponder::new(state, &R, &CRED_R, Some(&CRED_I));
+                let responder = EdhocResponder::new(
+                    state,
+                    edhoc_crypto::default_crypto(),
+                    &R,
+                    &CRED_R,
+                    Some(&CRED_I),
+                );
 
                 let result = responder.process_message_1(
                     &request.message.payload[1..]
@@ -41,7 +47,8 @@ fn main() {
                 );
 
                 if let Ok(responder) = result {
-                    let c_r = generate_connection_identifier_cbor();
+                    let c_r =
+                        generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto());
                     let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
                     response.message.payload = Vec::from(&message_2.content[..message_2.len]);
                     // save edhoc connection
