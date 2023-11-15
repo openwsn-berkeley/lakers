@@ -72,6 +72,7 @@ type BufferPlaintext3Hacspec = EdhocMessageBufferHacspec;
 
 // Public functions
 
+#[derive(Debug)]
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {

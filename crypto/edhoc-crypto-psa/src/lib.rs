@@ -22,6 +22,7 @@ pub extern "C" fn mbedtls_hardware_poll(
     0i32
 }
 
+#[derive(Debug)]
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
