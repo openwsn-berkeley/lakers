@@ -63,6 +63,7 @@ mod consts {
 
 mod structs {
     use super::consts::*;
+    use core::marker::PhantomData;
 
     pub type BytesEad2 = [u8; 0];
     pub type BytesIdCred = [u8; ID_CRED_LEN];
@@ -91,36 +92,47 @@ mod structs {
     pub type BytesMac = [u8; MAC_LENGTH];
     pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 
-    #[repr(C)]
-    #[derive(Default, PartialEq, Copy, Clone, Debug)]
-    pub enum EDHOCState {
-        #[default]
-        Start = 0, // initiator and responder
-        WaitMessage2 = 1,      // initiator
-        ProcessedMessage2 = 2, // initiator
-        ProcessedMessage1 = 3, // responder
-        WaitMessage3 = 4,      // responder
-        Completed = 5,         // initiator and responder
-    }
+    // This is sealed
+    pub trait EDHOCState: core::fmt::Debug {}
+    // For both initiator and responder
+    #[derive(Debug)]
+    pub struct Start;
+    impl EDHOCState for Start {}
+    // For the initiator
+    #[derive(Debug)]
+    pub struct WaitMessage2;
+    impl EDHOCState for WaitMessage2 {}
+    #[derive(Debug)]
+    pub struct ProcessedMessage2;
+    impl EDHOCState for ProcessedMessage2 {}
+    // For the responder
+    #[derive(Debug)]
+    pub struct ProcessedMessage1;
+    impl EDHOCState for ProcessedMessage1 {}
+    #[derive(Debug)]
+    pub struct WaitMessage3;
+    impl EDHOCState for WaitMessage3 {}
+    // For both again
+    #[derive(Debug)]
+    pub struct Completed;
+    impl EDHOCState for Completed {}
 
     #[repr(C)]
     #[derive(PartialEq, Debug)]
     pub enum EDHOCError {
-        Success = 0,
         UnknownPeer = 1,
         MacVerificationFailed = 2,
         UnsupportedMethod = 3,
         UnsupportedCipherSuite = 4,
         ParsingError = 5,
-        WrongState = 6,
         EADError = 7,
         UnknownError = 8,
     }
 
     #[repr(C)]
-    #[derive(Default, Copy, Clone, Debug)]
-    pub struct State(
-        pub EDHOCState,
+    #[derive(Debug)]
+    pub struct State<Phase: EDHOCState>(
+        pub PhantomData<Phase>,
         pub BytesP256ElemLen, // x or y, ephemeral private key of myself
         pub u8,               // c_i, connection identifier chosen by the initiator
         pub BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
@@ -131,6 +143,24 @@ mod structs {
         pub BytesHashLen,     // h_message_1
         pub BytesHashLen,     // th_3
     );
+
+    impl Default for State<Start> {
+        fn default() -> Self {
+            // This is also what `#[derive(Default)]` would do, but we can't limit that to Start.
+            State(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            )
+        }
+    }
 
     #[repr(C)]
     #[derive(PartialEq, Debug, Copy, Clone)]
@@ -222,7 +252,6 @@ mod structs {
 
 mod cbor {
     use super::consts::*;
-    use super::structs::*;
 
     /// Check for: an unsigned integer encoded as a single byte
     #[inline(always)]
@@ -347,7 +376,7 @@ mod common_edhoc_parsing {
         rcvd_message_1: &BufferMessage1,
     ) -> Result<(BytesSuites, usize, usize), EDHOCError> {
         let mut error: EDHOCError = EDHOCError::UnknownError;
-        let mut raw_suites_len = 0;
+        let mut raw_suites_len;
         let mut suites_i = [0u8; SUITES_LEN];
         let mut suites_i_len: usize = 0;
 
@@ -357,13 +386,13 @@ mod common_edhoc_parsing {
             suites_i[0] = rcvd_message_1.content[1];
             suites_i_len = 1;
             raw_suites_len = 1;
-            error = EDHOCError::Success;
+            Ok((suites_i, suites_i_len, raw_suites_len))
         } else if is_cbor_uint_2bytes(rcvd_message_1.content[1]) {
             // CBOR unsigned integer (one-byte uint8_t follows)
             suites_i[0] = rcvd_message_1.content[2];
             suites_i_len = 1;
             raw_suites_len = 2;
-            error = EDHOCError::Success;
+            Ok((suites_i, suites_i_len, raw_suites_len))
         } else if is_cbor_array_1byte_prefix(rcvd_message_1.content[1]) {
             // CBOR array (0..=23 data items follow)
             // the CBOR array length is encoded in the first byte, so we extract it
@@ -392,18 +421,15 @@ mod common_edhoc_parsing {
                     }
                 }
                 if !error_occurred {
-                    error = EDHOCError::Success;
+                    Ok((suites_i, suites_i_len, raw_suites_len))
+                } else {
+                    Err(error)
                 }
             } else {
-                error = EDHOCError::ParsingError;
+                Err(EDHOCError::ParsingError)
             }
         } else {
-            error = EDHOCError::ParsingError;
-        }
-
-        match error {
-            EDHOCError::Success => Ok((suites_i, suites_i_len, raw_suites_len)),
-            _ => Err(error),
+            Err(EDHOCError::ParsingError)
         }
     }
 
@@ -411,8 +437,7 @@ mod common_edhoc_parsing {
         message: &EdhocMessageBuffer,
         offset: usize,
     ) -> Result<Option<EADItem>, EDHOCError> {
-        let mut error: EDHOCError = EDHOCError::UnknownError;
-        let mut ead_item = None::<EADItem>;
+        let ead_item;
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
@@ -442,14 +467,9 @@ mod common_edhoc_parsing {
                 is_critical,
                 value: ead_value,
             });
-            error = EDHOCError::Success;
+            Ok(ead_item)
         } else {
-            error = res_label.unwrap_err();
-        }
-
-        match error {
-            EDHOCError::Success => Ok(ead_item),
-            _ => Err(error),
+            Err(res_label.unwrap_err())
         }
     }
 
@@ -466,14 +486,12 @@ mod common_edhoc_parsing {
         ),
         EDHOCError,
     > {
-        let mut error: EDHOCError = EDHOCError::UnknownError;
-        let mut method: u8 = 0xff;
+        let method: u8;
         let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-        let mut suites_i: BytesSuites = [0u8; SUITES_LEN];
-        let mut suites_i_len: usize = 0;
-        let mut raw_suites_len: usize = 0;
-        let mut c_i = 0;
-        let mut ead_1 = None::<EADItem>;
+        let suites_i: BytesSuites;
+        let suites_i_len: usize;
+        let raw_suites_len: usize;
+        let c_i;
 
         // first element of CBOR sequence must be an integer
         if is_cbor_uint_1byte(rcvd_message_1.content[0]) {
@@ -499,32 +517,27 @@ mod common_edhoc_parsing {
                             let ead_res =
                                 parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
                             if ead_res.is_ok() {
-                                ead_1 = ead_res.unwrap();
-                                error = EDHOCError::Success;
+                                let ead_1 = ead_res.unwrap();
+                                Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
                             } else {
-                                error = ead_res.unwrap_err();
+                                Err(ead_res.unwrap_err())
                             }
                         } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
-                            error = EDHOCError::Success;
+                            Ok((method, suites_i, suites_i_len, g_x, c_i, None))
                         } else {
-                            error = EDHOCError::ParsingError;
+                            Err(EDHOCError::ParsingError)
                         }
                     } else {
-                        error = EDHOCError::ParsingError;
+                        Err(EDHOCError::ParsingError)
                     }
                 } else {
-                    error = EDHOCError::ParsingError;
+                    Err(EDHOCError::ParsingError)
                 }
             } else {
-                error = res_suites.unwrap_err();
+                Err(res_suites.unwrap_err())
             }
         } else {
-            error = EDHOCError::ParsingError;
-        }
-
-        match error {
-            EDHOCError::Success => Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)),
-            _ => Err(error),
+            Err(EDHOCError::ParsingError)
         }
     }
 }

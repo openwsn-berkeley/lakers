@@ -60,20 +60,20 @@ fn main() -> ! {
     // edhoc-rs test code
     use hexlit::hex;
 
-    const ID_CRED_I: &[u8] = &hex!("a104412b");
-    const ID_CRED_R: &[u8] = &hex!("a104410a");
+    const _ID_CRED_I: &[u8] = &hex!("a104412b");
+    const _ID_CRED_R: &[u8] = &hex!("a104410a");
     const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // used
+    const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
     const _G_I_Y_COORD: &[u8] =
-        &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
+        &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
-    const G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const C_R_TV: [u8; 1] = hex!("27");
+    const _G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
+    const _C_R_TV: [u8; 1] = hex!("27");
 
     fn test_new_initiator() {
-        let state: EdhocState = Default::default();
+        let state = Default::default();
         let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
     }
 
@@ -93,7 +93,7 @@ fn main() -> ! {
     println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let state: EdhocState = Default::default();
+        let state = Default::default();
         let mut initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
@@ -105,9 +105,9 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
-        let state_initiator: EdhocState = Default::default();
+        let state_initiator = Default::default();
         let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
-        let state_responder: EdhocState = Default::default();
+        let state_responder = Default::default();
         let responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
 
         let c_i: u8 = generate_connection_identifier_cbor().into();
@@ -130,17 +130,13 @@ fn main() -> ! {
 
         // derive OSCORE secret and salt at both sides and compare
         let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(i_oscore_secret.is_ok());
         let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(i_oscore_salt.is_ok());
 
         let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        assert!(r_oscore_secret.is_ok());
         let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
-        assert!(r_oscore_salt.is_ok());
 
-        assert_eq!(i_oscore_secret.unwrap(), r_oscore_secret.unwrap());
-        assert_eq!(i_oscore_salt.unwrap(), r_oscore_salt.unwrap());
+        assert_eq!(i_oscore_secret, r_oscore_secret);
+        assert_eq!(i_oscore_salt, r_oscore_salt);
     }
 
     test_handshake();

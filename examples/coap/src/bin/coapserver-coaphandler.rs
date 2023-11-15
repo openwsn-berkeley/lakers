@@ -1,15 +1,14 @@
 use edhoc_rs::*;
 use hexlit::hex;
-use std::net::UdpSocket;
 
 use embedded_nal::UdpFullStack;
 
-const ID_CRED_I: &[u8] = &hex!("a104412b");
-const ID_CRED_R: &[u8] = &hex!("a104410a");
+const _ID_CRED_I: &[u8] = &hex!("a104412b");
+const _ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
-const G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // not used
+const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
 const _G_I_Y_COORD: &[u8] =
-    &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
+    &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
 const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
 
@@ -92,9 +91,9 @@ impl coap_handler::Handler for EdhocHandler {
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 
-            let mut _oscore_secret = responder.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
+            let mut _oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
             println!("OSCORE secret: {:02x?}", _oscore_secret);
-            let mut _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+            let mut _oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
             println!("OSCORE salt: {:02x?}", _oscore_salt);
 
             // context of key update is a test vector from draft-ietf-lake-traces
@@ -104,9 +103,9 @@ impl coap_handler::Handler for EdhocHandler {
             ]);
             println!("PRK_out after key update: {:02x?}?", prk_out_new);
 
-            _oscore_secret = responder.edhoc_exporter(0u8, &[], 16).unwrap(); // label is 0
+            _oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
             println!("OSCORE secret after key update: {:02x?}", _oscore_secret);
-            _oscore_salt = responder.edhoc_exporter(1u8, &[], 8).unwrap(); // label is 1
+            _oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
             println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
 
             EdhocResponse::Message3Processed
