@@ -761,14 +761,14 @@ fn parse_message_2(
     let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
 
     // ensure the whole message is a single CBOR sequence
-    if is_cbor_bstr_2bytes_prefix(rcvd_message_2.content[0])
-        && rcvd_message_2.content[1] == (rcvd_message_2.len as u8 - 2)
+    if is_cbor_bstr_2bytes_prefix(rcvd_message_2.get(0)?)
+        && rcvd_message_2.get(1)? == (rcvd_message_2.len as u8 - 2)
     {
-        g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
+        g_y[..].copy_from_slice(rcvd_message_2.get_slice(2, 2 + P256_ELEM_LEN)?);
 
         ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
         ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
-            &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
+            rcvd_message_2.get_slice(2 + P256_ELEM_LEN, 2 + P256_ELEM_LEN + ciphertext_2.len)?,
         );
 
         Ok((g_y, ciphertext_2))

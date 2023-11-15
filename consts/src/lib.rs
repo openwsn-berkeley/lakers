@@ -154,12 +154,26 @@ impl Default for State<Start> {
     }
 }
 
+pub enum AccessError {
+    OutOfBounds,
+}
+
+impl From<AccessError> for EDHOCError {
+    fn from(error: AccessError) -> Self {
+        match error {
+            AccessError::OutOfBounds => EDHOCError::ParsingError,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct EdhocMessageBuffer {
     pub content: [u8; MAX_MESSAGE_SIZE_LEN],
     pub len: usize,
 }
+
+impl EdhocMessageBuffer {}
 
 impl Default for EdhocMessageBuffer {
     fn default() -> Self {
@@ -172,6 +186,8 @@ impl Default for EdhocMessageBuffer {
 
 pub trait MessageBufferTrait {
     fn new() -> Self;
+    fn get(self, index: usize) -> Result<u8, AccessError>;
+    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Result<&'a [u8], AccessError>;
     fn from_hex(hex: &str) -> Self;
 }
 
@@ -182,6 +198,23 @@ impl MessageBufferTrait for EdhocMessageBuffer {
             len: 0,
         }
     }
+
+    fn get(self, index: usize) -> Result<u8, AccessError> {
+        if index >= self.len {
+            return Err(AccessError::OutOfBounds);
+        }
+
+        Ok(self.content[index])
+    }
+
+    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Result<&'a [u8], AccessError> {
+        if start > self.len || start > len || len > self.len {
+            return Err(AccessError::OutOfBounds);
+        }
+
+        Ok(&self.content[start..len])
+    }
+
     fn from_hex(hex: &str) -> Self {
         let mut buffer = EdhocMessageBuffer::new();
         buffer.len = hex.len() / 2;
