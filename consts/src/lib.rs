@@ -201,18 +201,18 @@ impl MessageBufferTrait for EdhocMessageBuffer {
 
     fn get(self, index: usize) -> Result<u8, AccessError> {
         if index >= self.len {
-            return Err(AccessError::OutOfBounds);
+            Err(AccessError::OutOfBounds)
+        } else {
+            Ok(self.content[index])
         }
-
-        Ok(self.content[index])
     }
 
     fn get_slice<'a>(&'a self, start: usize, len: usize) -> Result<&'a [u8], AccessError> {
         if start > self.len || start > len || len > self.len {
-            return Err(AccessError::OutOfBounds);
+            Err(AccessError::OutOfBounds)
+        } else {
+            Ok(&self.content[start..len])
         }
-
-        Ok(&self.content[start..len])
     }
 
     fn from_hex(hex: &str) -> Self {
@@ -401,24 +401,25 @@ mod common_edhoc_parsing {
         let mut raw_suites_len;
         let mut suites_i = [0u8; SUITES_LEN];
         let mut suites_i_len: usize = 0;
+        let suites_i_start = rcvd_message_1.get(1)?;
 
         // match based on first byte of SUITES_I, which can be either an int or an array
-        if is_cbor_uint_1byte(rcvd_message_1.content[1]) {
+        if is_cbor_uint_1byte(suites_i_start) {
             // CBOR unsigned integer (0..=23)
-            suites_i[0] = rcvd_message_1.content[1];
+            suites_i[0] = suites_i_start;
             suites_i_len = 1;
             raw_suites_len = 1;
             Ok((suites_i, suites_i_len, raw_suites_len))
-        } else if is_cbor_uint_2bytes(rcvd_message_1.content[1]) {
+        } else if is_cbor_uint_2bytes(suites_i_start) {
             // CBOR unsigned integer (one-byte uint8_t follows)
-            suites_i[0] = rcvd_message_1.content[2];
+            suites_i[0] = rcvd_message_1.get(2)?;
             suites_i_len = 1;
             raw_suites_len = 2;
             Ok((suites_i, suites_i_len, raw_suites_len))
-        } else if is_cbor_array_1byte_prefix(rcvd_message_1.content[1]) {
+        } else if is_cbor_array_1byte_prefix(suites_i_start) {
             // CBOR array (0..=23 data items follow)
             // the CBOR array length is encoded in the first byte, so we extract it
-            let suites_len: usize = (rcvd_message_1.content[1] - CBOR_MAJOR_ARRAY).into();
+            let suites_len: usize = (suites_i_start - CBOR_MAJOR_ARRAY).into();
             raw_suites_len = 1; // account for the CBOR_MAJOR_ARRAY byte
             if suites_len > 1 && suites_len <= EDHOC_SUITES.len() {
                 // cipher suite array must be at least 2 elements long, but not longer than the defined cipher suites
@@ -427,14 +428,14 @@ mod common_edhoc_parsing {
                     raw_suites_len += 1;
                     if !error_occurred {
                         // parse based on cipher suite identifier
-                        if is_cbor_uint_1byte(rcvd_message_1.content[raw_suites_len]) {
+                        if is_cbor_uint_1byte(rcvd_message_1.get(raw_suites_len)?) {
                             // CBOR unsigned integer (0..23)
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                            suites_i[j] = rcvd_message_1.get(raw_suites_len)?;
                             suites_i_len += 1;
-                        } else if is_cbor_uint_2bytes(rcvd_message_1.content[raw_suites_len]) {
+                        } else if is_cbor_uint_2bytes(rcvd_message_1.get(raw_suites_len)?) {
                             // CBOR unsigned integer (one-byte uint8_t follows)
                             raw_suites_len += 1; // account for the 0x18 tag byte
-                            suites_i[j] = rcvd_message_1.content[raw_suites_len];
+                            suites_i[j] = rcvd_message_1.get(raw_suites_len)?;
                             suites_i_len += 1;
                         } else {
                             error = EDHOCError::ParsingError;
@@ -463,7 +464,7 @@ mod common_edhoc_parsing {
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
-        let label = message.content[offset];
+        let label = message.get(offset)?;
         let res_label = if is_cbor_uint_1byte(label) {
             // CBOR unsigned integer (0..=23)
             Ok((label as u8, false))
@@ -480,7 +481,7 @@ mod common_edhoc_parsing {
                 // EAD value is present
                 let mut buffer = EdhocMessageBuffer::new();
                 buffer.content[..message.len - (offset + 1)]
-                    .copy_from_slice(&message.content[offset + 1..message.len]);
+                    .copy_from_slice(&message.get_slice(offset + 1, message.len)?);
                 buffer.len = message.len - (offset + 1);
                 ead_value = Some(buffer);
             }
@@ -516,20 +517,20 @@ mod common_edhoc_parsing {
         let c_i;
 
         // first element of CBOR sequence must be an integer
-        if is_cbor_uint_1byte(rcvd_message_1.content[0]) {
-            method = rcvd_message_1.content[0];
+        if is_cbor_uint_1byte(rcvd_message_1.get(0)?) {
+            method = rcvd_message_1.get(0)?;
             let res_suites = parse_suites_i(rcvd_message_1);
 
             if res_suites.is_ok() {
                 (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
 
-                if is_cbor_bstr_2bytes_prefix(rcvd_message_1.content[1 + raw_suites_len]) {
+                if is_cbor_bstr_2bytes_prefix(rcvd_message_1.get(1 + raw_suites_len)?) {
                     g_x.copy_from_slice(
-                        &rcvd_message_1.content
-                            [3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN],
+                        &rcvd_message_1
+                            .get_slice(3 + raw_suites_len, 3 + raw_suites_len + P256_ELEM_LEN)?,
                     );
 
-                    c_i = rcvd_message_1.content[3 + raw_suites_len + P256_ELEM_LEN];
+                    c_i = rcvd_message_1.get(3 + raw_suites_len + P256_ELEM_LEN)?;
                     // check that c_i is encoded as single-byte int (we still do not support bstr encoding)
                     if is_cbor_neg_int_1byte(c_i) || is_cbor_uint_1byte(c_i) {
                         // if there is still more to parse, the rest will be the EAD_1
