@@ -1,7 +1,7 @@
 #![no_std]
 
 use edhoc_consts::*;
-use edhoc_crypto::{default_crypto, CryptoTrait};
+use edhoc_crypto_trait::Crypto as CryptoTrait;
 
 // ---- initiator side (device)
 
@@ -68,16 +68,20 @@ pub fn ead_initiator_set_global_state(new_state: EADInitiatorState) {
     }
 }
 
-pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
+pub fn i_prepare_ead_1<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    x: &BytesP256ElemLen,
+    ss: u8,
+) -> Option<EADItem> {
     let state = ead_initiator_get_global_state();
     if state.protocol_state != EADInitiatorProtocolState::Start {
         return None;
     }
 
     // PRK = EDHOC-Extract(salt, IKM)
-    let prk = compute_prk(x, &state.g_w);
+    let prk = compute_prk(crypto, x, &state.g_w);
 
-    let enc_id = build_enc_id(&prk, &state.id_u, ss);
+    let enc_id = build_enc_id(crypto, &prk, &state.id_u, ss);
     let value = Some(encode_ead_1_value(&state.loc_w, &enc_id));
 
     let ead_1 = EADItem {
@@ -95,7 +99,8 @@ pub fn i_prepare_ead_1(x: &BytesP256ElemLen, ss: u8) -> Option<EADItem> {
     Some(ead_1)
 }
 
-pub fn i_process_ead_2(
+pub fn i_process_ead_2<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     ead_2: EADItem,
     cred_v_u8: &[u8],
     h_message_1: &BytesHashLen,
@@ -113,7 +118,7 @@ pub fn i_process_ead_2(
     cred_v.len = cred_v_u8.len();
     cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
 
-    match verify_voucher(&ead_2_value, h_message_1, &cred_v, &state.prk) {
+    match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &state.prk) {
         Ok(voucher) => {
             ead_initiator_set_global_state(EADInitiatorState {
                 protocol_state: EADInitiatorProtocolState::Completed,
@@ -136,13 +141,14 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
     Some(EADItem::new())
 }
 
-fn verify_voucher(
+fn verify_voucher<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     received_voucher: &BytesEncodedVoucher,
     h_message_1: &BytesHashLen,
     cred_v: &EdhocMessageBuffer,
     prk: &BytesHashLen,
 ) -> Result<BytesMac, ()> {
-    let prepared_voucher = &prepare_voucher(h_message_1, cred_v, prk);
+    let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
     if received_voucher == prepared_voucher {
         let mut voucher_mac: BytesMac = Default::default();
         voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
@@ -152,8 +158,13 @@ fn verify_voucher(
     }
 }
 
-fn build_enc_id(prk: &BytesHashLen, id_u: &EdhocMessageBuffer, ss: u8) -> EdhocMessageBuffer {
-    let (k_1, iv_1) = compute_k_1_iv_1(&prk);
+fn build_enc_id<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    id_u: &EdhocMessageBuffer,
+    ss: u8,
+) -> EdhocMessageBuffer {
+    let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
 
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
@@ -165,21 +176,29 @@ fn build_enc_id(prk: &BytesHashLen, id_u: &EdhocMessageBuffer, ss: u8) -> EdhocM
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    default_crypto().aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
+    crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
 }
 
-fn compute_prk(a: &BytesP256ElemLen, g_b: &BytesP256ElemLen) -> BytesHashLen {
+fn compute_prk<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    a: &BytesP256ElemLen,
+    g_b: &BytesP256ElemLen,
+) -> BytesHashLen {
     // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
     //       nevertheless, using a salt of HashLen zeros works as well (see RFC 5869, Section 2.2).
     let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
-    let g_ab = default_crypto().p256_ecdh(a, g_b);
-    default_crypto().hkdf_extract(&salt, &g_ab)
+    let g_ab = crypto.p256_ecdh(a, g_b);
+    crypto.hkdf_extract(&salt, &g_ab)
 }
 
-fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
+fn compute_k_1_iv_1<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_1 = EDHOC-Expand(PRK, info = (0, h'', AES_CCM_KEY_LEN), length)
     let mut k_1: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
     let k_1_buf = edhoc_kdf_expand(
+        crypto,
         prk,
         EAD_ZEROCONF_INFO_K_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
@@ -191,6 +210,7 @@ fn compute_k_1_iv_1(prk: &BytesHashLen) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_IV_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
     let iv_1_buf = edhoc_kdf_expand(
+        crypto,
         prk,
         EAD_ZEROCONF_INFO_IV_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
@@ -228,7 +248,8 @@ fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] {
 }
 
 // TODO: consider moving this to a new 'edhoc crypto primnitives' module
-fn edhoc_kdf_expand(
+fn edhoc_kdf_expand<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     prk: &BytesHashLen,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -236,7 +257,7 @@ fn edhoc_kdf_expand(
     length: usize,
 ) -> BytesMaxBuffer {
     let (info, info_len) = encode_info(label, context, context_len, length);
-    let output = default_crypto().hkdf_expand(prk, &info, info_len, length);
+    let output = crypto.hkdf_expand(prk, &info, info_len, length);
     output
 }
 
@@ -304,7 +325,11 @@ pub fn ead_responder_set_global_state(new_state: EADResponderState) {
     }
 }
 
-pub fn r_process_ead_1(ead_1: &EADItem, message_1: &EdhocMessageBuffer) -> Result<(), ()> {
+pub fn r_process_ead_1<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    ead_1: &EADItem,
+    message_1: &EdhocMessageBuffer,
+) -> Result<(), ()> {
     let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
     if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
@@ -318,7 +343,7 @@ pub fn r_process_ead_1(ead_1: &EADItem, message_1: &EdhocMessageBuffer) -> Resul
     // TODO:
     // - implement voucher_response = send_voucher_request(&loc_w, &voucher_request);
     // - save voucher_response in global state
-    let voucher_response = mock_send_voucher_request(&loc_w, &voucher_request, message_1);
+    let voucher_response = mock_send_voucher_request(crypto, &loc_w, &voucher_request, message_1);
 
     if let Ok(voucher_response) = voucher_response {
         ead_responder_set_global_state(EADResponderState {
@@ -520,7 +545,8 @@ pub fn mock_ead_server_set_global_state(new_state: MockEADServerState) {
     }
 }
 
-fn mock_send_voucher_request(
+fn mock_send_voucher_request<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     _loc_w: &EdhocMessageBuffer,
     voucher_request: &EdhocMessageBuffer,
     message_1: &EdhocMessageBuffer, // only needed to get g_x
@@ -530,10 +556,17 @@ fn mock_send_voucher_request(
     let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) =
         parse_message_1(message_1).unwrap();
 
-    handle_voucher_request(voucher_request, &server_state.cred_v, &server_state.w, &g_x)
+    handle_voucher_request(
+        crypto,
+        voucher_request,
+        &server_state.cred_v,
+        &server_state.w,
+        &g_x,
+    )
 }
 
-fn handle_voucher_request(
+fn handle_voucher_request<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     vreq: &EdhocMessageBuffer,
     cred_v: &EdhocMessageBuffer,
     w: &BytesP256ElemLen,   // TODO: have w be in the state of W
@@ -544,22 +577,23 @@ fn handle_voucher_request(
     // compute hash
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
-    let h_message_1 = default_crypto().sha256_digest(&message_1_buf, message_1.len);
+    let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-    let prk = compute_prk(w, g_x);
+    let prk = compute_prk(crypto, w, g_x);
 
-    let voucher = prepare_voucher(&h_message_1, cred_v, &prk);
+    let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
     let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
     Ok(voucher_response)
 }
 
-fn prepare_voucher(
+fn prepare_voucher<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
     h_message_1: &BytesHashLen,
     cred_v: &EdhocMessageBuffer,
     prk: &BytesP256ElemLen,
 ) -> BytesEncodedVoucher {
     let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
-    let voucher_mac = compute_voucher_mac(&prk, &voucher_input);
+    let voucher_mac = compute_voucher_mac(crypto, &prk, &voucher_input);
     encode_voucher(&voucher_mac)
 }
 
@@ -622,13 +656,17 @@ fn encode_voucher_input(
     voucher_input
 }
 
-fn compute_voucher_mac(prk: &BytesHashLen, voucher_input: &EdhocMessageBuffer) -> BytesMac {
+fn compute_voucher_mac<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    voucher_input: &EdhocMessageBuffer,
+) -> BytesMac {
     let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
 
     let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
     context[..voucher_input.len].copy_from_slice(&voucher_input.content[..voucher_input.len]);
 
-    let voucher_mac_buf = edhoc_kdf_expand(prk, 2, &context, voucher_input.len, MAC_LENGTH);
+    let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, &context, voucher_input.len, MAC_LENGTH);
     voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
 
     voucher_mac
@@ -740,18 +778,28 @@ mod test_initiator {
     use super::*;
     use test_vectors::*;
 
+    use edhoc_crypto::default_crypto;
+
     #[test]
     fn test_compute_keys() {
         let k_1_tv: BytesCcmKeyLen = K_1_TV.try_into().unwrap();
         let iv_1_tv: BytesCcmIvLen = IV_1_TV.try_into().unwrap();
         let prk_tv: BytesHashLen = PRK_TV.try_into().unwrap();
 
-        let prk_xw = compute_prk(&X_TV.try_into().unwrap(), &G_W_TV.try_into().unwrap());
-        let prk_wx = compute_prk(&W_TV.try_into().unwrap(), &G_X_TV.try_into().unwrap());
+        let prk_xw = compute_prk(
+            &mut default_crypto(),
+            &X_TV.try_into().unwrap(),
+            &G_W_TV.try_into().unwrap(),
+        );
+        let prk_wx = compute_prk(
+            &mut default_crypto(),
+            &W_TV.try_into().unwrap(),
+            &G_X_TV.try_into().unwrap(),
+        );
         assert_eq!(prk_xw, prk_tv);
         assert_eq!(prk_xw, prk_wx);
 
-        let (k_1, iv_1) = compute_k_1_iv_1(&prk_xw);
+        let (k_1, iv_1) = compute_k_1_iv_1(&mut default_crypto(), &prk_xw);
         assert_eq!(k_1, k_1_tv);
         assert_eq!(iv_1, iv_1_tv);
     }
@@ -761,6 +809,7 @@ mod test_initiator {
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
         let enc_id = build_enc_id(
+            &mut default_crypto(),
             &PRK_TV.try_into().unwrap(),
             &ID_U_TV.try_into().unwrap(),
             SS_TV,
@@ -778,7 +827,8 @@ mod test_initiator {
             LOC_W_TV.try_into().unwrap(),
         ));
 
-        let ead_1 = i_prepare_ead_1(&X_TV.try_into().unwrap(), SS_TV).unwrap();
+        let ead_1 =
+            i_prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV).unwrap();
         assert_eq!(
             ead_initiator_get_global_state().protocol_state,
             EADInitiatorProtocolState::WaitEAD2
@@ -796,7 +846,13 @@ mod test_initiator {
         let prk_tv = PRK_TV.try_into().unwrap();
         let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
-        let res = verify_voucher(&voucher_tv, &h_message_1_tv, &cred_v_tv, &prk_tv);
+        let res = verify_voucher(
+            &mut default_crypto(),
+            &voucher_tv,
+            &h_message_1_tv,
+            &cred_v_tv,
+            &prk_tv,
+        );
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), voucher_mac_tv);
     }
@@ -821,7 +877,7 @@ mod test_initiator {
         state.prk = PRK_TV.try_into().unwrap();
         ead_initiator_set_global_state(state);
 
-        let res = i_process_ead_2(ead_2_tv, cred_v_tv, &h_message_1_tv);
+        let res = i_process_ead_2(&mut default_crypto(), ead_2_tv, cred_v_tv, &h_message_1_tv);
         assert!(res.is_ok());
         assert_eq!(
             ead_initiator_get_global_state().protocol_state,
@@ -834,6 +890,8 @@ mod test_initiator {
 mod test_responder {
     use super::*;
     use test_vectors::*;
+
+    use edhoc_crypto::default_crypto;
 
     #[test]
     fn test_parse_ead_1_value() {
@@ -875,7 +933,7 @@ mod test_responder {
             W_TV.try_into().unwrap(),
         ));
 
-        let res = r_process_ead_1(&ead_1, &message_1_tv);
+        let res = r_process_ead_1(&mut default_crypto(), &ead_1, &message_1_tv);
         assert!(res.is_ok());
         assert_eq!(
             ead_responder_get_global_state().protocol_state,
@@ -923,6 +981,8 @@ mod test_enrollment_server {
     use super::*;
     use test_vectors::*;
 
+    use edhoc_crypto::default_crypto;
+
     #[test]
     fn test_encode_voucher_input() {
         let h_message_1_tv: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
@@ -939,7 +999,7 @@ mod test_enrollment_server {
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
         let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
-        let voucher_mac = compute_voucher_mac(&prk_tv, &voucher_input_tv);
+        let voucher_mac = compute_voucher_mac(&mut default_crypto(), &prk_tv, &voucher_input_tv);
         assert_eq!(voucher_mac, voucher_mac_tv);
     }
 
@@ -950,7 +1010,7 @@ mod test_enrollment_server {
         let prk: BytesHashLen = PRK_TV.try_into().unwrap();
         let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
-        let voucher = prepare_voucher(&h_message_1, &cred_v, &prk);
+        let voucher = prepare_voucher(&mut default_crypto(), &h_message_1, &cred_v, &prk);
         assert_eq!(voucher, voucher_tv);
     }
 
@@ -986,7 +1046,13 @@ mod test_enrollment_server {
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let res = handle_voucher_request(&voucher_request_tv, &cred_v_tv, &w_tv, &g_x_tv);
+        let res = handle_voucher_request(
+            &mut default_crypto(),
+            &voucher_request_tv,
+            &cred_v_tv,
+            &w_tv,
+            &g_x_tv,
+        );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
         assert_eq!(voucher_response.content, voucher_response_tv.content);
@@ -997,6 +1063,8 @@ mod test_enrollment_server {
 mod test_stateless_operation {
     use super::*;
     use test_vectors::*;
+
+    use edhoc_crypto::default_crypto;
 
     #[test]
     fn slo_test_encode_voucher_request() {
@@ -1044,7 +1112,13 @@ mod test_stateless_operation {
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let res = handle_voucher_request(&voucher_request_tv, &cred_v_tv, &w_tv, &g_x_tv);
+        let res = handle_voucher_request(
+            &mut default_crypto(),
+            &voucher_request_tv,
+            &cred_v_tv,
+            &w_tv,
+            &g_x_tv,
+        );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
         assert_eq!(voucher_response.content, voucher_response_tv.content);

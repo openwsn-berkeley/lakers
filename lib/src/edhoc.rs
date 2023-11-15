@@ -105,7 +105,7 @@ pub fn r_process_message_1(
             if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
                 // Step 3: If EAD is present make it available to the application
                 let ead_success = if let Some(ead_1) = ead_1 {
-                    r_process_ead_1(&ead_1, message_1).is_ok()
+                    r_process_ead_1(crypto, &ead_1, message_1).is_ok()
                 } else {
                     true
                 };
@@ -382,7 +382,7 @@ pub fn i_prepare_message_1(
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
     suites_i[0..EDHOC_SUPPORTED_SUITES.len()].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-    let ead_1 = i_prepare_ead_1(&x, suites_i[suites_i.len() - 1]);
+    let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i.len() - 1]);
 
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     message_1 = encode_message_1(
@@ -473,7 +473,7 @@ pub fn i_process_message_2(
                     // at this point, in case of EAD = zeroconf, if it works it means that:
                     // - the Voucher has been verified
                     // - the received valid_cred_r (aka cred_v) has been authenticated
-                    i_process_ead_2(ead_2, valid_cred_r, &h_message_1)
+                    i_process_ead_2(crypto, ead_2, valid_cred_r, &h_message_1)
                 } else {
                     Ok(())
                 };
