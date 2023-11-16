@@ -97,7 +97,7 @@ pub fn r_process_message_1(
     // g_x will be saved to the state
     let res = parse_message_1(message_1);
 
-    if res.is_ok() {
+    if res.is_some() {
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
         // verify that the method is supported
         if method == EDHOC_METHOD {
@@ -139,7 +139,7 @@ pub fn r_process_message_1(
             Err(EDHOCError::UnsupportedMethod)
         }
     } else {
-        Err(res.unwrap_err())
+        Err(EDHOCError::ParsingError)
     }
 }
 
@@ -1506,7 +1506,7 @@ mod tests {
 
         // first time message_1 parsing
         let res = parse_message_1(&message_1_tv_first_time);
-        assert!(res.is_ok());
+        assert!(res.is_some());
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV_FIRST_TIME);
@@ -1517,7 +1517,7 @@ mod tests {
 
         // second time message_1
         let res = parse_message_1(&message_1_tv);
-        assert!(res.is_ok());
+        assert!(res.is_some());
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV);
@@ -1530,35 +1530,23 @@ mod tests {
     #[test]
     fn test_parse_message_1_invalid_traces() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
-        assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
-            EDHOCError::ParsingError
-        );
+        assert!(parse_message_1(&message_1_tv).is_none(),);
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
-        assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
-            EDHOCError::ParsingError
-        );
+        assert!(parse_message_1(&message_1_tv).is_none(),);
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
-        assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
-            EDHOCError::ParsingError
-        );
+        assert!(parse_message_1(&message_1_tv).is_none(),);
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
-        assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
-            EDHOCError::ParsingError
-        );
+        assert!(parse_message_1(&message_1_tv).is_none(),);
     }
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
         let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
-            parse_message_1(&message_2_tv).unwrap_err(),
+            parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
         );
     }
@@ -1894,7 +1882,7 @@ mod tests {
         let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
         let res = parse_message_1(&message_1_ead_tv);
-        assert!(res.is_ok());
+        assert!(res.is_some());
         let (_method, _suites_i, _suites_i_len, _g_x, _c_i, ead_1) = res.unwrap();
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);

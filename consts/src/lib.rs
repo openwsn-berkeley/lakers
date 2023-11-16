@@ -319,6 +319,47 @@ mod cbor {
     pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
         return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
     }
+
+    /// returning raw integer, since it is used like this over the library
+    pub fn cbor_consume_raw_int(buffer: &[u8], offset: usize) -> Option<(u8, usize)> {
+        let byte = *buffer.get(0)?;
+
+        if is_cbor_uint_1byte(byte) || is_cbor_neg_int_1byte(byte) {
+            Some((byte, offset + 1))
+        } else {
+            None
+        }
+    }
+
+    pub fn cbor_consume_uint(buffer: &[u8], offset: usize) -> Option<(u8, usize)> {
+        let byte = *buffer.get(0)?;
+
+        if is_cbor_uint_1byte(byte) {
+            Some((byte, offset + 1))
+        } else if is_cbor_uint_2bytes(byte) {
+            let value = *buffer.get(1)?;
+            Some((value, offset + 2))
+        } else {
+            None
+        }
+    }
+
+    pub fn cbor_consume_bstr(buffer: &[u8], offset: usize) -> Option<(&[u8], usize)> {
+        let first_byte = *buffer.get(0)?;
+
+        if is_cbor_bstr_1byte_prefix(first_byte) {
+            let len = (first_byte - CBOR_MAJOR_BYTE_STRING) as usize;
+            let data = buffer.get(0..len)?;
+            Some((data, offset + 1 + len))
+        } else if is_cbor_bstr_2bytes_prefix(first_byte) {
+            let len = *buffer.get(1)?;
+            let len: usize = len.try_into().expect("Conversion to usize failed");
+            let data = buffer.get(2..len + 2)?;
+            Some((data, offset + 2 + len))
+        } else {
+            None
+        }
+    }
 }
 
 mod helpers {
@@ -499,69 +540,52 @@ mod common_edhoc_parsing {
 
     pub fn parse_message_1(
         rcvd_message_1: &BufferMessage1,
-    ) -> Result<
-        (
-            u8,
-            BytesSuites,
-            usize,
-            BytesP256ElemLen,
-            u8,
-            Option<EADItem>,
-        ),
-        EDHOCError,
-    > {
-        let method: u8;
-        let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
+    ) -> Option<(
+        u8,
+        BytesSuites,
+        usize,
+        BytesP256ElemLen,
+        u8,
+        Option<EADItem>,
+    )> {
         let suites_i: BytesSuites;
         let suites_i_len: usize;
         let raw_suites_len: usize;
-        let c_i;
 
-        // first element of CBOR sequence must be an integer
-        if is_cbor_uint_1byte(rcvd_message_1.get(0)?) {
-            method = rcvd_message_1.get(0)?;
-            let res_suites = parse_suites_i(rcvd_message_1);
+        // first element of the CBOR sequence must be an integer
+        let (method, mut offset) = cbor_consume_uint(&rcvd_message_1.content[..], 0)?;
 
-            if res_suites.is_ok() {
-                (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
+        let res_suites = parse_suites_i(rcvd_message_1);
 
-                if is_cbor_bstr_2bytes_prefix(rcvd_message_1.get(1 + raw_suites_len)?) {
-                    g_x.copy_from_slice(
-                        &rcvd_message_1
-                            .get_slice(3 + raw_suites_len, 3 + raw_suites_len + P256_ELEM_LEN)?,
-                    );
+        if res_suites.is_ok() {
+            (suites_i, suites_i_len, raw_suites_len) = res_suites.unwrap();
+            offset += raw_suites_len;
 
-                    c_i = rcvd_message_1.get(3 + raw_suites_len + P256_ELEM_LEN)?;
-                    // check that c_i is encoded as single-byte int (we still do not support bstr encoding)
-                    if is_cbor_neg_int_1byte(c_i) || is_cbor_uint_1byte(c_i) {
-                        // if there is still more to parse, the rest will be the EAD_1
-                        if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
-                            // NOTE: since the current implementation only supports one EAD handler,
-                            // we assume only one EAD item
-                            let ead_res =
-                                parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
-                            if ead_res.is_ok() {
-                                let ead_1 = ead_res.unwrap();
-                                Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
-                            } else {
-                                Err(ead_res.unwrap_err())
-                            }
-                        } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
-                            Ok((method, suites_i, suites_i_len, g_x, c_i, None))
-                        } else {
-                            Err(EDHOCError::ParsingError)
-                        }
-                    } else {
-                        Err(EDHOCError::ParsingError)
-                    }
+            let (g_x_slice, offset) = cbor_consume_bstr(&rcvd_message_1.content[offset..], offset)?;
+            let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
+            g_x.copy_from_slice(g_x_slice);
+
+            // consume c_i encoded as single-byte int (we still do not support bstr encoding)
+            let (c_i, _offset) = cbor_consume_raw_int(&rcvd_message_1.content[offset..], offset)?;
+
+            // if there is still more to parse, the rest will be the EAD_1
+            if rcvd_message_1.len > (4 + raw_suites_len + P256_ELEM_LEN) {
+                // NOTE: since the current implementation only supports one EAD handler,
+                // we assume only one EAD item
+                let ead_res = parse_ead(rcvd_message_1, 4 + raw_suites_len + P256_ELEM_LEN);
+                if ead_res.is_ok() {
+                    let ead_1 = ead_res.unwrap();
+                    Some((method, suites_i, suites_i_len, g_x, c_i, ead_1))
                 } else {
-                    Err(EDHOCError::ParsingError)
+                    None
                 }
+            } else if rcvd_message_1.len == (4 + raw_suites_len + P256_ELEM_LEN) {
+                Some((method, suites_i, suites_i_len, g_x, c_i, None))
             } else {
-                Err(res_suites.unwrap_err())
+                None
             }
         } else {
-            Err(EDHOCError::ParsingError)
+            None
         }
     }
 }
