@@ -97,7 +97,7 @@ pub fn r_process_message_1(
     // g_x will be saved to the state
     let res = parse_message_1(message_1);
 
-    if res.is_some() {
+    if res.is_ok() {
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
         // verify that the method is supported
         if method == EDHOC_METHOD {
@@ -904,7 +904,8 @@ fn decode_plaintext_3(
             if plaintext_3.len > (offset + MAC_LENGTH_3) {
                 // NOTE: since the current implementation only supports one EAD handler,
                 // we assume only one EAD item
-                let ead_res = parse_ead(plaintext_3, offset + MAC_LENGTH_3);
+                let ead_res =
+                    parse_ead(&plaintext_3.content[offset + MAC_LENGTH_3..plaintext_3.len]);
                 if ead_res.is_ok() {
                     let ead_3 = ead_res.unwrap();
                     Ok((id_cred_i, mac_3, ead_3))
@@ -1159,10 +1160,7 @@ fn decode_plaintext_2(
             if plaintext_2_len > (offset + MAC_LENGTH_2) {
                 // NOTE: since the current implementation only supports one EAD handler,
                 // we assume only one EAD item
-                let ead_res = parse_ead(
-                    &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-                    offset + MAC_LENGTH_2,
-                );
+                let ead_res = parse_ead(&plaintext_2[offset + MAC_LENGTH_2..plaintext_2_len]);
                 if ead_res.is_ok() {
                     let ead_2 = ead_res.unwrap();
                     Ok((c_r, id_cred_r, mac_2, ead_2))
@@ -1470,32 +1468,48 @@ mod tests {
     #[test]
     fn test_parse_suites_i() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-
-        let res = parse_suites_i(&message_1_tv);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i, SUITES_I_TV);
 
-        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A));
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i[0], 0x18);
 
-        let (suites_i, suites_i_len, raw_suites_len) =
-            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
+        // let (suites_i, suites_i_len, raw_suites_len) =
+        //     parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
+        assert!(res.is_ok());
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i_len, 2);
-        assert_eq!(raw_suites_len, 3);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x01);
 
-        let (suites_i, suites_i_len, raw_suites_len) =
-            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C)).unwrap();
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
+        assert!(res.is_ok());
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i_len, 2);
-        assert_eq!(raw_suites_len, 4);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x19);
 
-        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
 
@@ -1506,7 +1520,7 @@ mod tests {
 
         // first time message_1 parsing
         let res = parse_message_1(&message_1_tv_first_time);
-        assert!(res.is_some());
+        assert!(res.is_ok());
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV_FIRST_TIME);
@@ -1517,7 +1531,7 @@ mod tests {
 
         // second time message_1
         let res = parse_message_1(&message_1_tv);
-        assert!(res.is_some());
+        assert!(res.is_ok());
         let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV);
@@ -1529,17 +1543,29 @@ mod tests {
 
     #[test]
     fn test_parse_message_1_invalid_traces() {
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
-        assert!(parse_message_1(&message_1_tv).is_none(),);
+        let message_1_tv: EdhocMessageBuffer = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
-        assert!(parse_message_1(&message_1_tv).is_none(),);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
-        assert!(parse_message_1(&message_1_tv).is_none(),);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
-        assert!(parse_message_1(&message_1_tv).is_none(),);
+        assert_eq!(
+            parse_message_1(&message_1_tv).unwrap_err(),
+            EDHOCError::ParsingError
+        );
     }
 
     #[test]
@@ -1850,7 +1876,7 @@ mod tests {
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
         let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset);
+        let res = parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]);
         assert!(res.is_ok());
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
@@ -1861,7 +1887,8 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let res =
+            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1869,7 +1896,8 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let res =
+            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
         let ead_item = res.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1882,7 +1910,7 @@ mod tests {
         let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
         let res = parse_message_1(&message_1_ead_tv);
-        assert!(res.is_some());
+        assert!(res.is_ok());
         let (_method, _suites_i, _suites_i_len, _g_x, _c_i, ead_1) = res.unwrap();
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
