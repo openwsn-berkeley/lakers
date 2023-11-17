@@ -458,9 +458,8 @@ mod test {
     }
 }
 
-// TODO: move to a proper file (or even to the main crate, once EAD is extracted as an external dependency)
+// TODO: move to own file (or even to the main crate, once EAD is extracted as an external dependency)
 mod edhoc_parser {
-    use super::cbor_decoder::*;
     use super::*;
 
     // FIXME: remove .unwrap calls
@@ -544,7 +543,7 @@ mod edhoc_parser {
         ),
         EDHOCError,
     > {
-        let mut suites_i: BytesSuites = Default::default();
+        let suites_i: BytesSuites;
         let suites_i_len: usize;
         let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
 
@@ -619,7 +618,7 @@ mod edhoc_parser {
         plaintext_2: &BytesMaxBuffer,
         plaintext_2_len: usize,
     ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
-        let mut id_cred_r: IdCred;
+        let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
         let mut decoder = CBORDecoder::new(&plaintext_2[..plaintext_2_len]);
@@ -777,7 +776,6 @@ mod cbor_decoder {
 
         /// Decode an `i8` value.
         pub fn i8(&mut self) -> Result<i8, CBORError> {
-            let p = self.pos;
             match self.read()? {
                 n @ 0x00..=0x17 => Ok(n as i8),
                 n @ 0x20..=0x37 => Ok(-1 - (n - 0x20) as i8),
@@ -787,7 +785,6 @@ mod cbor_decoder {
 
         /// Get the raw `i8` or `u8` value.
         pub fn int_raw(&mut self) -> Result<u8, CBORError> {
-            let p = self.pos;
             match self.read()? {
                 n @ 0x00..=0x17 => Ok(n),
                 n @ 0x20..=0x37 => Ok(n),
@@ -802,7 +799,7 @@ mod cbor_decoder {
             if CBOR_MAJOR_TEXT_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
             }
-            let n = Self::u64_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
+            let n = Self::u32_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
             self.read_slice(n)
         }
 
@@ -813,7 +810,7 @@ mod cbor_decoder {
             if CBOR_MAJOR_BYTE_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
             }
-            let n = Self::u64_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
+            let n = Self::u32_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
             self.read_slice(n)
         }
 
@@ -836,15 +833,15 @@ mod cbor_decoder {
             }
             match Self::info_of(b) {
                 31 => Err(CBORError::DecodingError), // no support for unknown size arrays
-                n => Ok(Self::u64_to_usize(self.unsigned(n, p)?, p)?),
+                n => Ok(Self::u32_to_usize(self.unsigned(n, p)?, p)?),
             }
         }
 
-        /// Decode a `u64` value beginning with `b`.
-        pub(crate) fn unsigned(&mut self, b: u8, p: usize) -> Result<u64, CBORError> {
+        /// Decode a `u32` value beginning with `b`.
+        pub(crate) fn unsigned(&mut self, b: u8, _p: usize) -> Result<u32, CBORError> {
             match b {
-                n @ 0..=0x17 => Ok(u64::from(n)),
-                0x18 => self.read().map(u64::from),
+                n @ 0..=0x17 => Ok(u32::from(n)),
+                0x18 => self.read().map(u32::from),
                 _ => Err(CBORError::DecodingError),
             }
         }
@@ -857,7 +854,7 @@ mod cbor_decoder {
             Err(CBORError::DecodingError)
         }
 
-        fn u64_to_usize(n: u64, pos: usize) -> Result<usize, CBORError> {
+        fn u32_to_usize(n: u32, _pos: usize) -> Result<usize, CBORError> {
             n.try_into().map_err(|_| CBORError::DecodingError)
         }
 
