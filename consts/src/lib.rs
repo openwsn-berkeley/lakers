@@ -578,10 +578,40 @@ mod edhoc_parser {
             } else {
                 Err(ead_res.unwrap_err())
             }
-        } else if rcvd_message_1.len == decoder.position() {
-            Ok((method, suites_i, suites_i_len, g_x, c_i, None))
         } else {
-            Err(EDHOCError::ParsingError)
+            decoder.ensure_finished()?;
+            Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+        }
+    }
+
+    pub fn parse_message_2(
+        rcvd_message_2: &BufferMessage2,
+    ) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
+        // FIXME decode negative integers as well
+        let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
+
+        let mut decoder = if let Some(slice) = rcvd_message_2.as_slice() {
+            CBORDecoder::new(slice)
+        } else {
+            return Err(EDHOCError::ParsingError);
+        };
+
+        // message_2 consists of 1 bstr element; this element in turn contains the concatenation of g_y and ciphertext_2
+        let content = decoder.bytes()?;
+        decoder.ensure_finished()?;
+
+        if let Some(key) = content.get(0..P256_ELEM_LEN) {
+            let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
+            g_y.copy_from_slice(key);
+            if let Some(c2) = content.get(P256_ELEM_LEN..) {
+                ciphertext_2.len = c2.len(); // len - gy_len - 2
+                ciphertext_2.content[..ciphertext_2.len].copy_from_slice(c2);
+                Ok((g_y, ciphertext_2))
+            } else {
+                return Err(EDHOCError::ParsingError);
+            }
+        } else {
+            return Err(EDHOCError::ParsingError);
         }
     }
 }
@@ -624,6 +654,18 @@ mod cbor_decoder {
 
         pub fn position(&self) -> usize {
             self.pos
+        }
+
+        pub fn finished(&self) -> bool {
+            self.pos == self.buf.len()
+        }
+
+        pub fn ensure_finished(&self) -> Result<(), CBORError> {
+            if self.finished() {
+                Ok(())
+            } else {
+                Err(CBORError::DecodingError)
+            }
         }
 
         fn read(&mut self) -> Result<u8, CBORError> {

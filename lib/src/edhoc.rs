@@ -753,30 +753,6 @@ fn encode_message_1(
     output
 }
 
-fn parse_message_2(
-    rcvd_message_2: &BufferMessage2,
-) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
-    // FIXME decode negative integers as well
-    let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
-
-    // ensure the whole message is a single CBOR sequence
-    if is_cbor_bstr_2bytes_prefix(rcvd_message_2.get(0)?)
-        && rcvd_message_2.get(1)? == (rcvd_message_2.len as u8 - 2)
-    {
-        g_y[..].copy_from_slice(rcvd_message_2.get_slice(2, 2 + P256_ELEM_LEN)?);
-
-        ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
-        ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
-            rcvd_message_2.get_slice(2 + P256_ELEM_LEN, 2 + P256_ELEM_LEN + ciphertext_2.len)?,
-        );
-
-        Ok((g_y, ciphertext_2))
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
-}
-
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
     let mut output: BufferMessage2 = BufferMessage2::new();
 
