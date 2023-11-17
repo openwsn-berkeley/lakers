@@ -619,7 +619,7 @@ mod edhoc_parser {
         plaintext_2: &BytesMaxBuffer,
         plaintext_2_len: usize,
     ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
-        let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
+        let mut id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
         let mut decoder = CBORDecoder::new(&plaintext_2[..plaintext_2_len]);
@@ -650,6 +650,45 @@ mod edhoc_parser {
         } else {
             decoder.ensure_finished()?;
             Ok((c_r, id_cred_r, mac_2, None))
+        }
+    }
+
+    pub fn decode_plaintext_3(
+        plaintext_3: &BufferPlaintext3,
+    ) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
+        let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
+        let id_cred_i: IdCred;
+
+        let mut decoder = if let Some(slice) = plaintext_3.as_slice() {
+            CBORDecoder::new(slice)
+        } else {
+            return Err(EDHOCError::ParsingError);
+        };
+
+        // NOTE: if len of bstr is 1, then it is a compact kid and therefore should have been encoded as int
+        if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
+            && CBORDecoder::info_of(decoder.current()?) > 1
+        {
+            id_cred_i = IdCred::FullCredential(decoder.bytes()?);
+        } else {
+            id_cred_i = IdCred::CompactKid(decoder.int_raw()?);
+        }
+
+        mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
+
+        // if there is still more to parse, the rest will be the EAD_3
+        if plaintext_3.len > decoder.position() {
+            // assume only one EAD item
+            let ead_res = parse_ead(decoder.remaining_buffer()?);
+            if ead_res.is_ok() {
+                let ead_3 = ead_res.unwrap();
+                Ok((id_cred_i, mac_3, ead_3))
+            } else {
+                Err(ead_res.unwrap_err())
+            }
+        } else {
+            decoder.ensure_finished()?;
+            Ok((id_cred_i, mac_3, None))
         }
     }
 }

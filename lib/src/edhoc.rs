@@ -843,64 +843,6 @@ fn edhoc_kdf(
     output
 }
 
-fn decode_plaintext_3(
-    plaintext_3: &BufferPlaintext3,
-) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
-    let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-    let id_cred_i: IdCred;
-    let first_byte = plaintext_3.get(0)?;
-
-    // check ID_CRED_I and MAC_3
-    let res = if (is_cbor_neg_int_1byte(first_byte) || is_cbor_uint_1byte(first_byte)) {
-        // KID
-        let id_cred_i = IdCred::CompactKid(first_byte);
-        Ok((1, id_cred_i))
-    } else if is_cbor_bstr_2bytes_prefix(first_byte)
-        && is_cbor_uint_2bytes(plaintext_3.get(1)?)
-        && (plaintext_3.get(2)? as usize) < plaintext_3.len
-    {
-        // full credential
-        let cred_len = plaintext_3.get(2)? as usize;
-        id_cred_i = IdCred::FullCredential(&plaintext_3.get_slice(3, 3 + cred_len)?);
-        Ok((3 + cred_len, id_cred_i))
-    } else {
-        // error
-        Err(())
-    };
-
-    if res.is_ok() {
-        let (mut offset, id_cred_i) = res.unwrap();
-
-        if (is_cbor_bstr_1byte_prefix(plaintext_3.get(offset)?)) {
-            // skip the CBOR magic byte as we know how long the MAC is
-            offset += 1;
-            mac_3[..].copy_from_slice(&plaintext_3.get_slice(offset, offset + MAC_LENGTH_3)?);
-
-            // if there is still more to parse, the rest will be the EAD_3
-            if plaintext_3.len > (offset + MAC_LENGTH_3) {
-                // NOTE: since the current implementation only supports one EAD handler,
-                // we assume only one EAD item
-                let ead_res =
-                    parse_ead(&plaintext_3.content[offset + MAC_LENGTH_3..plaintext_3.len]);
-                if ead_res.is_ok() {
-                    let ead_3 = ead_res.unwrap();
-                    Ok((id_cred_i, mac_3, ead_3))
-                } else {
-                    Err(ead_res.unwrap_err())
-                }
-            } else if plaintext_3.len == (offset + MAC_LENGTH_3) {
-                Ok((id_cred_i, mac_3, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
-}
-
 fn encode_plaintext_3(
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
