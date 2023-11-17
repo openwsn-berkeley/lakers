@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { path = "../../lib", features = [ "crypto-hacspec" ] }
+edhoc-rs = { path = "../../lib" }
+edhoc-crypto = { path = "../../crypto/", features = [ "hacspec" ] }
 hexlit = "0.5.3"
 coap = { version = "0.13" }
 coap-lite = { version = "0.11.3" }

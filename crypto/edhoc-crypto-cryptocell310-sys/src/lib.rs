@@ -20,6 +20,7 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
     output
 }
 
+#[derive(Debug)]
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {

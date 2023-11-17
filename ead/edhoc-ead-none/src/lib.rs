@@ -1,16 +1,22 @@
 #![no_std]
 
 use edhoc_consts::*;
+use edhoc_crypto_trait::Crypto;
 
 // TODO: the function signatures should not be necessarily the same as the zeroconf version
 //       find a way to be generic on this part.
 
 // initiator side
-pub fn i_prepare_ead_1(_x: &BytesP256ElemLen, _ss: u8) -> Option<EADItem> {
+pub fn i_prepare_ead_1(
+    _crypto: &mut impl Crypto,
+    _x: &BytesP256ElemLen,
+    _ss: u8,
+) -> Option<EADItem> {
     None
 }
 
 pub fn i_process_ead_2(
+    _crypto: &mut impl Crypto,
     _ead_2: EADItem,
     _cred_v_u8: &[u8],
     _h_message_1: &BytesHashLen,
@@ -23,7 +29,11 @@ pub fn i_prepare_ead_3() -> Option<EADItem> {
 }
 
 // responder side
-pub fn r_process_ead_1(_ead_1: &EADItem, _message_1: &BufferMessage1) -> Result<(), ()> {
+pub fn r_process_ead_1(
+    _crypto: &mut impl Crypto,
+    _ead_1: &EADItem,
+    _message_1: &BufferMessage1,
+) -> Result<(), ()> {
     Ok(())
 }
 

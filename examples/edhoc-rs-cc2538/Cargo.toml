@@ -8,6 +8,7 @@ description = "edhoc-rs example on CC2538 SoC"
 
 [dependencies]
 edhoc-rs = { path = "../../lib", default-features = false }
+edhoc-crypto = { path = "../../crypto", default-features = false }
 # depend on an allocator
 embedded-alloc = "0.5.0"
 hexlit = "0.5.3"
@@ -20,5 +21,5 @@ rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 
 [features]
 default = [ "psa" ]
-psa = [ "edhoc-rs/crypto-psa-baremetal" ]
+psa = [ "edhoc-crypto/psa-baremetal" ]
 

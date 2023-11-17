@@ -1,3 +1,4 @@
+use edhoc_crypto::Crypto;
 use edhoc_rs::*;
 use hexlit::hex;
 
@@ -14,11 +15,11 @@ const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3
 
 #[derive(Default, Debug)]
 struct EdhocHandler {
-    connections: Vec<(u8, EdhocResponderWaitM3<'static>)>,
+    connections: Vec<(u8, EdhocResponderWaitM3<'static, Crypto>)>,
 }
 
 impl EdhocHandler {
-    fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<'static>> {
+    fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<'static, Crypto>> {
         let index = self
             .connections
             .iter()
@@ -45,7 +46,7 @@ enum EdhocResponse {
     // take up a slot there anyway) if we make it an enum.
     OkSend2 {
         c_r: u8,
-        responder: EdhocResponderBuildM2<'static>,
+        responder: EdhocResponderBuildM2<'static, Crypto>,
     },
     Message3Processed,
 }
@@ -60,7 +61,14 @@ impl coap_handler::Handler for EdhocHandler {
 
         if starts_with_true {
             let state = EdhocState::default();
-            let responder = EdhocResponder::new(state, &R, &CRED_R, Some(&CRED_I));
+
+            let responder = EdhocResponder::new(
+                state,
+                edhoc_crypto::default_crypto(),
+                &R,
+                &CRED_R,
+                Some(&CRED_I),
+            );
 
             let response = responder
                 .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));

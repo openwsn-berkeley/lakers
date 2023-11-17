@@ -74,7 +74,13 @@ fn main() -> ! {
 
     fn test_new_initiator() {
         let state = Default::default();
-        let _initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
+        let _initiator = EdhocInitiator::new(
+            state,
+            edhoc_crypto::default_crypto(),
+            I,
+            CRED_I,
+            Some(CRED_R),
+        );
     }
 
     test_new_initiator();
@@ -94,9 +100,16 @@ fn main() -> ! {
 
     fn test_prepare_message_1() {
         let state = Default::default();
-        let mut initiator = EdhocInitiator::new(state, I, CRED_I, Some(CRED_R));
+        let mut initiator = EdhocInitiator::new(
+            state,
+            edhoc_crypto::default_crypto(),
+            I,
+            CRED_I,
+            Some(CRED_R),
+        );
 
-        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let c_i: u8 =
+            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
         let message_1 = initiator.prepare_message_1(c_i);
         assert!(message_1.is_ok());
     }
@@ -106,16 +119,30 @@ fn main() -> ! {
 
     fn test_handshake() {
         let state_initiator = Default::default();
-        let mut initiator = EdhocInitiator::new(state_initiator, I, CRED_I, Some(CRED_R));
+        let mut initiator = EdhocInitiator::new(
+            state_initiator,
+            edhoc_crypto::default_crypto(),
+            I,
+            CRED_I,
+            Some(CRED_R),
+        );
         let state_responder = Default::default();
-        let responder = EdhocResponder::new(state_responder, R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(
+            state_responder,
+            edhoc_crypto::default_crypto(),
+            R,
+            CRED_R,
+            Some(CRED_I),
+        );
 
-        let c_i: u8 = generate_connection_identifier_cbor().into();
+        let c_i: u8 =
+            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
         let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
 
         let responder = responder.process_message_1(&message_1).unwrap();
 
-        let c_r: u8 = generate_connection_identifier_cbor().into();
+        let c_r: u8 =
+            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
         let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
         assert!(c_r != 0xff);
 

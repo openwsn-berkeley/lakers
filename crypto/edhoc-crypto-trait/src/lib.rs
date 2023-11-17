@@ -3,7 +3,7 @@
 
 use edhoc_consts::*;
 
-pub trait Crypto {
+pub trait Crypto: core::fmt::Debug {
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
     fn hkdf_expand(
         &mut self,
