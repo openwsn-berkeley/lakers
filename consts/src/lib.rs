@@ -190,7 +190,7 @@ pub trait MessageBufferTrait {
     fn new() -> Self;
     fn get(self, index: usize) -> Option<u8>;
     fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]>;
-    fn as_slice<'a>(&'a self) -> Option<&'a [u8]>;
+    fn as_slice<'a>(&'a self) -> &'a [u8];
     fn from_hex(hex: &str) -> Self;
 }
 
@@ -213,8 +213,8 @@ impl MessageBufferTrait for EdhocMessageBuffer {
         self.content.get(start..len)
     }
 
-    fn as_slice<'a>(&'a self) -> Option<&'a [u8]> {
-        self.content.get(0..self.len)
+    fn as_slice<'a>(&'a self) -> &'a [u8] {
+        &self.content[0..self.len]
     }
 
     fn from_hex(hex: &str) -> Self {
@@ -505,11 +505,7 @@ mod edhoc_parser {
         let suites_i_len: usize;
         let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
 
-        let mut decoder = if let Some(slice) = rcvd_message_1.as_slice() {
-            CBORDecoder::new(slice)
-        } else {
-            return Err(EDHOCError::ParsingError);
-        };
+        let mut decoder = CBORDecoder::new(rcvd_message_1.as_slice());
 
         let method = decoder.u8()?;
 
@@ -547,11 +543,7 @@ mod edhoc_parser {
         // FIXME decode negative integers as well
         let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
 
-        let mut decoder = if let Some(slice) = rcvd_message_2.as_slice() {
-            CBORDecoder::new(slice)
-        } else {
-            return Err(EDHOCError::ParsingError);
-        };
+        let mut decoder = CBORDecoder::new(rcvd_message_2.as_slice());
 
         // message_2 consists of 1 bstr element; this element in turn contains the concatenation of g_y and ciphertext_2
         let decoded = decoder.bytes()?;
@@ -616,11 +608,7 @@ mod edhoc_parser {
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
         let id_cred_i: IdCred;
 
-        let mut decoder = if let Some(slice) = plaintext_3.as_slice() {
-            CBORDecoder::new(slice)
-        } else {
-            return Err(EDHOCError::ParsingError);
-        };
+        let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
         // NOTE: if len of bstr is 1, then it is a compact kid and therefore should have been encoded as int
         if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
