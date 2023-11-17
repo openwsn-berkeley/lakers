@@ -614,6 +614,44 @@ mod edhoc_parser {
             return Err(EDHOCError::ParsingError);
         }
     }
+
+    pub fn decode_plaintext_2(
+        plaintext_2: &BytesMaxBuffer,
+        plaintext_2_len: usize,
+    ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
+        let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
+        let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
+
+        let mut decoder = CBORDecoder::new(&plaintext_2[..plaintext_2_len]);
+
+        let c_r = decoder.int_raw()?;
+
+        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
+        if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
+            && CBORDecoder::info_of(decoder.current()?) > 1
+        {
+            id_cred_r = IdCred::FullCredential(decoder.bytes()?);
+        } else {
+            id_cred_r = IdCred::CompactKid(decoder.int_raw()?);
+        }
+
+        mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
+
+        // if there is still more to parse, the rest will be the EAD_2
+        if plaintext_2_len > decoder.position() {
+            // assume only one EAD item
+            let ead_res = parse_ead(decoder.remaining_buffer()?);
+            if ead_res.is_ok() {
+                let ead_2 = ead_res.unwrap();
+                Ok((c_r, id_cred_r, mac_2, ead_2))
+            } else {
+                Err(ead_res.unwrap_err())
+            }
+        } else {
+            decoder.ensure_finished()?;
+            Ok((c_r, id_cred_r, mac_2, None))
+        }
+    }
 }
 
 mod cbor_decoder {

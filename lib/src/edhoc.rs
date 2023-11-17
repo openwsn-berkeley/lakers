@@ -1102,60 +1102,6 @@ fn compute_mac_2(
     mac_2
 }
 
-fn decode_plaintext_2(
-    plaintext_2: &BytesMaxBuffer,
-    plaintext_2_len: usize,
-) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
-    let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
-    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-
-    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0])) {
-        let c_r = plaintext_2[0];
-
-        let res = if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
-            id_cred_r = IdCred::CompactKid(plaintext_2[1]);
-            Ok(2)
-        } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
-            && is_cbor_uint_2bytes(plaintext_2[2])
-            && (plaintext_2[3] as usize) < plaintext_2_len
-        {
-            let cred_len = plaintext_2[3] as usize;
-            id_cred_r = IdCred::FullCredential(&plaintext_2[4..4 + cred_len]);
-            Ok(4 + cred_len)
-        } else {
-            Err(())
-        };
-
-        if res.is_ok() {
-            let mut offset = res.unwrap();
-            // skip cbor string byte as we know how long the string is
-            offset += 1;
-            mac_2[..].copy_from_slice(&plaintext_2[offset..offset + MAC_LENGTH_2]);
-
-            // if there is still more to parse, the rest will be the EAD_2
-            if plaintext_2_len > (offset + MAC_LENGTH_2) {
-                // NOTE: since the current implementation only supports one EAD handler,
-                // we assume only one EAD item
-                let ead_res = parse_ead(&plaintext_2[offset + MAC_LENGTH_2..plaintext_2_len]);
-                if ead_res.is_ok() {
-                    let ead_2 = ead_res.unwrap();
-                    Ok((c_r, id_cred_r, mac_2, ead_2))
-                } else {
-                    Err(ead_res.unwrap_err())
-                }
-            } else if plaintext_2_len == (offset + MAC_LENGTH_2) {
-                Ok((c_r, id_cred_r, mac_2, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
-}
-
 fn encode_plaintext_2(
     c_r: u8,
     id_cred_r: IdCred,
@@ -1173,10 +1119,9 @@ fn encode_plaintext_2(
         }
         IdCred::FullCredential(cred) => {
             plaintext_2.content[1] = CBOR_BYTE_STRING;
-            plaintext_2.content[2] = CBOR_UINT_1BYTE;
-            plaintext_2.content[3] = cred.len() as u8;
-            plaintext_2.content[4..4 + cred.len()].copy_from_slice(cred);
-            4 + cred.len()
+            plaintext_2.content[2] = cred.len() as u8;
+            plaintext_2.content[3..3 + cred.len()].copy_from_slice(cred);
+            3 + cred.len()
         }
     };
 
