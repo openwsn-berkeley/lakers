@@ -23,6 +23,10 @@ edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, opti
 # cryptocell for nrf52840
 edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
 
+# software implementations from rustcrypto
+edhoc-crypto-rustcrypto = { path = "./edhoc-crypto-rustcrypto", optional = true }
+rand_core = { version = "0.6.4", optional = true, default-features = false }
+
 [features]
 default = [  ]
 hacspec = [ "edhoc-crypto-hacspec" ]
@@ -30,3 +34,8 @@ cc2538 = [ "edhoc-crypto-cc2538" ]
 psa = [ "edhoc-crypto-psa" ]
 psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
 cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
+# This requires std because we need to conjure randomness from thin air;
+# embedded systems can still use rustcrypto but need to provide a crypto from
+# edhoc-crypto-rustcrypto on their own, and combine it with an entropy choice
+# of their avail.
+rustcrypto = [ "edhoc-crypto-rustcrypto", "rand_core/getrandom" ]

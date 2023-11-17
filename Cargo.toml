@@ -9,6 +9,7 @@ members = [
   "crypto/edhoc-crypto-cc2538",
   "crypto/edhoc-crypto-hacspec",
   "crypto/edhoc-crypto-psa",
+  "crypto/edhoc-crypto-rustcrypto",
   "crypto/edhoc-crypto-cryptocell310-sys",
   "crypto/edhoc-crypto-trait",
   "examples/coap",

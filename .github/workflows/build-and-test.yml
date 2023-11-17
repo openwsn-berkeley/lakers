@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa]
+        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa, edhoc-crypto/rustcrypto]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa, edhoc-crypto/psa-baremetal, edhoc-crypto/cryptocell310]
+        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa, edhoc-crypto/psa-baremetal, edhoc-crypto/cryptocell310, edhoc-crypto/rustcrypto]
         ead: [ead-none, ead-zeroconf]
 
     steps:
