@@ -188,8 +188,8 @@ impl Default for EdhocMessageBuffer {
 
 pub trait MessageBufferTrait {
     fn new() -> Self;
-    fn get(self, index: usize) -> Result<u8, AccessError>;
-    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Result<&'a [u8], AccessError>;
+    fn get(self, index: usize) -> Option<u8>;
+    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]>;
     fn as_slice<'a>(&'a self) -> Option<&'a [u8]>;
     fn from_hex(hex: &str) -> Self;
 }
@@ -202,20 +202,15 @@ impl MessageBufferTrait for EdhocMessageBuffer {
         }
     }
 
-    fn get(self, index: usize) -> Result<u8, AccessError> {
-        if index >= self.len {
-            Err(AccessError::OutOfBounds)
-        } else {
-            Ok(self.content[index])
+    fn get(self, index: usize) -> Option<u8> {
+        match self.content.get(index) {
+            Some(b) => Some(*b),
+            _ => None,
         }
     }
 
-    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Result<&'a [u8], AccessError> {
-        if start > self.len || start > len || len > self.len {
-            Err(AccessError::OutOfBounds)
-        } else {
-            Ok(&self.content[start..len])
-        }
+    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]> {
+        self.content.get(start..len)
     }
 
     fn as_slice<'a>(&'a self) -> Option<&'a [u8]> {
@@ -281,6 +276,7 @@ pub enum IdCred<'a> {
     FullCredential(&'a [u8]),
 }
 
+// TODO: remove this, once ead-zeroconf is adjusted to use cbor_decoder
 mod cbor {
     use super::*;
 
@@ -324,47 +320,6 @@ mod cbor {
     #[inline(always)]
     pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
         return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
-    }
-
-    /// returning raw integer, since it is used like this over the library
-    pub fn cbor_consume_raw_int(buffer: &[u8], offset: usize) -> Option<(u8, usize)> {
-        let byte = *buffer.get(0)?;
-
-        if is_cbor_uint_1byte(byte) || is_cbor_neg_int_1byte(byte) {
-            Some((byte, offset + 1))
-        } else {
-            None
-        }
-    }
-
-    pub fn cbor_consume_uint(buffer: &[u8], offset: usize) -> Option<(u8, usize)> {
-        let byte = *buffer.get(0)?;
-
-        if is_cbor_uint_1byte(byte) {
-            Some((byte, offset + 1))
-        } else if is_cbor_uint_2bytes(byte) {
-            let value = *buffer.get(1)?;
-            Some((value, offset + 2))
-        } else {
-            None
-        }
-    }
-
-    pub fn cbor_consume_bstr(buffer: &[u8], offset: usize) -> Option<(&[u8], usize)> {
-        let first_byte = *buffer.get(0)?;
-
-        if is_cbor_bstr_1byte_prefix(first_byte) {
-            let len = (first_byte - CBOR_MAJOR_BYTE_STRING) as usize;
-            let data = buffer.get(0..len)?;
-            Some((data, offset + 1 + len))
-        } else if is_cbor_bstr_2bytes_prefix(first_byte) {
-            let len = *buffer.get(1)?;
-            let len: usize = len.try_into().expect("Conversion to usize failed");
-            let data = buffer.get(2..len + 2)?;
-            Some((data, offset + 2 + len))
-        } else {
-            None
-        }
     }
 }
 
@@ -462,41 +417,44 @@ mod test {
 mod edhoc_parser {
     use super::*;
 
-    // FIXME: remove .unwrap calls
     pub fn parse_ead(message: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
         let ead_item;
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
-        let label = *message.get(0).unwrap();
-        let res_label = if CBORDecoder::is_u8(label) {
-            // CBOR unsigned integer (0..=23)
-            Ok((label as u8, false))
-        } else if CBORDecoder::is_i8(label) {
-            // CBOR negative integer (-1..=-24)
-            Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
-        } else {
-            Err(EDHOCError::ParsingError)
+        let label = match message.get(0) {
+            Some(b) => *b,
+            _ => return Err(EDHOCError::ParsingError),
         };
 
-        if let Ok((label, is_critical)) = res_label {
-            if message.len() > 1 {
-                // EAD value is present
-                let mut buffer = EdhocMessageBuffer::new();
-                buffer.content[..message.len() - 1]
-                    .copy_from_slice(&message.get(1..message.len()).unwrap());
-                buffer.len = message.len() - 1;
-                ead_value = Some(buffer);
-            }
-            ead_item = Some(EADItem {
-                label,
-                is_critical,
-                value: ead_value,
-            });
-            Ok(ead_item)
+        let (label, is_critical) = if CBORDecoder::is_u8(label) {
+            // CBOR unsigned integer (0..=23)
+            (label as u8, false)
+        } else if CBORDecoder::is_i8(label) {
+            // CBOR negative integer (-1..=-24)
+            (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
         } else {
-            Err(res_label.unwrap_err())
+            return Err(EDHOCError::ParsingError);
+        };
+
+        if message.len() > 1 {
+            // EAD value is present
+            let slice = match message.get(1..message.len()) {
+                Some(slice) => slice,
+                _ => return Err(EDHOCError::ParsingError),
+            };
+
+            let mut buffer = EdhocMessageBuffer::new();
+            buffer.content[..slice.len()].copy_from_slice(slice);
+            buffer.len = slice.len();
+            ead_value = Some(buffer);
         }
+        ead_item = Some(EADItem {
+            label,
+            is_critical,
+            value: ead_value,
+        });
+        Ok(ead_item)
     }
 
     pub fn parse_suites_i(
@@ -596,21 +554,21 @@ mod edhoc_parser {
         };
 
         // message_2 consists of 1 bstr element; this element in turn contains the concatenation of g_y and ciphertext_2
-        let content = decoder.bytes()?;
+        let decoded = decoder.bytes()?;
         decoder.ensure_finished()?;
 
-        if let Some(key) = content.get(0..P256_ELEM_LEN) {
+        if let Some(key) = decoded.get(0..P256_ELEM_LEN) {
             let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
             g_y.copy_from_slice(key);
-            if let Some(c2) = content.get(P256_ELEM_LEN..) {
+            if let Some(c2) = decoded.get(P256_ELEM_LEN..) {
                 ciphertext_2.len = c2.len(); // len - gy_len - 2
                 ciphertext_2.content[..ciphertext_2.len].copy_from_slice(c2);
                 Ok((g_y, ciphertext_2))
             } else {
-                return Err(EDHOCError::ParsingError);
+                Err(EDHOCError::ParsingError)
             }
         } else {
-            return Err(EDHOCError::ParsingError);
+            Err(EDHOCError::ParsingError)
         }
     }
 
