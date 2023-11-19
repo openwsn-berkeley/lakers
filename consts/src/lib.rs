@@ -155,19 +155,6 @@ impl Default for State<Start> {
     }
 }
 
-pub enum AccessError {
-    OutOfBounds,
-}
-
-impl From<AccessError> for EDHOCError {
-    fn from(error: AccessError) -> Self {
-        // TODO: can we make this conversion more robust, i.e. what if the access fails but the reason is not ParsingError?
-        match error {
-            AccessError::OutOfBounds => EDHOCError::ParsingError,
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct EdhocMessageBuffer {
@@ -417,12 +404,12 @@ mod test {
 mod edhoc_parser {
     use super::*;
 
-    pub fn parse_ead(message: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
+    pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
         let ead_item;
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
-        let label = match message.get(0) {
+        let label = match buffer.get(0) {
             Some(b) => *b,
             _ => return Err(EDHOCError::ParsingError),
         };
@@ -437,9 +424,9 @@ mod edhoc_parser {
             return Err(EDHOCError::ParsingError);
         };
 
-        if message.len() > 1 {
+        if buffer.len() > 1 {
             // EAD value is present
-            let slice = match message.get(1..message.len()) {
+            let slice = match buffer.get(1..buffer.len()) {
                 Some(slice) => slice,
                 _ => return Err(EDHOCError::ParsingError),
             };
@@ -666,12 +653,25 @@ mod cbor_decoder {
             CBORDecoder { buf: bytes, pos: 0 }
         }
 
-        pub fn remaining_buffer(&self) -> Result<&[u8], CBORError> {
-            if let Some(buffer) = self.buf.get(self.pos..) {
-                Ok(buffer)
-            } else {
-                Err(CBORError::DecodingError)
+        fn read(&mut self) -> Result<u8, CBORError> {
+            if let Some(b) = self.buf.get(self.pos) {
+                self.pos += 1;
+                return Ok(*b);
             }
+            Err(CBORError::DecodingError)
+        }
+
+        /// Consume and return *n* bytes starting at the current position.
+        fn read_slice(&mut self, n: usize) -> Result<&'a [u8], CBORError> {
+            if let Some(b) = self
+                .pos
+                .checked_add(n)
+                .and_then(|end| self.buf.get(self.pos..end))
+            {
+                self.pos += n;
+                return Ok(b);
+            }
+            Err(CBORError::DecodingError)
         }
 
         pub fn position(&self) -> usize {
@@ -690,23 +690,18 @@ mod cbor_decoder {
             }
         }
 
-        fn read(&mut self) -> Result<u8, CBORError> {
-            if let Some(b) = self.buf.get(self.pos) {
-                self.pos += 1;
-                return Ok(*b);
+        pub fn remaining_buffer(&self) -> Result<&[u8], CBORError> {
+            if let Some(buffer) = self.buf.get(self.pos..) {
+                Ok(buffer)
+            } else {
+                Err(CBORError::DecodingError)
             }
-            Err(CBORError::DecodingError)
         }
 
-        /// Consume and return *n* bytes starting at the current position.
-        fn read_slice(&mut self, n: usize) -> Result<&'a [u8], CBORError> {
-            if let Some(b) = self
-                .pos
-                .checked_add(n)
-                .and_then(|end| self.buf.get(self.pos..end))
-            {
-                self.pos += n;
-                return Ok(b);
+        /// Get the byte at the current position.
+        pub fn current(&self) -> Result<u8, CBORError> {
+            if let Some(b) = self.buf.get(self.pos) {
+                return Ok(*b);
             }
             Err(CBORError::DecodingError)
         }
@@ -745,7 +740,7 @@ mod cbor_decoder {
             if CBOR_MAJOR_TEXT_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
             }
-            let n = Self::u32_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
+            let n = self.as_usize(Self::info_of(b))?;
             self.read_slice(n)
         }
 
@@ -756,7 +751,7 @@ mod cbor_decoder {
             if CBOR_MAJOR_BYTE_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
             }
-            let n = Self::u32_to_usize(self.unsigned(Self::info_of(b), p)?, p)?;
+            let n = self.as_usize(Self::info_of(b))?;
             self.read_slice(n)
         }
 
@@ -779,38 +774,26 @@ mod cbor_decoder {
             }
             match Self::info_of(b) {
                 31 => Err(CBORError::DecodingError), // no support for unknown size arrays
-                n => Ok(Self::u32_to_usize(self.unsigned(n, p)?, p)?),
+                n => Ok(self.as_usize(n)?),
             }
         }
 
-        /// Decode a `u32` value beginning with `b`.
-        pub(crate) fn unsigned(&mut self, b: u8, _p: usize) -> Result<u32, CBORError> {
+        /// Decode a `u8` value into usize.
+        pub fn as_usize(&mut self, b: u8) -> Result<usize, CBORError> {
             match b {
-                n @ 0..=0x17 => Ok(u32::from(n)),
-                0x18 => self.read().map(u32::from),
+                n @ 0..=0x17 => Ok(usize::from(n)),
+                0x18 => self.read().map(usize::from),
                 _ => Err(CBORError::DecodingError),
             }
         }
 
-        /// Get the byte at the current position.
-        pub(crate) fn current(&self) -> Result<u8, CBORError> {
-            if let Some(b) = self.buf.get(self.pos) {
-                return Ok(*b);
-            }
-            Err(CBORError::DecodingError)
-        }
-
-        fn u32_to_usize(n: u32, _pos: usize) -> Result<usize, CBORError> {
-            n.try_into().map_err(|_| CBORError::DecodingError)
-        }
-
         /// Get the major type info of the given byte (highest 3 bits).
-        pub(crate) fn type_of(b: u8) -> u8 {
+        pub fn type_of(b: u8) -> u8 {
             b & 0b111_00000
         }
 
         /// Get the additionl type info of the given byte (lowest 5 bits).
-        pub(crate) fn info_of(b: u8) -> u8 {
+        pub fn info_of(b: u8) -> u8 {
             b & 0b000_11111
         }
 
@@ -820,7 +803,6 @@ mod cbor_decoder {
         }
 
         /// Check for: a negative integer encoded as a single byte
-        #[inline(always)]
         pub fn is_i8(byte: u8) -> bool {
             return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
         }
