@@ -29,6 +29,14 @@ pub const fn default_crypto() -> Crypto {
     edhoc_crypto_psa::Crypto
 }
 
+#[cfg(feature = "rustcrypto")]
+pub type Crypto = edhoc_crypto_rustcrypto::Crypto<rand_core::OsRng>;
+
+#[cfg(feature = "rustcrypto")]
+pub const fn default_crypto() -> Crypto {
+    edhoc_crypto_rustcrypto::Crypto::new(rand_core::OsRng)
+}
+
 #[cfg(any(feature = "cryptocell310", feature = "cryptocell310-rust"))]
 pub type Crypto = edhoc_crypto_cryptocell310::Crypto;
 
