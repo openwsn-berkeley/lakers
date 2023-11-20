@@ -136,7 +136,7 @@ pub fn r_process_message_1(
             Err(EDHOCError::UnsupportedMethod)
         }
     } else {
-        Err(res.unwrap_err())
+        Err(EDHOCError::ParsingError)
     }
 }
 
@@ -741,30 +741,6 @@ fn encode_message_1(
     output
 }
 
-fn parse_message_2(
-    rcvd_message_2: &BufferMessage2,
-) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
-    // FIXME decode negative integers as well
-    let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-    let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
-
-    // ensure the whole message is a single CBOR sequence
-    if is_cbor_bstr_2bytes_prefix(rcvd_message_2.content[0])
-        && rcvd_message_2.content[1] == (rcvd_message_2.len as u8 - 2)
-    {
-        g_y[..].copy_from_slice(&rcvd_message_2.content[2..2 + P256_ELEM_LEN]);
-
-        ciphertext_2.len = rcvd_message_2.len - P256_ELEM_LEN - 2; // len - gy_len - 2
-        ciphertext_2.content[..ciphertext_2.len].copy_from_slice(
-            &rcvd_message_2.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len],
-        );
-
-        Ok((g_y, ciphertext_2))
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
-}
-
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
     let mut output: BufferMessage2 = BufferMessage2::new();
 
@@ -853,64 +829,6 @@ fn edhoc_kdf(
     let (info, info_len) = encode_info(label, context, context_len, length);
     let output = crypto.hkdf_expand(prk, &info, info_len, length);
     output
-}
-
-fn decode_plaintext_3(
-    plaintext_3: &BufferPlaintext3,
-) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
-    let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-    let id_cred_i: IdCred;
-
-    // check ID_CRED_I and MAC_3
-    let res = if is_cbor_neg_int_1byte(plaintext_3.content[0])
-        || is_cbor_uint_1byte(plaintext_3.content[0])
-    {
-        let kid = plaintext_3.content[0usize];
-        let id_cred_i = IdCred::CompactKid(kid);
-        Ok((1, id_cred_i))
-    } else if is_cbor_bstr_2bytes_prefix(plaintext_3.content[0])
-        && is_cbor_uint_2bytes(plaintext_3.content[1])
-        && (plaintext_3.content[2] as usize) < plaintext_3.len
-    {
-        // full credential
-        let cred_len = plaintext_3.content[2] as usize;
-        id_cred_i = IdCred::FullCredential(&plaintext_3.content[3..3 + cred_len]);
-        Ok((3 + cred_len, id_cred_i))
-    } else {
-        // error
-        Err(())
-    };
-
-    if res.is_ok() {
-        let (mut offset, id_cred_i) = res.unwrap();
-
-        if is_cbor_bstr_1byte_prefix(plaintext_3.content[1]) {
-            // skip the CBOR magic byte as we know how long the MAC is
-            offset += 1;
-            mac_3[..].copy_from_slice(&plaintext_3.content[offset..offset + MAC_LENGTH_3]);
-
-            // if there is still more to parse, the rest will be the EAD_3
-            if plaintext_3.len > (offset + MAC_LENGTH_3) {
-                // NOTE: since the current implementation only supports one EAD handler,
-                // we assume only one EAD item
-                let ead_res = parse_ead(plaintext_3, offset + MAC_LENGTH_3);
-                if ead_res.is_ok() {
-                    let ead_3 = ead_res.unwrap();
-                    Ok((id_cred_i, mac_3, ead_3))
-                } else {
-                    Err(ead_res.unwrap_err())
-                }
-            } else if plaintext_3.len == (offset + MAC_LENGTH_3) {
-                Ok((id_cred_i, mac_3, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
 }
 
 fn encode_plaintext_3(
@@ -1114,63 +1032,6 @@ fn compute_mac_2(
     mac_2
 }
 
-fn decode_plaintext_2(
-    plaintext_2: &BytesMaxBuffer,
-    plaintext_2_len: usize,
-) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
-    let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
-    let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
-
-    if is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]) {
-        let c_r = plaintext_2[0];
-
-        let res = if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
-            id_cred_r = IdCred::CompactKid(plaintext_2[1]);
-            Ok(2)
-        } else if is_cbor_bstr_2bytes_prefix(plaintext_2[1])
-            && is_cbor_uint_2bytes(plaintext_2[2])
-            && (plaintext_2[3] as usize) < plaintext_2_len
-        {
-            let cred_len = plaintext_2[3] as usize;
-            id_cred_r = IdCred::FullCredential(&plaintext_2[4..4 + cred_len]);
-            Ok(4 + cred_len)
-        } else {
-            Err(())
-        };
-
-        if res.is_ok() {
-            let mut offset = res.unwrap();
-            // skip cbor string byte as we know how long the string is
-            offset += 1;
-            mac_2[..].copy_from_slice(&plaintext_2[offset..offset + MAC_LENGTH_2]);
-
-            // if there is still more to parse, the rest will be the EAD_2
-            if plaintext_2_len > (offset + MAC_LENGTH_2) {
-                // NOTE: since the current implementation only supports one EAD handler,
-                // we assume only one EAD item
-                let ead_res = parse_ead(
-                    &plaintext_2[..plaintext_2_len].try_into().expect("too long"),
-                    offset + MAC_LENGTH_2,
-                );
-                if ead_res.is_ok() {
-                    let ead_2 = ead_res.unwrap();
-                    Ok((c_r, id_cred_r, mac_2, ead_2))
-                } else {
-                    Err(ead_res.unwrap_err())
-                }
-            } else if plaintext_2_len == (offset + MAC_LENGTH_2) {
-                Ok((c_r, id_cred_r, mac_2, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    } else {
-        Err(EDHOCError::ParsingError)
-    }
-}
-
 fn encode_plaintext_2(
     c_r: u8,
     id_cred_r: IdCred,
@@ -1187,10 +1048,9 @@ fn encode_plaintext_2(
         }
         IdCred::FullCredential(cred) => {
             plaintext_2.content[1] = CBOR_BYTE_STRING;
-            plaintext_2.content[2] = CBOR_UINT_1BYTE;
-            plaintext_2.content[3] = cred.len() as u8;
-            plaintext_2.content[4..4 + cred.len()].copy_from_slice(cred);
-            4 + cred.len()
+            plaintext_2.content[2] = cred.len() as u8;
+            plaintext_2.content[3..3 + cred.len()].copy_from_slice(cred);
+            3 + cred.len()
         }
     };
 
@@ -1458,32 +1318,48 @@ mod tests {
     #[test]
     fn test_parse_suites_i() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-
-        let res = parse_suites_i(&message_1_tv);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i, SUITES_I_TV);
 
-        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A));
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, raw_suites_len) = res.unwrap();
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i[0], 0x18);
 
-        let (suites_i, suites_i_len, raw_suites_len) =
-            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
+        // let (suites_i, suites_i_len, raw_suites_len) =
+        //     parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
+
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
+        assert!(res.is_ok());
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i_len, 2);
-        assert_eq!(raw_suites_len, 3);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x01);
 
-        let (suites_i, suites_i_len, raw_suites_len) =
-            parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C)).unwrap();
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
+        assert!(res.is_ok());
+        let (suites_i, suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i_len, 2);
-        assert_eq!(raw_suites_len, 4);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x19);
 
-        let res = parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR));
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR);
+        // skip the fist byte (method)
+        let mut decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let res = parse_suites_i(decoder);
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
 
@@ -1517,7 +1393,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_1_invalid_traces() {
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        let message_1_tv: EdhocMessageBuffer = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
         assert_eq!(
             parse_message_1(&message_1_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1546,7 +1422,7 @@ mod tests {
     fn test_parse_message_2_invalid_traces() {
         let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
-            parse_message_1(&message_2_tv).unwrap_err(),
+            parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
         );
     }
@@ -1850,7 +1726,7 @@ mod tests {
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
         let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset);
+        let res = parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]);
         assert!(res.is_ok());
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
@@ -1861,7 +1737,8 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let res =
+            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1869,7 +1746,8 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv, message_tv_offset).unwrap();
+        let res =
+            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
         let ead_item = res.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
