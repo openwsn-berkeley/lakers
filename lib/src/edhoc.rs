@@ -35,44 +35,35 @@ pub fn edhoc_key_update(
     context: &BytesMaxContextBuffer,
     context_len: usize,
 ) -> BytesHashLen {
-    let State(
-        _current_state,
-        _x_or_y,
-        _c_i,
-        _gy_or_gx,
-        _prk_3e2m,
-        _prk_4e3m,
-        mut prk_out,
-        mut prk_exporter,
-        _h_message_1,
-        _th_3,
-    ) = state;
+    // FIXME: Normally we would decompose `state` here, but hax disallows aliasing a `mut` item.
+    // The best fix for this is to change state from a tuple-struct to a regular struct.
+    // In the code below, `state.6` means `mut prk_out` and `state.7` means `mut prk_exporter`
 
     let mut prk_new_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
 
     // new PRK_out
     prk_new_buf = edhoc_kdf(
         crypto,
-        &prk_out,
+        &state.6,
         11u8,
         context,
         context_len,
         SHA256_DIGEST_LEN,
     );
-    prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state.6[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
     prk_new_buf = edhoc_kdf(
         crypto,
-        &prk_out,
+        &state.6,
         10u8,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         SHA256_DIGEST_LEN,
     );
-    prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state.7[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    prk_out
+    state.6
 }
 
 pub fn r_process_message_1(
