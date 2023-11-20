@@ -2,10 +2,9 @@
 
 use edhoc_consts::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
-    BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, EDHOCError, MessageBufferTrait,
-    AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
+    BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
+    MessageBufferTrait, AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
 };
-use edhoc_crypto_trait::Crypto as CryptoTrait;
 
 use ccm::AeadInPlace;
 use ccm::KeyInit;

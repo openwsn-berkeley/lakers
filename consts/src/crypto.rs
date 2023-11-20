@@ -1,7 +1,6 @@
 //! Cryptography trait back-end for the edhoc-crypto crate
-#![no_std]
 
-use edhoc_consts::*;
+use super::*;
 
 pub trait Crypto: core::fmt::Debug {
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;

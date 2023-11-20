@@ -10,7 +10,6 @@ description = "EDHOC implementation in Rust"
 hexlit = "0.5.3"
 hex = { version = "0.4.3", default-features = false }
 
-edhoc-crypto-trait = { path = "../crypto/edhoc-crypto-trait" }
 edhoc-consts = { path = "../consts" }
 edhoc-ead = { path = "../ead", default-features = false }
 panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }

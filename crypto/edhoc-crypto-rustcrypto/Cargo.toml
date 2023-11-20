@@ -7,7 +7,6 @@ description = "EDHOC crypto library backend based on the RustCrypto crates"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
-edhoc-crypto-trait.path = "../edhoc-crypto-trait"
 
 aead = { version = "0.5.2", default-features = false }
 aes = { version = "0.8.3", default-features = false }

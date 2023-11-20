@@ -6,9 +6,7 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use core::ffi::c_void;
-use edhoc_consts::*;
-
-use edhoc_crypto_trait::Crypto as CryptoTrait;
+use edhoc_consts::{Crypto as CryptoTrait, *};
 
 fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
     assert!(input.len() == SHA256_DIGEST_LEN / 4);

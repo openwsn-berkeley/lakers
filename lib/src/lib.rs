@@ -1,9 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(warnings)]
 
-pub use {
-    edhoc_consts::State as EdhocState, edhoc_consts::*, edhoc_crypto_trait::Crypto as CryptoTrait,
-};
+pub use {edhoc_consts::Crypto as CryptoTrait, edhoc_consts::State as EdhocState, edhoc_consts::*};
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
 pub use edhoc_ead::*;
