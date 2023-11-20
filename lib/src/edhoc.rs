@@ -926,15 +926,12 @@ fn decrypt_message_3(
 
     let p3 = crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
-    if p3.is_ok() {
-        let p3 = p3.unwrap();
+    p3.map(|p3| {
         plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
         plaintext_3.len = p3.len;
 
-        Ok(plaintext_3)
-    } else {
-        Err(p3.unwrap_err())
-    }
+        plaintext_3
+    })
 }
 
 // output must hold id_cred.len() + cred.len()
