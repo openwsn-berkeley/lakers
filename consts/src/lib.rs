@@ -515,8 +515,7 @@ mod edhoc_parser {
             // NOTE: since the current implementation only supports one EAD handler,
             // we assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if ead_res.is_ok() {
-                let ead_1 = ead_res.unwrap();
+            if let Ok(ead_1) = ead_res {
                 Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
             } else {
                 Err(ead_res.unwrap_err())
@@ -579,8 +578,7 @@ mod edhoc_parser {
         if plaintext_2.len > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if ead_res.is_ok() {
-                let ead_2 = ead_res.unwrap();
+            if let Ok(ead_2) = ead_res {
                 Ok((c_r, id_cred_r, mac_2, ead_2))
             } else {
                 Err(ead_res.unwrap_err())
@@ -614,8 +612,7 @@ mod edhoc_parser {
         if plaintext_3.len > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if ead_res.is_ok() {
-                let ead_3 = ead_res.unwrap();
+            if let Ok(ead_3) = ead_res {
                 Ok((id_cred_i, mac_3, ead_3))
             } else {
                 Err(ead_res.unwrap_err())
