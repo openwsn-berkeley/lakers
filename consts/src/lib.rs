@@ -555,13 +555,12 @@ mod edhoc_parser {
     }
 
     pub fn decode_plaintext_2(
-        plaintext_2: &BytesMaxBuffer,
-        plaintext_2_len: usize,
+        plaintext_2: &BufferCiphertext2,
     ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
         let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-        let mut decoder = CBORDecoder::new(&plaintext_2[..plaintext_2_len]);
+        let mut decoder = CBORDecoder::new(&plaintext_2.content[..plaintext_2.len]);
 
         let c_r = decoder.int_raw()?;
 
@@ -577,7 +576,7 @@ mod edhoc_parser {
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
         // if there is still more to parse, the rest will be the EAD_2
-        if plaintext_2_len > decoder.position() {
+        if plaintext_2.len > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
             if ead_res.is_ok() {
@@ -738,7 +737,6 @@ mod cbor_decoder {
 
         /// Decode a string slice.
         pub fn str(&mut self) -> Result<&'a [u8], CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_TEXT_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
@@ -749,7 +747,6 @@ mod cbor_decoder {
 
         /// Decode a byte slice.
         pub fn bytes(&mut self) -> Result<&'a [u8], CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_BYTE_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
@@ -770,7 +767,6 @@ mod cbor_decoder {
 
         /// Begin decoding an array.
         pub fn array(&mut self) -> Result<usize, CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_ARRAY != Self::type_of(b) {
                 return Err(CBORError::DecodingError);

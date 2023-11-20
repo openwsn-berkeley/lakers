@@ -1,5 +1,4 @@
 #![cfg_attr(not(test), no_std)]
-#![allow(warnings)]
 
 pub use {edhoc_consts::Crypto as CryptoTrait, edhoc_consts::State as EdhocState, edhoc_consts::*};
 
@@ -8,8 +7,6 @@ pub use edhoc_ead::*;
 
 mod edhoc;
 use edhoc::*;
-
-use edhoc_consts::*;
 
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
@@ -32,9 +29,7 @@ pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
     state: State<ProcessedMessage2>, // opaque state
-    i: &'a [u8],                     // private authentication key of I
     cred_i: &'a [u8],                // I's full credential
-    cred_r: Option<&'a [u8]>,        // R's full credential (if provided)
     crypto: Crypto,
 }
 
@@ -65,8 +60,6 @@ pub struct EdhocResponderBuildM2<'a, Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocResponderWaitM3<'a, Crypto: CryptoTrait> {
     state: State<WaitMessage3>, // opaque state
-    r: &'a [u8],                // private authentication key of R
-    cred_r: &'a [u8],           // R's full credential
     cred_i: Option<&'a [u8]>,   // I's full credential (if provided)
     crypto: Crypto,
 }
@@ -131,8 +124,6 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
             Ok((state, message_2)) => Ok((
                 EdhocResponderWaitM3 {
                     state,
-                    r: self.r,
-                    cred_r: self.cred_r,
                     cred_i: self.cred_i,
                     crypto: self.crypto,
                 },
@@ -252,9 +243,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
             Ok((state, c_r, _kid)) => Ok((
                 EdhocInitiatorBuildM3 {
                     state,
-                    i: self.i,
                     cred_i: self.cred_i,
-                    cred_r: self.cred_r,
                     crypto: self.crypto,
                 },
                 c_r,
@@ -351,7 +340,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 #[cfg(test)]
 mod test {
     use super::*;
-    use edhoc_consts::*;
+
     use hexlit::hex;
 
     use edhoc_crypto::default_crypto;
@@ -392,7 +381,7 @@ mod test {
     #[test]
     fn test_prepare_message_1() {
         let state = Default::default();
-        let mut initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
+        let initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let message_1 = initiator.prepare_message_1(c_i);
@@ -431,7 +420,7 @@ mod test {
     #[test]
     fn test_handshake() {
         let state_initiator = Default::default();
-        let mut initiator =
+        let initiator =
             EdhocInitiator::new(state_initiator, default_crypto(), I, CRED_I, Some(CRED_R));
         let state_responder = Default::default();
         let responder =
