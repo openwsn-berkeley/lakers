@@ -3,7 +3,7 @@ name = "edhoc-crypto-psa"
 version.workspace = true
 edition = "2021"
 authors = ["Kaspar Schleiser <kaspar@schleiser.de>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC crypto library PSA backend"
 repository.workspace = true
 

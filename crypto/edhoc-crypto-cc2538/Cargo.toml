@@ -3,7 +3,7 @@ name = "edhoc-crypto-cc2538"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC crypto library cc2538 backend"
 repository.workspace = true
 

@@ -2,7 +2,7 @@
 name = "edhoc-crypto-rustcrypto"
 version.workspace = true
 edition = "2021"
-license = "BSD"
+license.workspace = true
 description = "EDHOC crypto library backend based on the RustCrypto crates"
 repository.workspace = true
 

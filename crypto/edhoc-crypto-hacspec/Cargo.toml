@@ -3,7 +3,7 @@ name = "edhoc-crypto-hacspec"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC crypto library hacspec backend"
 repository.workspace = true
 

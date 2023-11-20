@@ -3,7 +3,7 @@ name = "edhoc-ead"
 version.workspace = true
 edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC EAD library dispatch crate"
 repository.workspace = true
 
