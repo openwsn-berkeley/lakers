@@ -1,5 +1,3 @@
-#![no_std]
-
 use core::marker::PhantomData;
 use edhoc_consts::{Crypto as CryptoTrait, *};
 use edhoc_ead::*;
