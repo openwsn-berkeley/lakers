@@ -753,9 +753,7 @@ fn compute_th_2(
 
     let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let th_2 = crypto.sha256_digest(&message, len);
-
-    th_2
+    crypto.sha256_digest(&message, len)
 }
 
 fn compute_th_3(
@@ -774,9 +772,7 @@ fn compute_th_3(
     message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
         .copy_from_slice(cred_r);
 
-    let output = crypto.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len());
-
-    output
+    crypto.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len())
 }
 
 fn compute_th_4(
@@ -795,9 +791,7 @@ fn compute_th_4(
     message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
         .copy_from_slice(cred_i);
 
-    let output = crypto.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len());
-
-    output
+    crypto.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len())
 }
 
 // TODO: consider moving this to a new 'edhoc crypto primitives' module
@@ -1103,9 +1097,8 @@ fn compute_prk_4e3m(
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_iy = crypto.p256_ecdh(i, g_y);
-    let prk_4e3m = crypto.hkdf_extract(salt_4e3m, &g_iy);
 
-    prk_4e3m
+    crypto.hkdf_extract(salt_4e3m, &g_iy)
 }
 
 fn compute_salt_3e2m(
@@ -1139,9 +1132,8 @@ fn compute_prk_3e2m(
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
     let g_rx = crypto.p256_ecdh(x, g_r);
-    let prk_3e2m = crypto.hkdf_extract(salt_3e2m, &g_rx);
 
-    prk_3e2m
+    crypto.hkdf_extract(salt_3e2m, &g_rx)
 }
 
 fn compute_prk_2e(
@@ -1153,9 +1145,8 @@ fn compute_prk_2e(
     // compute the shared secret
     let g_xy = crypto.p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = crypto.hkdf_extract(th_2, &g_xy);
 
-    prk_2e
+    crypto.hkdf_extract(th_2, &g_xy)
 }
 
 #[cfg(test)]
