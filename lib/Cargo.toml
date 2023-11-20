@@ -10,9 +10,6 @@ description = "EDHOC implementation in Rust"
 edhoc-consts = { path = "../consts" }
 edhoc-ead = { path = "../ead", default-features = false }
 
-[build-dependencies]
-cbindgen = "0.24.5"
-
 [dev-dependencies]
 edhoc-crypto = { path = "../crypto", default-features = false }
 hexlit = "0.5.3"

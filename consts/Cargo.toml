@@ -6,8 +6,5 @@ authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC crypto library constants crate"
 
-[build-dependencies]
-cbindgen = "0.24.5"
-
 [dev-dependencies]
 hexlit = "0.5.3"
