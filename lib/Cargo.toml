@@ -7,8 +7,6 @@ license = "BSD"
 description = "EDHOC implementation in Rust"
 
 [dependencies]
-hex = { version = "0.4.3", default-features = false }
-
 edhoc-consts = { path = "../consts" }
 edhoc-ead = { path = "../ead", default-features = false }
 panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }

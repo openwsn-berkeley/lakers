@@ -352,7 +352,6 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 mod test {
     use super::*;
     use edhoc_consts::*;
-    use hex::FromHex;
     use hexlit::hex;
 
     use edhoc_crypto::default_crypto;
