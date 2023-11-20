@@ -738,7 +738,6 @@ mod cbor_decoder {
 
         /// Decode a string slice.
         pub fn str(&mut self) -> Result<&'a [u8], CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_TEXT_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
@@ -749,7 +748,6 @@ mod cbor_decoder {
 
         /// Decode a byte slice.
         pub fn bytes(&mut self) -> Result<&'a [u8], CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_BYTE_STRING != Self::type_of(b) || Self::info_of(b) == 31 {
                 return Err(CBORError::DecodingError);
@@ -770,7 +768,6 @@ mod cbor_decoder {
 
         /// Begin decoding an array.
         pub fn array(&mut self) -> Result<usize, CBORError> {
-            let p = self.pos;
             let b = self.read()?;
             if CBOR_MAJOR_ARRAY != Self::type_of(b) {
                 return Err(CBORError::DecodingError);
