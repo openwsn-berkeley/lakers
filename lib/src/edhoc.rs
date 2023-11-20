@@ -45,7 +45,7 @@ pub fn edhoc_key_update(
         _th_3,
     ) = state;
 
-    let mut prk_new_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+    let mut prk_new_buf: BytesMaxBuffer;
 
     // new PRK_out
     prk_new_buf = edhoc_kdf(
@@ -86,7 +86,7 @@ pub fn r_process_message_1(
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
-        mut h_message_1,
+        _h_message_1,
         _th_3,
     ) = state;
 
@@ -111,7 +111,7 @@ pub fn r_process_message_1(
                     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
                     message_1_buf[..message_1.len]
                         .copy_from_slice(&message_1.content[..message_1.len]);
-                    h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+                    let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
                     let state = State(
                         PhantomData,
@@ -154,15 +154,13 @@ pub fn r_prepare_message_2(
         mut _y,
         _c_i,
         g_x,
-        mut prk_3e2m,
+        _prk_3e2m,
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
         h_message_1,
-        mut th_3,
+        _th_3,
     ) = state;
-
-    let mut message_2: BufferMessage2 = BufferMessage2::new();
 
     // compute TH_2
     let th_2 = compute_th_2(crypto, &g_y, &h_message_1);
@@ -170,7 +168,7 @@ pub fn r_prepare_message_2(
     // compute prk_3e2m
     let prk_2e = compute_prk_2e(crypto, &y, &g_x, &th_2);
     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
-    prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
 
     // compute MAC_2
     let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r), cred_r, &th_2);
@@ -190,7 +188,7 @@ pub fn r_prepare_message_2(
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
-    th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r);
+    let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r);
 
     let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
     ct.len = plaintext_2.len;
@@ -201,7 +199,7 @@ pub fn r_prepare_message_2(
 
     ct.content[..ct.len].copy_from_slice(&ciphertext_2[..ct.len]);
 
-    message_2 = encode_message_2(&g_y, &ct);
+    let message_2 = encode_message_2(&g_y, &ct);
 
     let state = State(
         PhantomData,
@@ -232,7 +230,7 @@ pub fn r_process_message_3(
         _c_i,
         _g_x,
         prk_3e2m,
-        mut prk_4e3m,
+        _prk_4e3m,
         mut prk_out,
         mut prk_exporter,
         _h_message_1,
@@ -279,7 +277,7 @@ pub fn r_process_message_3(
                     // compute salt_4e3m
                     let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
                     // TODO compute prk_4e3m
-                    prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &y, &g_i);
+                    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &y, &g_i);
 
                     // compute mac_3
                     let expected_mac_3 = compute_mac_3(
@@ -369,11 +367,9 @@ pub fn i_prepare_message_1(
         _prk_4e3m,
         _prk_out,
         _prk_exporter,
-        mut h_message_1,
+        _h_message_1,
         _th_3,
     ) = state;
-
-    let mut message_1: BufferMessage1 = BufferMessage1::new();
 
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
@@ -382,7 +378,7 @@ pub fn i_prepare_message_1(
     let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i.len() - 1]);
 
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    message_1 = encode_message_1(
+    let message_1 = encode_message_1(
         EDHOC_METHOD,
         &suites_i,
         EDHOC_SUPPORTED_SUITES.len(),
@@ -395,7 +391,7 @@ pub fn i_prepare_message_1(
     message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
 
     // hash message_1 here to avoid saving the whole message in the state
-    h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+    let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
     let state = State(
         PhantomData,
@@ -426,15 +422,14 @@ pub fn i_process_message_2(
         x,
         _c_i,
         _g_y,
-        mut prk_3e2m,
-        mut prk_4e3m,
+        _prk_3e2m,
+        _prk_4e3m,
         _prk_out,
         _prk_exporter,
         h_message_1,
-        mut th_3,
+        _th_3,
     ) = state;
 
-    let mut c_r = 0xffu8; // invalidate c_r
     let mut kid = 0xffu8; // invalidate kid
 
     let res = parse_message_2(message_2);
@@ -454,7 +449,7 @@ pub fn i_process_message_2(
 
         if plaintext_2_decoded.is_ok() {
             let (c_r_2, id_cred_r, mac_2, ead_2) = plaintext_2_decoded.unwrap();
-            c_r = c_r_2;
+            let c_r = c_r_2;
 
             let cred_r = credential_check_or_fetch(cred_r_expected, id_cred_r);
             // IMPL: stop if credential_check_or_fetch returns Error
@@ -479,7 +474,7 @@ pub fn i_process_message_2(
                     // verify mac_2
                     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
 
-                    prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &x, &g_r);
+                    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &x, &g_r);
 
                     let expected_mac_2 = compute_mac_2(
                         crypto,
@@ -496,12 +491,12 @@ pub fn i_process_message_2(
                         pt2.content[..plaintext_2_len]
                             .copy_from_slice(&plaintext_2[..plaintext_2_len]);
                         pt2.len = plaintext_2_len;
-                        th_3 = compute_th_3(crypto, &th_2, &pt2, &valid_cred_r);
+                        let th_3 = compute_th_3(crypto, &th_2, &pt2, &valid_cred_r);
                         // message 3 processing
 
                         let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
 
-                        prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
+                        let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
 
                         let state = State(
                             PhantomData,
@@ -553,14 +548,12 @@ pub fn i_prepare_message_3(
         th_3,
     ) = state;
 
-    let mut message_3: BufferMessage3 = BufferMessage3::new();
-
     let mac_3 = compute_mac_3(crypto, &prk_4e3m, &th_3, id_cred_i, cred_i);
 
     let ead_3 = i_prepare_ead_3();
 
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
-    message_3 = encrypt_message_3(crypto, &prk_3e2m, &th_3, &plaintext_3);
+    let message_3 = encrypt_message_3(crypto, &prk_3e2m, &th_3, &plaintext_3);
 
     let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, cred_i);
 
@@ -612,8 +605,6 @@ fn credential_check_or_fetch<'a>(
     cred_expected: Option<&'a [u8]>,
     id_cred_received: IdCred<'a>,
 ) -> Result<(&'a [u8], BytesP256ElemLen), EDHOCError> {
-    let mut public_key: BytesP256ElemLen = Default::default();
-
     // Processing of auth credentials according to draft-tiloca-lake-implem-cons
     // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
     if let Some(cred_expected) = cred_expected {
@@ -621,7 +612,7 @@ fn credential_check_or_fetch<'a>(
         // IMPL: compare cred_i_expected with id_cred
         //   IMPL: assume cred_i_expected is well formed
         let (public_key_expected, kid_expected) = parse_cred(cred_expected).unwrap();
-        public_key = public_key_expected;
+        let public_key = public_key_expected;
         let credentials_match = match id_cred_received {
             IdCred::CompactKid(kid_received) => kid_received == kid_expected,
             IdCred::FullCredential(cred_received) => cred_expected == cred_received,
@@ -658,7 +649,7 @@ fn credential_check_or_fetch<'a>(
                     // 7. Store CRED_X as valid and trusted.
                     //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
                     // IMPL: cred_r = id_cred
-                    public_key = public_key_received;
+                    let public_key = public_key_received;
                     Ok((cred_received, public_key))
                 }
                 Err(_) => Err(EDHOCError::UnknownPeer),
@@ -867,7 +858,6 @@ fn edhoc_kdf(
 fn decode_plaintext_3(
     plaintext_3: &BufferPlaintext3,
 ) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
-    let kid: u8;
     let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
     let id_cred_i: IdCred;
 
@@ -875,9 +865,8 @@ fn decode_plaintext_3(
     let res = if is_cbor_neg_int_1byte(plaintext_3.content[0])
         || is_cbor_uint_1byte(plaintext_3.content[0])
     {
-        // KID
-        kid = plaintext_3.content[0usize];
-        let id_cred_i = IdCred::CompactKid(plaintext_3.content[0usize]);
+        let kid = plaintext_3.content[0usize];
+        let id_cred_i = IdCred::CompactKid(kid);
         Ok((1, id_cred_i))
     } else if is_cbor_bstr_2bytes_prefix(plaintext_3.content[0])
         && is_cbor_uint_2bytes(plaintext_3.content[1])
@@ -1189,7 +1178,6 @@ fn encode_plaintext_2(
     ead_2: &Option<EADItem>,
 ) -> BufferPlaintext2 {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
-    let mut offset_cred = 0;
     plaintext_2.content[0] = c_r;
 
     let offset_cred = match id_cred_r {
