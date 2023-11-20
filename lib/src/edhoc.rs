@@ -1,8 +1,7 @@
 #![no_std]
 
 use core::marker::PhantomData;
-use edhoc_consts::*;
-use edhoc_crypto_trait::Crypto as CryptoTrait;
+use edhoc_consts::{Crypto as CryptoTrait, *};
 use edhoc_ead::*;
 
 pub fn edhoc_exporter(

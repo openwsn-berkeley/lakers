@@ -1,7 +1,6 @@
 #![no_std]
 
 use edhoc_consts::*;
-use edhoc_crypto_trait::Crypto;
 
 // TODO: the function signatures should not be necessarily the same as the zeroconf version
 //       find a way to be generic on this part.

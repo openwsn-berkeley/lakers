@@ -11,7 +11,6 @@ members = [
   "crypto/edhoc-crypto-psa",
   "crypto/edhoc-crypto-rustcrypto",
   "crypto/edhoc-crypto-cryptocell310-sys",
-  "crypto/edhoc-crypto-trait",
   "examples/coap",
   "examples/edhoc-rs-no_std",
   "examples/edhoc-rs-cc2538",

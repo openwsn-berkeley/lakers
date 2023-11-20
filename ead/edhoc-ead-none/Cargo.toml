@@ -8,4 +8,3 @@ description = "EDHOC EAD none (just a placeholder)"
 
 [dependencies]
 edhoc-consts = { path = "../../consts" }
-edhoc-crypto-trait = { path = "../../crypto/edhoc-crypto-trait" }

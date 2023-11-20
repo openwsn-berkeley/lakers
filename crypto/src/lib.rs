@@ -7,7 +7,7 @@
 #![no_std]
 
 /// Convenience re-export
-pub use edhoc_crypto_trait::Crypto as CryptoTrait;
+pub use edhoc_consts::Crypto as CryptoTrait;
 
 #[cfg(feature = "hacspec")]
 pub type Crypto = edhoc_crypto_hacspec::Crypto;

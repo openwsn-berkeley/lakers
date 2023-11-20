@@ -9,8 +9,6 @@ description = "EDHOC crypto library dispatch crate"
 [dependencies]
 edhoc-consts = { path = "../consts", default-features = false }
 
-edhoc-crypto-trait.path = "./edhoc-crypto-trait"
-
 # hacspec
 edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
 
