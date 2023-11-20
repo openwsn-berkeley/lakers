@@ -1,6 +1,6 @@
 [package]
 name = "edhoc-crypto"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
@@ -10,19 +10,19 @@ description = "EDHOC crypto library dispatch crate"
 edhoc-consts = { path = "../consts", default-features = false }
 
 # hacspec
-edhoc-crypto-hacspec = { path = "./edhoc-crypto-hacspec", optional = true }
+edhoc-crypto-hacspec = { workspace = true, optional = true }
 
 # cc2538 hardware accelerated
-edhoc-crypto-cc2538 = { path = "./edhoc-crypto-cc2538", optional = true }
+edhoc-crypto-cc2538 = { workspace = true, optional = true }
 
 # psa
-edhoc-crypto-psa = { path = "./edhoc-crypto-psa", default-features = false, optional = true }
+edhoc-crypto-psa = { workspace = true, default-features = false, optional = true }
 
 # cryptocell for nrf52840
-edhoc-crypto-cryptocell310 = { path = "./edhoc-crypto-cryptocell310-sys", optional = true }
+edhoc-crypto-cryptocell310 = { workspace = true, optional = true }
 
 # software implementations from rustcrypto
-edhoc-crypto-rustcrypto = { path = "./edhoc-crypto-rustcrypto", optional = true }
+edhoc-crypto-rustcrypto = { workspace = true, optional = true }
 rand_core = { version = "0.6.4", optional = true, default-features = false }
 
 [features]

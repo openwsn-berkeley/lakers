@@ -1,16 +1,16 @@
 [package]
 name = "edhoc-ead-zeroconf"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
 license = "BSD"
 description = "EDHOC EAD zeroconf (draf-lake-authz)"
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts.workspace = true
 
 [dev-dependencies]
-edhoc-crypto = { path = "../../crypto", default-features = false }
+edhoc-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]

@@ -1,17 +1,17 @@
 [package]
 name = "edhoc-rs"
-version = "0.2.1"
+version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC implementation in Rust"
 
 [dependencies]
-edhoc-consts = { path = "../consts" }
-edhoc-ead = { path = "../ead", default-features = false }
+edhoc-consts.workspace = true
+edhoc-ead = { workspace = true, default-features = false }
 
 [dev-dependencies]
-edhoc-crypto = { path = "../crypto", default-features = false }
+edhoc-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]
