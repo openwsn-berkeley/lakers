@@ -377,9 +377,9 @@ mod helpers {
         ))
     }
 
-    pub fn get_id_cred<'a>(cred: &'a [u8]) -> BytesIdCred {
-        let (_g, kid) = parse_cred(cred).unwrap();
-        [0xa1, 0x04, 0x41, kid]
+    pub fn get_id_cred<'a>(cred: &'a [u8]) -> Result<BytesIdCred, EDHOCError> {
+        let (_g, kid) = parse_cred(cred)?;
+        Ok([0xa1, 0x04, 0x41, kid])
     }
 }
 
@@ -399,7 +399,7 @@ mod test {
         let (g_a, kid) = res.unwrap();
         assert_eq!(g_a, G_A_TV);
         assert_eq!(kid, ID_CRED_TV[3]);
-        assert_eq!(get_id_cred(CRED_TV), ID_CRED_TV);
+        assert_eq!(get_id_cred(CRED_TV).unwrap(), ID_CRED_TV);
     }
 }
 

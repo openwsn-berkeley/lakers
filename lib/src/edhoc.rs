@@ -159,7 +159,7 @@ pub fn r_prepare_message_2(
     let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
 
     // compute MAC_2
-    let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r), cred_r, &th_2);
+    let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r)?, cred_r, &th_2);
 
     let ead_2 = r_prepare_ead_2();
 
@@ -267,7 +267,7 @@ pub fn r_process_message_3(
                         crypto,
                         &prk_4e3m,
                         &th_3,
-                        &get_id_cred(valid_cred_i),
+                        &get_id_cred(valid_cred_i)?,
                         valid_cred_i,
                     );
 
@@ -457,7 +457,7 @@ pub fn i_process_message_2(
                     let expected_mac_2 = compute_mac_2(
                         crypto,
                         &prk_3e2m,
-                        &get_id_cred(valid_cred_r),
+                        &get_id_cred(valid_cred_r)?,
                         &valid_cred_r,
                         &th_2,
                     );
