@@ -194,10 +194,9 @@ pub fn r_prepare_message_2(
     ct.len = plaintext_2.len;
     ct.content[..ct.len].copy_from_slice(&plaintext_2.content[..ct.len]);
 
-    let (ciphertext_2, ciphertext_2_len) =
-        encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, &ct);
+    let ciphertext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ct);
 
-    ct.content[..ct.len].copy_from_slice(&ciphertext_2[..ct.len]);
+    ct.content[..ct.len].copy_from_slice(&ciphertext_2.content[..ciphertext_2.len]);
 
     let message_2 = encode_message_2(&g_y, &ct);
 
@@ -441,11 +440,10 @@ pub fn i_process_message_2(
         // compute prk_2e
         let prk_2e = compute_prk_2e(crypto, &x, &g_y, &th_2);
 
-        let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, &ciphertext_2);
+        let plaintext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ciphertext_2);
 
         // decode plaintext_2
-        let plaintext_2_decoded = decode_plaintext_2(&plaintext_2, plaintext_2_len);
+        let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
 
         if plaintext_2_decoded.is_ok() {
             let (c_r_2, id_cred_r, mac_2, ead_2) = plaintext_2_decoded.unwrap();
@@ -487,11 +485,7 @@ pub fn i_process_message_2(
                     if mac_2 == expected_mac_2 {
                         // step is actually from processing of message_3
                         // but we do it here to avoid storing plaintext_2 in State
-                        let mut pt2: BufferPlaintext2 = BufferPlaintext2::new();
-                        pt2.content[..plaintext_2_len]
-                            .copy_from_slice(&plaintext_2[..plaintext_2_len]);
-                        pt2.len = plaintext_2_len;
-                        let th_3 = compute_th_3(crypto, &th_2, &pt2, &valid_cred_r);
+                        let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, &valid_cred_r);
                         // message 3 processing
 
                         let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
@@ -1068,12 +1062,15 @@ fn encode_plaintext_2(
     plaintext_2
 }
 
+/// Apply the XOR base encryption for ciphertext_2 in place. This will decrypt (or decrypt) the bytes
+/// in the ciphertext_2 argument (which may alternatively contain plaintext), returning the cipher
+/// (or plain-)text.
 fn encrypt_decrypt_ciphertext_2(
     crypto: &mut impl CryptoTrait,
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
-    ciphertext_2: &BufferCiphertext2,
-) -> (BytesMaxBuffer, usize) {
+    mut ciphertext_2: BufferCiphertext2,
+) -> BufferCiphertext2 {
     // convert the transcript hash th_2 to BytesMaxContextBuffer type
     let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
     th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
@@ -1088,13 +1085,11 @@ fn encrypt_decrypt_ciphertext_2(
         ciphertext_2.len,
     );
 
-    let mut plaintext_2: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    // decrypt/encrypt ciphertext_2
     for i in 0..ciphertext_2.len {
-        plaintext_2[i] = ciphertext_2.content[i] ^ keystream_2[i];
+        ciphertext_2.content[i] ^= keystream_2[i];
     }
 
-    (plaintext_2, ciphertext_2.len)
+    ciphertext_2
 }
 
 fn compute_salt_4e3m(
@@ -1570,29 +1565,20 @@ mod tests {
     #[test]
     fn test_parse_plaintext_2_invalid_traces() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV);
-        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        plaintext_2_tv_buffer[..plaintext_2_tv.len]
-            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
-        let ret = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        let ret = decode_plaintext_2(&plaintext_2_tv);
         assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
 
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV);
-        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        plaintext_2_tv_buffer[..plaintext_2_tv.len]
-            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
-        let ret = decode_plaintext_2(&plaintext_2_tv_buffer, plaintext_2_tv.len);
+        let ret = decode_plaintext_2(&plaintext_2_tv);
         assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
     fn test_decode_plaintext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let mut plaintext_2_tv_buffer: BytesMaxBuffer = [0x00u8; MAX_BUFFER_LEN];
-        plaintext_2_tv_buffer[..plaintext_2_tv.len]
-            .copy_from_slice(&plaintext_2_tv.content[..plaintext_2_tv.len]);
         let ead_2_tv = [0x00u8; 0];
 
-        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv_buffer, PLAINTEXT_2_LEN_TV);
+        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv);
         assert!(plaintext_2.is_ok());
         let (c_r, id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(c_r, C_R_TV);
@@ -1608,35 +1594,27 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt_ciphertext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let ciphertext_2_tv = BufferPlaintext2::from_hex(CIPHERTEXT_2_TV);
+        let mut ciphertext_2_tv = BufferPlaintext2::from_hex(CIPHERTEXT_2_TV);
         // test decryption
-        let (plaintext_2, plaintext_2_len) = encrypt_decrypt_ciphertext_2(
+        let plaintext_2 = encrypt_decrypt_ciphertext_2(
             &mut default_crypto(),
             &PRK_2E_TV,
             &TH_2_TV,
-            &ciphertext_2_tv,
+            ciphertext_2_tv,
         );
 
-        assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN_TV);
+        assert_eq!(plaintext_2.len, PLAINTEXT_2_LEN_TV);
         for i in 0..PLAINTEXT_2_LEN_TV {
-            assert_eq!(plaintext_2[i], plaintext_2_tv.content[i]);
+            assert_eq!(plaintext_2.content[i], plaintext_2_tv.content[i]);
         }
 
-        let mut plaintext_2_tmp: BufferCiphertext2 = BufferCiphertext2::new();
-        plaintext_2_tmp.len = plaintext_2_len;
-        plaintext_2_tmp.content[..plaintext_2_len].copy_from_slice(&plaintext_2[..plaintext_2_len]);
-
         // test encryption
-        let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
-            &mut default_crypto(),
-            &PRK_2E_TV,
-            &TH_2_TV,
-            &plaintext_2_tmp,
-        );
+        let ciphertext_2 =
+            encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, plaintext_2);
 
-        assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN_TV);
+        assert_eq!(ciphertext_2.len, CIPHERTEXT_2_LEN_TV);
         for i in 0..CIPHERTEXT_2_LEN_TV {
-            assert_eq!(ciphertext_2[i], ciphertext_2_tv.content[i]);
+            assert_eq!(ciphertext_2.content[i], ciphertext_2_tv.content[i]);
         }
     }
 

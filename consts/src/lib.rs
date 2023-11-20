@@ -555,13 +555,12 @@ mod edhoc_parser {
     }
 
     pub fn decode_plaintext_2(
-        plaintext_2: &BytesMaxBuffer,
-        plaintext_2_len: usize,
+        plaintext_2: &BufferCiphertext2,
     ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
         let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-        let mut decoder = CBORDecoder::new(&plaintext_2[..plaintext_2_len]);
+        let mut decoder = CBORDecoder::new(&plaintext_2.content[..plaintext_2.len]);
 
         let c_r = decoder.int_raw()?;
 
@@ -577,7 +576,7 @@ mod edhoc_parser {
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
         // if there is still more to parse, the rest will be the EAD_2
-        if plaintext_2_len > decoder.position() {
+        if plaintext_2.len > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
             if ead_res.is_ok() {
