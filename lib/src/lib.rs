@@ -115,7 +115,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
         match r_prepare_message_2(
             self.state,
             &mut self.crypto,
-            &self.cred_r,
+            self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
@@ -318,20 +318,20 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
 
 pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Crypto) -> u8 {
     let c_i = generate_connection_identifier(crypto);
-    if c_i >= 0 && c_i <= 23 {
-        return c_i as u8; // verbatim encoding of single byte integer
-    } else if c_i < 0 && c_i >= -24 {
+    if (0..=23).contains(&c_i) {
+        c_i as u8 // verbatim encoding of single byte integer
+    } else if (-24..0).contains(&c_i) {
         // negative single byte integer encoding
-        return CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8);
+        CBOR_NEG_INT_1BYTE_START - 1 + c_i.unsigned_abs()
     } else {
-        return 0;
+        0
     }
 }
 
 /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23
 pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) -> i8 {
     let mut conn_id = crypto.get_random_byte() as i8;
-    while conn_id < -24 || conn_id > 23 {
+    while !(-24..=23).contains(&conn_id) {
         conn_id = crypto.get_random_byte() as i8;
     }
     conn_id
@@ -413,7 +413,7 @@ mod test {
     #[test]
     fn test_generate_connection_identifier() {
         let conn_id = generate_connection_identifier(&mut default_crypto());
-        assert!(conn_id >= -24 && conn_id <= 23);
+        assert!((-24..=23).contains(&conn_id));
     }
 
     #[cfg(feature = "ead-none")]

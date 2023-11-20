@@ -151,9 +151,9 @@ fn verify_voucher<Crypto: CryptoTrait>(
     if received_voucher == prepared_voucher {
         let mut voucher_mac: BytesMac = Default::default();
         voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
-        return Ok(voucher_mac);
+        Ok(voucher_mac)
     } else {
-        return Err(());
+        Err(())
     }
 }
 
@@ -163,7 +163,7 @@ fn build_enc_id<Crypto: CryptoTrait>(
     id_u: &EdhocMessageBuffer,
     ss: u8,
 ) -> EdhocMessageBuffer {
-    let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
+    let (k_1, iv_1) = compute_k_1_iv_1(crypto, prk);
 
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
@@ -236,7 +236,7 @@ fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] {
         [0x00; EAD_ZEROCONF_ENC_STRUCTURE_LEN];
 
     // encode Enc_structure from rfc9052 Section 5.3
-    enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array
+    enc_structure[0] = CBOR_MAJOR_ARRAY | 3_u8; // 3 is the fixed number of elements in the array
     enc_structure[1] = CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8;
     enc_structure[2..2 + encrypt0.len()].copy_from_slice(&encrypt0[..]);
     enc_structure[encrypt0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00 as u8; // 0 for zero-length byte string (empty Header)
@@ -256,8 +256,8 @@ fn edhoc_kdf_expand<Crypto: CryptoTrait>(
     length: usize,
 ) -> BytesMaxBuffer {
     let (info, info_len) = encode_info(label, context, context_len, length);
-    let output = crypto.hkdf_expand(prk, &info, info_len, length);
-    output
+
+    crypto.hkdf_expand(prk, &info, info_len, length)
 }
 
 fn encode_ead_1_value(
@@ -349,13 +349,13 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
             protocol_state: EADResponderProtocolState::ProcessedEAD1,
             voucher_response: Some(voucher_response),
         });
-        return Ok(());
+        Ok(())
     } else {
         ead_responder_set_global_state(EADResponderState {
             protocol_state: EADResponderProtocolState::Error,
             voucher_response: None,
         });
-        return Err(());
+        Err(())
     }
 }
 
@@ -449,9 +449,9 @@ fn parse_voucher_response(
             &voucher_response.content[6 + message_1.len + ENCODED_VOUCHER_LEN
                 ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len],
         );
-        return Ok((message_1, voucher, Some(opaque_state)));
+        Ok((message_1, voucher, Some(opaque_state)))
     } else {
-        return Ok((message_1, voucher, None));
+        Ok((message_1, voucher, None))
     }
 }
 
@@ -591,8 +591,8 @@ fn prepare_voucher<Crypto: CryptoTrait>(
     cred_v: &EdhocMessageBuffer,
     prk: &BytesP256ElemLen,
 ) -> BytesEncodedVoucher {
-    let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
-    let voucher_mac = compute_voucher_mac(crypto, &prk, &voucher_input);
+    let voucher_input = encode_voucher_input(h_message_1, cred_v);
+    let voucher_mac = compute_voucher_mac(crypto, prk, &voucher_input);
     encode_voucher(&voucher_mac)
 }
 
@@ -833,7 +833,7 @@ mod test_initiator {
             EADInitiatorProtocolState::WaitEAD2
         );
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
-        assert_eq!(ead_1.is_critical, true);
+        assert!(ead_1.is_critical);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
     }
 
@@ -970,7 +970,7 @@ mod test_responder {
             EADResponderProtocolState::Completed
         );
         assert_eq!(ead_2.label, EAD_ZEROCONF_LABEL);
-        assert_eq!(ead_2.is_critical, true);
+        assert!(ead_2.is_critical);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
     }
 }

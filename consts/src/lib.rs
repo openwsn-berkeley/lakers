@@ -179,8 +179,8 @@ impl Default for EdhocMessageBuffer {
 pub trait MessageBufferTrait {
     fn new() -> Self;
     fn get(self, index: usize) -> Option<u8>;
-    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]>;
-    fn as_slice<'a>(&'a self) -> &'a [u8];
+    fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]>;
+    fn as_slice(&self) -> &[u8];
     fn from_hex(hex: &str) -> Self;
 }
 
@@ -193,17 +193,14 @@ impl MessageBufferTrait for EdhocMessageBuffer {
     }
 
     fn get(self, index: usize) -> Option<u8> {
-        match self.content.get(index) {
-            Some(b) => Some(*b),
-            _ => None,
-        }
+        self.content.get(index).copied()
     }
 
-    fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]> {
+    fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
         self.content.get(start..len)
     }
 
-    fn as_slice<'a>(&'a self) -> &'a [u8] {
+    fn as_slice(&self) -> &[u8] {
         &self.content[0..self.len]
     }
 
@@ -273,43 +270,43 @@ mod cbor {
     /// Check for: an unsigned integer encoded as a single byte
     #[inline(always)]
     pub fn is_cbor_uint_1byte(byte: u8) -> bool {
-        return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
+        (CBOR_UINT_1BYTE_START..=CBOR_UINT_1BYTE_END).contains(&byte)
     }
 
     /// Check for: an unsigned integer encoded as two bytes
     #[inline(always)]
     pub fn is_cbor_uint_2bytes(byte: u8) -> bool {
-        return byte == CBOR_UINT_1BYTE;
+        byte == CBOR_UINT_1BYTE
     }
 
     /// Check for: a negative integer encoded as a single byte
     #[inline(always)]
     pub fn is_cbor_neg_int_1byte(byte: u8) -> bool {
-        return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+        (CBOR_NEG_INT_1BYTE_START..=CBOR_NEG_INT_1BYTE_END).contains(&byte)
     }
 
     /// Check for: a bstr denoted by a single byte which encodes both type and content length
     #[inline(always)]
     pub fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
-        return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
+        (CBOR_MAJOR_BYTE_STRING..=CBOR_MAJOR_BYTE_STRING_MAX).contains(&byte)
     }
 
     /// Check for: a bstr denoted by two bytes, one for type the other for content length
     #[inline(always)]
     pub fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
-        return byte == CBOR_BYTE_STRING;
+        byte == CBOR_BYTE_STRING
     }
 
     /// Check for: a tstr denoted by two bytes, one for type the other for content length
     #[inline(always)]
     pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
-        return byte == CBOR_TEXT_STRING;
+        byte == CBOR_TEXT_STRING
     }
 
     /// Check for: an array denoted by a single byte which encodes both type and content length
     #[inline(always)]
     pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
-        return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+        (CBOR_MAJOR_ARRAY..=CBOR_MAJOR_ARRAY_MAX).contains(&byte)
     }
 }
 
@@ -349,7 +346,7 @@ mod helpers {
         (info, info_len)
     }
 
-    pub fn parse_cred<'a>(cred: &'a [u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
+    pub fn parse_cred(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
         // NOTE: this routine is only guaranteed to work with credentials from lake-traces
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
@@ -377,7 +374,7 @@ mod helpers {
         ))
     }
 
-    pub fn get_id_cred<'a>(cred: &'a [u8]) -> BytesIdCred {
+    pub fn get_id_cred(cred: &[u8]) -> BytesIdCred {
         let (_g, kid) = parse_cred(cred).unwrap();
         [0xa1, 0x04, 0x41, kid]
     }
@@ -408,18 +405,17 @@ mod edhoc_parser {
     use super::*;
 
     pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
-        let ead_item;
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
-        let label = match buffer.get(0) {
+        let label = match buffer.first() {
             Some(b) => *b,
             _ => return Err(EDHOCError::ParsingError),
         };
 
         let (label, is_critical) = if CBORDecoder::is_u8(label) {
             // CBOR unsigned integer (0..=23)
-            (label as u8, false)
+            (label, false)
         } else if CBORDecoder::is_i8(label) {
             // CBOR negative integer (-1..=-24)
             (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
@@ -439,7 +435,7 @@ mod edhoc_parser {
             buffer.len = slice.len();
             ead_value = Some(buffer);
         }
-        ead_item = Some(EADItem {
+        let ead_item = Some(EADItem {
             label,
             is_critical,
             value: ead_value,
@@ -798,12 +794,12 @@ mod cbor_decoder {
 
         /// Check for: an unsigned integer encoded as a single byte
         pub fn is_u8(byte: u8) -> bool {
-            return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
+            (CBOR_UINT_1BYTE_START..=CBOR_UINT_1BYTE_END).contains(&byte)
         }
 
         /// Check for: a negative integer encoded as a single byte
         pub fn is_i8(byte: u8) -> bool {
-            return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+            (CBOR_NEG_INT_1BYTE_START..=CBOR_NEG_INT_1BYTE_END).contains(&byte)
         }
     }
 }
