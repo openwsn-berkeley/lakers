@@ -1,5 +1,4 @@
 #![cfg_attr(not(test), no_std)]
-#![allow(warnings)]
 
 pub use {edhoc_consts::Crypto as CryptoTrait, edhoc_consts::State as EdhocState, edhoc_consts::*};
 
