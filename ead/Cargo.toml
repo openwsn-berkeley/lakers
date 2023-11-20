@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
 license = "BSD"
 description = "EDHOC EAD library dispatch crate"
+repository.workspace = true
 
 [dependencies]
 edhoc-consts.workspace = true

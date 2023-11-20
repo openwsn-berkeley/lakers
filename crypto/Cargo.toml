@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC crypto library dispatch crate"
+repository.workspace = true
 
 [dependencies]
 edhoc-consts = { path = "../consts", default-features = false }

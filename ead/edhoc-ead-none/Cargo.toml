@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
 license = "BSD"
 description = "EDHOC EAD none (just a placeholder)"
+repository.workspace = true
 
 [dependencies]
 edhoc-consts.workspace = true

@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Kaspar Schleiser <kaspar@schleiser.de>"]
 license = "BSD"
 description = "EDHOC crypto library PSA backend"
+repository.workspace = true
 
 [dependencies]
 edhoc-consts.workspace = true

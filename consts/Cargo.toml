@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC crypto library constants crate"
+repository.workspace = true
 
 [dev-dependencies]
 hexlit = "0.5.3"

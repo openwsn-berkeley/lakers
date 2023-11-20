@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license = "BSD"
 description = "EDHOC implementation in Rust"
+repository.workspace = true
 
 [dependencies]
 edhoc-consts.workspace = true
