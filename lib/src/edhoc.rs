@@ -434,8 +434,7 @@ pub fn i_process_message_2(
         // decode plaintext_2
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
 
-        if plaintext_2_decoded.is_ok() {
-            let (c_r_2, id_cred_r, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+        if let Ok((c_r_2, id_cred_r, mac_2, ead_2)) = plaintext_2_decoded {
             let c_r = c_r_2;
 
             let cred_r = credential_check_or_fetch(cred_r_expected, id_cred_r);
