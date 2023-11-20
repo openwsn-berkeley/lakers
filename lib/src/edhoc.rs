@@ -45,10 +45,8 @@ pub fn edhoc_key_update(
         _th_3,
     ) = state;
 
-    let mut prk_new_buf: BytesMaxBuffer;
-
     // new PRK_out
-    prk_new_buf = edhoc_kdf(
+    let prk_new_buf = edhoc_kdf(
         crypto,
         &prk_out,
         11u8,
@@ -59,7 +57,7 @@ pub fn edhoc_key_update(
     prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
-    prk_new_buf = edhoc_kdf(
+    let prk_new_buf = edhoc_kdf(
         crypto,
         &prk_out,
         10u8,
