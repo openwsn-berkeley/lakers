@@ -8,8 +8,6 @@ pub use edhoc_ead::*;
 mod edhoc;
 use edhoc::*;
 
-use edhoc_consts::*;
-
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
     state: State<Start>,      // opaque state
@@ -350,7 +348,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 #[cfg(test)]
 mod test {
     use super::*;
-    use edhoc_consts::*;
+
     use hexlit::hex;
 
     use edhoc_crypto::default_crypto;
@@ -391,7 +389,7 @@ mod test {
     #[test]
     fn test_prepare_message_1() {
         let state = Default::default();
-        let mut initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
+        let initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let message_1 = initiator.prepare_message_1(c_i);
@@ -430,7 +428,7 @@ mod test {
     #[test]
     fn test_handshake() {
         let state_initiator = Default::default();
-        let mut initiator =
+        let initiator =
             EdhocInitiator::new(state_initiator, default_crypto(), I, CRED_I, Some(CRED_R));
         let state_responder = Default::default();
         let responder =

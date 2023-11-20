@@ -82,8 +82,8 @@ pub fn r_process_message_1(
     let State(
         _current_state,
         _y,
-        mut c_i,
-        g_x,
+        _c_i,
+        _g_x,
         _prk_3e2m,
         _prk_4e3m,
         _prk_out,
@@ -427,7 +427,7 @@ pub fn i_process_message_2(
         _current_state,
         x,
         _c_i,
-        g_y,
+        _g_y,
         mut prk_3e2m,
         mut prk_4e3m,
         _prk_out,
@@ -874,8 +874,8 @@ fn decode_plaintext_3(
     let id_cred_i: IdCred;
 
     // check ID_CRED_I and MAC_3
-    let res = if (is_cbor_neg_int_1byte(plaintext_3.content[0])
-        || is_cbor_uint_1byte(plaintext_3.content[0]))
+    let res = if is_cbor_neg_int_1byte(plaintext_3.content[0])
+        || is_cbor_uint_1byte(plaintext_3.content[0])
     {
         // KID
         kid = plaintext_3.content[0usize];
@@ -897,7 +897,7 @@ fn decode_plaintext_3(
     if res.is_ok() {
         let (mut offset, id_cred_i) = res.unwrap();
 
-        if (is_cbor_bstr_1byte_prefix(plaintext_3.content[1])) {
+        if is_cbor_bstr_1byte_prefix(plaintext_3.content[1]) {
             // skip the CBOR magic byte as we know how long the MAC is
             offset += 1;
             mac_3[..].copy_from_slice(&plaintext_3.content[offset..offset + MAC_LENGTH_3]);
@@ -1134,7 +1134,7 @@ fn decode_plaintext_2(
     let mut id_cred_r: IdCred = IdCred::CompactKid(0xFF);
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-    if (is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0])) {
+    if is_cbor_neg_int_1byte(plaintext_2[0]) || is_cbor_uint_1byte(plaintext_2[0]) {
         let c_r = plaintext_2[0];
 
         let res = if is_cbor_neg_int_1byte(plaintext_2[1]) || is_cbor_uint_1byte(plaintext_2[1]) {
