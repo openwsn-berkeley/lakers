@@ -29,9 +29,7 @@ pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
     state: State<ProcessedMessage2>, // opaque state
-    i: &'a [u8],                     // private authentication key of I
     cred_i: &'a [u8],                // I's full credential
-    cred_r: Option<&'a [u8]>,        // R's full credential (if provided)
     crypto: Crypto,
 }
 
@@ -62,8 +60,6 @@ pub struct EdhocResponderBuildM2<'a, Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocResponderWaitM3<'a, Crypto: CryptoTrait> {
     state: State<WaitMessage3>, // opaque state
-    r: &'a [u8],                // private authentication key of R
-    cred_r: &'a [u8],           // R's full credential
     cred_i: Option<&'a [u8]>,   // I's full credential (if provided)
     crypto: Crypto,
 }
@@ -128,8 +124,6 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
             Ok((state, message_2)) => Ok((
                 EdhocResponderWaitM3 {
                     state,
-                    r: self.r,
-                    cred_r: self.cred_r,
                     cred_i: self.cred_i,
                     crypto: self.crypto,
                 },
@@ -249,9 +243,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
             Ok((state, c_r, _kid)) => Ok((
                 EdhocInitiatorBuildM3 {
                     state,
-                    i: self.i,
                     cred_i: self.cred_i,
-                    cred_r: self.cred_r,
                     crypto: self.crypto,
                 },
                 c_r,
