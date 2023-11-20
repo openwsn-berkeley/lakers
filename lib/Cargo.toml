@@ -7,7 +7,6 @@ license = "BSD"
 description = "EDHOC implementation in Rust"
 
 [dependencies]
-hexlit = "0.5.3"
 hex = { version = "0.4.3", default-features = false }
 
 edhoc-consts = { path = "../consts" }
@@ -19,6 +18,7 @@ cbindgen = "0.24.5"
 
 [dev-dependencies]
 edhoc-crypto = { path = "../crypto", default-features = false }
+hexlit = "0.5.3"
 
 [features]
 default = [ "edhoc-ead/ead-none" ]

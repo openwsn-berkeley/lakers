@@ -9,5 +9,5 @@ description = "EDHOC crypto library constants crate"
 [build-dependencies]
 cbindgen = "0.24.5"
 
-[dependencies]
+[dev-dependencies]
 hexlit = "0.5.3"
