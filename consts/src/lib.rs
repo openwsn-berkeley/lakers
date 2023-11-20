@@ -368,8 +368,11 @@ mod helpers {
     }
 
     pub fn get_id_cred<'a>(cred: &'a [u8]) -> Result<BytesIdCred, EDHOCError> {
-        let (_g, kid) = parse_cred(cred)?;
-        Ok([0xa1, 0x04, 0x41, kid])
+        if let Ok((_g, kid)) = parse_cred(cred) {
+            Ok([0xa1, 0x04, 0x41, kid])
+        } else {
+            Err(EDHOCError::ParsingError)
+        }
     }
 }
 
@@ -501,8 +504,11 @@ mod edhoc_parser {
                     Err(ead_res.unwrap_err())
                 }
             } else {
-                decoder.ensure_finished()?;
-                Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+                if decoder.finished() {
+                    Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+                } else {
+                    Err(EDHOCError::ParsingError)
+                }
             }
         } else {
             Err(EDHOCError::ParsingError)
@@ -519,15 +525,17 @@ mod edhoc_parser {
 
         // message_2 consists of 1 bstr element; this element in turn contains the concatenation of g_y and ciphertext_2
         let decoded = decoder.bytes()?;
-        decoder.ensure_finished()?;
-
-        if let Some(key) = decoded.get(0..P256_ELEM_LEN) {
-            let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
-            g_y.copy_from_slice(key);
-            if let Some(c2) = decoded.get(P256_ELEM_LEN..) {
-                ciphertext_2.len = c2.len(); // len - gy_len - 2
-                ciphertext_2.content[..ciphertext_2.len].copy_from_slice(c2);
-                Ok((g_y, ciphertext_2))
+        if decoder.finished() {
+            if let Some(key) = decoded.get(0..P256_ELEM_LEN) {
+                let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
+                g_y.copy_from_slice(key);
+                if let Some(c2) = decoded.get(P256_ELEM_LEN..) {
+                    ciphertext_2.len = c2.len(); // len - gy_len - 2
+                    ciphertext_2.content[..ciphertext_2.len].copy_from_slice(c2);
+                    Ok((g_y, ciphertext_2))
+                } else {
+                    Err(EDHOCError::ParsingError)
+                }
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -567,8 +575,11 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else {
-            decoder.ensure_finished()?;
-            Ok((c_r, id_cred_r, mac_2, None))
+            if decoder.finished() {
+                Ok((c_r, id_cred_r, mac_2, None))
+            } else {
+                Err(EDHOCError::ParsingError)
+            }
         }
     }
 
@@ -601,8 +612,11 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else {
-            decoder.ensure_finished()?;
-            Ok((id_cred_i, mac_3, None))
+            if decoder.finished() {
+                Ok((id_cred_i, mac_3, None))
+            } else {
+                Err(EDHOCError::ParsingError)
+            }
         }
     }
 }
