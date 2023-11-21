@@ -405,24 +405,23 @@ mod edhoc_parser {
         let mut ead_value = None::<EdhocMessageBuffer>;
 
         // assuming label is a single byte integer (negative or positive)
-        if let Some(b) = buffer.get(0) {
-            let label = *b;
+        if let Some((&label, tail)) = buffer.split_first() {
             let res = if CBORDecoder::is_u8(label) {
                 // CBOR unsigned integer (0..=23)
                 Ok((label as u8, false))
-            } else if CBORDecoder::is_i8(*b) {
+            } else if CBORDecoder::is_i8(label) {
                 // CBOR negative integer (-1..=-24)
                 Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
             } else {
                 Err(EDHOCError::ParsingError)
             };
+
             if let Ok((label, is_critical)) = res {
-                if buffer.len() > 1 {
+                if tail.len() > 0 {
                     // EAD value is present
-                    let slice = &buffer[1..buffer.len()];
                     let mut buffer = EdhocMessageBuffer::new();
-                    buffer.content[..slice.len()].copy_from_slice(slice);
-                    buffer.len = slice.len();
+                    buffer.content[..tail.len()].copy_from_slice(tail);
+                    buffer.len = tail.len();
                     ead_value = Some(buffer);
                 }
                 ead_item = Some(EADItem {
