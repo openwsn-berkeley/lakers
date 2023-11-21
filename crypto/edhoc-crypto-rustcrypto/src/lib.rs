@@ -3,7 +3,7 @@
 use edhoc_consts::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
-    MessageBufferTrait, AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
+    AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
 };
 
 use ccm::AeadInPlace;

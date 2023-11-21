@@ -206,7 +206,7 @@ impl CryptoTrait for Crypto {
     fn get_random_byte(&mut self) -> u8 {
         psa_crypto::init().unwrap();
         let mut buffer = [0u8; 1];
-        generate_random(&mut buffer); // TODO: check return value
+        let _ = generate_random(&mut buffer); // TODO: check return value
         buffer[0]
     }
 

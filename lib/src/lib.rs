@@ -319,12 +319,12 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
 pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Crypto) -> u8 {
     let c_i = generate_connection_identifier(crypto);
     if c_i >= 0 && c_i <= 23 {
-        return c_i as u8; // verbatim encoding of single byte integer
+        c_i as u8 // verbatim encoding of single byte integer
     } else if c_i < 0 && c_i >= -24 {
         // negative single byte integer encoding
-        return CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8);
+        CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8)
     } else {
-        return 0;
+        0
     }
 }
 
