@@ -50,7 +50,7 @@ fn main() {
                     let c_r =
                         generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto());
                     let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
-                    response.message.payload = Vec::from(&message_2.content[..message_2.len]);
+                    response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));
                 }

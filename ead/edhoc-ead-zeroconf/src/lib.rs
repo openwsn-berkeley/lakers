@@ -114,8 +114,7 @@ pub fn i_process_ead_2<Crypto: CryptoTrait>(
 
     // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
     let mut cred_v = EdhocMessageBuffer::new();
-    cred_v.len = cred_v_u8.len();
-    cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
+    cred_v.fill_with_slice(cred_v_u8)?;
 
     match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &state.prk) {
         Ok(voucher) => {
@@ -168,7 +167,7 @@ fn build_enc_id<Crypto: CryptoTrait>(
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
     plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
-    plaintext.content[1..1 + id_u.len].copy_from_slice(&id_u.content[..id_u.len]);
+    plaintext.content[1..1 + id_u.len].copy_from_slice(id_u.as_slice());
     plaintext.len = 1 + id_u.len;
 
     // external_aad = (SS: int)
@@ -271,11 +270,10 @@ fn encode_ead_1_value(
 
     output.content[2] = CBOR_TEXT_STRING;
     output.content[3] = loc_w.len as u8;
-    output.content[4..4 + loc_w.len].copy_from_slice(&loc_w.content[..loc_w.len]);
+    output.content[4..4 + loc_w.len].copy_from_slice(loc_w.as_slice());
 
     output.content[4 + loc_w.len] = CBOR_MAJOR_BYTE_STRING + enc_id.len as u8;
-    output.content[5 + loc_w.len..5 + loc_w.len + enc_id.len]
-        .copy_from_slice(&enc_id.content[..enc_id.len]);
+    output.content[5 + loc_w.len..5 + loc_w.len + enc_id.len].copy_from_slice(enc_id.as_slice());
 
     output.len = 5 + loc_w.len + enc_id.len;
     output.content[1] = (output.len - 2) as u8;
@@ -421,9 +419,7 @@ fn parse_voucher_response(
     {
         return Err(());
     }
-    message_1.len = message_1_len;
-    message_1.content[..message_1.len]
-        .copy_from_slice(&voucher_response.content[3..3 + message_1.len]);
+    message_1.fill_with_slice(&voucher_response.content[3..3 + message_1_len])?;
 
     let voucher_byte = voucher_response.content[3 + message_1.len];
     let voucher_len = (voucher_byte - (voucher_byte & CBOR_MAJOR_BYTE_STRING)) as usize;
@@ -444,11 +440,10 @@ fn parse_voucher_response(
             return Err(());
         }
         let mut opaque_state = EdhocMessageBuffer::new();
-        opaque_state.len = opaque_state_len;
-        opaque_state.content[..opaque_state.len].copy_from_slice(
+        opaque_state.fill_with_slice(
             &voucher_response.content[6 + message_1.len + ENCODED_VOUCHER_LEN
-                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len],
-        );
+                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state_len],
+        )?;
         return Ok((message_1, voucher, Some(opaque_state)));
     } else {
         return Ok((message_1, voucher, None));
@@ -492,7 +487,7 @@ pub fn encode_voucher_request(
 
     output.content[1] = CBOR_BYTE_STRING;
     output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+    output.content[3..3 + message_1.len].copy_from_slice(message_1.as_slice());
 
     if let Some(opaque_state) = opaque_state {
         output.content[0] = CBOR_MAJOR_ARRAY | 2;
@@ -500,7 +495,7 @@ pub fn encode_voucher_request(
         output.content[3 + message_1.len] = CBOR_BYTE_STRING;
         output.content[4 + message_1.len] = opaque_state.len as u8;
         output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
-            .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+            .copy_from_slice(opaque_state.as_slice());
 
         output.len = 5 + message_1.len + opaque_state.len;
     } else {
@@ -575,7 +570,7 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
 
     // compute hash
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+    message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
     let prk = compute_prk(crypto, w, g_x);
@@ -612,8 +607,7 @@ fn parse_voucher_request(
     if !is_cbor_bstr_2bytes_prefix(vreq.content[1]) || message_1_len > vreq.len {
         return Err(());
     }
-    message_1.len = message_1_len;
-    message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
+    message_1.fill_with_slice(&vreq.content[3..3 + message_1_len])?;
 
     if array_size == 2 {
         let opaque_state_len = vreq.content[4 + message_1.len] as usize;
@@ -623,10 +617,9 @@ fn parse_voucher_request(
             return Err(());
         }
         let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
-        opaque_state.len = opaque_state_len;
-        opaque_state.content[..opaque_state.len].copy_from_slice(
-            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len],
-        );
+        opaque_state.fill_with_slice(
+            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state_len],
+        )?;
 
         Ok((message_1, Some(opaque_state)))
     } else {
@@ -648,7 +641,7 @@ fn encode_voucher_input(
     voucher_input.content[2 + SHA256_DIGEST_LEN] = CBOR_BYTE_STRING;
     voucher_input.content[3 + SHA256_DIGEST_LEN] = cred_v.len as u8;
     voucher_input.content[4 + SHA256_DIGEST_LEN..4 + SHA256_DIGEST_LEN + cred_v.len]
-        .copy_from_slice(&cred_v.content[..cred_v.len]);
+        .copy_from_slice(cred_v.as_slice());
 
     voucher_input.len = 4 + SHA256_DIGEST_LEN + cred_v.len;
 
@@ -663,7 +656,7 @@ fn compute_voucher_mac<Crypto: CryptoTrait>(
     let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
 
     let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
-    context[..voucher_input.len].copy_from_slice(&voucher_input.content[..voucher_input.len]);
+    context[..voucher_input.len].copy_from_slice(voucher_input.as_slice());
 
     let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, &context, voucher_input.len, MAC_LENGTH);
     voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
@@ -688,7 +681,7 @@ fn encode_voucher_response(
 
     output.content[1] = CBOR_BYTE_STRING;
     output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+    output.content[3..3 + message_1.len].copy_from_slice(message_1.as_slice());
 
     output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8;
     output.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN]
@@ -701,7 +694,7 @@ fn encode_voucher_response(
         output.content[5 + message_1.len + ENCODED_VOUCHER_LEN] = opaque_state.len as u8;
         output.content[6 + message_1.len + ENCODED_VOUCHER_LEN
             ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len]
-            .copy_from_slice(&opaque_state.content[..opaque_state.len]);
+            .copy_from_slice(opaque_state.as_slice());
 
         output.len = 6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len;
     } else {

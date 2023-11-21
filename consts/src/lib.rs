@@ -197,6 +197,16 @@ impl EdhocMessageBuffer {
         &self.content[0..self.len]
     }
 
+    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), ()> {
+        if slice.len() <= self.content.len() {
+            self.len = slice.len();
+            self.content[..self.len].copy_from_slice(slice);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     pub fn from_hex(hex: &str) -> Self {
         let mut buffer = EdhocMessageBuffer::new();
         buffer.len = hex.len() / 2;
@@ -420,7 +430,7 @@ mod edhoc_parser {
                 if tail.len() > 0 {
                     // EAD value is present
                     let mut buffer = EdhocMessageBuffer::new();
-                    buffer.content[..tail.len()].copy_from_slice(tail);
+                    buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
                     buffer.len = tail.len();
                     ead_value = Some(buffer);
                 }
@@ -529,9 +539,11 @@ mod edhoc_parser {
                 let mut g_y: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
                 g_y.copy_from_slice(key);
                 if let Some(c2) = decoded.get(P256_ELEM_LEN..) {
-                    ciphertext_2.len = c2.len(); // len - gy_len - 2
-                    ciphertext_2.content[..ciphertext_2.len].copy_from_slice(c2);
-                    Ok((g_y, ciphertext_2))
+                    if ciphertext_2.fill_with_slice(c2).is_ok() {
+                        Ok((g_y, ciphertext_2))
+                    } else {
+                        Err(EDHOCError::ParsingError)
+                    }
                 } else {
                     Err(EDHOCError::ParsingError)
                 }
@@ -549,7 +561,7 @@ mod edhoc_parser {
         let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-        let mut decoder = CBORDecoder::new(&plaintext_2.content[..plaintext_2.len]);
+        let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
 
         let c_r = decoder.int_raw()?;
 
