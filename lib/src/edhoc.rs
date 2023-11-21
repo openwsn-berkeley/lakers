@@ -97,8 +97,7 @@ pub fn r_process_message_1(
                 if ead_success {
                     // hash message_1 and save the hash to the state to avoid saving the whole message
                     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                    message_1_buf[..message_1.len]
-                        .copy_from_slice(&message_1.content[..message_1.len]);
+                    message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
                     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
                     let state = State(
@@ -180,11 +179,11 @@ pub fn r_prepare_message_2(
 
     let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
     ct.len = plaintext_2.len;
-    ct.content[..ct.len].copy_from_slice(&plaintext_2.content[..ct.len]);
+    ct.content[..ct.len].copy_from_slice(plaintext_2.as_slice());
 
     let ciphertext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ct);
 
-    ct.content[..ct.len].copy_from_slice(&ciphertext_2.content[..ciphertext_2.len]);
+    ct.content[..ct.len].copy_from_slice(ciphertext_2.as_slice());
 
     let message_2 = encode_message_2(&g_y, &ct);
 
@@ -371,7 +370,7 @@ pub fn i_prepare_message_1(
     );
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    message_1_buf[..message_1.len].copy_from_slice(&message_1.content[..message_1.len]);
+    message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
 
     // hash message_1 here to avoid saving the whole message in the state
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
@@ -651,8 +650,7 @@ fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBuffer {
 
     // encode value
     if let Some(ead_1_value) = &ead_1.value {
-        output.content[1..1 + ead_1_value.len]
-            .copy_from_slice(&ead_1_value.content[..ead_1_value.len]);
+        output.content[1..1 + ead_1_value.len].copy_from_slice(ead_1_value.as_slice());
         output.len += ead_1_value.len;
     }
 
@@ -707,8 +705,7 @@ fn encode_message_1(
 
     if let Some(ead_1) = ead_1 {
         let ead_1 = encode_ead_item(ead_1);
-        output.content[output.len..output.len + ead_1.len]
-            .copy_from_slice(&ead_1.content[..ead_1.len]);
+        output.content[output.len..output.len + ead_1.len].copy_from_slice(ead_1.as_slice());
         output.len += ead_1.len;
     }
 
@@ -722,7 +719,7 @@ fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) ->
     output.content[1] = P256_ELEM_LEN as u8 + ciphertext_2.len as u8;
     output.content[2..2 + P256_ELEM_LEN].copy_from_slice(&g_y[..]);
     output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len]
-        .copy_from_slice(&ciphertext_2.content[..ciphertext_2.len]);
+        .copy_from_slice(ciphertext_2.as_slice());
 
     output.len = 2 + P256_ELEM_LEN + ciphertext_2.len;
     output
@@ -761,7 +758,7 @@ fn compute_th_3(
     message[1] = th_2.len() as u8;
     message[2..2 + th_2.len()].copy_from_slice(&th_2[..]);
     message[2 + th_2.len()..2 + th_2.len() + plaintext_2.len]
-        .copy_from_slice(&plaintext_2.content[..plaintext_2.len]);
+        .copy_from_slice(plaintext_2.as_slice());
     message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
         .copy_from_slice(cred_r);
 
@@ -782,7 +779,7 @@ fn compute_th_4(
     message[1] = th_3.len() as u8;
     message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
     message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len]
-        .copy_from_slice(&plaintext_3.content[..plaintext_3.len]);
+        .copy_from_slice(plaintext_3.as_slice());
     message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
         .copy_from_slice(cred_i);
 
@@ -821,7 +818,7 @@ fn encode_plaintext_3(
     if let Some(ead_3) = ead_3 {
         let ead_3 = encode_ead_item(ead_3);
         plaintext_3.content[plaintext_3.len..plaintext_3.len + ead_3.len]
-            .copy_from_slice(&ead_3.content[..ead_3.len]);
+            .copy_from_slice(ead_3.as_slice());
         plaintext_3.len += ead_3.len;
     }
 
@@ -897,7 +894,7 @@ fn encrypt_message_3(
 
     let ciphertext_3 = crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3);
 
-    output.content[1..output.len].copy_from_slice(&ciphertext_3.content[..ciphertext_3.len]);
+    output.content[1..output.len].copy_from_slice(ciphertext_3.as_slice());
 
     output
 }
@@ -924,7 +921,7 @@ fn decrypt_message_3(
     let p3 = crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
     if let Ok(p3) = p3 {
-        plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
+        plaintext_3.content[..p3.len].copy_from_slice(p3.as_slice());
         plaintext_3.len = p3.len;
 
         Ok(plaintext_3)
@@ -1034,7 +1031,7 @@ fn encode_plaintext_2(
     if let Some(ead_2) = ead_2 {
         let ead_2 = encode_ead_item(ead_2);
         plaintext_2.content[plaintext_2.len..plaintext_2.len + ead_2.len]
-            .copy_from_slice(&ead_2.content[..ead_2.len]);
+            .copy_from_slice(ead_2.as_slice());
         plaintext_2.len += ead_2.len;
     }
 

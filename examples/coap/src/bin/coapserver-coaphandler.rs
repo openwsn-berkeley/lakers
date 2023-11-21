@@ -132,7 +132,7 @@ impl coap_handler::Handler for EdhocHandler {
             EdhocResponse::OkSend2 { c_r, responder } => {
                 let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
                 self.connections.push((c_r, responder));
-                response.set_payload(&message_2.content[..message_2.len]);
+                response.set_payload(message_2.as_slice());
             }
             EdhocResponse::Message3Processed => (), // "send empty ack back"?
         };

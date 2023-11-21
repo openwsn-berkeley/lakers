@@ -116,7 +116,7 @@ impl CryptoTrait for Crypto {
             alg,
             iv,
             ad,
-            &plaintext.content[..plaintext.len],
+            plaintext.as_slice(),
             &mut output_buffer.content,
         )
         .unwrap();
@@ -158,7 +158,7 @@ impl CryptoTrait for Crypto {
             alg,
             iv,
             ad,
-            &ciphertext.content[..ciphertext.len],
+            &ciphertext.as_slice(),
             &mut output_buffer.content,
         ) {
             Ok(_) => {

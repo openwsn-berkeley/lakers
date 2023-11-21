@@ -75,7 +75,7 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
     ) -> BufferCiphertext3 {
         let key = AesCcm16_64_128::new(key.into());
         let mut outbuffer = BufferCiphertext3::new();
-        outbuffer.content[..plaintext.len].copy_from_slice(&plaintext.content[..plaintext.len]);
+        outbuffer.content[..plaintext.len].copy_from_slice(plaintext.as_slice());
         if let Ok(tag) =
             key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len])
         {

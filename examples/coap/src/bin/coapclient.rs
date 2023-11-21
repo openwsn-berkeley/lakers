@@ -33,7 +33,7 @@ fn main() {
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
     let c_i = generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto());
     let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
-    msg_1_buf.extend_from_slice(&message_1.content[..message_1.len]);
+    msg_1_buf.extend_from_slice(message_1.as_slice());
     println!("message_1 len = {}", msg_1_buf.len());
 
     let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
@@ -52,7 +52,7 @@ fn main() {
     if let Ok((initiator, c_r)) = m2result {
         let mut msg_3 = Vec::from([c_r]);
         let (mut initiator, message_3, prk_out) = initiator.prepare_message_3().unwrap();
-        msg_3.extend_from_slice(&message_3.content[..message_3.len]);
+        msg_3.extend_from_slice(message_3.as_slice());
         println!("message_3 len = {}", msg_3.len());
 
         let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();

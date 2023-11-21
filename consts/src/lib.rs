@@ -549,7 +549,7 @@ mod edhoc_parser {
         let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
-        let mut decoder = CBORDecoder::new(&plaintext_2.content[..plaintext_2.len]);
+        let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
 
         let c_r = decoder.int_raw()?;
 
