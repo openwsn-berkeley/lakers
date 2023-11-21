@@ -3,7 +3,7 @@ name = "edhoc-cc2538"
 version = "0.1.0"
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
+license.workspace = true
 description = "edhoc-rs example on CC2538 SoC"
 
 [dependencies]

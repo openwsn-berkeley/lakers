@@ -1,14 +1,15 @@
 [package]
 name = "edhoc-crypto-cryptocell310"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
+license.workspace = true
 description = "ARM CryptoCell 310 sys crate"
 links = "nrf_cc310_0.9.13"
+repository.workspace = true
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts.workspace = true
 
 [build-dependencies]
 bindgen = "0.69.1"

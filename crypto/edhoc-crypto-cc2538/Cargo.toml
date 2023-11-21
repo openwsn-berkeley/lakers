@@ -1,13 +1,14 @@
 [package]
 name = "edhoc-crypto-cc2538"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC crypto library cc2538 backend"
+repository.workspace = true
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts.workspace = true
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, features = [ "alloc" ] }
 cortex-m = { version = "0.7.4" }
 cortex-m-rt = { version = "0.7.1" }

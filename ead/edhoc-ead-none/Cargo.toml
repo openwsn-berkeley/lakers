@@ -1,10 +1,11 @@
 [package]
 name = "edhoc-ead-none"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
-license = "BSD"
+license.workspace = true
 description = "EDHOC EAD none (just a placeholder)"
+repository.workspace = true
 
 [dependencies]
-edhoc-consts = { path = "../../consts" }
+edhoc-consts.workspace = true
