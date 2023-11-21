@@ -183,17 +183,14 @@ impl EdhocMessageBuffer {
     }
 
     pub fn get(self, index: usize) -> Option<u8> {
-        match self.content.get(index) {
-            Some(b) => Some(*b),
-            _ => None,
-        }
+        self.content.get(index).copied()
     }
 
-    pub fn get_slice<'a>(&'a self, start: usize, len: usize) -> Option<&'a [u8]> {
+    pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
         self.content.get(start..len)
     }
 
-    pub fn as_slice<'a>(&'a self) -> &'a [u8] {
+    pub fn as_slice(&self) -> &[u8] {
         &self.content[0..self.len]
     }
 
@@ -349,7 +346,7 @@ mod helpers {
         (info, info_len)
     }
 
-    pub fn parse_cred<'a>(cred: &'a [u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
+    pub fn parse_cred(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
         // NOTE: this routine is only guaranteed to work with credentials from lake-traces
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
@@ -377,7 +374,7 @@ mod helpers {
         }
     }
 
-    pub fn get_id_cred<'a>(cred: &'a [u8]) -> Result<BytesIdCred, EDHOCError> {
+    pub fn get_id_cred(cred: &[u8]) -> Result<BytesIdCred, EDHOCError> {
         if let Ok((_g, kid)) = parse_cred(cred) {
             Ok([0xa1, 0x04, 0x41, kid])
         } else {
@@ -418,7 +415,7 @@ mod edhoc_parser {
         if let Some((&label, tail)) = buffer.split_first() {
             let res = if CBORDecoder::is_u8(label) {
                 // CBOR unsigned integer (0..=23)
-                Ok((label as u8, false))
+                Ok((label, false))
             } else if CBORDecoder::is_i8(label) {
                 // CBOR negative integer (-1..=-24)
                 Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
@@ -512,12 +509,10 @@ mod edhoc_parser {
                 } else {
                     Err(ead_res.unwrap_err())
                 }
+            } else if decoder.finished() {
+                Ok((method, suites_i, suites_i_len, g_x, c_i, None))
             } else {
-                if decoder.finished() {
-                    Ok((method, suites_i, suites_i_len, g_x, c_i, None))
-                } else {
-                    Err(EDHOCError::ParsingError)
-                }
+                Err(EDHOCError::ParsingError)
             }
         } else {
             Err(EDHOCError::ParsingError)
@@ -585,12 +580,10 @@ mod edhoc_parser {
             } else {
                 Err(ead_res.unwrap_err())
             }
+        } else if decoder.finished() {
+            Ok((c_r, id_cred_r, mac_2, None))
         } else {
-            if decoder.finished() {
-                Ok((c_r, id_cred_r, mac_2, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
+            Err(EDHOCError::ParsingError)
         }
     }
 
@@ -622,12 +615,10 @@ mod edhoc_parser {
             } else {
                 Err(ead_res.unwrap_err())
             }
+        } else if decoder.finished() {
+            Ok((id_cred_i, mac_3, None))
         } else {
-            if decoder.finished() {
-                Ok((id_cred_i, mac_3, None))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
+            Err(EDHOCError::ParsingError)
         }
     }
 }
