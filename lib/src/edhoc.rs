@@ -898,8 +898,6 @@ fn decrypt_message_3(
     th_3: &BytesHashLen,
     message_3: &BufferMessage3,
 ) -> Result<BufferPlaintext3, EDHOCError> {
-    let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
-
     // decode message_3
     let len = (message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING) as usize;
 
@@ -911,16 +909,7 @@ fn decrypt_message_3(
 
     let enc_structure = encode_enc_structure(th_3);
 
-    let p3 = crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
-
-    if let Ok(p3) = p3 {
-        plaintext_3.content[..p3.len].copy_from_slice(p3.as_slice());
-        plaintext_3.len = p3.len;
-
-        Ok(plaintext_3)
-    } else {
-        Err(p3.unwrap_err())
-    }
+    crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3)
 }
 
 // output must hold id_cred.len() + cred.len()
