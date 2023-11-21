@@ -83,8 +83,7 @@ pub fn r_process_message_1(
     // g_x will be saved to the state
     let res = parse_message_1(message_1);
 
-    if res.is_ok() {
-        let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
+    if let Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)) = res {
         // verify that the method is supported
         if method == EDHOC_METHOD {
             // Step 2: verify that the selected cipher suite is supported
@@ -160,7 +159,7 @@ pub fn r_prepare_message_2(
     let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
 
     // compute MAC_2
-    let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r), cred_r, &th_2);
+    let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r)?, cred_r, &th_2);
 
     let ead_2 = r_prepare_ead_2();
 
@@ -168,7 +167,7 @@ pub fn r_prepare_message_2(
         // NOTE: assume EAD_2 is for zeroconf
         IdCred::FullCredential(cred_r)
     } else {
-        let (_g_r, kid) = parse_cred(cred_r).unwrap(); // FIXME
+        let (_g_r, kid) = parse_cred(cred_r)?;
         IdCred::CompactKid(kid)
     };
 
@@ -227,23 +226,19 @@ pub fn r_process_message_3(
 
     let plaintext_3 = decrypt_message_3(crypto, &prk_3e2m, &th_3, message_3);
 
-    if plaintext_3.is_ok() {
-        let plaintext_3 = plaintext_3.unwrap();
+    if let Ok(plaintext_3) = plaintext_3 {
         let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
-        if decoded_p3_res.is_ok() {
+        if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
             // The implementation currently supports the following two cases on handling the credentials:
             // 1. R receives a kid and has a corresponding CRED_x passed in as cred_i_expected
             // 2. R receives CRED_x by value in the message and uses it
             // TODO: add support for fetching CRED_x based on kid received in the message
-            let (id_cred_i, mac_3, ead_3) = decoded_p3_res.unwrap();
 
             let cred_i = credential_check_or_fetch(cred_i_expected, id_cred_i);
             // IMPL: stop if credential_check_or_fetch returns Error
 
-            if cred_i.is_ok() {
-                let (valid_cred_i, g_i) = cred_i.unwrap();
-
+            if let Ok((valid_cred_i, g_i)) = cred_i {
                 // Phase 2:
                 // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
                 // IMPL: we are sure valid_cred_i is a full credential
@@ -272,7 +267,7 @@ pub fn r_process_message_3(
                         crypto,
                         &prk_4e3m,
                         &th_3,
-                        &get_id_cred(valid_cred_i),
+                        &get_id_cred(valid_cred_i)?,
                         valid_cred_i,
                     );
 
@@ -421,9 +416,7 @@ pub fn i_process_message_2(
     let mut kid = 0xffu8; // invalidate kid
 
     let res = parse_message_2(message_2);
-    if res.is_ok() {
-        let (g_y, ciphertext_2) = res.unwrap();
-
+    if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &h_message_1);
 
         // compute prk_2e
@@ -434,14 +427,12 @@ pub fn i_process_message_2(
         // decode plaintext_2
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
 
-        if plaintext_2_decoded.is_ok() {
-            let (c_r_2, id_cred_r, mac_2, ead_2) = plaintext_2_decoded.unwrap();
+        if let Ok((c_r_2, id_cred_r, mac_2, ead_2)) = plaintext_2_decoded {
             let c_r = c_r_2;
 
             let cred_r = credential_check_or_fetch(cred_r_expected, id_cred_r);
             // IMPL: stop if credential_check_or_fetch returns Error
-            if cred_r.is_ok() {
-                let (valid_cred_r, g_r) = cred_r.unwrap();
+            if let Ok((valid_cred_r, g_r)) = cred_r {
                 // Phase 2:
                 // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
                 // IMPL: we are sure valid_cred_r is a full credential
@@ -466,7 +457,7 @@ pub fn i_process_message_2(
                     let expected_mac_2 = compute_mac_2(
                         crypto,
                         &prk_3e2m,
-                        &get_id_cred(valid_cred_r),
+                        &get_id_cred(valid_cred_r)?,
                         &valid_cred_r,
                         &th_2,
                     );
@@ -594,7 +585,7 @@ fn credential_check_or_fetch<'a>(
         // 1. Does ID_CRED_X point to a stored authentication credential? YES
         // IMPL: compare cred_i_expected with id_cred
         //   IMPL: assume cred_i_expected is well formed
-        let (public_key_expected, kid_expected) = parse_cred(cred_expected).unwrap();
+        let (public_key_expected, kid_expected) = parse_cred(cred_expected)?;
         let public_key = public_key_expected;
         let credentials_match = match id_cred_received {
             IdCred::CompactKid(kid_received) => kid_received == kid_expected,
@@ -932,8 +923,7 @@ fn decrypt_message_3(
 
     let p3 = crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
 
-    if p3.is_ok() {
-        let p3 = p3.unwrap();
+    if let Ok(p3) = p3 {
         plaintext_3.content[..p3.len].copy_from_slice(&p3.content[..p3.len]);
         plaintext_3.len = p3.len;
 

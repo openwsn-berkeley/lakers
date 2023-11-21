@@ -267,7 +267,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
         match i_prepare_message_3(
             self.state,
             &mut self.crypto,
-            &get_id_cred(self.cred_i),
+            &get_id_cred(self.cred_i)?,
             self.cred_i,
         ) {
             Ok((state, message_3, prk_out)) => Ok((
