@@ -219,11 +219,9 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
     type Error = ();
 
     fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
-        if self.len() <= MAX_MESSAGE_SIZE_LEN {
-            let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
-            for i in 0..self.len() {
-                buffer[i] = self[i];
-            }
+        let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
+        if let Some(destination) = buffer.get_mut(..self.len()) {
+            destination.copy_from_slice(self);
 
             Ok(EdhocMessageBuffer {
                 content: buffer,
@@ -460,9 +458,9 @@ mod edhoc_parser {
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
                 suites_i_len = decoder.array()?;
-                if suites_i_len <= suites_i.len() {
-                    for i in 0..suites_i_len {
-                        suites_i[i] = decoder.u8()?;
+                if let Some(suites_i_used) = suites_i.get_mut(..suites_i_len) {
+                    for s in suites_i_used.iter_mut() {
+                        *s = decoder.u8()?;
                     }
                     Ok((suites_i, suites_i_len, decoder))
                 } else {
@@ -553,7 +551,6 @@ mod edhoc_parser {
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
     ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
-        let id_cred_r: IdCred;
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
         let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
@@ -561,13 +558,13 @@ mod edhoc_parser {
         let c_r = decoder.int_raw()?;
 
         // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
+        let id_cred_r = if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
             && CBORDecoder::info_of(decoder.current()?) > 1
         {
-            id_cred_r = IdCred::FullCredential(decoder.bytes()?);
+            IdCred::FullCredential(decoder.bytes()?)
         } else {
-            id_cred_r = IdCred::CompactKid(decoder.int_raw()?);
-        }
+            IdCred::CompactKid(decoder.int_raw()?)
+        };
 
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
@@ -591,18 +588,17 @@ mod edhoc_parser {
         plaintext_3: &BufferPlaintext3,
     ) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
-        let id_cred_i: IdCred;
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
         // NOTE: if len of bstr is 1, then it is a compact kid and therefore should have been encoded as int
-        if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
+        let id_cred_i = if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
             && CBORDecoder::info_of(decoder.current()?) > 1
         {
-            id_cred_i = IdCred::FullCredential(decoder.bytes()?);
+            IdCred::FullCredential(decoder.bytes()?)
         } else {
-            id_cred_i = IdCred::CompactKid(decoder.int_raw()?);
-        }
+            IdCred::CompactKid(decoder.int_raw()?)
+        };
 
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 

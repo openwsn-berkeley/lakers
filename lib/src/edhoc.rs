@@ -683,13 +683,13 @@ fn encode_message_1(
         // several suites, will be encoded as an array
         output.content[1] = CBOR_MAJOR_ARRAY + (suites_len as u8);
         raw_suites_len += 1;
-        for i in 0..suites_len {
-            if suites[i] <= CBOR_UINT_1BYTE {
-                output.content[1 + raw_suites_len] = suites[i];
+        for &suite in suites[0..suites_len].iter() {
+            if suite <= CBOR_UINT_1BYTE {
+                output.content[1 + raw_suites_len] = suite;
                 raw_suites_len += 1;
             } else {
                 output.content[1 + raw_suites_len] = CBOR_UINT_1BYTE;
-                output.content[2 + raw_suites_len] = suites[i];
+                output.content[2 + raw_suites_len] = suite;
                 raw_suites_len += 2;
             }
         }
