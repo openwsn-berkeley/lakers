@@ -178,12 +178,11 @@ pub fn r_prepare_message_2(
     let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r);
 
     let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
-    ct.len = plaintext_2.len;
-    ct.content[..ct.len].copy_from_slice(plaintext_2.as_slice());
+    ct.fill_with_slice(plaintext_2.as_slice()).unwrap(); // TODO(hax): can we prove with hax that this won't panic since they use the same underlying buffer length?
 
     let ciphertext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ct);
 
-    ct.content[..ct.len].copy_from_slice(ciphertext_2.as_slice());
+    ct.fill_with_slice(ciphertext_2.as_slice()).unwrap(); // TODO(hax): same as just above.
 
     let message_2 = encode_message_2(&g_y, &ct);
 

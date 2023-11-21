@@ -114,8 +114,7 @@ pub fn i_process_ead_2<Crypto: CryptoTrait>(
 
     // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
     let mut cred_v = EdhocMessageBuffer::new();
-    cred_v.len = cred_v_u8.len();
-    cred_v.content[..cred_v.len].copy_from_slice(cred_v_u8);
+    cred_v.fill_with_slice(cred_v_u8)?;
 
     match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &state.prk) {
         Ok(voucher) => {
@@ -420,9 +419,7 @@ fn parse_voucher_response(
     {
         return Err(());
     }
-    message_1.len = message_1_len;
-    message_1.content[..message_1.len]
-        .copy_from_slice(&voucher_response.content[3..3 + message_1.len]);
+    message_1.fill_with_slice(&voucher_response.content[3..3 + message_1_len])?;
 
     let voucher_byte = voucher_response.content[3 + message_1.len];
     let voucher_len = (voucher_byte - (voucher_byte & CBOR_MAJOR_BYTE_STRING)) as usize;
@@ -443,11 +440,10 @@ fn parse_voucher_response(
             return Err(());
         }
         let mut opaque_state = EdhocMessageBuffer::new();
-        opaque_state.len = opaque_state_len;
-        opaque_state.content[..opaque_state.len].copy_from_slice(
+        opaque_state.fill_with_slice(
             &voucher_response.content[6 + message_1.len + ENCODED_VOUCHER_LEN
-                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len],
-        );
+                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state_len],
+        )?;
         return Ok((message_1, voucher, Some(opaque_state)));
     } else {
         return Ok((message_1, voucher, None));
@@ -611,8 +607,7 @@ fn parse_voucher_request(
     if !is_cbor_bstr_2bytes_prefix(vreq.content[1]) || message_1_len > vreq.len {
         return Err(());
     }
-    message_1.len = message_1_len;
-    message_1.content[..message_1.len].copy_from_slice(&vreq.content[3..3 + message_1.len]);
+    message_1.fill_with_slice(&vreq.content[3..3 + message_1_len])?;
 
     if array_size == 2 {
         let opaque_state_len = vreq.content[4 + message_1.len] as usize;
@@ -622,10 +617,9 @@ fn parse_voucher_request(
             return Err(());
         }
         let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
-        opaque_state.len = opaque_state_len;
-        opaque_state.content[..opaque_state.len].copy_from_slice(
-            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state.len],
-        );
+        opaque_state.fill_with_slice(
+            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state_len],
+        )?;
 
         Ok((message_1, Some(opaque_state)))
     } else {
