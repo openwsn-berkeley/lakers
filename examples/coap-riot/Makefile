@@ -49,7 +49,7 @@ BASELIBS += $(APPLICATION_RUST_MODULE).module
 
 FEATURES_REQUIRED += rust_target
 
-CARGO_CHANNEL ?= stable
+CARGO_CHANNEL ?= nightly
 
 # Currently unknown, something related to the LED_PORT definition that doesn't
 # pass C2Rust's transpilation
