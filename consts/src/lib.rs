@@ -220,8 +220,8 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
 
     fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
         let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
-        if let Some(destination) = buffer.get_mut(..self.len()) {
-            destination.copy_from_slice(self);
+        if self.len() <= buffer.len() {
+            buffer[..self.len()].copy_from_slice(self);
 
             Ok(EdhocMessageBuffer {
                 content: buffer,
