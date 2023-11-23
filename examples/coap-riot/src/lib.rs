@@ -7,11 +7,11 @@ use core::ffi::c_char;
 use embedded_nal::UdpFullStack;
 use riot_wrappers::{println, riot_main};
 
-// extern crate alloc;
-use embedded_alloc::Heap;
-
-#[global_allocator]
-static HEAP: Heap = Heap::empty();
+// Would be needed by hacspec backend
+// use embedded_alloc::Heap;
+//
+// #[global_allocator]
+// static HEAP: Heap = Heap::empty();
 
 extern "C" {
     pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
@@ -185,12 +185,13 @@ fn main_on_stack<S: UdpFullStack>(stack: &mut S) {
 riot_main!(main);
 
 fn main() {
-    // Memory buffer for mbedtls
     #[cfg(feature = "crypto-psa")]
-    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(feature = "crypto-psa")]
-    unsafe {
-        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    {
+        // Memory buffer for mbedtls
+        let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+        unsafe {
+            mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+        }
     }
 
     let mut stack = riot_wrappers::socket_embedded_nal::Stack::<1>::new();
