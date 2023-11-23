@@ -25,6 +25,8 @@ USEMODULE += ztimer_sec
 USEMODULE += vfs
 USEMODULE += constfs
 
+USEMODULE += prng_sha256prng
+
 # crypto backend for edhoc-rs
 EDHOC_RS_DIR ?= $(CURDIR)/../..
 INCLUDES += -I$(EDHOC_RS_DIR)/crypto/edhoc-crypto-cryptocell310-sys/vendor/nrf_cc310/include
