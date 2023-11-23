@@ -70,19 +70,9 @@ jobs:
     - name: Checkout edhoc-rs
       uses: actions/checkout@v3
 
-    - name: Checkout hacspec-v2
-      uses: actions/checkout@v3
-      with:
-        repository: 'hacspec/hacspec-v2'
-        path: hacspec-v2-repo
-
-    - name: Build hacspec-v2 docker image
-      run: docker build -f .docker/Dockerfile . -t hacspec-v2
-      working-directory: hacspec-v2-repo
-
     - name: Generate fstar code using the main library and the hacspec crypto backend
       run: |
-        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs && cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead-none --no-default-features --features="crypto-hacspec, ead-none" --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar"
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -c "cd edhoc-rs && cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead-none --no-default-features --features="crypto-hacspec, ead-none" --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar"
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
