@@ -20,9 +20,7 @@ opt-level = "s"
 [dependencies]
 riot-wrappers = { version = "^0.8", features = [ "set_panic_handler", "panic_handler_format", "with_embedded_nal" ] }
 
-coap-message-demos = { git = "https://gitlab.com/chrysn/coap-message-demos/", default-features = false }
 coap-handler-implementations = "0.4"
-riot-coap-handler-demos = { git = "https://gitlab.com/etonomy/riot-module-examples/", features = [ "vfs" ] }
 
 edhoc-rs = { path = "../../lib", default-features = false }
 edhoc-crypto = { path = "../../crypto", default-features = false }
