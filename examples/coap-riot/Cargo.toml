@@ -23,7 +23,8 @@ riot-wrappers = { version = "^0.8", features = [ "set_panic_handler", "panic_han
 coap-handler-implementations = "0.4"
 
 edhoc-rs = { path = "../../lib", default-features = false }
-edhoc-crypto = { path = "../../crypto", default-features = false }
+edhoc-crypto = { path = "../../crypto", default-features = false, optional = true }
+edhoc-crypto-rustcrypto = { path = "../../crypto/edhoc-crypto-rustcrypto/", optional = true }
 hexlit = "0.5.3"
 heapless = "0.7"
 
@@ -33,7 +34,8 @@ coap-message = "0.2.3"
 coap-handler = "0.1.5"
 coap-numbers = "0.2.3"
 
-embedded-alloc = "0.5.0"
+# not used until hacspec backend is enabled
+# embedded-alloc = "0.5.0"
 
 # While currently this exmple does not use any RIOT modules implemented in
 # Rust, that may change; it is best practice for any RIOT application that has
@@ -42,7 +44,8 @@ embedded-alloc = "0.5.0"
 rust_riotmodules = { path = "./RIOT/sys/rust_riotmodules/" }
 
 [features]
-default = [ "crypto-cryptocell310", "ead-none" ]
+default = [ "crypto-rustcrypto", "ead-none" ]
+crypto-rustcrypto = [ "edhoc-crypto-rustcrypto" ] # not going through edhoc-crypto b/c there it requires std
 crypto-psa = [ "edhoc-crypto/psa-baremetal" ]
 crypto-cryptocell310 = [ "edhoc-crypto/cryptocell310" ]
 ead-none = [ "edhoc-rs/ead-none" ]
