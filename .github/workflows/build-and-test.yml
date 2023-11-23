@@ -65,10 +65,6 @@ jobs:
   generate-fstar:
     needs: unit-tests
     runs-on: ubuntu-latest
-    if: false
-    # FIXME: commenting out until we fix hax execution
-    # if: >-
-      # ((github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')))
 
     steps:
     - name: Checkout edhoc-rs
@@ -192,9 +188,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    # NOTE: uncomment the generate-fstar part once the hax part is fixed
-    # needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, generate-fstar, build-static-lib-and-headers]
-    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, build-static-lib-and-headers]
+    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, generate-fstar, build-static-lib-and-headers]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
@@ -202,11 +196,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      # - name: Download artifacts
-      #   uses: actions/download-artifact@v3
-      #   with:
-      #     name: fstar-code
-      #     path: ./release-artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: fstar-code
+          path: ./release-artifacts
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
