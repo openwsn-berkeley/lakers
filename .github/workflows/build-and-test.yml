@@ -74,7 +74,7 @@ jobs:
       run: |
         docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -e -c "
         cd edhoc-rs
-        cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead-none --no-default-features --features='crypto-hacspec, ead-none' --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
+        cargo-hax -C -p edhoc-rs -p edhoc-crypto --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
         "
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
