@@ -70,11 +70,12 @@ jobs:
     - name: Checkout edhoc-rs
       uses: actions/checkout@v3
 
-    - name: Generate fstar code using the main library and the hacspec crypto backend
+    - name: Generate fstar code over edhoc-rs and edhoc-consts
       run: |
         docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -e -c "
         cd edhoc-rs
-        cargo-hax -C -p edhoc-rs -p edhoc-crypto --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
+        cargo-hax -C -p edhoc-rs --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
+        cargo-hax -C -p edhoc-consts \; into fstar
         "
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
