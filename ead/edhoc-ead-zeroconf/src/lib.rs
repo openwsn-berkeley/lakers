@@ -332,9 +332,8 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
     if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
         return Err(EDHOCError::EADError);
     }
-    let ead_1_value = ead_1.value.unwrap();
 
-    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1_value)?;
+    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
     let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
     // TODO:
@@ -357,8 +356,10 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
     }
 }
 
+// FIXME: this and the other *_prepare_* functions should return a `Result<>`
+//        but then how to handle in the ead-none case, when it should return `None`?
+//        that would require a lot of boilerplate on the calling side
 pub fn r_prepare_ead_2() -> Option<EADItem> {
-    let mut output: Option<EADItem> = None;
     let state = ead_responder_get_global_state();
 
     if let Some(voucher_response) = state.voucher_response {
@@ -366,23 +367,26 @@ pub fn r_prepare_ead_2() -> Option<EADItem> {
         let (_message_1, voucher, _opaque_state) =
             parse_voucher_response(&voucher_response).unwrap();
 
-        let mut voucher_value = EdhocMessageBuffer::new();
-        voucher_value.len = ENCODED_VOUCHER_LEN;
-        voucher_value.content[..ENCODED_VOUCHER_LEN].copy_from_slice(&voucher[..]);
-        output = Some(EADItem {
+        let voucher_value = voucher[..].try_into().unwrap();
+
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::Completed,
+            voucher_response: None,
+        });
+
+        Some(EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
             value: Some(voucher_value),
+        })
+    } else {
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::Error,
+            voucher_response: None,
         });
+
+        None
     }
-
-    // set as completed even if the voucher response is not present
-    ead_responder_set_global_state(EADResponderState {
-        protocol_state: EADResponderProtocolState::Completed,
-        voucher_response: None,
-    });
-
-    output
 }
 
 pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
@@ -404,6 +408,7 @@ fn parse_voucher_response(
     EDHOCError,
 > {
     let mut decoder = CBORDecoder::new(voucher_response.as_slice());
+
     let array_size = decoder.array()?;
     if !(2..=3).contains(&array_size) {
         return Err(EDHOCError::EADError);
@@ -428,9 +433,7 @@ fn parse_ead_1_value(
 ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
     let mut outer_decoder = CBORDecoder::new(value.as_slice());
     let voucher_info_seq = outer_decoder.bytes()?;
-
     let mut seq_decoder = CBORDecoder::new(voucher_info_seq);
-
     Ok((
         seq_decoder.str()?.try_into().unwrap(),
         seq_decoder.bytes()?.try_into().unwrap(),
@@ -505,8 +508,7 @@ fn mock_send_voucher_request<Crypto: CryptoTrait>(
 ) -> Result<EdhocMessageBuffer, EDHOCError> {
     let server_state = mock_ead_server_get_global_state();
 
-    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) =
-        parse_message_1(message_1).unwrap();
+    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) = parse_message_1(message_1)?;
 
     handle_voucher_request(
         crypto,
