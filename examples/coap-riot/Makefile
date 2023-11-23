@@ -4,8 +4,8 @@ APPLICATION = edhoc_coap_riot
 # If no BOARD is found in the environment, use this default:
 BOARD ?= native
 
-# This has to be the absolute path to the RIOT base directory:
-RIOTBASE ?= $(CURDIR)/../..
+# While RIOT is flexible here, our rust_riotmodules go through Cargo.toml, and that lacks the same flexibility.
+RIOTBASE = $(CURDIR)/RIOT/
 
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=20000
 
