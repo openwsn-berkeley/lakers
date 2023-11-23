@@ -65,28 +65,18 @@ jobs:
   generate-fstar:
     needs: unit-tests
     runs-on: ubuntu-latest
-    if: false
-    # FIXME: commenting out until we fix hax execution
-    # if: >-
-      # ((github.event_name == 'workflow_dispatch') || (github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')))
 
     steps:
     - name: Checkout edhoc-rs
       uses: actions/checkout@v3
 
-    - name: Checkout hacspec-v2
-      uses: actions/checkout@v3
-      with:
-        repository: 'hacspec/hacspec-v2'
-        path: hacspec-v2-repo
-
-    - name: Build hacspec-v2 docker image
-      run: docker build -f .docker/Dockerfile . -t hacspec-v2
-      working-directory: hacspec-v2-repo
-
-    - name: Generate fstar code using the main library and the hacspec crypto backend
+    - name: Generate fstar code over edhoc-rs and edhoc-consts
       run: |
-        docker run --rm -v ${{ github.workspace }}:/edhoc-rs hacspec-v2 bash -c "cd edhoc-rs && cargo-hax -C -p edhoc-rs -p edhoc-crypto -p edhoc-ead-none --no-default-features --features="crypto-hacspec, ead-none" --release \; into -i '-c_wrapper::** -edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar"
+        docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -e -c "
+        cd edhoc-rs
+        cargo-hax -C -p edhoc-rs --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
+        cargo-hax -C -p edhoc-consts \; into fstar
+        "
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
@@ -192,9 +182,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    # NOTE: uncomment the generate-fstar part once the hax part is fixed
-    # needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, generate-fstar, build-static-lib-and-headers]
-    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, build-static-lib-and-headers]
+    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, generate-fstar, build-static-lib-and-headers]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
@@ -202,11 +190,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      # - name: Download artifacts
-      #   uses: actions/download-artifact@v3
-      #   with:
-      #     name: fstar-code
-      #     path: ./release-artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: fstar-code
+          path: ./release-artifacts
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
