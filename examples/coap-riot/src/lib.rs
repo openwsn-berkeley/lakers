@@ -175,7 +175,7 @@ fn main_on_stack<S: UdpFullStack>(stack: &mut S) {
         match embedded_nal_minimal_coapserver::poll(stack, &mut sock, &mut handler) {
             Err(embedded_nal::nb::Error::WouldBlock) => {
                 // See <https://github.com/rust-embedded-community/embedded-nal/issues/47>
-                // std::thread::sleep(std::time::Duration::from_millis(50));
+                riot_wrappers::ztimer::Clock::msec().sleep_ticks(50);
             }
             e => e.expect("UDP error during send/receive"),
         }
