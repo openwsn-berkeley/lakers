@@ -115,7 +115,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
         match r_prepare_message_2(
             self.state,
             &mut self.crypto,
-            &self.cred_r,
+            self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             y,
             g_y,
@@ -322,7 +322,7 @@ pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Cry
         c_i as u8 // verbatim encoding of single byte integer
     } else if c_i < 0 && c_i >= -24 {
         // negative single byte integer encoding
-        CBOR_NEG_INT_1BYTE_START - 1 + (c_i.abs() as u8)
+        CBOR_NEG_INT_1BYTE_START - 1 + c_i.unsigned_abs()
     } else {
         0
     }
