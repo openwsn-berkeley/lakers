@@ -212,43 +212,43 @@ mod cbor {
     /// Check for: an unsigned integer encoded as a single byte
     #[inline(always)]
     pub fn is_cbor_uint_1byte(byte: u8) -> bool {
-        return byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END;
+        byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END
     }
 
     /// Check for: an unsigned integer encoded as two bytes
     #[inline(always)]
     pub fn is_cbor_uint_2bytes(byte: u8) -> bool {
-        return byte == CBOR_UINT_1BYTE;
+        byte == CBOR_UINT_1BYTE
     }
 
     /// Check for: a negative integer encoded as a single byte
     #[inline(always)]
     pub fn is_cbor_neg_int_1byte(byte: u8) -> bool {
-        return byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END;
+        byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END
     }
 
     /// Check for: a bstr denoted by a single byte which encodes both type and content length
     #[inline(always)]
     pub fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
-        return byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX;
+        byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX
     }
 
     /// Check for: a bstr denoted by two bytes, one for type the other for content length
     #[inline(always)]
     pub fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
-        return byte == CBOR_BYTE_STRING;
+        byte == CBOR_BYTE_STRING
     }
 
     /// Check for: a tstr denoted by two bytes, one for type the other for content length
     #[inline(always)]
     pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
-        return byte == CBOR_TEXT_STRING;
+        byte == CBOR_TEXT_STRING
     }
 
     /// Check for: an array denoted by a single byte which encodes both type and content length
     #[inline(always)]
     pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
-        return byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX;
+        byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX
     }
 }
 
@@ -301,19 +301,19 @@ mod helpers {
                 + COSE_KEY_FIRST_ITEMS_LEN
                 + P256_ELEM_LEN
         {
-            return Err(EDHOCError::ParsingError);
+            Err(EDHOCError::ParsingError)
+        } else {
+            let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
+            let id_cred_offset: usize = CCS_PREFIX_LEN + subject_len + CNF_AND_COSE_KEY_PREFIX_LEN;
+            let g_a_x_offset: usize = id_cred_offset + COSE_KEY_FIRST_ITEMS_LEN;
+
+            Ok((
+                cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
+                    .try_into()
+                    .expect("Wrong key length"),
+                cred[id_cred_offset],
+            ))
         }
-
-        let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
-        let id_cred_offset: usize = CCS_PREFIX_LEN + subject_len + CNF_AND_COSE_KEY_PREFIX_LEN;
-        let g_a_x_offset: usize = id_cred_offset + COSE_KEY_FIRST_ITEMS_LEN;
-
-        Ok((
-            cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
-                .try_into()
-                .expect("Wrong key length"),
-            cred[id_cred_offset],
-        ))
     }
 
     pub fn get_id_cred<'a>(cred: &'a [u8]) -> BytesIdCred {
