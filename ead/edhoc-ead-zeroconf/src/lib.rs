@@ -114,7 +114,7 @@ pub fn i_process_ead_2<Crypto: CryptoTrait>(
 
     // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
     let mut cred_v = EdhocMessageBuffer::new();
-    cred_v.fill_with_slice(cred_v_u8)?;
+    cred_v.fill_with_slice(cred_v_u8).unwrap();
 
     match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &state.prk) {
         Ok(voucher) => {
@@ -326,15 +326,14 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     ead_1: &EADItem,
     message_1: &EdhocMessageBuffer,
-) -> Result<(), ()> {
+) -> Result<(), EDHOCError> {
     let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
     if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
-        return Err(());
+        return Err(EDHOCError::EADError);
     }
-    let ead_1_value = ead_1.value.unwrap();
 
-    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1_value)?;
+    let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
     let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
     // TODO:
@@ -353,12 +352,14 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
             protocol_state: EADResponderProtocolState::Error,
             voucher_response: None,
         });
-        return Err(());
+        return Err(EDHOCError::EADError);
     }
 }
 
+// FIXME: this and the other *_prepare_* functions should return a `Result<>`
+//        but then how to handle in the ead-none case, when it should return `None`?
+//        that would require a lot of boilerplate on the calling side
 pub fn r_prepare_ead_2() -> Option<EADItem> {
-    let mut output: Option<EADItem> = None;
     let state = ead_responder_get_global_state();
 
     if let Some(voucher_response) = state.voucher_response {
@@ -366,23 +367,26 @@ pub fn r_prepare_ead_2() -> Option<EADItem> {
         let (_message_1, voucher, _opaque_state) =
             parse_voucher_response(&voucher_response).unwrap();
 
-        let mut voucher_value = EdhocMessageBuffer::new();
-        voucher_value.len = ENCODED_VOUCHER_LEN;
-        voucher_value.content[..ENCODED_VOUCHER_LEN].copy_from_slice(&voucher[..]);
-        output = Some(EADItem {
+        let voucher_value = voucher[..].try_into().unwrap();
+
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::Completed,
+            voucher_response: None,
+        });
+
+        Some(EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
             value: Some(voucher_value),
+        })
+    } else {
+        ead_responder_set_global_state(EADResponderState {
+            protocol_state: EADResponderProtocolState::Error,
+            voucher_response: None,
         });
+
+        None
     }
-
-    // set as completed even if the voucher response is not present
-    ead_responder_set_global_state(EADResponderState {
-        protocol_state: EADResponderProtocolState::Completed,
-        voucher_response: None,
-    });
-
-    output
 }
 
 pub fn r_process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
@@ -401,49 +405,23 @@ fn parse_voucher_response(
         BytesEncodedVoucher,
         Option<EdhocMessageBuffer>,
     ),
-    (),
+    EDHOCError,
 > {
-    let mut message_1 = EdhocMessageBuffer::new();
-    let mut voucher: BytesEncodedVoucher = Default::default();
+    let mut decoder = CBORDecoder::new(voucher_response.as_slice());
 
-    let array_byte = voucher_response.content[0];
-    let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
-
-    if array_size != 2 && array_size != 3 {
-        return Err(());
+    let array_size = decoder.array()?;
+    if !(2..=3).contains(&array_size) {
+        return Err(EDHOCError::EADError);
     }
 
-    let message_1_len = voucher_response.content[2] as usize;
-    if !is_cbor_bstr_2bytes_prefix(voucher_response.content[1])
-        || message_1_len > (voucher_response.len - ENCODED_VOUCHER_LEN)
-    {
-        return Err(());
-    }
-    message_1.fill_with_slice(&voucher_response.content[3..3 + message_1_len])?;
-
-    let voucher_byte = voucher_response.content[3 + message_1.len];
-    let voucher_len = (voucher_byte - (voucher_byte & CBOR_MAJOR_BYTE_STRING)) as usize;
-    if !is_cbor_bstr_1byte_prefix(voucher_byte) || voucher_len != ENCODED_VOUCHER_LEN {
-        return Err(());
-    }
-    voucher[..].copy_from_slice(
-        &voucher_response.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN],
-    );
+    let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
+    let voucher: BytesEncodedVoucher = decoder
+        .bytes_sized(ENCODED_VOUCHER_LEN)?
+        .try_into()
+        .unwrap();
 
     if array_size == 3 {
-        let opaque_state_len =
-            voucher_response.content[5 + message_1.len + ENCODED_VOUCHER_LEN] as usize;
-        if !is_cbor_bstr_2bytes_prefix(
-            voucher_response.content[4 + message_1.len + ENCODED_VOUCHER_LEN],
-        ) || opaque_state_len > (voucher_response.len - ENCODED_VOUCHER_LEN - message_1.len)
-        {
-            return Err(());
-        }
-        let mut opaque_state = EdhocMessageBuffer::new();
-        opaque_state.fill_with_slice(
-            &voucher_response.content[6 + message_1.len + ENCODED_VOUCHER_LEN
-                ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state_len],
-        )?;
+        let opaque_state: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
         return Ok((message_1, voucher, Some(opaque_state)));
     } else {
         return Ok((message_1, voucher, None));
@@ -452,31 +430,14 @@ fn parse_voucher_response(
 
 fn parse_ead_1_value(
     value: &EdhocMessageBuffer,
-) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), ()> {
-    let value_len = value.content[1] as usize;
-    if !is_cbor_bstr_2bytes_prefix(value.content[0]) || value_len != (value.len - 2) {
-        return Err(());
-    }
-
-    let loc_w_len = value.content[3] as usize;
-    if !is_cbor_tstr_2bytes_prefix(value.content[2]) || loc_w_len >= value_len {
-        return Err(());
-    }
-
-    let loc_w: EdhocMessageBuffer = value.content[4..4 + loc_w_len].try_into().unwrap();
-
-    let enc_id_len = (value.content[4 + loc_w_len] - CBOR_MAJOR_BYTE_STRING) as usize;
-    if !is_cbor_bstr_1byte_prefix(value.content[4 + loc_w_len])
-        || enc_id_len >= (value_len - loc_w_len)
-    {
-        return Err(());
-    }
-
-    let enc_id: EdhocMessageBuffer = value.content[5 + loc_w_len..5 + loc_w_len + enc_id_len]
-        .try_into()
-        .unwrap();
-
-    Ok((loc_w, enc_id))
+) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
+    let mut outer_decoder = CBORDecoder::new(value.as_slice());
+    let voucher_info_seq = outer_decoder.bytes()?;
+    let mut seq_decoder = CBORDecoder::new(voucher_info_seq);
+    Ok((
+        seq_decoder.str()?.try_into().unwrap(),
+        seq_decoder.bytes()?.try_into().unwrap(),
+    ))
 }
 
 pub fn encode_voucher_request(
@@ -544,11 +505,10 @@ fn mock_send_voucher_request<Crypto: CryptoTrait>(
     _loc_w: &EdhocMessageBuffer,
     voucher_request: &EdhocMessageBuffer,
     message_1: &EdhocMessageBuffer, // only needed to get g_x
-) -> Result<EdhocMessageBuffer, ()> {
+) -> Result<EdhocMessageBuffer, EDHOCError> {
     let server_state = mock_ead_server_get_global_state();
 
-    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) =
-        parse_message_1(message_1).unwrap();
+    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) = parse_message_1(message_1)?;
 
     handle_voucher_request(
         crypto,
@@ -565,7 +525,7 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
     cred_v: &EdhocMessageBuffer,
     w: &BytesP256ElemLen,   // TODO: have w be in the state of W
     g_x: &BytesP256ElemLen, // TODO: get g_x from message_1
-) -> Result<EdhocMessageBuffer, ()> {
+) -> Result<EdhocMessageBuffer, EDHOCError> {
     let (message_1, opaque_state) = parse_voucher_request(vreq)?;
 
     // compute hash
@@ -593,34 +553,17 @@ fn prepare_voucher<Crypto: CryptoTrait>(
 
 fn parse_voucher_request(
     vreq: &EdhocMessageBuffer,
-) -> Result<(EdhocMessageBuffer, Option<EdhocMessageBuffer>), ()> {
-    let mut message_1: EdhocMessageBuffer = EdhocMessageBuffer::new();
-
-    let array_byte = vreq.content[0];
-    let array_size = array_byte - (array_byte & CBOR_MAJOR_ARRAY);
-
+) -> Result<(EdhocMessageBuffer, Option<EdhocMessageBuffer>), EDHOCError> {
+    let mut decoder = CBORDecoder::new(vreq.as_slice());
+    let array_size = decoder.array()?;
     if array_size != 1 && array_size != 2 {
-        return Err(());
+        return Err(EDHOCError::EADError);
     }
 
-    let message_1_len = vreq.content[2] as usize;
-    if !is_cbor_bstr_2bytes_prefix(vreq.content[1]) || message_1_len > vreq.len {
-        return Err(());
-    }
-    message_1.fill_with_slice(&vreq.content[3..3 + message_1_len])?;
+    let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
 
     if array_size == 2 {
-        let opaque_state_len = vreq.content[4 + message_1.len] as usize;
-        if !is_cbor_bstr_2bytes_prefix(vreq.content[3 + message_1.len])
-            || opaque_state_len > (vreq.len - message_1.len)
-        {
-            return Err(());
-        }
-        let mut opaque_state: EdhocMessageBuffer = EdhocMessageBuffer::new();
-        opaque_state.fill_with_slice(
-            &vreq.content[5 + message_1.len..5 + message_1.len + opaque_state_len],
-        )?;
-
+        let opaque_state: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
         Ok((message_1, Some(opaque_state)))
     } else {
         Ok((message_1, None))
