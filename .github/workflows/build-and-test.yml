@@ -74,8 +74,13 @@ jobs:
       run: |
         docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -e -c "
         cd edhoc-rs
+
+        # generate the fstar files
         cargo-hax -C -p edhoc-rs --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
         cargo-hax -C -p edhoc-consts \; into fstar
+
+        # even if fstar generation was ok, fail if something is not implemented
+        [ -z "$(find -name *.fst -type f | xargs grep 'something is not implemented yet')" ]
         "
         zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
 
