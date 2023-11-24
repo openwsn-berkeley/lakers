@@ -187,7 +187,7 @@ impl EdhocMessageBuffer {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..len)
+        self.content.get(start..start + len)
     }
 
     pub fn as_slice(&self) -> &[u8] {
