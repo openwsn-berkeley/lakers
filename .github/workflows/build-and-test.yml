@@ -25,7 +25,9 @@ jobs:
         ref: "2023.10"
         path: examples/coap-riot/RIOT
     - name: Check if code is well formatted
-      run: cargo fmt --check
+      run: |
+        sed -i -E "s/rust_riotmodules.*//g" examples/coap-riot/Cargo.toml # avoid `cargo fmt` issues in examples/coap-riot
+        cargo fmt --check
 
   unit-tests: # run before build because it is faster
     needs: check-style
