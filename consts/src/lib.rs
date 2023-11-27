@@ -187,7 +187,7 @@ impl EdhocMessageBuffer {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..len)
+        self.content.get(start..start + len)
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -406,12 +406,9 @@ mod edhoc_parser {
     use super::*;
 
     pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
-        let ead_item;
-        let mut ead_value = None::<EdhocMessageBuffer>;
-
         // assuming label is a single byte integer (negative or positive)
         if let Some((&label, tail)) = buffer.split_first() {
-            let res = if CBORDecoder::is_u8(label) {
+            let label_res = if CBORDecoder::is_u8(label) {
                 // CBOR unsigned integer (0..=23)
                 Ok((label, false))
             } else if CBORDecoder::is_i8(label) {
@@ -421,15 +418,17 @@ mod edhoc_parser {
                 Err(EDHOCError::ParsingError)
             };
 
-            if let Ok((label, is_critical)) = res {
-                if tail.len() > 0 {
+            if let Ok((label, is_critical)) = label_res {
+                let ead_value = if tail.len() > 0 {
                     // EAD value is present
                     let mut buffer = EdhocMessageBuffer::new();
                     buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
                     buffer.len = tail.len();
-                    ead_value = Some(buffer);
-                }
-                ead_item = Some(EADItem {
+                    Some(buffer)
+                } else {
+                    None
+                };
+                let ead_item = Some(EADItem {
                     label,
                     is_critical,
                     value: ead_value,
@@ -447,20 +446,19 @@ mod edhoc_parser {
         mut decoder: CBORDecoder,
     ) -> Result<(BytesSuites, usize, CBORDecoder), EDHOCError> {
         let mut suites_i: BytesSuites = Default::default();
-        let suites_i_len: usize;
         if let Ok(curr) = decoder.current() {
             if CBOR_UINT_1BYTE_START == CBORDecoder::type_of(curr) {
                 suites_i[0] = decoder.u8()?;
-                suites_i_len = 1;
+                let suites_i_len = 1;
                 Ok((suites_i, suites_i_len, decoder))
             } else if CBOR_MAJOR_ARRAY == CBORDecoder::type_of(curr)
                 && CBORDecoder::info_of(curr) >= 2
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
-                suites_i_len = decoder.array()?;
-                if let Some(suites_i_used) = suites_i.get_mut(..suites_i_len) {
-                    for s in suites_i_used.iter_mut() {
-                        *s = decoder.u8()?;
+                let suites_i_len = decoder.array()?;
+                if suites_i_len <= suites_i.len() {
+                    for i in 0..suites_i_len {
+                        suites_i[i] = decoder.u8()?;
                     }
                     Ok((suites_i, suites_i_len, decoder))
                 } else {
@@ -705,28 +703,40 @@ mod cbor_decoder {
 
         /// Decode a `u8` value.
         pub fn u8(&mut self) -> Result<u8, CBORError> {
-            match self.read()? {
-                n @ 0..=0x17 => Ok(n),
-                0x18 => self.read(),
-                _ => Err(CBORError::DecodingError),
+            let n = self.read()?;
+            // NOTE: thid could be a `match` with `n @ 0x00..=0x17` clauses but hax doesn't support it
+            if (0..=0x17).contains(&n) {
+                Ok(n)
+            } else if 0x18 == n {
+                self.read()
+            } else {
+                Err(CBORError::DecodingError)
             }
         }
 
         /// Decode an `i8` value.
         pub fn i8(&mut self) -> Result<i8, CBORError> {
-            match self.read()? {
-                n @ 0x00..=0x17 => Ok(n as i8),
-                n @ 0x20..=0x37 => Ok(-1 - (n - 0x20) as i8),
-                _b => Err(CBORError::DecodingError),
+            let n = self.read()?;
+            if (0..=0x17).contains(&n) {
+                Ok(n as i8)
+            } else if (0x20..=0x37).contains(&n) {
+                Ok(-1 - (n - 0x20) as i8)
+            } else if 0x18 == n {
+                Ok(self.read()? as i8)
+            } else if 0x38 == n {
+                Ok(-1 - (self.read()? - 0x20) as i8)
+            } else {
+                Err(CBORError::DecodingError)
             }
         }
 
         /// Get the raw `i8` or `u8` value.
         pub fn int_raw(&mut self) -> Result<u8, CBORError> {
-            match self.read()? {
-                n @ 0x00..=0x17 => Ok(n),
-                n @ 0x20..=0x37 => Ok(n),
-                _b => Err(CBORError::DecodingError),
+            let n = self.read()?;
+            if (0..=0x17).contains(&n) || (0x20..=0x37).contains(&n) {
+                Ok(n)
+            } else {
+                Err(CBORError::DecodingError)
             }
         }
 
@@ -777,10 +787,12 @@ mod cbor_decoder {
 
         /// Decode a `u8` value into usize.
         pub fn as_usize(&mut self, b: u8) -> Result<usize, CBORError> {
-            match b {
-                n @ 0..=0x17 => Ok(usize::from(n)),
-                0x18 => self.read().map(usize::from),
-                _ => Err(CBORError::DecodingError),
+            if (0..=0x17).contains(&b) {
+                Ok(usize::from(b))
+            } else if 0x18 == b {
+                self.read().map(usize::from)
+            } else {
+                Err(CBORError::DecodingError)
             }
         }
 
