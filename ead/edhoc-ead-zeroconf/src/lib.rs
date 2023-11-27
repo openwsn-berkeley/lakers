@@ -80,7 +80,9 @@ pub fn i_prepare_ead_1<Crypto: CryptoTrait>(
     // PRK = EDHOC-Extract(salt, IKM)
     let prk = compute_prk(crypto, x, &state.g_w);
 
-    let enc_id = encrypt_enc_id(crypto, &prk, &state.id_u, ss);
+    // plaintext = (ID_U: bstr)
+    let encoded_id_u = encode_id_u(&state.id_u);
+    let enc_id = encrypt_enc_id(crypto, &prk, &encoded_id_u, ss);
     let value = Some(encode_ead_1_value(&state.loc_w, &enc_id));
 
     let ead_1 = EADItem {
@@ -156,7 +158,7 @@ fn verify_voucher<Crypto: CryptoTrait>(
     }
 }
 
-fn encode_enc_id_plaintext(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
+fn encode_id_u(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
     plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
@@ -169,19 +171,16 @@ fn encode_enc_id_plaintext(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
 fn encrypt_enc_id<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     prk: &BytesHashLen,
-    id_u: &EdhocMessageBuffer,
+    plaintext: &EdhocMessageBuffer,
     ss: u8,
 ) -> EdhocMessageBuffer {
     let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
-
-    // plaintext = (ID_U: bstr)
-    let plaintext = encode_enc_id_plaintext(id_u);
 
     // external_aad = (SS: int)
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
+    crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], plaintext)
 }
 
 fn compute_prk<Crypto: CryptoTrait>(
@@ -540,13 +539,21 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
     let prk = compute_prk(crypto, w, &g_x);
 
     let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
-    let _id_u = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
+    let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
+    let _id_u = decode_id_u(id_u_encoded)?;
 
-    // TODO: use id_u to perform authorization, e.g. if state.authorized_devices.contains(id_u)
+    // TODO: use id_u to perform authorization, e.g. if authorized_devices.contains(id_u) then proceed else stop
 
     let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
     let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
     Ok(voucher_response)
+}
+
+fn decode_id_u(id_u_bstr: EdhocMessageBuffer) -> Result<EdhocMessageBuffer, EDHOCError> {
+    // id_u is encoded as bstr
+    let mut decoder = CBORDecoder::new(id_u_bstr.as_slice());
+    let id_u: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
+    Ok(id_u)
 }
 
 fn decrypt_enc_id<Crypto: CryptoTrait>(
@@ -560,15 +567,7 @@ fn decrypt_enc_id<Crypto: CryptoTrait>(
     // external_aad = (SS: int)
     let enc_structure = encode_enc_structure(ss);
 
-    // // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    // let id_u_encoded = crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id)?;
-
-    // // id_u is encoded as bstr
-    // let mut decoder = CBORDecoder::new(id_u_encoded.as_slice());
-    // let id_u: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
-
-    // Ok(id_u)
-
+    // ENC_ID = 'ciphertext' of COSE_Encrypt0
     crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id)
 }
 
@@ -688,7 +687,7 @@ mod test_vectors {
     // inputs
     // U
     pub const ID_U_TV: &[u8] = &hex!("a104412b");
-    pub const ID_U_STR_TV: &[u8] = &hex!("44a104412b");
+    pub const ID_U_ENCODED_TV: &[u8] = &hex!("44a104412b");
     pub const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     pub const G_X_TV: &[u8] =
@@ -779,7 +778,7 @@ mod test_initiator {
         let enc_id = encrypt_enc_id(
             &mut default_crypto(),
             &PRK_TV.try_into().unwrap(),
-            &ID_U_TV.try_into().unwrap(),
+            &ID_U_ENCODED_TV.try_into().unwrap(),
             SS_TV,
         );
         assert_eq!(enc_id.content, enc_id_tv.content);
@@ -790,7 +789,7 @@ mod test_initiator {
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
         let mut prk_tv: BytesHashLen = Default::default();
         prk_tv[..].copy_from_slice(PRK_TV);
-        let id_u_str_tv: EdhocMessageBuffer = ID_U_STR_TV.try_into().unwrap();
+        let id_u_encoded_tv: EdhocMessageBuffer = ID_U_ENCODED_TV.try_into().unwrap();
 
         let id_u_res = decrypt_enc_id(
             &mut default_crypto(),
@@ -799,7 +798,7 @@ mod test_initiator {
             SS_TV,
         );
         assert!(id_u_res.is_ok());
-        assert_eq!(id_u_res.unwrap().content, id_u_str_tv.content);
+        assert_eq!(id_u_res.unwrap().content, id_u_encoded_tv.content);
     }
 
     #[test]
