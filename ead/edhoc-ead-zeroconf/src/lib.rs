@@ -156,6 +156,16 @@ fn verify_voucher<Crypto: CryptoTrait>(
     }
 }
 
+fn encode_enc_id_plaintext(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
+    // plaintext = (ID_U: bstr)
+    let mut plaintext = EdhocMessageBuffer::new();
+    plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
+    plaintext.content[1..1 + id_u.len].copy_from_slice(id_u.as_slice());
+    plaintext.len = 1 + id_u.len;
+
+    plaintext
+}
+
 fn encrypt_enc_id<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     prk: &BytesHashLen,
@@ -165,10 +175,7 @@ fn encrypt_enc_id<Crypto: CryptoTrait>(
     let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
 
     // plaintext = (ID_U: bstr)
-    let mut plaintext = EdhocMessageBuffer::new();
-    plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
-    plaintext.content[1..1 + id_u.len].copy_from_slice(id_u.as_slice());
-    plaintext.len = 1 + id_u.len;
+    let plaintext = encode_enc_id_plaintext(id_u);
 
     // external_aad = (SS: int)
     let enc_structure = encode_enc_structure(ss);
@@ -535,7 +542,7 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
     let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
     let _id_u = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
 
-    // TODO: perform authorization with id_u
+    // TODO: use id_u to perform authorization, e.g. if state.authorized_devices.contains(id_u)
 
     let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
     let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
@@ -550,15 +557,19 @@ fn decrypt_enc_id<Crypto: CryptoTrait>(
 ) -> Result<EdhocMessageBuffer, EDHOCError> {
     let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
 
-    // plaintext = (ID_U: bstr)
-
     // external_aad = (SS: int)
     let enc_structure = encode_enc_structure(ss);
 
-    // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    let res = crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id);
+    // // ENC_ID = 'ciphertext' of COSE_Encrypt0
+    // let id_u_encoded = crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id)?;
 
-    res
+    // // id_u is encoded as bstr
+    // let mut decoder = CBORDecoder::new(id_u_encoded.as_slice());
+    // let id_u: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
+
+    // Ok(id_u)
+
+    crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id)
 }
 
 fn prepare_voucher<Crypto: CryptoTrait>(

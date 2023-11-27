@@ -354,19 +354,13 @@ pub fn i_prepare_message_1(
 
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-    suites_i[0..EDHOC_SUPPORTED_SUITES.len()].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
+    let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
+    suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-    let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i.len() - 1]);
+    let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i_len - 1]);
 
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(
-        EDHOC_METHOD,
-        &suites_i,
-        EDHOC_SUPPORTED_SUITES.len(),
-        &g_x,
-        c_i,
-        &ead_1,
-    );
+    let message_1 = encode_message_1(EDHOC_METHOD, &suites_i, suites_i_len, &g_x, c_i, &ead_1);
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());

@@ -468,38 +468,35 @@ mod test {
     }
 
     // U
-    const U_TV: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const ID_U_TV: &[u8] = &hex!("a104412b");
 
-    // V
-    pub const CRED_V_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    // V -- nothing to do, will reuse CRED_R from above to act as CRED_V
 
     // W
     pub const W_TV: &[u8] =
         &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
-    const G_W: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
-    const LOC_W: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
+    const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
+    const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_zeroconf() {
-        let state_initiator = Default::default();
-        let mut initiator = EdhocInitiator::new(state_initiator, default_crypto(), I, CRED_I, None);
-        let state_responder = Default::default();
+        // ==== initialize edhoc ====
+        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
         let responder = EdhocResponder::new(
-            state_responder,
+            Default::default(),
             default_crypto(),
             R,
-            CRED_V_TV,
+            CRED_R,
             Some(CRED_I),
         );
 
-        let u: BytesP256ElemLen = U_TV.try_into().unwrap();
+        // ==== initialize ead-zeroconf ====
         let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W.try_into().unwrap();
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
+        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
 
+        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
         let ead_initiator_state = ead_initiator_get_global_state();
         assert_eq!(
             ead_initiator_state.protocol_state,
@@ -513,11 +510,7 @@ mod test {
             EADResponderProtocolState::Start
         );
 
-        let w: BytesP256ElemLen = W_TV.try_into().unwrap();
-        mock_ead_server_set_global_state(MockEADServerState::new(
-            CRED_V_TV,
-            W_TV.try_into().unwrap(),
-        ));
+        mock_ead_server_set_global_state(MockEADServerState::new(CRED_R, W_TV.try_into().unwrap()));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
@@ -526,6 +519,7 @@ mod test {
             EADInitiatorProtocolState::WaitEAD2
         );
 
+        // ==== begin edhoc with ead-zeroconf ====
         let responder = responder.process_message_1(&message_1).unwrap();
         assert_eq!(
             ead_responder_state.protocol_state,
