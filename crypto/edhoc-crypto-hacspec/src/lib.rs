@@ -149,11 +149,7 @@ impl CryptoTrait for Crypto {
         let ciphertext = BufferCiphertext3Hacspec::from_public_buffer(ciphertext);
 
         match decrypt_ccm(
-            ByteSeq::from_slice(
-                &BytesEncStructureLenHacspec::from_public_slice(ad),
-                0,
-                ad.len(),
-            ),
+            ByteSeq::from_public_slice(ad),
             ByteSeq::from_slice(&BytesCcmIvLenHacspec::from_public_slice(iv), 0, iv.len()),
             Key128::from_slice(&BytesCcmKeyLenHacspec::from_public_slice(key), 0, key.len()),
             ByteSeq::from_slice(&ciphertext.content, 0, ciphertext.len),
