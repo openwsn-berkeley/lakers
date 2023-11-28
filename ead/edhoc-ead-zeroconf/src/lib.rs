@@ -80,7 +80,9 @@ pub fn i_prepare_ead_1<Crypto: CryptoTrait>(
     // PRK = EDHOC-Extract(salt, IKM)
     let prk = compute_prk(crypto, x, &state.g_w);
 
-    let enc_id = build_enc_id(crypto, &prk, &state.id_u, ss);
+    // plaintext = (ID_U: bstr)
+    let encoded_id_u = encode_id_u(&state.id_u);
+    let enc_id = encrypt_enc_id(crypto, &prk, &encoded_id_u, ss);
     let value = Some(encode_ead_1_value(&state.loc_w, &enc_id));
 
     let ead_1 = EADItem {
@@ -156,25 +158,29 @@ fn verify_voucher<Crypto: CryptoTrait>(
     }
 }
 
-fn build_enc_id<Crypto: CryptoTrait>(
-    crypto: &mut Crypto,
-    prk: &BytesHashLen,
-    id_u: &EdhocMessageBuffer,
-    ss: u8,
-) -> EdhocMessageBuffer {
-    let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
-
+fn encode_id_u(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
     plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
     plaintext.content[1..1 + id_u.len].copy_from_slice(id_u.as_slice());
     plaintext.len = 1 + id_u.len;
 
+    plaintext
+}
+
+fn encrypt_enc_id<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    plaintext: &EdhocMessageBuffer,
+    ss: u8,
+) -> EdhocMessageBuffer {
+    let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
+
     // external_aad = (SS: int)
     let enc_structure = encode_enc_structure(ss);
 
     // ENC_ID = 'ciphertext' of COSE_Encrypt0
-    crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &plaintext)
+    crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], plaintext)
 }
 
 fn compute_prk<Crypto: CryptoTrait>(
@@ -339,7 +345,7 @@ pub fn r_process_ead_1<Crypto: CryptoTrait>(
     // TODO:
     // - implement voucher_response = send_voucher_request(&loc_w, &voucher_request);
     // - save voucher_response in global state
-    let voucher_response = mock_send_voucher_request(crypto, &loc_w, &voucher_request, message_1);
+    let voucher_response = mock_send_voucher_request(crypto, &loc_w, &voucher_request);
 
     if let Ok(voucher_response) = voucher_response {
         ead_responder_set_global_state(EADResponderState {
@@ -504,18 +510,14 @@ fn mock_send_voucher_request<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     _loc_w: &EdhocMessageBuffer,
     voucher_request: &EdhocMessageBuffer,
-    message_1: &EdhocMessageBuffer, // only needed to get g_x
 ) -> Result<EdhocMessageBuffer, EDHOCError> {
     let server_state = mock_ead_server_get_global_state();
-
-    let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) = parse_message_1(message_1)?;
 
     handle_voucher_request(
         crypto,
         voucher_request,
         &server_state.cred_v,
         &server_state.w,
-        &g_x,
     )
 }
 
@@ -523,21 +525,50 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     vreq: &EdhocMessageBuffer,
     cred_v: &EdhocMessageBuffer,
-    w: &BytesP256ElemLen,   // TODO: have w be in the state of W
-    g_x: &BytesP256ElemLen, // TODO: get g_x from message_1
+    w: &BytesP256ElemLen, // TODO: have w be in the state of W
 ) -> Result<EdhocMessageBuffer, EDHOCError> {
     let (message_1, opaque_state) = parse_voucher_request(vreq)?;
+
+    let (_method, _suites_i, _suites_i_len, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
 
     // compute hash
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-    let prk = compute_prk(crypto, w, g_x);
+    let prk = compute_prk(crypto, w, &g_x);
+
+    let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
+    let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
+    let _id_u = decode_id_u(id_u_encoded)?;
+
+    // TODO: use id_u to perform authorization, e.g. if authorized_devices.contains(id_u) then proceed else stop
 
     let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
     let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
     Ok(voucher_response)
+}
+
+fn decode_id_u(id_u_bstr: EdhocMessageBuffer) -> Result<EdhocMessageBuffer, EDHOCError> {
+    // id_u is encoded as bstr
+    let mut decoder = CBORDecoder::new(id_u_bstr.as_slice());
+    let id_u: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
+    Ok(id_u)
+}
+
+fn decrypt_enc_id<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    enc_id: &EdhocMessageBuffer,
+    ss: u8,
+) -> Result<EdhocMessageBuffer, EDHOCError> {
+    let (k_1, iv_1) = compute_k_1_iv_1(crypto, &prk);
+
+    // external_aad = (SS: int)
+    let enc_structure = encode_enc_structure(ss);
+
+    // ENC_ID = 'ciphertext' of COSE_Encrypt0
+    crypto.aes_ccm_decrypt_tag_8(&k_1, &iv_1, &enc_structure[..], &enc_id)
 }
 
 fn prepare_voucher<Crypto: CryptoTrait>(
@@ -656,6 +687,7 @@ mod test_vectors {
     // inputs
     // U
     pub const ID_U_TV: &[u8] = &hex!("a104412b");
+    pub const ID_U_ENCODED_TV: &[u8] = &hex!("44a104412b");
     pub const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     pub const G_X_TV: &[u8] =
@@ -740,16 +772,33 @@ mod test_initiator {
     }
 
     #[test]
-    fn test_build_enc_id() {
+    fn test_encrypt_enc_id() {
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
-        let enc_id = build_enc_id(
+        let enc_id = encrypt_enc_id(
             &mut default_crypto(),
             &PRK_TV.try_into().unwrap(),
-            &ID_U_TV.try_into().unwrap(),
+            &ID_U_ENCODED_TV.try_into().unwrap(),
             SS_TV,
         );
         assert_eq!(enc_id.content, enc_id_tv.content);
+    }
+
+    #[test]
+    fn test_decrypt_enc_id() {
+        let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
+        let mut prk_tv: BytesHashLen = Default::default();
+        prk_tv[..].copy_from_slice(PRK_TV);
+        let id_u_encoded_tv: EdhocMessageBuffer = ID_U_ENCODED_TV.try_into().unwrap();
+
+        let id_u_res = decrypt_enc_id(
+            &mut default_crypto(),
+            &prk_tv,
+            &ENC_ID_TV.try_into().unwrap(),
+            SS_TV,
+        );
+        assert!(id_u_res.is_ok());
+        assert_eq!(id_u_res.unwrap().content, id_u_encoded_tv.content);
     }
 
     #[test]
@@ -986,7 +1035,6 @@ mod test_enrollment_server {
             &voucher_request_tv,
             &cred_v_tv,
             &w_tv,
-            &g_x_tv,
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
@@ -1052,7 +1100,6 @@ mod test_stateless_operation {
             &voucher_request_tv,
             &cred_v_tv,
             &w_tv,
-            &g_x_tv,
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
