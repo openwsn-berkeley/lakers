@@ -11,7 +11,8 @@ CFLAGS += -DTHREAD_STACKSIZE_MAIN=20000
 
 # Basic networking, and gcoap
 USEMODULE += gcoap # just here because it pulls some useful depdenencies that enable riot_wrappers::socket_embedded_nal
-USEMODULE += netdev_default
+# USEMODULE += netdev_default
+USEMODULE += usbus_cdc_ecm
 USEMODULE += auto_init_gnrc_netif
 USEMODULE += gnrc_ipv6_default
 USEMODULE += gnrc_icmpv6_echo
