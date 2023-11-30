@@ -186,6 +186,16 @@ impl EdhocMessageBuffer {
         self.content.get(index).copied()
     }
 
+    pub fn push(&mut self, item: u8) -> Result<(), ()> {
+        if self.len < self.content.len() {
+            self.content[self.len] = item;
+            self.len += 1;
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
         self.content.get(start..start + len)
     }

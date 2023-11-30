@@ -510,7 +510,14 @@ mod test {
             EADResponderProtocolState::Start
         );
 
-        mock_ead_server_set_global_state(MockEADServerState::new(CRED_R, W_TV.try_into().unwrap()));
+        let mut acl = EdhocMessageBuffer::new();
+        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
+        acl.push(kid_i).unwrap();
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_R,
+            W_TV.try_into().unwrap(),
+            Some(acl),
+        ));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
