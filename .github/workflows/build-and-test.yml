@@ -35,7 +35,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Run unit tests # note that we only add `--package edhoc-ead-zeroconf` when testing with that config
+    - name: Run unit tests with default features
+      run: RUST_BACKTRACE=1 cargo test
+
+    - name: Run unit tests with feature matrix # note that we only add `--package edhoc-ead-zeroconf` when testing with that config
       run: RUST_BACKTRACE=1 cargo test -p edhoc-rs -p edhoc-crypto -p edhoc-consts ${{ matrix.ead == 'ead-zeroconf' && '-p edhoc-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
