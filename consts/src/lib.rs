@@ -127,34 +127,34 @@ pub enum EDHOCError {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct State<Phase: EDHOCState>(
-    pub PhantomData<Phase>,
-    pub BytesP256ElemLen, // x or y, ephemeral private key of myself
-    pub u8,               // c_i, connection identifier chosen by the initiator
-    pub BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
-    pub BytesHashLen,     // prk_3e2m
-    pub BytesHashLen,     // prk_4e3m
-    pub BytesHashLen,     // prk_out
-    pub BytesHashLen,     // prk_exporter
-    pub BytesHashLen,     // h_message_1
-    pub BytesHashLen,     // th_3
-);
+pub struct State<Phase: EDHOCState> {
+    pub current_state: PhantomData<Phase>,
+    pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
+    pub c_i: u8,                    // connection identifier chosen by the initiator
+    pub gy_or_gx: BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
+    pub prk_3e2m: BytesHashLen,
+    pub prk_4e3m: BytesHashLen,
+    pub prk_out: BytesHashLen,
+    pub prk_exporter: BytesHashLen,
+    pub h_message_1: BytesHashLen,
+    pub th_3: BytesHashLen,
+}
 
 impl Default for State<Start> {
     fn default() -> Self {
         // This is also what `#[derive(Default)]` would do, but we can't limit that to Start.
-        State(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        )
+        State {
+            current_state: Default::default(),
+            x_or_y: Default::default(),
+            c_i: Default::default(),
+            gy_or_gx: Default::default(),
+            prk_3e2m: Default::default(),
+            prk_4e3m: Default::default(),
+            prk_out: Default::default(),
+            prk_exporter: Default::default(),
+            h_message_1: Default::default(),
+            th_3: Default::default(),
+        }
     }
 }
 

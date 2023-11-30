@@ -10,20 +10,14 @@ pub fn edhoc_exporter(
     context_len: usize,
     length: usize,
 ) -> BytesMaxBuffer {
-    let State(
-        _current_state,
-        _x_or_y,
-        _c_i,
-        _gy_or_gx,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        prk_exporter,
-        _h_message_1,
-        _th_3,
-    ) = state;
-
-    edhoc_kdf(crypto, prk_exporter, label, context, context_len, length)
+    edhoc_kdf(
+        crypto,
+        &state.prk_exporter,
+        label,
+        context,
+        context_len,
+        length,
+    )
 }
 
 pub fn edhoc_key_update(
@@ -39,26 +33,26 @@ pub fn edhoc_key_update(
     // new PRK_out
     let prk_new_buf = edhoc_kdf(
         crypto,
-        &state.6,
+        &state.prk_out,
         11u8,
         context,
         context_len,
         SHA256_DIGEST_LEN,
     );
-    state.6[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
     let prk_new_buf = edhoc_kdf(
         crypto,
-        &state.6,
+        &state.prk_out,
         10u8,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         SHA256_DIGEST_LEN,
     );
-    state.7[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    state.6
+    state.prk_out
 }
 
 pub fn r_process_message_1(
@@ -66,19 +60,6 @@ pub fn r_process_message_1(
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
 ) -> Result<State<ProcessedMessage1>, EDHOCError> {
-    let State(
-        _current_state,
-        _y,
-        _c_i,
-        _g_x,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        _h_message_1,
-        _th_3,
-    ) = state;
-
     // Step 1: decode message_1
     // g_x will be saved to the state
     let res = parse_message_1(message_1);
@@ -100,18 +81,18 @@ pub fn r_process_message_1(
                     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
                     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-                    let state = State(
-                        PhantomData,
-                        _y,
+                    let state = State {
+                        current_state: PhantomData,
+                        x_or_y: state.x_or_y,
                         c_i,
-                        g_x,
-                        _prk_3e2m,
-                        _prk_4e3m,
-                        _prk_out,
-                        _prk_exporter,
+                        gy_or_gx: g_x,
+                        prk_3e2m: state.prk_3e2m,
+                        prk_4e3m: state.prk_4e3m,
+                        prk_out: state.prk_out,
+                        prk_exporter: state.prk_exporter,
                         h_message_1,
-                        _th_3,
-                    );
+                        th_3: state.th_3,
+                    };
                     Ok(state)
                 } else {
                     Err(EDHOCError::EADError)
@@ -136,26 +117,13 @@ pub fn r_prepare_message_2(
     g_y: BytesP256ElemLen,
     c_r: u8,
 ) -> Result<(State<WaitMessage3>, BufferMessage2), EDHOCError> {
-    let State(
-        _current_state,
-        mut _y,
-        _c_i,
-        g_x,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        h_message_1,
-        _th_3,
-    ) = state;
-
     // compute TH_2
-    let th_2 = compute_th_2(crypto, &g_y, &h_message_1);
+    let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(crypto, &y, &g_x, &th_2);
+    let prk_2e = compute_prk_2e(crypto, &y, &state.gy_or_gx, &th_2);
     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
-    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &state.gy_or_gx);
 
     // compute MAC_2
     let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r)?, cred_r, &th_2);
@@ -186,43 +154,30 @@ pub fn r_prepare_message_2(
 
     let message_2 = encode_message_2(&g_y, &ct);
 
-    let state = State(
-        PhantomData,
-        y,
-        _c_i,
-        g_x,
-        prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        h_message_1,
-        th_3,
-    );
+    let state = State {
+        current_state: PhantomData,
+        x_or_y: y,
+        c_i: state.c_i,
+        gy_or_gx: state.gy_or_gx,
+        prk_3e2m: prk_3e2m,
+        prk_4e3m: state.prk_4e3m,
+        prk_out: state.prk_out,
+        prk_exporter: state.prk_exporter,
+        h_message_1: state.h_message_1,
+        th_3: th_3,
+    };
 
     Ok((state, message_2))
 }
 
 // FIXME fetch ID_CRED_I and CRED_I based on kid
 pub fn r_process_message_3(
-    state: State<WaitMessage3>,
+    state: &mut State<WaitMessage3>,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
     cred_i_expected: Option<&[u8]>,
 ) -> Result<(State<Completed>, BytesHashLen), EDHOCError> {
-    let State(
-        _current_state,
-        y,
-        _c_i,
-        _g_x,
-        prk_3e2m,
-        _prk_4e3m,
-        mut prk_out,
-        mut prk_exporter,
-        _h_message_1,
-        th_3,
-    ) = state;
-
-    let plaintext_3 = decrypt_message_3(crypto, &prk_3e2m, &th_3, message_3);
+    let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
         let decoded_p3_res = decode_plaintext_3(&plaintext_3);
@@ -256,22 +211,22 @@ pub fn r_process_message_3(
                     // verify mac_3
 
                     // compute salt_4e3m
-                    let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
+                    let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
                     // TODO compute prk_4e3m
-                    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &y, &g_i);
+                    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.x_or_y, &g_i);
 
                     // compute mac_3
                     let expected_mac_3 = compute_mac_3(
                         crypto,
                         &prk_4e3m,
-                        &th_3,
+                        &state.th_3,
                         &get_id_cred(valid_cred_i)?,
                         valid_cred_i,
                     );
 
                     // verify mac_3
                     if mac_3 == expected_mac_3 {
-                        let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, valid_cred_i);
+                        let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, valid_cred_i);
 
                         let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
                         th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -285,6 +240,7 @@ pub fn r_process_message_3(
                             th_4.len(),
                             SHA256_DIGEST_LEN,
                         );
+                        let mut prk_out: BytesHashLen = Default::default();
                         prk_out[..SHA256_DIGEST_LEN]
                             .copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
@@ -298,21 +254,21 @@ pub fn r_process_message_3(
                             0,
                             SHA256_DIGEST_LEN,
                         );
-                        prk_exporter[..SHA256_DIGEST_LEN]
+                        state.prk_exporter[..SHA256_DIGEST_LEN]
                             .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-                        let state = State(
-                            PhantomData,
-                            y,
-                            _c_i,
-                            _g_x,
-                            prk_3e2m,
-                            prk_4e3m,
-                            prk_out,
-                            prk_exporter,
-                            _h_message_1,
-                            th_3,
-                        );
+                        let state = State {
+                            current_state: PhantomData,
+                            x_or_y: state.x_or_y,
+                            c_i: state.c_i,
+                            gy_or_gx: state.gy_or_gx,
+                            prk_3e2m: state.prk_3e2m,
+                            prk_4e3m: state.prk_4e3m,
+                            prk_out: prk_out,
+                            prk_exporter: state.prk_exporter,
+                            h_message_1: state.h_message_1,
+                            th_3: state.th_3,
+                        };
                         Ok((state, prk_out))
                     } else {
                         Err(EDHOCError::MacVerificationFailed)
@@ -339,19 +295,6 @@ pub fn i_prepare_message_1(
     g_x: BytesP256ElemLen,
     c_i: u8,
 ) -> Result<(State<WaitMessage2>, BufferMessage1), EDHOCError> {
-    let State(
-        _current_state,
-        mut _x,
-        mut _c_i,
-        _g_y,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        _h_message_1,
-        _th_3,
-    ) = state;
-
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
     let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
@@ -368,18 +311,18 @@ pub fn i_prepare_message_1(
     // hash message_1 here to avoid saving the whole message in the state
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-    let state = State(
-        PhantomData,
-        x,
-        c_i,
-        _g_y,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        h_message_1,
-        _th_3,
-    );
+    let state = State {
+        current_state: PhantomData,
+        x_or_y: x,
+        c_i: c_i,
+        gy_or_gx: state.gy_or_gx,
+        prk_3e2m: state.prk_3e2m,
+        prk_4e3m: state.prk_4e3m,
+        prk_out: state.prk_out,
+        prk_exporter: state.prk_exporter,
+        h_message_1: h_message_1,
+        th_3: state.th_3,
+    };
 
     Ok((state, message_1))
 }
@@ -392,27 +335,14 @@ pub fn i_process_message_2(
     cred_r_expected: Option<&[u8]>,
     i: &BytesP256ElemLen, // I's static private DH key
 ) -> Result<(State<ProcessedMessage2>, u8, u8), EDHOCError> {
-    let State(
-        _current_state,
-        x,
-        _c_i,
-        _g_y,
-        _prk_3e2m,
-        _prk_4e3m,
-        _prk_out,
-        _prk_exporter,
-        h_message_1,
-        _th_3,
-    ) = state;
-
     let mut kid = 0xffu8; // invalidate kid
 
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
-        let th_2 = compute_th_2(crypto, &g_y, &h_message_1);
+        let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
 
         // compute prk_2e
-        let prk_2e = compute_prk_2e(crypto, &x, &g_y, &th_2);
+        let prk_2e = compute_prk_2e(crypto, &state.x_or_y, &g_y, &th_2);
 
         let plaintext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ciphertext_2);
 
@@ -435,7 +365,7 @@ pub fn i_process_message_2(
                     // at this point, in case of EAD = zeroconf, if it works it means that:
                     // - the Voucher has been verified
                     // - the received valid_cred_r (aka cred_v) has been authenticated
-                    i_process_ead_2(crypto, ead_2, valid_cred_r, &h_message_1)
+                    i_process_ead_2(crypto, ead_2, valid_cred_r, &state.h_message_1)
                 } else {
                     Ok(())
                 };
@@ -444,7 +374,7 @@ pub fn i_process_message_2(
                     // verify mac_2
                     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
 
-                    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &x, &g_r);
+                    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x_or_y, &g_r);
 
                     let expected_mac_2 = compute_mac_2(
                         crypto,
@@ -464,18 +394,18 @@ pub fn i_process_message_2(
 
                         let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
 
-                        let state = State(
-                            PhantomData,
-                            x,
-                            _c_i,
-                            g_y,
-                            prk_3e2m,
-                            prk_4e3m,
-                            _prk_out,
-                            _prk_exporter,
-                            h_message_1,
-                            th_3,
-                        );
+                        let state = State {
+                            current_state: PhantomData,
+                            x_or_y: state.x_or_y,
+                            c_i: state.c_i,
+                            gy_or_gx: state.gy_or_gx,
+                            prk_3e2m: prk_3e2m,
+                            prk_4e3m: prk_4e3m,
+                            prk_out: state.prk_out,
+                            prk_exporter: state.prk_exporter,
+                            h_message_1: state.h_message_1,
+                            th_3: th_3,
+                        };
 
                         Ok((state, c_r, kid))
                     } else {
@@ -496,32 +426,19 @@ pub fn i_process_message_2(
 }
 
 pub fn i_prepare_message_3(
-    state: State<ProcessedMessage2>,
+    state: &mut State<ProcessedMessage2>,
     crypto: &mut impl CryptoTrait,
     id_cred_i: &BytesIdCred,
     cred_i: &[u8],
 ) -> Result<(State<Completed>, BufferMessage3, BytesHashLen), EDHOCError> {
-    let State(
-        _current_state,
-        _x,
-        _c_i,
-        _g_y,
-        prk_3e2m,
-        prk_4e3m,
-        mut prk_out,
-        mut prk_exporter,
-        _h_message_1,
-        th_3,
-    ) = state;
-
-    let mac_3 = compute_mac_3(crypto, &prk_4e3m, &th_3, id_cred_i, cred_i);
+    let mac_3 = compute_mac_3(crypto, &state.prk_4e3m, &state.th_3, id_cred_i, cred_i);
 
     let ead_3 = i_prepare_ead_3();
 
     let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
-    let message_3 = encrypt_message_3(crypto, &prk_3e2m, &th_3, &plaintext_3);
+    let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
-    let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, cred_i);
+    let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i);
 
     let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
     th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -530,12 +447,13 @@ pub fn i_prepare_message_3(
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
     let prk_out_buf = edhoc_kdf(
         crypto,
-        &prk_4e3m,
+        &state.prk_4e3m,
         7u8,
         &th_4_buf,
         th_4.len(),
         SHA256_DIGEST_LEN,
     );
+    let mut prk_out: BytesHashLen = Default::default();
     prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
     // compute prk_exporter from prk_out
@@ -548,20 +466,20 @@ pub fn i_prepare_message_3(
         0,
         SHA256_DIGEST_LEN,
     );
-    prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-    let state = State(
-        PhantomData,
-        _x,
-        _c_i,
-        _g_y,
-        prk_3e2m,
-        prk_4e3m,
-        prk_out,
-        prk_exporter,
-        _h_message_1,
-        th_3,
-    );
+    let state = State {
+        current_state: PhantomData,
+        x_or_y: state.x_or_y,
+        c_i: state.c_i,
+        gy_or_gx: state.gy_or_gx,
+        prk_3e2m: state.prk_3e2m,
+        prk_4e3m: state.prk_4e3m,
+        prk_out: prk_out,
+        prk_exporter: state.prk_exporter,
+        h_message_1: state.h_message_1,
+        th_3: state.th_3,
+    };
 
     Ok((state, message_3, prk_out))
 }
