@@ -10,7 +10,7 @@ use edhoc::*;
 
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
-    state: State<Start>,      // opaque state
+    state: EdhocState<Start>, // opaque state
     i: &'a [u8],              // private authentication key of I
     cred_i: &'a [u8],         // I's full credential
     cred_r: Option<&'a [u8]>, // R's full credential (if provided)
@@ -19,29 +19,29 @@ pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
-    state: State<WaitMessage2>, // opaque state
-    i: &'a [u8],                // private authentication key of I
-    cred_i: &'a [u8],           // I's full credential
-    cred_r: Option<&'a [u8]>,   // R's full credential (if provided)
+    state: EdhocState<WaitMessage2>, // opaque state
+    i: &'a [u8],                     // private authentication key of I
+    cred_i: &'a [u8],                // I's full credential
+    cred_r: Option<&'a [u8]>,        // R's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
-    state: State<ProcessedMessage2>, // opaque state
-    cred_i: &'a [u8],                // I's full credential
+    state: EdhocState<ProcessedMessage2>, // opaque state
+    cred_i: &'a [u8],                     // I's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: State<Completed>,
+    state: EdhocState<Completed>,
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
-    state: State<Start>,      // opaque state
+    state: EdhocState<Start>, // opaque state
     r: &'a [u8],              // private authentication key of R
     cred_r: &'a [u8],         // R's full credential
     cred_i: Option<&'a [u8]>, // I's full credential (if provided)
@@ -50,29 +50,29 @@ pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocResponderBuildM2<'a, Crypto: CryptoTrait> {
-    state: State<ProcessedMessage1>, // opaque state
-    r: &'a [u8],                     // private authentication key of R
-    cred_r: &'a [u8],                // R's full credential
-    cred_i: Option<&'a [u8]>,        // I's full credential (if provided)
+    state: EdhocState<ProcessedMessage1>, // opaque state
+    r: &'a [u8],                          // private authentication key of R
+    cred_r: &'a [u8],                     // R's full credential
+    cred_i: Option<&'a [u8]>,             // I's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderWaitM3<'a, Crypto: CryptoTrait> {
-    state: State<WaitMessage3>, // opaque state
-    cred_i: Option<&'a [u8]>,   // I's full credential (if provided)
+    state: EdhocState<WaitMessage3>, // opaque state
+    cred_i: Option<&'a [u8]>,        // I's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderDone<Crypto: CryptoTrait> {
-    state: State<Completed>,
+    state: EdhocState<Completed>,
     crypto: Crypto,
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn new(
-        state: State<Start>,
+        state: EdhocState<Start>,
         crypto: Crypto,
         r: &'a [u8],
         cred_r: &'a [u8],
@@ -139,7 +139,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
         mut self,
         message_3: &BufferMessage3,
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match r_process_message_3(self.state, &mut self.crypto, message_3, self.cred_i) {
+        match r_process_message_3(&mut self.state, &mut self.crypto, message_3, self.cred_i) {
             Ok((state, prk_out)) => Ok((
                 EdhocResponderDone {
                     state,
@@ -187,7 +187,7 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
     pub fn new(
-        state: State<Start>,
+        state: EdhocState<Start>,
         crypto: Crypto,
         i: &'a [u8],
         cred_i: &'a [u8],
@@ -265,7 +265,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
         EDHOCError,
     > {
         match i_prepare_message_3(
-            self.state,
+            &mut self.state,
             &mut self.crypto,
             &get_id_cred(self.cred_i)?,
             self.cred_i,
