@@ -478,6 +478,7 @@ mod test {
     const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
     const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
+    // TODO: have a setup_test function that prepares the common objects for the ead tests
     #[cfg(feature = "ead-zeroconf")]
     #[test]
     fn test_ead_zeroconf() {
@@ -510,7 +511,14 @@ mod test {
             EADResponderProtocolState::Start
         );
 
-        mock_ead_server_set_global_state(MockEADServerState::new(CRED_R, W_TV.try_into().unwrap()));
+        let mut acl = EdhocMessageBuffer::new();
+        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
+        acl.push(kid_i).unwrap();
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_R,
+            W_TV.try_into().unwrap(),
+            Some(acl),
+        ));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
@@ -547,6 +555,62 @@ mod test {
         assert_eq!(
             ead_responder_state.protocol_state,
             EADResponderProtocolState::Completed
+        );
+    }
+
+    #[cfg(feature = "ead-zeroconf")]
+    #[test]
+    fn test_ead_zeroconf_not_authorized() {
+        // ==== initialize edhoc ====
+        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
+        let responder = EdhocResponder::new(
+            Default::default(),
+            default_crypto(),
+            R,
+            CRED_R,
+            Some(CRED_I),
+        );
+
+        // ==== initialize ead-zeroconf ====
+        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
+        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
+        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
+
+        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
+        let ead_initiator_state = ead_initiator_get_global_state();
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::Start
+        );
+
+        ead_responder_set_global_state(EADResponderState::new());
+        let ead_responder_state = ead_responder_get_global_state();
+        assert_eq!(
+            ead_responder_state.protocol_state,
+            EADResponderProtocolState::Start
+        );
+
+        let mut acl = EdhocMessageBuffer::new();
+        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
+        let invalid_kid = kid_i + 1;
+        acl.push(invalid_kid).unwrap();
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_R,
+            W_TV.try_into().unwrap(),
+            Some(acl),
+        ));
+
+        let c_i = generate_connection_identifier_cbor(&mut default_crypto());
+        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
+        assert_eq!(
+            ead_initiator_state.protocol_state,
+            EADInitiatorProtocolState::WaitEAD2
+        );
+
+        // ==== begin edhoc with ead-zeroconf ====
+        assert_eq!(
+            responder.process_message_1(&message_1).unwrap_err(),
+            EDHOCError::EADError
         );
     }
 }

@@ -480,11 +480,20 @@ pub fn encode_voucher_request(
 pub struct MockEADServerState {
     pub(crate) cred_v: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub(crate) w: BytesP256ElemLen,        // public key of the enrollment server (W)
+    pub acl: Option<EdhocMessageBuffer>, // access control list, each device identified by an u8 kid
 }
 impl MockEADServerState {
-    pub fn new(cred_v: &[u8], w: BytesP256ElemLen) -> Self {
+    pub fn new(cred_v: &[u8], w: BytesP256ElemLen, acl: Option<EdhocMessageBuffer>) -> Self {
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
-        MockEADServerState { cred_v, w }
+        MockEADServerState { cred_v, w, acl }
+    }
+    pub fn authorized(self, kid: u8) -> bool {
+        if let Some(acl) = self.acl {
+            acl.content.contains(&kid)
+        } else {
+            // if no acl then allow it
+            true
+        }
     }
 }
 static mut MOCK_EAD_SERVER_GLOBAL_STATE: MockEADServerState = MockEADServerState {
@@ -493,6 +502,7 @@ static mut MOCK_EAD_SERVER_GLOBAL_STATE: MockEADServerState = MockEADServerState
         len: 0,
     },
     w: [0; P256_ELEM_LEN],
+    acl: None,
 };
 pub fn mock_ead_server_get_global_state() -> &'static MockEADServerState {
     unsafe { &MOCK_EAD_SERVER_GLOBAL_STATE }
@@ -540,13 +550,16 @@ fn handle_voucher_request<Crypto: CryptoTrait>(
 
     let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
     let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
-    let _id_u = decode_id_u(id_u_encoded)?;
+    let id_u = decode_id_u(id_u_encoded)?;
 
-    // TODO: use id_u to perform authorization, e.g. if authorized_devices.contains(id_u) then proceed else stop
-
-    let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
-    let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
-    Ok(voucher_response)
+    let server_state = mock_ead_server_get_global_state();
+    if server_state.acl.is_none() || server_state.authorized(id_u.content[3]) {
+        let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
+        let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
+        Ok(voucher_response)
+    } else {
+        Err(EDHOCError::EADError)
+    }
 }
 
 fn decode_id_u(id_u_bstr: EdhocMessageBuffer) -> Result<EdhocMessageBuffer, EDHOCError> {
@@ -915,6 +928,7 @@ mod test_responder {
         mock_ead_server_set_global_state(MockEADServerState::new(
             CRED_V_TV,
             W_TV.try_into().unwrap(),
+            None,
         ));
 
         let res = r_process_ead_1(&mut default_crypto(), &ead_1, &message_1_tv);
@@ -1030,6 +1044,12 @@ mod test_enrollment_server {
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+            None,
+        ));
+
         let res = handle_voucher_request(
             &mut default_crypto(),
             &voucher_request_tv,
@@ -1094,6 +1114,12 @@ mod test_stateless_operation {
         let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
+
+        mock_ead_server_set_global_state(MockEADServerState::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+            None,
+        ));
 
         let res = handle_voucher_request(
             &mut default_crypto(),
