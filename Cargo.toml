@@ -40,19 +40,19 @@ license = "BSD-3-Clause"
 
 [workspace.dependencies]
 
-edhoc-consts = { path = "consts/", version = "^0.4.0-alpha.1" }
-edhoc-ead = { path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
-edhoc-ead-none = { path = "ead/edhoc-ead-none/", version = "^0.4.0-alpha.1" }
-edhoc-ead-zeroconf = { path = "ead/edhoc-ead-zeroconf/", version = "^0.4.0-alpha.1" }
+edhoc-consts = { package = "lakers-shared", path = "consts/", version = "^0.4.0-alpha.1" }
+edhoc-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
+edhoc-ead-none = { package = "lakers-ead-none", path = "ead/edhoc-ead-none/", version = "^0.4.0-alpha.1" }
+edhoc-ead-zeroconf = { package = "lakers-ead-zeroconf", path = "ead/edhoc-ead-zeroconf/", version = "^0.4.0-alpha.1" }
 edhoc-crypto = { path = "crypto/", version = "^0.4.0-alpha.1" }
 
 edhoc-crypto-cc2538 = { path = "crypto/edhoc-crypto-cc2538/", version = "^0.4.0-alpha.1" }
 edhoc-crypto-cryptocell310 = { path = "crypto/edhoc-crypto-cryptocell310-sys/", version = "^0.4.0-alpha.1" }
 edhoc-crypto-hacspec = { path = "crypto/edhoc-crypto-hacspec/", version = "^0.4.0-alpha.1" }
 edhoc-crypto-psa = { path = "crypto/edhoc-crypto-psa/", version = "^0.4.0-alpha.1" }
-edhoc-crypto-rustcrypto = { path = "crypto/edhoc-crypto-rustcrypto/", version = "^0.4.0-alpha.1" }
+edhoc-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/edhoc-crypto-rustcrypto/", version = "^0.4.0-alpha.1" }
 
-edhoc-rs = { path = "lib/", version = "^0.4.0-alpha.1", default-features = false }
+edhoc-rs = { package = "lakers", path = "lib/", version = "^0.4.0-alpha.1", default-features = false }
 
 [patch.crates-io]
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
