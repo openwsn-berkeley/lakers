@@ -13,7 +13,3 @@ edhoc-consts.workspace = true
 [dev-dependencies]
 edhoc-crypto.workspace = true
 hexlit = "0.5.3"
-
-[features]
-crypto-psa = [ "edhoc-crypto/psa" ]
-crypto-hacspec = [ "edhoc-crypto/hacspec" ]
