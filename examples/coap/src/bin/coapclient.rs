@@ -16,9 +16,16 @@ const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32
 const _G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
 fn main() {
-    let url = "coap://127.0.0.1:5683/.well-known/edhoc";
+    // let url = "coap://127.0.0.1:5683/.well-known/edhoc";
+    let url = "coap://[fe80::acdb:aaff:fe8e:212c]:5683/.well-known/edhoc";
     let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
+
+    let mut coap_client = CoAPClient::new_with_specific_source(
+        "[fe80::ac53:635d:ea1f:b791]:0",
+        "[fe80::acdb:aaff:fe8e:212c]:5683",
+    )
+    .unwrap();
 
     let state = Default::default();
     let initiator = EdhocInitiator::new(
@@ -36,7 +43,17 @@ fn main() {
     msg_1_buf.extend_from_slice(message_1.as_slice());
     println!("message_1 len = {}", msg_1_buf.len());
 
-    let response = CoAPClient::post_with_timeout(url, msg_1_buf, timeout).unwrap();
+    let response = coap_client
+        .request_path_with_timeout(
+            "/.well-known/edhoc",
+            coap_lite::RequestType::Post,
+            Some(msg_1_buf),
+            None,
+            None,
+            timeout,
+        )
+        .unwrap();
+    // let response = CoAPClient::post_with_timeout(&coap_client, url, msg_1_buf, timeout).unwrap();
     if response.get_status() != &ResponseType::Changed {
         panic!("Message 1 response error: {:?}", response.get_status());
     }

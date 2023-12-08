@@ -14,6 +14,7 @@ members = [
   "examples/coap",
   "examples/edhoc-rs-no_std",
   "examples/edhoc-rs-cc2538",
+  "examples/coap-riot",
 ]
 
 # reduced "default-members", should include only packages that can be built and
@@ -62,3 +63,9 @@ hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm
 hacspec-aes = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 psa-crypto = { git = "https://github.com/malishav/rust-psa-crypto", branch = "baremetal" }
+
+
+# Fixes ... some build failures
+riot-sys.git = "https://github.com/riot-os/rust-riot-sys"
+# Provides RIOT's RNG
+riot-wrappers = { git = "https://github.com/riot-os/rust-riot-wrappers", branch = "rand" }
