@@ -121,6 +121,7 @@ pub enum EDHOCError {
     UnsupportedMethod = 3,
     UnsupportedCipherSuite = 4,
     ParsingError = 5,
+    EncodingError = 6,
     EADError = 7,
     UnknownError = 8,
 }
@@ -208,6 +209,16 @@ impl EdhocMessageBuffer {
         if slice.len() <= self.content.len() {
             self.len = slice.len();
             self.content[..self.len].copy_from_slice(slice);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), ()> {
+        if self.len + slice.len() <= self.content.len() {
+            self.content[self.len..self.len + slice.len()].copy_from_slice(slice);
+            self.len += slice.len();
             Ok(())
         } else {
             Err(())

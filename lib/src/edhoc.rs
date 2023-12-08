@@ -139,7 +139,7 @@ pub fn r_prepare_message_2(
     };
 
     // compute ciphertext_2
-    let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2);
+    let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2)?;
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
@@ -303,7 +303,7 @@ pub fn i_prepare_message_1(
     let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i_len - 1]);
 
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(EDHOC_METHOD, &suites_i, suites_i_len, &g_x, c_i, &ead_1);
+    let message_1 = encode_message_1(EDHOC_METHOD, &suites_i, suites_i_len, &g_x, c_i, &ead_1)?;
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
@@ -435,7 +435,7 @@ pub fn i_prepare_message_3(
 
     let ead_3 = i_prepare_ead_3();
 
-    let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3);
+    let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i);
@@ -548,7 +548,7 @@ fn credential_check_or_fetch<'a>(
     // IMPL,TODO: we just skip this step for now
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBuffer {
+fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
     let mut output = EdhocMessageBuffer::new();
 
     // encode label
@@ -561,11 +561,16 @@ fn encode_ead_item(ead_1: &EADItem) -> EdhocMessageBuffer {
 
     // encode value
     if let Some(ead_1_value) = &ead_1.value {
-        output.content[1..1 + ead_1_value.len].copy_from_slice(ead_1_value.as_slice());
-        output.len += ead_1_value.len;
+        if 1 + ead_1_value.len <= output.content.len() {
+            output.content[1..1 + ead_1_value.len].copy_from_slice(ead_1_value.as_slice());
+            output.len += ead_1_value.len;
+            Ok(output)
+        } else {
+            Err(EDHOCError::EncodingError)
+        }
+    } else {
+        Ok(output)
     }
-
-    output
 }
 
 fn encode_message_1(
@@ -575,7 +580,7 @@ fn encode_message_1(
     g_x: &BytesP256ElemLen,
     c_i: u8,
     ead_1: &Option<EADItem>,
-) -> BufferMessage1 {
+) -> Result<BufferMessage1, EDHOCError> {
     let mut output = BufferMessage1::new();
     let mut raw_suites_len: usize = 0;
 
@@ -615,12 +620,15 @@ fn encode_message_1(
     output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
 
     if let Some(ead_1) = ead_1 {
-        let ead_1 = encode_ead_item(ead_1);
-        output.content[output.len..output.len + ead_1.len].copy_from_slice(ead_1.as_slice());
-        output.len += ead_1.len;
+        let ead_1 = encode_ead_item(ead_1)?;
+        if output.extend_from_slice(ead_1.as_slice()).is_ok() {
+            Ok(output)
+        } else {
+            Err(EDHOCError::EncodingError)
+        }
+    } else {
+        Ok(output)
     }
-
-    output
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
@@ -711,7 +719,7 @@ fn encode_plaintext_3(
     id_cred_i: &BytesIdCred,
     mac_3: &BytesMac3,
     ead_3: &Option<EADItem>,
-) -> BufferPlaintext3 {
+) -> Result<BufferPlaintext3, EDHOCError> {
     let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
@@ -721,13 +729,15 @@ fn encode_plaintext_3(
     plaintext_3.len = 2 + mac_3.len();
 
     if let Some(ead_3) = ead_3 {
-        let ead_3 = encode_ead_item(ead_3);
-        plaintext_3.content[plaintext_3.len..plaintext_3.len + ead_3.len]
-            .copy_from_slice(ead_3.as_slice());
-        plaintext_3.len += ead_3.len;
+        let ead_3 = encode_ead_item(ead_3)?;
+        if plaintext_3.extend_from_slice(ead_3.as_slice()).is_ok() {
+            Ok(plaintext_3)
+        } else {
+            Err(EDHOCError::EncodingError)
+        }
+    } else {
+        Ok(plaintext_3)
     }
-
-    plaintext_3
 }
 
 fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
@@ -894,7 +904,7 @@ fn encode_plaintext_2(
     id_cred_r: IdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItem>,
-) -> BufferPlaintext2 {
+) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     plaintext_2.content[0] = c_r;
 
@@ -916,13 +926,15 @@ fn encode_plaintext_2(
     plaintext_2.len = 1 + offset_cred + mac_2.len();
 
     if let Some(ead_2) = ead_2 {
-        let ead_2 = encode_ead_item(ead_2);
-        plaintext_2.content[plaintext_2.len..plaintext_2.len + ead_2.len]
-            .copy_from_slice(ead_2.as_slice());
-        plaintext_2.len += ead_2.len;
+        let ead_2 = encode_ead_item(ead_2)?;
+        if plaintext_2.extend_from_slice(ead_2.as_slice()).is_ok() {
+            Ok(plaintext_2)
+        } else {
+            Err(EDHOCError::EncodingError)
+        }
+    } else {
+        Ok(plaintext_2)
     }
-
-    plaintext_2
 }
 
 /// Apply the XOR base encryption for ciphertext_2 in place. This will decrypt (or decrypt) the bytes
@@ -1164,7 +1176,8 @@ mod tests {
             &G_X_TV,
             C_I_TV,
             &None::<EADItem>,
-        );
+        )
+        .unwrap();
 
         assert_eq!(message_1.len, 39);
         assert_eq!(message_1, BufferMessage1::from_hex(MESSAGE_1_TV));
@@ -1417,7 +1430,8 @@ mod tests {
             IdCred::CompactKid(ID_CRED_R_TV[ID_CRED_R_TV.len() - 1]),
             &MAC_2_TV,
             &None::<EADItem>,
-        );
+        )
+        .unwrap();
 
         assert_eq!(plaintext_2, plaintext_2_tv);
     }
@@ -1499,7 +1513,7 @@ mod tests {
     #[test]
     fn test_encode_plaintext_3() {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV, &None::<EADItem>);
+        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV, &None::<EADItem>).unwrap();
         assert_eq!(plaintext_3, plaintext_3_tv);
     }
 
@@ -1530,7 +1544,9 @@ mod tests {
             value: Some(EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
-        let ead_buffer = encode_ead_item(&ead_item);
+        let res = encode_ead_item(&ead_item);
+        assert!(res.is_ok());
+        let ead_buffer = res.unwrap();
         assert_eq!(ead_buffer.content, ead_tv.content);
     }
 
@@ -1546,7 +1562,7 @@ mod tests {
             value: Some(EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
-        let message_1 = encode_message_1(
+        let res = encode_message_1(
             method_tv,
             &SUITES_I_TV,
             suites_i_tv_len,
@@ -1554,8 +1570,37 @@ mod tests {
             c_i_tv,
             &Some(ead_item),
         );
+        assert!(res.is_ok());
+        let message_1 = res.unwrap();
 
         assert_eq!(message_1.content, message_1_ead_tv.content);
+    }
+
+    #[test]
+    fn test_encode_message_with_large_ead_item() {
+        let method_tv = METHOD_TV;
+        let suites_i_tv_len: usize = 2;
+        let c_i_tv = C_I_TV;
+
+        // the actual value will be zeroed since it doesn't matter in this test
+        let mut ead_value = EdhocMessageBuffer::new();
+        ead_value.len = MAX_MESSAGE_SIZE_LEN;
+
+        let ead_item = EADItem {
+            label: EAD_DUMMY_LABEL_TV,
+            is_critical: true,
+            value: Some(ead_value),
+        };
+
+        let res = encode_message_1(
+            method_tv,
+            &SUITES_I_TV,
+            suites_i_tv_len,
+            &G_X_TV,
+            c_i_tv,
+            &Some(ead_item),
+        );
+        assert_eq!(res.unwrap_err(), EDHOCError::EncodingError);
     }
 
     #[test]
