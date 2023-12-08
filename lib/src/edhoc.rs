@@ -552,27 +552,32 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
     let mut output = EdhocMessageBuffer::new();
 
     // encode label
-    output.content[0] = if ead_1.is_critical {
+    let res = if ead_1.is_critical {
         // ensure it won't overflow
         ead_1
             .label
             .checked_add(CBOR_NEG_INT_1BYTE_START)
             .and_then(|x| x.checked_sub(1))
-            .ok_or(EDHOCError::EadLabelTooLongError)?
     } else {
-        ead_1.label
+        Some(ead_1.label)
     };
-    output.len = 1;
 
-    // encode value
-    if let Some(ead_1_value) = &ead_1.value {
-        if output.extend_from_slice(ead_1_value.as_slice()).is_ok() {
-            Ok(output)
+    if let Some(label) = res {
+        output.content[0] = label;
+        output.len = 1;
+
+        // encode value
+        if let Some(ead_1_value) = &ead_1.value {
+            if output.extend_from_slice(ead_1_value.as_slice()).is_ok() {
+                Ok(output)
+            } else {
+                Err(EDHOCError::EadTooLongError)
+            }
         } else {
-            Err(EDHOCError::EadTooLongError)
+            Ok(output)
         }
     } else {
-        Ok(output)
+        Err(EDHOCError::EadLabelTooLongError)
     }
 }
 
