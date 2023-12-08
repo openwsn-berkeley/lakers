@@ -1,0 +1,15 @@
+[package]
+name = "lakers-ead-authz"
+version.workspace = true
+edition = "2021"
+authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
+license.workspace = true
+description = "EDHOC EAD zero touch authorization for network join (draf-lake-authz)"
+repository.workspace = true
+
+[dependencies]
+lakers-shared.workspace = true
+
+[dev-dependencies]
+lakers-crypto.workspace = true
+hexlit = "0.5.3"
