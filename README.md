@@ -1,4 +1,4 @@
-# edhoc-rs
+# lakers: EDHOC implemented in Rust
 
 [![Build and test](https://github.com/openwsn-berkeley/edhoc-rs/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/edhoc-rs/actions/workflows/build-and-test.yml)
 

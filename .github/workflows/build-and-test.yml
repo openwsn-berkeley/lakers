@@ -38,8 +38,8 @@ jobs:
     - name: Run unit tests with default features
       run: RUST_BACKTRACE=1 cargo test
 
-    - name: Run unit tests with feature matrix # note that we only add `--package edhoc-ead-zeroconf` when testing with that config
-      run: RUST_BACKTRACE=1 cargo test -p edhoc-rs -p edhoc-crypto -p edhoc-consts ${{ matrix.ead == 'ead-zeroconf' && '-p edhoc-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
+    - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-zeroconf` when testing with that config
+      run: RUST_BACKTRACE=1 cargo test -p lakers -p edhoc-crypto -p lakers-shared ${{ matrix.ead == 'ead-zeroconf' && '-p lakers-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
   build-edhoc-package:
@@ -62,7 +62,7 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build
-      run: cargo build --package edhoc-rs --package edhoc-crypto --package edhoc-ead --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
+      run: cargo build --package lakers --package edhoc-crypto --package lakers-ead-dispatch --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
 
 
   generate-fstar:
@@ -70,28 +70,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout edhoc-rs
+    - name: Checkout lakers
       uses: actions/checkout@v3
 
-    - name: Generate fstar code over edhoc-rs and edhoc-consts
+    - name: Generate fstar code over lakers and lakers-shared
       run: |
-        docker run --rm -v ${{ github.workspace }}:/edhoc-rs docker.io/geonnave/hax bash -e -c "
-        cd edhoc-rs
+        docker run --rm -v ${{ github.workspace }}:/lakers docker.io/geonnave/hax bash -e -c "
+        cd lakers
 
         # generate the fstar files
-        cargo-hax -C -p edhoc-rs --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-edhoc_rs::generate_connection_identifier_cbor -edhoc_rs::generate_connection_identifier' fstar
-        cargo-hax -C -p edhoc-consts \; into fstar
+        cargo-hax -C -p lakers --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
+        cargo-hax -C -p lakers-shared \; into fstar
 
         # even if fstar generation was ok, fail if something is not implemented
         [ -z "$(find -name *.fst -type f | xargs grep 'something is not implemented yet')" ]
         "
-        zip -j -r edhoc-rs-fstar.zip $(find . -name *fst)
+        zip -j -r lakers-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
         name: fstar-code
-        path: ./edhoc-rs-fstar.zip
+        path: ./lakers-fstar.zip
 
 
   build-static-lib-and-headers:

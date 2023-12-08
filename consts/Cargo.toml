@@ -1,5 +1,5 @@
 [package]
-name = "edhoc-consts"
+name = "lakers-shared"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]

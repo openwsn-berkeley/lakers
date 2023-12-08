@@ -1,5 +1,5 @@
 [package]
-name = "edhoc-crypto-rustcrypto"
+name = "lakers-crypto-rustcrypto"
 version.workspace = true
 edition = "2021"
 authors = [ "Christian Amsüss <chrysn@fsfe.org>" ]
