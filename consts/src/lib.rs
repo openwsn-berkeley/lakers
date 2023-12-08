@@ -121,9 +121,10 @@ pub enum EDHOCError {
     UnsupportedMethod = 3,
     UnsupportedCipherSuite = 4,
     ParsingError = 5,
-    EncodingError = 6,
-    EADError = 7,
-    UnknownError = 8,
+    EadLabelTooLongError = 6,
+    EadTooLongError = 7,
+    EADError = 8,
+    UnknownError = 9,
 }
 
 #[repr(C)]

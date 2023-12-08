@@ -558,7 +558,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
             .label
             .checked_add(CBOR_NEG_INT_1BYTE_START)
             .and_then(|x| x.checked_sub(1))
-            .ok_or(EDHOCError::EncodingError)?
+            .ok_or(EDHOCError::EadLabelTooLongError)?
     } else {
         ead_1.label
     };
@@ -571,7 +571,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
             output.len += ead_1_value.len;
             Ok(output)
         } else {
-            Err(EDHOCError::EncodingError)
+            Err(EDHOCError::EadTooLongError)
         }
     } else {
         Ok(output)
@@ -629,7 +629,7 @@ fn encode_message_1(
         if output.extend_from_slice(ead_1.as_slice()).is_ok() {
             Ok(output)
         } else {
-            Err(EDHOCError::EncodingError)
+            Err(EDHOCError::EadTooLongError)
         }
     } else {
         Ok(output)
@@ -738,7 +738,7 @@ fn encode_plaintext_3(
         if plaintext_3.extend_from_slice(ead_3.as_slice()).is_ok() {
             Ok(plaintext_3)
         } else {
-            Err(EDHOCError::EncodingError)
+            Err(EDHOCError::EadTooLongError)
         }
     } else {
         Ok(plaintext_3)
@@ -935,7 +935,7 @@ fn encode_plaintext_2(
         if plaintext_2.extend_from_slice(ead_2.as_slice()).is_ok() {
             Ok(plaintext_2)
         } else {
-            Err(EDHOCError::EncodingError)
+            Err(EDHOCError::EadTooLongError)
         }
     } else {
         Ok(plaintext_2)
@@ -1605,7 +1605,7 @@ mod tests {
             c_i_tv,
             &Some(ead_item),
         );
-        assert_eq!(res.unwrap_err(), EDHOCError::EncodingError);
+        assert_eq!(res.unwrap_err(), EDHOCError::EadTooLongError);
     }
 
     #[test]
