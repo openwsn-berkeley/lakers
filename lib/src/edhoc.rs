@@ -566,9 +566,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
 
     // encode value
     if let Some(ead_1_value) = &ead_1.value {
-        if 1 + ead_1_value.len <= output.content.len() {
-            output.content[1..1 + ead_1_value.len].copy_from_slice(ead_1_value.as_slice());
-            output.len += ead_1_value.len;
+        if output.extend_from_slice(ead_1_value.as_slice()).is_ok() {
             Ok(output)
         } else {
             Err(EDHOCError::EadTooLongError)
