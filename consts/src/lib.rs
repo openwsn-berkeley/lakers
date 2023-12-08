@@ -369,16 +369,30 @@ mod helpers {
         {
             Err(EDHOCError::ParsingError)
         } else {
-            let subject_len = (cred[2] - CBOR_MAJOR_TEXT_STRING) as usize;
-            let id_cred_offset: usize = CCS_PREFIX_LEN + subject_len + CNF_AND_COSE_KEY_PREFIX_LEN;
-            let g_a_x_offset: usize = id_cred_offset + COSE_KEY_FIRST_ITEMS_LEN;
+            let subject_len = CBORDecoder::info_of(cred[2]) as usize;
 
-            Ok((
-                cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
-                    .try_into()
-                    .expect("Wrong key length"),
-                cred[id_cred_offset],
-            ))
+            let id_cred_offset: usize = CCS_PREFIX_LEN
+                .checked_add(subject_len)
+                .and_then(|x| x.checked_add(CNF_AND_COSE_KEY_PREFIX_LEN))
+                .ok_or(EDHOCError::ParsingError)?;
+
+            let g_a_x_offset: usize = id_cred_offset
+                .checked_add(COSE_KEY_FIRST_ITEMS_LEN)
+                .ok_or(EDHOCError::ParsingError)?;
+
+            if g_a_x_offset
+                .checked_add(P256_ELEM_LEN)
+                .map_or(false, |end| end <= cred.len())
+            {
+                Ok((
+                    cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
+                        .try_into()
+                        .expect("Wrong key length"),
+                    cred[id_cred_offset],
+                ))
+            } else {
+                Err(EDHOCError::ParsingError)
+            }
         }
     }
 
