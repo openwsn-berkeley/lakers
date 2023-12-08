@@ -552,11 +552,16 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
     let mut output = EdhocMessageBuffer::new();
 
     // encode label
-    if ead_1.is_critical {
-        output.content[0] = ead_1.label + CBOR_NEG_INT_1BYTE_START - 1;
+    output.content[0] = if ead_1.is_critical {
+        // ensure it won't overflow
+        ead_1
+            .label
+            .checked_add(CBOR_NEG_INT_1BYTE_START)
+            .and_then(|x| x.checked_sub(1))
+            .ok_or(EDHOCError::EncodingError)?
     } else {
-        output.content[0] = ead_1.label;
-    }
+        ead_1.label
+    };
     output.len = 1;
 
     // encode value
