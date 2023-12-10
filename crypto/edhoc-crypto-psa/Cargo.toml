@@ -9,7 +9,8 @@ repository.workspace = true
 
 [dependencies]
 edhoc-consts.workspace = true
-psa-crypto = { version = "0.9.2" }
+psa-crypto = { version = "0.12.0" }
+p256 = { version = "0.13.2", default-features = false, features = [ "ecdh" ] }
 
 [features]
 baremetal = [ "psa-crypto/baremetal" ]

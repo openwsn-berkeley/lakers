@@ -1,6 +1,8 @@
 #![no_std]
 
 use edhoc_consts::{Crypto as CryptoTrait, *};
+use p256::elliptic_curve::point::DecompressPoint;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 use psa_crypto::operations::hash::hash_compute;
 use psa_crypto::operations::{aead, key_agreement, key_management, other::generate_random};
 use psa_crypto::types::algorithm::Hash;
@@ -174,9 +176,13 @@ impl CryptoTrait for Crypto {
         private_key: &BytesP256ElemLen,
         public_key: &BytesP256ElemLen,
     ) -> BytesP256ElemLen {
-        let mut peer_public_key: [u8; 33] = [0; 33];
-        peer_public_key[0] = 0x02; // sign does not matter for ECDH operation
-        peer_public_key[1..33].copy_from_slice(&public_key[..]);
+        let peer_public_key = p256::AffinePoint::decompress(
+            public_key.into(),
+            1.into(), /* Y coordinate choice does not matter for ECDH operation */
+        )
+        .unwrap()
+        .to_encoded_point(false);
+        let peer_public_key = peer_public_key.as_bytes();
 
         let alg = RawKeyAgreement::Ecdh;
         let mut usage_flags: UsageFlags = Default::default();
