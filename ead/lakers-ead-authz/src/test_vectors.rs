@@ -17,6 +17,9 @@ pub const W_TV: &[u8] = &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE
 pub const G_W_TV: &[u8] = &hex!("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41");
 pub const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572"); // coap://enrollment.server
 
+pub const ACL_TV: &[u8] = &hex!("2b"); // kid from ID_U_TV
+pub const ACL_INVALID_TV: &[u8] = &hex!("fe"); // random invalid kid
+
 // computed artifacts
 // EAD_1
 pub const SS_TV: u8 = 2;

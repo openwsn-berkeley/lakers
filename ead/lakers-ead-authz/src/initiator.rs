@@ -2,7 +2,7 @@ use super::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(Default, PartialEq, Copy, Clone, Debug)]
-pub enum EADInitiatorProtocolState {
+pub enum ZeroTouchDeviceState {
     #[default]
     NonInitialized,
     Start,
@@ -12,8 +12,8 @@ pub enum EADInitiatorProtocolState {
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub struct EADInitiatorState {
-    pub protocol_state: EADInitiatorProtocolState,
+pub struct ZeroTouchDevice {
+    pub current_state: ZeroTouchDeviceState,
     pub(crate) id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub(crate) g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
@@ -21,10 +21,10 @@ pub struct EADInitiatorState {
     pub(crate) voucher: BytesMac,
 }
 
-impl EADInitiatorState {
+impl ZeroTouchDevice {
     pub fn new(id_u: EdhocMessageBuffer, g_w: BytesP256ElemLen, loc_w: EdhocMessageBuffer) -> Self {
-        EADInitiatorState {
-            protocol_state: EADInitiatorProtocolState::Start,
+        ZeroTouchDevice {
+            current_state: ZeroTouchDeviceState::Start,
             id_u,
             g_w,
             loc_w,
@@ -33,13 +33,13 @@ impl EADInitiatorState {
         }
     }
 
-    pub fn i_prepare_ead_1<Crypto: CryptoTrait>(
+    pub fn prepare_ead_1<Crypto: CryptoTrait>(
         &mut self,
         crypto: &mut Crypto,
         x: &BytesP256ElemLen,
         ss: u8,
     ) -> Option<EADItem> {
-        if self.protocol_state != EADInitiatorProtocolState::Start {
+        if self.current_state != ZeroTouchDeviceState::Start {
             return None;
         }
 
@@ -58,12 +58,12 @@ impl EADInitiatorState {
         };
 
         self.prk = prk;
-        self.protocol_state = EADInitiatorProtocolState::WaitEAD2;
+        self.current_state = ZeroTouchDeviceState::WaitEAD2;
 
         Some(ead_1)
     }
 
-    pub fn i_process_ead_2<Crypto: CryptoTrait>(
+    pub fn process_ead_2<Crypto: CryptoTrait>(
         &mut self,
         crypto: &mut Crypto,
         ead_2: EADItem,
@@ -83,17 +83,17 @@ impl EADInitiatorState {
         match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &self.prk) {
             Ok(voucher) => {
                 self.voucher = voucher;
-                self.protocol_state = EADInitiatorProtocolState::Completed;
+                self.current_state = ZeroTouchDeviceState::Completed;
                 Ok(())
             }
             Err(_) => {
-                self.protocol_state = EADInitiatorProtocolState::Error;
+                self.current_state = ZeroTouchDeviceState::Error;
                 Err(())
             }
         }
     }
 
-    pub fn i_prepare_ead_3() -> Option<EADItem> {
+    pub fn prepare_ead_3() -> Option<EADItem> {
         Some(EADItem::new())
     }
 }
@@ -168,19 +168,16 @@ mod test_initiator {
     fn test_prepare_ead_1() {
         let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
 
-        let mut ead_authz = EADInitiatorState::new(
+        let mut ead_authz = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
         );
 
         let ead_1 = ead_authz
-            .i_prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV)
+            .prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV)
             .unwrap();
-        assert_eq!(
-            ead_authz.protocol_state,
-            EADInitiatorProtocolState::WaitEAD2
-        );
+        assert_eq!(ead_authz.current_state, ZeroTouchDeviceState::WaitEAD2);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
@@ -217,7 +214,7 @@ mod test_initiator {
             value: Some(ead_2_value_tv),
         };
 
-        let mut ead_authz = EADInitiatorState::new(
+        let mut ead_authz = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
@@ -225,11 +222,8 @@ mod test_initiator {
         ead_authz.prk = PRK_TV.try_into().unwrap();
 
         let res =
-            ead_authz.i_process_ead_2(&mut default_crypto(), ead_2_tv, cred_v_tv, &h_message_1_tv);
+            ead_authz.process_ead_2(&mut default_crypto(), ead_2_tv, cred_v_tv, &h_message_1_tv);
         assert!(res.is_ok());
-        assert_eq!(
-            ead_authz.protocol_state,
-            EADInitiatorProtocolState::Completed
-        );
+        assert_eq!(ead_authz.current_state, ZeroTouchDeviceState::Completed);
     }
 }

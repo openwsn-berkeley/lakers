@@ -2,15 +2,15 @@ use super::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub struct MockEADServerState {
+pub struct ZeroTouchServer {
     pub(crate) cred_v: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub(crate) w: BytesP256ElemLen,        // public key of the enrollment server (W)
     pub acl: Option<EdhocMessageBuffer>, // access control list, each device identified by an u8 kid
 }
-impl MockEADServerState {
+impl ZeroTouchServer {
     pub fn new(cred_v: &[u8], w: BytesP256ElemLen, acl: Option<EdhocMessageBuffer>) -> Self {
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
-        MockEADServerState { cred_v, w, acl }
+        ZeroTouchServer { cred_v, w, acl }
     }
 
     pub fn authorized(self, kid: u8) -> bool {
@@ -194,7 +194,7 @@ mod test_enrollment_server {
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let mut ead_authz = MockEADServerState::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let mut ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
 
         let res = ead_authz.handle_voucher_request(
             &mut default_crypto(),
@@ -235,7 +235,7 @@ mod test_server_stateless_operation {
         let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let mut ead_authz = MockEADServerState::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let mut ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
 
         let res = ead_authz.handle_voucher_request(
             &mut default_crypto(),
