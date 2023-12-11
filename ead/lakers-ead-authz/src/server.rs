@@ -22,12 +22,10 @@ impl ZeroTouchServer {
         }
     }
 
-    fn handle_voucher_request<Crypto: CryptoTrait>(
+    pub fn handle_voucher_request<Crypto: CryptoTrait>(
         &self,
         crypto: &mut Crypto,
         vreq: &EdhocMessageBuffer,
-        cred_v: &EdhocMessageBuffer,
-        w: &BytesP256ElemLen, // TODO: have w be in the state of W
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
 
@@ -38,14 +36,14 @@ impl ZeroTouchServer {
         message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
         let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-        let prk = compute_prk(crypto, w, &g_x);
+        let prk = compute_prk(crypto, &self.w, &g_x);
 
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
 
         if self.acl.is_none() || self.authorized(id_u.content[3]) {
-            let voucher = prepare_voucher(crypto, &h_message_1, cred_v, &prk);
+            let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v, &prk);
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
             Ok(voucher_response)
         } else {
@@ -136,7 +134,6 @@ mod test_enrollment_server {
 
     #[test]
     fn test_decrypt_enc_id() {
-        let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
         let mut prk_tv: BytesHashLen = Default::default();
         prk_tv[..].copy_from_slice(PRK_TV);
         let id_u_encoded_tv: EdhocMessageBuffer = ID_U_ENCODED_TV.try_into().unwrap();
@@ -187,24 +184,52 @@ mod test_enrollment_server {
     }
 
     #[test]
-    fn test_handle_voucher_request() {
-        let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
-        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
-        let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
-        let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
+    fn test_handle_voucher_request_acl_none() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let mut ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
 
         let res = ead_authz.handle_voucher_request(
             &mut default_crypto(),
-            &voucher_request_tv,
-            &cred_v_tv,
-            &w_tv,
+            &VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
         assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+
+    #[test]
+    fn test_handle_voucher_request_acl_ok() {
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+
+        let ead_authz = ZeroTouchServer::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+            Some(ACL_TV.try_into().unwrap()),
+        );
+
+        let res = ead_authz.handle_voucher_request(
+            &mut default_crypto(),
+            &VOUCHER_REQUEST_TV.try_into().unwrap(),
+        );
+        assert!(res.is_ok());
+        let voucher_response = res.unwrap();
+        assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+
+    #[test]
+    fn test_handle_voucher_request_acl_invalid() {
+        let ead_authz = ZeroTouchServer::new(
+            CRED_V_TV,
+            W_TV.try_into().unwrap(),
+            Some(ACL_INVALID_TV.try_into().unwrap()),
+        );
+
+        let res = ead_authz.handle_voucher_request(
+            &mut default_crypto(),
+            &VOUCHER_REQUEST_TV.try_into().unwrap(),
+        );
+        assert_eq!(res.unwrap_err(), EDHOCError::EADError);
     }
 }
 
@@ -229,19 +254,13 @@ mod test_server_stateless_operation {
 
     #[test]
     fn test_slo_handle_voucher_request() {
-        let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
-        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
-        let w_tv: BytesP256ElemLen = W_TV.try_into().unwrap();
-        let g_x_tv: BytesP256ElemLen = G_X_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let mut ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
 
         let res = ead_authz.handle_voucher_request(
             &mut default_crypto(),
-            &voucher_request_tv,
-            &cred_v_tv,
-            &w_tv,
+            &SLO_VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();

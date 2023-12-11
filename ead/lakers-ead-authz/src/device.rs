@@ -146,7 +146,7 @@ fn encode_ead_1_value(
 }
 
 #[cfg(test)]
-mod test_initiator {
+mod test_device {
     use super::*;
     use crate::test_vectors::*;
     use lakers_crypto::default_crypto;

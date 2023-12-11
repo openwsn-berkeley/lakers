@@ -1,34 +1,64 @@
 #![no_std]
 
-#[cfg(test)]
-mod test_vectors;
-
-pub mod initiator;
-pub mod responder;
+pub mod authenticator;
+pub mod device;
 pub mod server;
+
 mod shared;
 
 #[cfg(test)]
-mod test_lib {
-    use super::*;
+mod test_vectors;
+
+#[cfg(test)]
+mod test_authz {
     use crate::{
-        initiator::ZeroTouchDevice, responder::ZeroTouchAuthenticator, server::ZeroTouchServer,
+        authenticator::ZeroTouchAuthenticator, device::ZeroTouchDevice, server::ZeroTouchServer,
         test_vectors::*,
     };
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     #[test]
-    fn test_complete() {
-        let device = ZeroTouchDevice::new(
+    fn test_complete_flow() {
+        let mut device = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
         );
-        let authenticator = ZeroTouchAuthenticator::new();
+        let mut authenticator = ZeroTouchAuthenticator::new();
         let server = ZeroTouchServer::new(
             CRED_V_TV.try_into().unwrap(),
             W_TV.try_into().unwrap(),
             Some(ACL_TV.try_into().unwrap()),
         );
+
+        // using .unwrap below since detailed errors are tested in each entity's tests
+
+        let ead_1 = device
+            .prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV)
+            .unwrap();
+
+        // ead_1 will be transported within message_1
+
+        let (_loc_w, voucher_request) = authenticator
+            .process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap())
+            .unwrap();
+
+        // network request would be: let Ok(voucher_response) = auth_client.post(loc_w, voucher_request)
+
+        let voucher_response = server
+            .handle_voucher_request(&mut default_crypto(), &voucher_request)
+            .unwrap();
+
+        let ead_2 = authenticator.prepare_ead_2(&voucher_response).unwrap();
+
+        // ead_2 will be transported within message_2
+
+        let result = device.process_ead_2(
+            &mut default_crypto(),
+            ead_2,
+            CRED_V_TV,
+            H_MESSAGE_1_TV.try_into().unwrap(),
+        );
+        assert!(result.is_ok());
     }
 }

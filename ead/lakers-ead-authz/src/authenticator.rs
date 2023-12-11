@@ -13,23 +13,20 @@ pub enum ZeroTouchAuthenticatorState {
 
 pub struct ZeroTouchAuthenticator {
     pub current_state: ZeroTouchAuthenticatorState,
-    pub(crate) voucher_response: Option<EdhocMessageBuffer>,
 }
 
 impl ZeroTouchAuthenticator {
     pub fn new() -> Self {
         ZeroTouchAuthenticator {
             current_state: ZeroTouchAuthenticatorState::Start,
-            voucher_response: None,
         }
     }
 
-    pub fn process_ead_1<Crypto: CryptoTrait>(
+    pub fn process_ead_1(
         &mut self,
-        crypto: &mut Crypto,
         ead_1: &EADItem,
         message_1: &EdhocMessageBuffer,
-    ) -> Result<(), EDHOCError> {
+    ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
         if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
@@ -38,52 +35,23 @@ impl ZeroTouchAuthenticator {
 
         let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
-
-        // FIXME: just a temporary solution
         self.current_state = ZeroTouchAuthenticatorState::ProcessedEAD1;
-        // self.voucher_response = Some(voucher_response);
-        Ok(())
 
-        // // TODO: split logic to not send request here in the ead crate
-        // // - implement voucher_response = send_voucher_request(&loc_w, &voucher_request);
-        // let voucher_response = self.mock_send_voucher_request(crypto, &loc_w, &voucher_request);
-
-        // if let Ok(voucher_response) = voucher_response {
-        //     self.current_state = ZeroTouchAuthenticatorState::ProcessedEAD1;
-        //     self.voucher_response = Some(voucher_response);
-        //     return Ok(());
-        // } else {
-        //     self.current_state = ZeroTouchAuthenticatorState::Error;
-        //     self.voucher_response = None;
-        //     return Err(EDHOCError::EADError);
-        // }
+        Ok((loc_w, voucher_request))
     }
 
     // FIXME: this and the other *_prepare_* functions should return a `Result<>`
-    //        but then how to handle in the ead-none case, when it should return `None`?
-    //        that would require a lot of boilerplate on the calling side
-    pub fn prepare_ead_2(&mut self) -> Option<EADItem> {
-        if let Some(voucher_response) = self.voucher_response {
-            // FIXME: we probably don't want to parse the voucher response here, but rather receive only the 'voucher' part, already parsed
-            let (_message_1, voucher, _opaque_state) =
-                parse_voucher_response(&voucher_response).unwrap();
+    pub fn prepare_ead_2(&mut self, voucher_response: &EdhocMessageBuffer) -> Option<EADItem> {
+        let (_message_1, voucher, _opaque_state) =
+            parse_voucher_response(&voucher_response).unwrap();
 
-            let voucher_value = voucher[..].try_into().unwrap();
+        self.current_state = ZeroTouchAuthenticatorState::Completed;
 
-            self.current_state = ZeroTouchAuthenticatorState::Completed;
-            self.voucher_response = None;
-
-            Some(EADItem {
-                label: EAD_ZEROCONF_LABEL,
-                is_critical: true,
-                value: Some(voucher_value),
-            })
-        } else {
-            self.current_state = ZeroTouchAuthenticatorState::Error;
-            self.voucher_response = None;
-
-            None
-        }
+        Some(EADItem {
+            label: EAD_ZEROCONF_LABEL,
+            is_critical: true,
+            value: Some(voucher[..].try_into().unwrap()),
+        })
     }
 
     pub fn process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
@@ -93,22 +61,6 @@ impl ZeroTouchAuthenticator {
 
         Ok(())
     }
-
-    // fn mock_send_voucher_request<Crypto: CryptoTrait>(
-    //     &self,
-    //     crypto: &mut Crypto,
-    //     _loc_w: &EdhocMessageBuffer,
-    //     voucher_request: &EdhocMessageBuffer,
-    // ) -> Result<EdhocMessageBuffer, EDHOCError> {
-    //     let server_state = mock_ead_server_get_global_state();
-
-    //     handle_voucher_request(
-    //         crypto,
-    //         voucher_request,
-    //         &self.server_state.cred_v,
-    //         &self.server_state.w,
-    //     )
-    // }
 }
 
 pub fn encode_voucher_request(
@@ -170,7 +122,7 @@ fn parse_voucher_response(
 }
 
 #[cfg(test)]
-mod test_responder {
+mod test_authenticator {
     use super::*;
     use crate::test_vectors::*;
     use lakers_crypto::default_crypto;
@@ -216,7 +168,7 @@ mod test_responder {
         //     None,
         // ));
 
-        let res = ead_authz.process_ead_1(&mut default_crypto(), &ead_1, &message_1_tv);
+        let res = ead_authz.process_ead_1(&ead_1, &message_1_tv);
         assert!(res.is_ok());
         assert_eq!(
             ead_authz.current_state,
@@ -243,12 +195,9 @@ mod test_responder {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
-        let mut ead_authz = ZeroTouchAuthenticator {
-            voucher_response: Some(voucher_response_tv),
-            ..ZeroTouchAuthenticator::new()
-        };
+        let mut ead_authz = ZeroTouchAuthenticator::new();
 
-        let ead_2 = ead_authz.prepare_ead_2().unwrap();
+        let ead_2 = ead_authz.prepare_ead_2(&voucher_response_tv).unwrap();
         assert_eq!(
             ead_authz.current_state,
             ZeroTouchAuthenticatorState::Completed
