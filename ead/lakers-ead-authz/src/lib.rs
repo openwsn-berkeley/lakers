@@ -26,8 +26,8 @@ mod test_authz {
         );
         let authenticator = ZeroTouchAuthenticator::default();
         let server = ZeroTouchServer::new(
-            CRED_V_TV.try_into().unwrap(),
             W_TV.try_into().unwrap(),
+            CRED_V_TV.try_into().unwrap(),
             Some(ACL_TV.try_into().unwrap()),
         );
 

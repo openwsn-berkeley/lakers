@@ -1,16 +1,6 @@
 use super::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
-#[derive(Default, PartialEq, Copy, Clone, Debug)]
-pub enum ZeroTouchAuthenticatorState {
-    #[default]
-    Start,
-    ProcessedEAD1,
-    WaitEAD3,
-    Completed,
-    Error,
-}
-
 #[derive(Debug, Default)]
 pub struct ZeroTouchAuthenticator;
 #[derive(Debug, Default)]
@@ -154,8 +144,9 @@ mod test_authenticator {
             value: Some(EAD1_VALUE_TV.try_into().unwrap()),
         };
 
-        let ead_authz = ZeroTouchAuthenticator::default();
-        let res = ead_authz.process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap());
+        let ead_authenticator = ZeroTouchAuthenticator::default();
+        let res =
+            ead_authenticator.process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap());
         assert!(res.is_ok());
     }
 
@@ -178,9 +169,11 @@ mod test_authenticator {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
-        let ead_authz = ZeroTouchAuthenticatorWaitVoucherResp::default();
+        let ead_authenticator = ZeroTouchAuthenticatorWaitVoucherResp::default();
 
-        let ead_2 = ead_authz.prepare_ead_2(&voucher_response_tv).unwrap();
+        let ead_2 = ead_authenticator
+            .prepare_ead_2(&voucher_response_tv)
+            .unwrap();
         assert_eq!(ead_2.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_2.is_critical, true);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);

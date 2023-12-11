@@ -3,15 +3,16 @@ use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct ZeroTouchServer {
-    pub(crate) cred_v: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
-    pub(crate) w: BytesP256ElemLen,        // public key of the enrollment server (W)
-    pub acl: Option<EdhocMessageBuffer>, // access control list, each device identified by an u8 kid
+    w: BytesP256ElemLen,            // private key of the enrollment server (W)
+    pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)
+    // access control list, each device identified by an u8 kid (this is arbitrary, it is not specified in the draft)
+    pub acl: Option<EdhocMessageBuffer>,
 }
 
 impl ZeroTouchServer {
-    pub fn new(cred_v: &[u8], w: BytesP256ElemLen, acl: Option<EdhocMessageBuffer>) -> Self {
+    pub fn new(w: BytesP256ElemLen, cred_v: &[u8], acl: Option<EdhocMessageBuffer>) -> Self {
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
-        ZeroTouchServer { cred_v, w, acl }
+        ZeroTouchServer { w, cred_v, acl }
     }
 
     pub fn authorized(self, kid: u8) -> bool {
@@ -187,9 +188,9 @@ mod test_enrollment_server {
     fn test_handle_voucher_request_acl_none() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let ead_server = ZeroTouchServer::new(W_TV.try_into().unwrap(), CRED_V_TV, None);
 
-        let res = ead_authz.handle_voucher_request(
+        let res = ead_server.handle_voucher_request(
             &mut default_crypto(),
             &VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
@@ -202,13 +203,13 @@ mod test_enrollment_server {
     fn test_handle_voucher_request_acl_ok() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let ead_authz = ZeroTouchServer::new(
-            CRED_V_TV,
+        let ead_server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
+            CRED_V_TV,
             Some(ACL_TV.try_into().unwrap()),
         );
 
-        let res = ead_authz.handle_voucher_request(
+        let res = ead_server.handle_voucher_request(
             &mut default_crypto(),
             &VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
@@ -219,13 +220,13 @@ mod test_enrollment_server {
 
     #[test]
     fn test_handle_voucher_request_acl_invalid() {
-        let ead_authz = ZeroTouchServer::new(
-            CRED_V_TV,
+        let ead_server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
+            CRED_V_TV,
             Some(ACL_INVALID_TV.try_into().unwrap()),
         );
 
-        let res = ead_authz.handle_voucher_request(
+        let res = ead_server.handle_voucher_request(
             &mut default_crypto(),
             &VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
@@ -256,9 +257,9 @@ mod test_server_stateless_operation {
     fn test_slo_handle_voucher_request() {
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
-        let ead_authz = ZeroTouchServer::new(CRED_V_TV, W_TV.try_into().unwrap(), None);
+        let ead_server = ZeroTouchServer::new(W_TV.try_into().unwrap(), CRED_V_TV, None);
 
-        let res = ead_authz.handle_voucher_request(
+        let res = ead_server.handle_voucher_request(
             &mut default_crypto(),
             &SLO_VOUCHER_REQUEST_TV.try_into().unwrap(),
         );

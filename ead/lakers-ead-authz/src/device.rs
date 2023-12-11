@@ -8,12 +8,12 @@ pub struct ZeroTouchDevice {
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ZeroTouchDeviceWaitEAD2 {
-    pub(crate) prk: BytesHashLen,
+    prk: BytesHashLen,
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ZeroTouchDeviceDone {
     pub voucher: BytesMac,
 }
@@ -138,14 +138,14 @@ mod test_device {
     fn test_prepare_ead_1() {
         let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
 
-        let ead_authz = ZeroTouchDevice::new(
+        let ead_device = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
         );
 
         let (ead_1, _ead_authz) =
-            ead_authz.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+            ead_device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
@@ -177,18 +177,18 @@ mod test_device {
             value: Some(EAD2_VALUE_TV.try_into().unwrap()),
         };
 
-        let ead_authz = ZeroTouchDeviceWaitEAD2 {
+        let ead_device = ZeroTouchDeviceWaitEAD2 {
             prk: PRK_TV.try_into().unwrap(),
         };
 
-        let res = ead_authz.process_ead_2(
+        let res = ead_device.process_ead_2(
             &mut default_crypto(),
             ead_2_tv,
             CRED_V_TV.try_into().unwrap(),
             &H_MESSAGE_1_TV.try_into().unwrap(),
         );
         assert!(res.is_ok());
-        let ead_authz = res.unwrap();
-        assert_eq!(ead_authz.voucher, VOUCHER_MAC_TV); // TODO: maybe should use the encoded voucher instead?
+        let ead_device = res.unwrap();
+        assert_eq!(ead_device.voucher, VOUCHER_MAC_TV); // TODO: maybe should use the encoded voucher instead?
     }
 }
