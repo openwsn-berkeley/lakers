@@ -11,22 +11,24 @@ pub enum ZeroTouchAuthenticatorState {
     Error,
 }
 
-pub struct ZeroTouchAuthenticator {
-    pub current_state: ZeroTouchAuthenticatorState,
-}
+#[derive(Debug, Default)]
+pub struct ZeroTouchAuthenticator;
+#[derive(Debug, Default)]
+pub struct ZeroTouchAuthenticatorWaitVoucherResp;
 
 impl ZeroTouchAuthenticator {
-    pub fn new() -> Self {
-        ZeroTouchAuthenticator {
-            current_state: ZeroTouchAuthenticatorState::Start,
-        }
-    }
-
     pub fn process_ead_1(
-        &mut self,
+        &self,
         ead_1: &EADItem,
         message_1: &EdhocMessageBuffer,
-    ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
+    ) -> Result<
+        (
+            EdhocMessageBuffer,
+            EdhocMessageBuffer,
+            ZeroTouchAuthenticatorWaitVoucherResp,
+        ),
+        EDHOCError,
+    > {
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
         if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
@@ -35,31 +37,27 @@ impl ZeroTouchAuthenticator {
 
         let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
-        self.current_state = ZeroTouchAuthenticatorState::ProcessedEAD1;
 
-        Ok((loc_w, voucher_request))
+        Ok((
+            loc_w,
+            voucher_request,
+            ZeroTouchAuthenticatorWaitVoucherResp::default(),
+        ))
     }
+}
 
-    // FIXME: this and the other *_prepare_* functions should return a `Result<>`
-    pub fn prepare_ead_2(&mut self, voucher_response: &EdhocMessageBuffer) -> Option<EADItem> {
-        let (_message_1, voucher, _opaque_state) =
-            parse_voucher_response(&voucher_response).unwrap();
+impl ZeroTouchAuthenticatorWaitVoucherResp {
+    pub fn prepare_ead_2(
+        &self,
+        voucher_response: &EdhocMessageBuffer,
+    ) -> Result<EADItem, EDHOCError> {
+        let (_message_1, voucher, _opaque_state) = parse_voucher_response(&voucher_response)?;
 
-        self.current_state = ZeroTouchAuthenticatorState::Completed;
-
-        Some(EADItem {
+        Ok(EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
             value: Some(voucher[..].try_into().unwrap()),
         })
-    }
-
-    pub fn process_ead_3(_ead_3: EADItem) -> Result<(), ()> {
-        // TODO: maybe retrive CRED_U from a Credential Database
-
-        // self.current_state = ZeroTouchAuthenticatorState::Completed;
-
-        Ok(())
     }
 }
 
@@ -129,11 +127,10 @@ mod test_authenticator {
 
     #[test]
     fn test_parse_ead_1_value() {
-        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
         let loc_w_tv: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
-        let res = parse_ead_1_value(&ead_1_value_tv);
+        let res = parse_ead_1_value(&EAD1_VALUE_TV.try_into().unwrap());
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
         assert_eq!(loc_w.content, loc_w_tv.content);
@@ -142,38 +139,24 @@ mod test_authenticator {
 
     #[test]
     fn test_encode_voucher_request() {
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
 
-        let voucher_request = encode_voucher_request(&message_1_tv, &None);
+        let voucher_request =
+            encode_voucher_request(&MESSAGE_1_WITH_EAD_TV.try_into().unwrap(), &None);
         assert_eq!(voucher_request.content, voucher_request_tv.content);
     }
 
     #[test]
     fn test_process_ead_1() {
-        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-
         let ead_1 = EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
-            value: Some(ead_1_value_tv),
+            value: Some(EAD1_VALUE_TV.try_into().unwrap()),
         };
 
-        let mut ead_authz = ZeroTouchAuthenticator::new();
-
-        // mock_ead_server_set_global_state(ZeroTouchServer::new(
-        //     CRED_V_TV,
-        //     W_TV.try_into().unwrap(),
-        //     None,
-        // ));
-
-        let res = ead_authz.process_ead_1(&ead_1, &message_1_tv);
+        let ead_authz = ZeroTouchAuthenticator::default();
+        let res = ead_authz.process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap());
         assert!(res.is_ok());
-        assert_eq!(
-            ead_authz.current_state,
-            ZeroTouchAuthenticatorState::ProcessedEAD1
-        );
     }
 
     #[test]
@@ -195,13 +178,9 @@ mod test_authenticator {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
-        let mut ead_authz = ZeroTouchAuthenticator::new();
+        let ead_authz = ZeroTouchAuthenticatorWaitVoucherResp::default();
 
         let ead_2 = ead_authz.prepare_ead_2(&voucher_response_tv).unwrap();
-        assert_eq!(
-            ead_authz.current_state,
-            ZeroTouchAuthenticatorState::Completed
-        );
         assert_eq!(ead_2.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_2.is_critical, true);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);

@@ -19,12 +19,12 @@ mod test_authz {
 
     #[test]
     fn test_complete_flow() {
-        let mut device = ZeroTouchDevice::new(
+        let device = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
         );
-        let mut authenticator = ZeroTouchAuthenticator::new();
+        let authenticator = ZeroTouchAuthenticator::default();
         let server = ZeroTouchServer::new(
             CRED_V_TV.try_into().unwrap(),
             W_TV.try_into().unwrap(),
@@ -38,7 +38,7 @@ mod test_authz {
 
         // ead_1 will be transported within message_1
 
-        let (_loc_w, voucher_request) = authenticator
+        let (_loc_w, voucher_request, authenticator) = authenticator
             .process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap())
             .unwrap();
 

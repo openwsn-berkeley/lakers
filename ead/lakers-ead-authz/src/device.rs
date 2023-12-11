@@ -144,7 +144,7 @@ mod test_device {
             LOC_W_TV.try_into().unwrap(),
         );
 
-        let (ead_1, ead_authz) =
+        let (ead_1, _ead_authz) =
             ead_authz.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
