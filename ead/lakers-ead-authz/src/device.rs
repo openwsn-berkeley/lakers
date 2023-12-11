@@ -67,7 +67,7 @@ impl ZeroTouchDevice {
         &mut self,
         crypto: &mut Crypto,
         ead_2: EADItem,
-        cred_v_u8: &[u8],
+        cred_v: &[u8],
         h_message_1: &BytesHashLen,
     ) -> Result<(), ()> {
         if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
@@ -76,11 +76,7 @@ impl ZeroTouchDevice {
         let mut ead_2_value: BytesEncodedVoucher = Default::default();
         ead_2_value[..].copy_from_slice(&ead_2.value.unwrap().content[..ENCODED_VOUCHER_LEN]);
 
-        // TODO: this conversion can be avoided if we change the type of cred_v to &[u8] troughout the code
-        let mut cred_v = EdhocMessageBuffer::new();
-        cred_v.fill_with_slice(cred_v_u8).unwrap();
-
-        match verify_voucher(crypto, &ead_2_value, h_message_1, &cred_v, &self.prk) {
+        match verify_voucher(crypto, &ead_2_value, h_message_1, cred_v, &self.prk) {
             Ok(voucher) => {
                 self.voucher = voucher;
                 self.current_state = ZeroTouchDeviceState::Completed;
@@ -187,7 +183,6 @@ mod test_device {
     fn test_verify_voucher() {
         let voucher_tv = VOUCHER_TV.try_into().unwrap();
         let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
-        let cred_v_tv = CRED_V_TV.try_into().unwrap();
         let prk_tv = PRK_TV.try_into().unwrap();
         let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
@@ -195,7 +190,7 @@ mod test_device {
             &mut default_crypto(),
             &voucher_tv,
             &h_message_1_tv,
-            &cred_v_tv,
+            &CRED_V_TV,
             &prk_tv,
         );
         assert!(res.is_ok());

@@ -16,7 +16,7 @@ pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     received_voucher: &BytesEncodedVoucher,
     h_message_1: &BytesHashLen,
-    cred_v: &EdhocMessageBuffer,
+    cred_v: &[u8],
     prk: &BytesHashLen,
 ) -> Result<BytesMac, ()> {
     let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
@@ -32,71 +32,12 @@ pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
 pub(crate) fn prepare_voucher<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     h_message_1: &BytesHashLen,
-    cred_v: &EdhocMessageBuffer,
+    cred_v: &[u8],
     prk: &BytesP256ElemLen,
 ) -> BytesEncodedVoucher {
     let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
     let voucher_mac = compute_voucher_mac(crypto, &prk, &voucher_input);
     encode_voucher(&voucher_mac)
-}
-
-fn encode_voucher_input(
-    h_message_1: &BytesHashLen,
-    cred_v: &EdhocMessageBuffer,
-) -> EdhocMessageBuffer {
-    let mut voucher_input = EdhocMessageBuffer::new();
-
-    voucher_input.content[0] = CBOR_BYTE_STRING;
-    voucher_input.content[1] = SHA256_DIGEST_LEN as u8;
-    voucher_input.content[2..2 + SHA256_DIGEST_LEN]
-        .copy_from_slice(&h_message_1[..SHA256_DIGEST_LEN]);
-
-    voucher_input.content[2 + SHA256_DIGEST_LEN] = CBOR_BYTE_STRING;
-    voucher_input.content[3 + SHA256_DIGEST_LEN] = cred_v.len as u8;
-    voucher_input.content[4 + SHA256_DIGEST_LEN..4 + SHA256_DIGEST_LEN + cred_v.len]
-        .copy_from_slice(cred_v.as_slice());
-
-    voucher_input.len = 4 + SHA256_DIGEST_LEN + cred_v.len;
-
-    voucher_input
-}
-
-fn compute_voucher_mac<Crypto: CryptoTrait>(
-    crypto: &mut Crypto,
-    prk: &BytesHashLen,
-    voucher_input: &EdhocMessageBuffer,
-) -> BytesMac {
-    let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
-
-    let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
-    context[..voucher_input.len].copy_from_slice(voucher_input.as_slice());
-
-    let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, &context, voucher_input.len, MAC_LENGTH);
-    voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
-
-    voucher_mac
-}
-
-fn encode_voucher(voucher_mac: &BytesMac) -> BytesEncodedVoucher {
-    let mut voucher: BytesEncodedVoucher = Default::default();
-    voucher[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
-    voucher[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
-
-    voucher
-}
-
-// TODO: consider moving this to a new 'edhoc crypto primnitives' module
-fn edhoc_kdf_expand<Crypto: CryptoTrait>(
-    crypto: &mut Crypto,
-    prk: &BytesHashLen,
-    label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
-    length: usize,
-) -> BytesMaxBuffer {
-    let (info, info_len) = encode_info(label, context, context_len, length);
-    let output = crypto.hkdf_expand(prk, &info, info_len, length);
-    output
 }
 
 pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
@@ -167,6 +108,63 @@ pub(crate) fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LE
     enc_structure
 }
 
+// private functions
+
+fn encode_voucher_input(h_message_1: &BytesHashLen, cred_v: &[u8]) -> EdhocMessageBuffer {
+    let mut voucher_input = EdhocMessageBuffer::new();
+
+    voucher_input.content[0] = CBOR_BYTE_STRING;
+    voucher_input.content[1] = SHA256_DIGEST_LEN as u8;
+    voucher_input.content[2..2 + SHA256_DIGEST_LEN]
+        .copy_from_slice(&h_message_1[..SHA256_DIGEST_LEN]);
+
+    voucher_input.content[2 + SHA256_DIGEST_LEN] = CBOR_BYTE_STRING;
+    voucher_input.content[3 + SHA256_DIGEST_LEN] = cred_v.len() as u8;
+    voucher_input.content[4 + SHA256_DIGEST_LEN..4 + SHA256_DIGEST_LEN + cred_v.len()]
+        .copy_from_slice(cred_v);
+
+    voucher_input.len = 4 + SHA256_DIGEST_LEN + cred_v.len();
+
+    voucher_input
+}
+
+fn compute_voucher_mac<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    voucher_input: &EdhocMessageBuffer,
+) -> BytesMac {
+    let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
+
+    let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
+    context[..voucher_input.len].copy_from_slice(voucher_input.as_slice());
+
+    let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, &context, voucher_input.len, MAC_LENGTH);
+    voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
+
+    voucher_mac
+}
+
+fn encode_voucher(voucher_mac: &BytesMac) -> BytesEncodedVoucher {
+    let mut voucher: BytesEncodedVoucher = Default::default();
+    voucher[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
+    voucher[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
+
+    voucher
+}
+
+fn edhoc_kdf_expand<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    prk: &BytesHashLen,
+    label: u8,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+    length: usize,
+) -> BytesMaxBuffer {
+    let (info, info_len) = encode_info(label, context, context_len, length);
+    let output = crypto.hkdf_expand(prk, &info, info_len, length);
+    output
+}
+
 #[cfg(test)]
 mod test_shared {
     use super::*;
@@ -201,10 +199,9 @@ mod test_shared {
     #[test]
     fn test_encode_voucher_input() {
         let h_message_1_tv: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
-        let cred_v_tv: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
 
-        let voucher_input = encode_voucher_input(&h_message_1_tv, &cred_v_tv);
+        let voucher_input = encode_voucher_input(&h_message_1_tv, &CRED_V_TV);
         assert_eq!(voucher_input.content, voucher_input_tv.content);
     }
 

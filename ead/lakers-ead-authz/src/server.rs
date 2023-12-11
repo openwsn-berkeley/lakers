@@ -7,6 +7,7 @@ pub struct ZeroTouchServer {
     pub(crate) w: BytesP256ElemLen,        // public key of the enrollment server (W)
     pub acl: Option<EdhocMessageBuffer>, // access control list, each device identified by an u8 kid
 }
+
 impl ZeroTouchServer {
     pub fn new(cred_v: &[u8], w: BytesP256ElemLen, acl: Option<EdhocMessageBuffer>) -> Self {
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
@@ -43,7 +44,7 @@ impl ZeroTouchServer {
         let id_u = decode_id_u(id_u_encoded)?;
 
         if self.acl.is_none() || self.authorized(id_u.content[3]) {
-            let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v, &prk);
+            let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
             Ok(voucher_response)
         } else {
@@ -151,11 +152,10 @@ mod test_enrollment_server {
     #[test]
     fn test_prepare_voucher() {
         let h_message_1: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
-        let cred_v: EdhocMessageBuffer = CRED_V_TV.try_into().unwrap();
         let prk: BytesHashLen = PRK_TV.try_into().unwrap();
         let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
-        let voucher = prepare_voucher(&mut default_crypto(), &h_message_1, &cred_v, &prk);
+        let voucher = prepare_voucher(&mut default_crypto(), &h_message_1, &CRED_V_TV, &prk);
         assert_eq!(voucher, voucher_tv);
     }
 
