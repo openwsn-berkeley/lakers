@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::{Crypto as CryptoTrait, *};
+use lakers_shared::{Crypto as CryptoTrait, *};
 
 // ---- initiator side (device)
 
@@ -694,8 +694,8 @@ fn encode_voucher_response(
 
 #[cfg(test)]
 mod test_vectors {
-    use edhoc_consts::*;
     use hexlit::hex;
+    use lakers_shared::*;
 
     // inputs
     // U

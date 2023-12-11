@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::*;
+use lakers_shared::*;
 
 // TODO: the function signatures should not be necessarily the same as the zeroconf version
 //       find a way to be generic on this part.

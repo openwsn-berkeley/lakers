@@ -8,7 +8,7 @@ description = "EDHOC EAD zeroconf (draf-lake-authz)"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true
 
 [dev-dependencies]
 edhoc-crypto.workspace = true

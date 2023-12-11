@@ -8,7 +8,7 @@ description = "EDHOC implementation in Rust"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true
 edhoc-ead = { workspace = true, default-features = false }
 
 [dev-dependencies]

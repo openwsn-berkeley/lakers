@@ -7,7 +7,7 @@
 #![no_std]
 
 /// Convenience re-export
-pub use edhoc_consts::Crypto as CryptoTrait;
+pub use lakers_shared::Crypto as CryptoTrait;
 
 #[cfg(feature = "hacspec")]
 pub type Crypto = edhoc_crypto_hacspec::Crypto;

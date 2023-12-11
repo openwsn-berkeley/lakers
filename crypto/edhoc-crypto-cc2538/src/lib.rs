@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::*;
+use lakers_shared::*;
 
 use cc2538_hal::crypto::aes_engine::ccm::AesCcmInfo;
 use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};

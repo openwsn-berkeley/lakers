@@ -8,7 +8,7 @@ description = "EDHOC crypto library dispatch crate"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts = { package = "lakers-shared", path = "../consts", default-features = false }
+lakers-shared = { package = "lakers-shared", path = "../shared", default-features = false }
 
 # hacspec
 edhoc-crypto-hacspec = { workspace = true, optional = true }

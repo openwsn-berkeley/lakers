@@ -1,6 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 
-pub use {edhoc_consts::Crypto as CryptoTrait, edhoc_consts::State as EdhocState, edhoc_consts::*};
+pub use {
+    lakers_shared::Crypto as CryptoTrait, lakers_shared::State as EdhocState, lakers_shared::*,
+};
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
 pub use edhoc_ead::*;

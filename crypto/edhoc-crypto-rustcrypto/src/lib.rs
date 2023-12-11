@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::{
+use lakers_shared::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
     AES_CCM_TAG_LEN, MAX_BUFFER_LEN,

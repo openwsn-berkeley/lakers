@@ -8,7 +8,7 @@ description = "EDHOC crypto library cc2538 backend"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true
 hacspec-lib = { version = "0.1.0-beta.1", default-features = false, features = [ "alloc" ] }
 cortex-m = { version = "0.7.4" }
 cortex-m-rt = { version = "0.7.1" }

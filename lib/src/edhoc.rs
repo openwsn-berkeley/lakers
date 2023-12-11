@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
-use edhoc_consts::{Crypto as CryptoTrait, *};
 use edhoc_ead::*;
+use lakers_shared::{Crypto as CryptoTrait, *};
 
 pub fn edhoc_exporter(
     state: &State<Completed>,

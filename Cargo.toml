@@ -40,7 +40,7 @@ license = "BSD-3-Clause"
 
 [workspace.dependencies]
 
-edhoc-consts = { package = "lakers-shared", path = "consts/", version = "^0.4.0-alpha.1" }
+lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.4.0-alpha.1" }
 edhoc-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
 edhoc-ead-none = { package = "lakers-ead-none", path = "ead/edhoc-ead-none/", version = "^0.4.0-alpha.1" }
 edhoc-ead-zeroconf = { package = "lakers-ead-zeroconf", path = "ead/edhoc-ead-zeroconf/", version = "^0.4.0-alpha.1" }
