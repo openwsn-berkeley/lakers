@@ -628,11 +628,12 @@ fn encode_message_1(
     output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
 
     if let Some(ead_1) = ead_1 {
-        let ead_1 = encode_ead_item(ead_1)?;
-        if output.extend_from_slice(ead_1.as_slice()).is_ok() {
-            Ok(output)
-        } else {
-            Err(EDHOCError::EadTooLongError)
+        match encode_ead_item(ead_1) {
+            Ok(ead_1) => output
+                .extend_from_slice(ead_1.as_slice())
+                .and(Ok(output))
+                .or(Err(EDHOCError::EadTooLongError)),
+            Err(e) => Err(e),
         }
     } else {
         Ok(output)
@@ -737,11 +738,12 @@ fn encode_plaintext_3(
     plaintext_3.len = 2 + mac_3.len();
 
     if let Some(ead_3) = ead_3 {
-        let ead_3 = encode_ead_item(ead_3)?;
-        if plaintext_3.extend_from_slice(ead_3.as_slice()).is_ok() {
-            Ok(plaintext_3)
-        } else {
-            Err(EDHOCError::EadTooLongError)
+        match encode_ead_item(ead_3) {
+            Ok(ead_3) => plaintext_3
+                .extend_from_slice(ead_3.as_slice())
+                .and(Ok(plaintext_3))
+                .or(Err(EDHOCError::EadTooLongError)),
+            Err(e) => Err(e),
         }
     } else {
         Ok(plaintext_3)
@@ -934,11 +936,12 @@ fn encode_plaintext_2(
     plaintext_2.len = 1 + offset_cred + mac_2.len();
 
     if let Some(ead_2) = ead_2 {
-        let ead_2 = encode_ead_item(ead_2)?;
-        if plaintext_2.extend_from_slice(ead_2.as_slice()).is_ok() {
-            Ok(plaintext_2)
-        } else {
-            Err(EDHOCError::EadTooLongError)
+        match encode_ead_item(ead_2) {
+            Ok(ead_2) => plaintext_2
+                .extend_from_slice(ead_2.as_slice())
+                .and(Ok(plaintext_2))
+                .or(Err(EDHOCError::EadTooLongError)),
+            Err(e) => Err(e),
         }
     } else {
         Ok(plaintext_2)
