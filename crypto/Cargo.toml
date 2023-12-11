@@ -1,5 +1,5 @@
 [package]
-name = "edhoc-crypto"
+name = "lakers-crypto"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
@@ -11,30 +11,30 @@ repository.workspace = true
 lakers-shared = { package = "lakers-shared", path = "../shared", default-features = false }
 
 # hacspec
-edhoc-crypto-hacspec = { workspace = true, optional = true }
+lakers-crypto-hacspec = { workspace = true, optional = true }
 
 # cc2538 hardware accelerated
-edhoc-crypto-cc2538 = { workspace = true, optional = true }
+lakers-crypto-cc2538 = { workspace = true, optional = true }
 
 # psa
-edhoc-crypto-psa = { workspace = true, default-features = false, optional = true }
+lakers-crypto-psa = { workspace = true, default-features = false, optional = true }
 
 # cryptocell for nrf52840
-edhoc-crypto-cryptocell310 = { workspace = true, optional = true }
+lakers-crypto-cryptocell310 = { workspace = true, optional = true }
 
 # software implementations from rustcrypto
-edhoc-crypto-rustcrypto = { workspace = true, optional = true }
+lakers-crypto-rustcrypto = { workspace = true, optional = true }
 rand_core = { version = "0.6.4", optional = true, default-features = false }
 
 [features]
 default = [  ]
-hacspec = [ "edhoc-crypto-hacspec" ]
-cc2538 = [ "edhoc-crypto-cc2538" ]
-psa = [ "edhoc-crypto-psa" ]
-psa-baremetal = [ "psa", "edhoc-crypto-psa/baremetal" ]
-cryptocell310 = [ "edhoc-crypto-cryptocell310" ]
+hacspec = [ "lakers-crypto-hacspec" ]
+cc2538 = [ "lakers-crypto-cc2538" ]
+psa = [ "lakers-crypto-psa" ]
+psa-baremetal = [ "psa", "lakers-crypto-psa/baremetal" ]
+cryptocell310 = [ "lakers-crypto-cryptocell310" ]
 # This requires std because we need to conjure randomness from thin air;
 # embedded systems can still use rustcrypto but need to provide a crypto from
-# edhoc-crypto-rustcrypto on their own, and combine it with an entropy choice
+# lakers-crypto-rustcrypto on their own, and combine it with an entropy choice
 # of their avail.
-rustcrypto = [ "edhoc-crypto-rustcrypto", "rand_core/getrandom" ]
+rustcrypto = [ "lakers-crypto-rustcrypto", "rand_core/getrandom" ]

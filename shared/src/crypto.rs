@@ -1,4 +1,4 @@
-//! Cryptography trait back-end for the edhoc-crypto crate
+//! Cryptography trait back-end for the lakers-crypto crate
 
 use super::*;
 

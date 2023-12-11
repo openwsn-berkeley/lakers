@@ -11,5 +11,5 @@ repository.workspace = true
 lakers-shared.workspace = true
 
 [dev-dependencies]
-edhoc-crypto.workspace = true
+lakers-crypto.workspace = true
 hexlit = "0.5.3"

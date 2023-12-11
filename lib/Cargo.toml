@@ -12,7 +12,7 @@ lakers-shared.workspace = true
 edhoc-ead = { workspace = true, default-features = false }
 
 [dev-dependencies]
-edhoc-crypto.workspace = true
+lakers-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]

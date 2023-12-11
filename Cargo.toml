@@ -6,11 +6,11 @@ members = [
   "ead/edhoc-ead-none",
   "ead/edhoc-ead-zeroconf",
   "crypto",
-  "crypto/edhoc-crypto-cc2538",
-  "crypto/edhoc-crypto-hacspec",
-  "crypto/edhoc-crypto-psa",
-  "crypto/edhoc-crypto-rustcrypto",
-  "crypto/edhoc-crypto-cryptocell310-sys",
+  "crypto/lakers-crypto-cc2538",
+  "crypto/lakers-crypto-hacspec",
+  "crypto/lakers-crypto-psa",
+  "crypto/lakers-crypto-rustcrypto",
+  "crypto/lakers-crypto-cryptocell310-sys",
   "examples/coap",
   "examples/edhoc-rs-no_std",
   "examples/edhoc-rs-cc2538",
@@ -22,7 +22,7 @@ default-members = [
   "lib",
   "ead",
   "crypto",
-  "crypto/edhoc-crypto-hacspec",
+  "crypto/lakers-crypto-hacspec",
   "examples/coap",
 ]
 
@@ -44,13 +44,13 @@ lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.4.0
 edhoc-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
 edhoc-ead-none = { package = "lakers-ead-none", path = "ead/edhoc-ead-none/", version = "^0.4.0-alpha.1" }
 edhoc-ead-zeroconf = { package = "lakers-ead-zeroconf", path = "ead/edhoc-ead-zeroconf/", version = "^0.4.0-alpha.1" }
-edhoc-crypto = { path = "crypto/" }
+lakers-crypto = { path = "crypto/" }
 
-edhoc-crypto-cc2538 = { path = "crypto/edhoc-crypto-cc2538/" }
-edhoc-crypto-cryptocell310 = { path = "crypto/edhoc-crypto-cryptocell310-sys/" }
-edhoc-crypto-hacspec = { path = "crypto/edhoc-crypto-hacspec/" }
-edhoc-crypto-psa = { path = "crypto/edhoc-crypto-psa/" }
-edhoc-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/edhoc-crypto-rustcrypto/", version = "^0.4.0-alpha.1" }
+lakers-crypto-cc2538 = { path = "crypto/lakers-crypto-cc2538/" }
+lakers-crypto-cryptocell310 = { path = "crypto/lakers-crypto-cryptocell310-sys/" }
+lakers-crypto-hacspec = { path = "crypto/lakers-crypto-hacspec/" }
+lakers-crypto-psa = { path = "crypto/lakers-crypto-psa/" }
+lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/lakers-crypto-rustcrypto/", version = "^0.4.0-alpha.1" }
 
 edhoc-rs = { package = "lakers", path = "lib/", version = "^0.4.0-alpha.1", default-features = false }
 

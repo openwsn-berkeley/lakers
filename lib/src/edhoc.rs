@@ -1062,8 +1062,8 @@ fn compute_prk_2e(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use edhoc_crypto::default_crypto;
     use hexlit::hex;
+    use lakers_crypto::default_crypto;
     // test vectors (TV)
 
     // message_1 (first_time)

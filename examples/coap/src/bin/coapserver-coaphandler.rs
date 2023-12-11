@@ -1,6 +1,6 @@
-use edhoc_crypto::Crypto;
 use edhoc_rs::*;
 use hexlit::hex;
+use lakers_crypto::Crypto;
 
 use embedded_nal::UdpFullStack;
 
@@ -64,7 +64,7 @@ impl coap_handler::Handler for EdhocHandler {
 
             let responder = EdhocResponder::new(
                 state,
-                edhoc_crypto::default_crypto(),
+                lakers_crypto::default_crypto(),
                 &R,
                 &CRED_R,
                 Some(&CRED_I),

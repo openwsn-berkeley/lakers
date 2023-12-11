@@ -345,7 +345,7 @@ mod test {
 
     use hexlit::hex;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     const ID_CRED_I: &[u8] = &hex!("a104412b");
     const ID_CRED_R: &[u8] = &hex!("a104410a");

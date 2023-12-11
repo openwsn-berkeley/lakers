@@ -1,5 +1,5 @@
 [package]
-name = "edhoc-crypto-hacspec"
+name = "lakers-crypto-hacspec"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]

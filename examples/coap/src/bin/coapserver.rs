@@ -34,7 +34,7 @@ fn main() {
                 let state = EdhocState::default();
                 let responder = EdhocResponder::new(
                     state,
-                    edhoc_crypto::default_crypto(),
+                    lakers_crypto::default_crypto(),
                     &R,
                     &CRED_R,
                     Some(&CRED_I),
@@ -48,7 +48,7 @@ fn main() {
 
                 if let Ok(responder) = result {
                     let c_r =
-                        generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto());
+                        generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
                     let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection

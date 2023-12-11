@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa, edhoc-crypto/rustcrypto]
+        crypto_backend: [lakers-crypto/hacspec, lakers-crypto/psa, lakers-crypto/rustcrypto]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -39,7 +39,7 @@ jobs:
       run: RUST_BACKTRACE=1 cargo test
 
     - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-zeroconf` when testing with that config
-      run: RUST_BACKTRACE=1 cargo test -p lakers -p edhoc-crypto -p lakers-shared ${{ matrix.ead == 'ead-zeroconf' && '-p lakers-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
+      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-zeroconf' && '-p lakers-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
   build-edhoc-package:
@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crypto_backend: [edhoc-crypto/hacspec, edhoc-crypto/psa, edhoc-crypto/psa-baremetal, edhoc-crypto/cryptocell310, edhoc-crypto/rustcrypto]
+        crypto_backend: [lakers-crypto/hacspec, lakers-crypto/psa, lakers-crypto/psa-baremetal, lakers-crypto/cryptocell310, lakers-crypto/rustcrypto]
         ead: [ead-none, ead-zeroconf]
 
     steps:
@@ -62,7 +62,7 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build
-      run: cargo build --package lakers --package edhoc-crypto --package lakers-ead-dispatch --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
+      run: cargo build --package lakers --package lakers-crypto --package lakers-ead-dispatch --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
 
 
   generate-fstar:
@@ -79,7 +79,7 @@ jobs:
         cd lakers
 
         # generate the fstar files
-        cargo-hax -C -p lakers --no-default-features --features='edhoc-crypto/hacspec, ead-none' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
+        cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/hacspec, ead-none' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
         cargo-hax -C -p lakers-shared \; into fstar
 
         # even if fstar generation was ok, fail if something is not implemented
