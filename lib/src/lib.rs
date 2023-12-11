@@ -5,7 +5,7 @@ pub use {
 };
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
-pub use edhoc_ead::*;
+pub use lakers_ead::*;
 
 mod edhoc;
 use edhoc::*;

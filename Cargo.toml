@@ -3,8 +3,8 @@
 members = [
   "lib",
   "ead",
-  "ead/edhoc-ead-none",
-  "ead/edhoc-ead-zeroconf",
+  "ead/lakers-ead-none",
+  "ead/lakers-ead-zeroconf",
   "crypto",
   "crypto/lakers-crypto-cc2538",
   "crypto/lakers-crypto-hacspec",
@@ -41,9 +41,9 @@ license = "BSD-3-Clause"
 [workspace.dependencies]
 
 lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.4.0-alpha.1" }
-edhoc-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
-edhoc-ead-none = { package = "lakers-ead-none", path = "ead/edhoc-ead-none/", version = "^0.4.0-alpha.1" }
-edhoc-ead-zeroconf = { package = "lakers-ead-zeroconf", path = "ead/edhoc-ead-zeroconf/", version = "^0.4.0-alpha.1" }
+lakers-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.4.0-alpha.1", default-features = false }
+lakers-ead-none = { package = "lakers-ead-none", path = "ead/lakers-ead-none/", version = "^0.4.0-alpha.1" }
+lakers-ead-zeroconf = { package = "lakers-ead-zeroconf", path = "ead/lakers-ead-zeroconf/", version = "^0.4.0-alpha.1" }
 lakers-crypto = { path = "crypto/" }
 
 lakers-crypto-cc2538 = { path = "crypto/lakers-crypto-cc2538/" }
