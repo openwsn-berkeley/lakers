@@ -1,48 +1,34 @@
 use super::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
-#[derive(Default, PartialEq, Copy, Clone, Debug)]
-pub enum ZeroTouchDeviceState {
-    #[default]
-    NonInitialized,
-    Start,
-    WaitEAD2,
-    Completed, // TODO[ead]: check if it is really ok to consider Completed after processing EAD_2
-    Error,
-}
-
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ZeroTouchDevice {
-    pub current_state: ZeroTouchDeviceState,
     pub(crate) id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub(crate) g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
+}
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct ZeroTouchDeviceWaitEAD2 {
     pub(crate) prk: BytesHashLen,
-    pub(crate) voucher: BytesMac,
+}
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct ZeroTouchDeviceDone {
+    pub voucher: BytesMac,
 }
 
 impl ZeroTouchDevice {
     pub fn new(id_u: EdhocMessageBuffer, g_w: BytesP256ElemLen, loc_w: EdhocMessageBuffer) -> Self {
-        ZeroTouchDevice {
-            current_state: ZeroTouchDeviceState::Start,
-            id_u,
-            g_w,
-            loc_w,
-            prk: [0u8; SHA256_DIGEST_LEN],
-            voucher: [0u8; MAC_LENGTH],
-        }
+        ZeroTouchDevice { id_u, g_w, loc_w }
     }
 
     pub fn prepare_ead_1<Crypto: CryptoTrait>(
-        &mut self,
+        &self,
         crypto: &mut Crypto,
         x: &BytesP256ElemLen,
         ss: u8,
-    ) -> Option<EADItem> {
-        if self.current_state != ZeroTouchDeviceState::Start {
-            return None;
-        }
-
+    ) -> (EADItem, ZeroTouchDeviceWaitEAD2) {
         // PRK = EDHOC-Extract(salt, IKM)
         let prk = compute_prk(crypto, x, &self.g_w);
 
@@ -57,19 +43,18 @@ impl ZeroTouchDevice {
             value,
         };
 
-        self.prk = prk;
-        self.current_state = ZeroTouchDeviceState::WaitEAD2;
-
-        Some(ead_1)
+        (ead_1, ZeroTouchDeviceWaitEAD2 { prk })
     }
+}
 
+impl ZeroTouchDeviceWaitEAD2 {
     pub fn process_ead_2<Crypto: CryptoTrait>(
-        &mut self,
+        &self,
         crypto: &mut Crypto,
         ead_2: EADItem,
         cred_v: &[u8],
         h_message_1: &BytesHashLen,
-    ) -> Result<(), ()> {
+    ) -> Result<ZeroTouchDeviceDone, ()> {
         if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
             return Err(());
         }
@@ -77,20 +62,9 @@ impl ZeroTouchDevice {
         ead_2_value[..].copy_from_slice(&ead_2.value.unwrap().content[..ENCODED_VOUCHER_LEN]);
 
         match verify_voucher(crypto, &ead_2_value, h_message_1, cred_v, &self.prk) {
-            Ok(voucher) => {
-                self.voucher = voucher;
-                self.current_state = ZeroTouchDeviceState::Completed;
-                Ok(())
-            }
-            Err(_) => {
-                self.current_state = ZeroTouchDeviceState::Error;
-                Err(())
-            }
+            Ok(voucher) => Ok(ZeroTouchDeviceDone { voucher }),
+            Err(_) => Err(()),
         }
-    }
-
-    pub fn prepare_ead_3() -> Option<EADItem> {
-        Some(EADItem::new())
     }
 }
 
@@ -164,16 +138,14 @@ mod test_device {
     fn test_prepare_ead_1() {
         let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
 
-        let mut ead_authz = ZeroTouchDevice::new(
+        let ead_authz = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
             LOC_W_TV.try_into().unwrap(),
         );
 
-        let ead_1 = ead_authz
-            .prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV)
-            .unwrap();
-        assert_eq!(ead_authz.current_state, ZeroTouchDeviceState::WaitEAD2);
+        let (ead_1, ead_authz) =
+            ead_authz.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
@@ -199,26 +171,24 @@ mod test_device {
 
     #[test]
     fn test_process_ead_2() {
-        let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
-        let cred_v_tv: &[u8] = CRED_V_TV.try_into().unwrap();
-        let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
-
         let ead_2_tv = EADItem {
             label: EAD_ZEROCONF_LABEL,
             is_critical: true,
-            value: Some(ead_2_value_tv),
+            value: Some(EAD2_VALUE_TV.try_into().unwrap()),
         };
 
-        let mut ead_authz = ZeroTouchDevice::new(
-            ID_U_TV.try_into().unwrap(),
-            G_W_TV.try_into().unwrap(),
-            LOC_W_TV.try_into().unwrap(),
-        );
-        ead_authz.prk = PRK_TV.try_into().unwrap();
+        let ead_authz = ZeroTouchDeviceWaitEAD2 {
+            prk: PRK_TV.try_into().unwrap(),
+        };
 
-        let res =
-            ead_authz.process_ead_2(&mut default_crypto(), ead_2_tv, cred_v_tv, &h_message_1_tv);
+        let res = ead_authz.process_ead_2(
+            &mut default_crypto(),
+            ead_2_tv,
+            CRED_V_TV.try_into().unwrap(),
+            &H_MESSAGE_1_TV.try_into().unwrap(),
+        );
         assert!(res.is_ok());
-        assert_eq!(ead_authz.current_state, ZeroTouchDeviceState::Completed);
+        let ead_authz = res.unwrap();
+        assert_eq!(ead_authz.voucher, VOUCHER_MAC_TV); // TODO: maybe should use the encoded voucher instead?
     }
 }

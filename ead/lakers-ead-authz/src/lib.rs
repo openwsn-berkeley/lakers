@@ -33,9 +33,8 @@ mod test_authz {
 
         // using .unwrap below since detailed errors are tested in each entity's tests
 
-        let ead_1 = device
-            .prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV)
-            .unwrap();
+        let (ead_1, device) =
+            device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
 
         // ead_1 will be transported within message_1
 
