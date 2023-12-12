@@ -6,6 +6,7 @@ authors = ["Kaspar Schleiser <kaspar@schleiser.de>"]
 license.workspace = true
 description = "EDHOC crypto library PSA backend"
 repository.workspace = true
+readme.workspace = true
 
 [dependencies]
 lakers-shared.workspace = true
