@@ -1,3 +1,18 @@
+//! Implementation of [EDHOC] (Ephemeral Diffie-Hellman Over COSE), a lightweight authenticated key
+//! exchange for the Internet of Things.
+//!
+//! The crate provides a high-level interface through the [EdhocInitiator] and the [EdhocResponder]
+//! structs. Both these wrap the lower level [State] struct that is mainly used through internal
+//! functions in the `edhoc` module. This separation is relevant because the lower level tools are
+//! subject of ongoing formal verification, whereas the high-level interfaces aim for good
+//! usability.
+//!
+//! Both [EdhocInitiator] and [EdhocResponder] are used in a type stated way. Following the EDHOC
+//! protocol, they generate (or process) messages, progressively provide more information about
+//! their peer, and on eventually devolve into an [EdhocInitiatorDone] and [EdhocResponderDone],
+//! respectively, through which the EDHOC key material can be obtained.
+//!
+//! [EDHOC]: https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/
 #![cfg_attr(not(test), no_std)]
 
 pub use {
@@ -10,6 +25,7 @@ pub use lakers_ead::*;
 mod edhoc;
 use edhoc::*;
 
+/// Starting point for performing EDHOC in the role of the Initiator.
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
     state: EdhocState<Start>, // opaque state
@@ -41,6 +57,7 @@ pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
+/// Starting point for performing EDHOC in the role of the Responder.
 #[derive(Debug)]
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
     state: EdhocState<Start>, // opaque state
