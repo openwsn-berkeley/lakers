@@ -30,24 +30,23 @@ pub struct EdhocInitiatorPartialM1<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
-    // state: WaitMessage2New, // opaque state
-    state: EdhocState<WaitMessage2>, // opaque state
-    i: &'a [u8],                     // private authentication key of I
-    cred_i: &'a [u8],                // I's full credential
-    cred_r: Option<&'a [u8]>,        // R's full credential (if provided)
+    state: WaitMessage2New,   // opaque state
+    i: &'a [u8],              // private authentication key of I
+    cred_i: &'a [u8],         // I's full credential
+    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
-    state: EdhocState<ProcessedMessage2>, // opaque state
-    cred_i: &'a [u8],                     // I's full credential
+    state: ProcessedMessage2New, // opaque state
+    cred_i: &'a [u8],            // I's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: EdhocState<Completed>,
+    state: InitiatorCompletedNew,
     crypto: Crypto,
 }
 
@@ -257,11 +256,11 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM1<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
-    pub fn process_message_2(
+    pub fn process_message_2a(
         mut self,
         message_2: &BufferMessage2,
     ) -> Result<(EdhocInitiatorBuildM3<'a, Crypto>, u8), EDHOCError> {
-        match i_process_message_2(
+        match i_process_message_2a(
             self.state,
             &mut self.crypto,
             message_2,
@@ -323,7 +322,7 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_exporter(
+        edhoc_exporter_new(
             &self.state,
             &mut self.crypto,
             label,
@@ -337,7 +336,7 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_key_update(
+        edhoc_key_update_new(
             &mut self.state,
             &mut self.crypto,
             &context_buf,
@@ -476,7 +475,7 @@ mod test {
         let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
 
         assert!(c_r != 0xff);
-        let (initiator, _) = initiator.process_message_2(&message_2).unwrap();
+        let (initiator, _) = initiator.process_message_2a(&message_2).unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 

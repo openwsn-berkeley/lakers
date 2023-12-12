@@ -146,14 +146,28 @@ pub struct State<Phase: EDHOCState> {
 pub struct PartialMessage1 {
     pub c_i: u8,                    // connection identifier chosen by the initiator
     pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
-    pub gy_or_gx: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
+    pub gx_or_gy: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
     pub suites_i: BytesSuites,
     pub suites_i_len: usize,
 }
 
 #[derive(Debug)]
 pub struct WaitMessage2New {
+    pub x_or_y: BytesP256ElemLen,
     pub h_message_1: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct ProcessedMessage2New {
+    pub prk_3e2m: BytesHashLen,
+    pub prk_4e3m: BytesHashLen,
+    pub th_3: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct InitiatorCompletedNew {
+    pub prk_out: BytesHashLen,
+    pub prk_exporter: BytesHashLen,
 }
 
 impl Default for State<Start> {

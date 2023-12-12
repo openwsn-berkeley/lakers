@@ -55,6 +55,59 @@ pub fn edhoc_key_update(
     state.prk_out
 }
 
+pub fn edhoc_exporter_new(
+    state: &InitiatorCompletedNew,
+    crypto: &mut impl CryptoTrait,
+    label: u8,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+    length: usize,
+) -> BytesMaxBuffer {
+    edhoc_kdf(
+        crypto,
+        &state.prk_exporter,
+        label,
+        context,
+        context_len,
+        length,
+    )
+}
+
+pub fn edhoc_key_update_new(
+    state: &mut InitiatorCompletedNew,
+    crypto: &mut impl CryptoTrait,
+    context: &BytesMaxContextBuffer,
+    context_len: usize,
+) -> BytesHashLen {
+    // FIXME: Normally we would decompose `state` here, but hax disallows aliasing a `mut` item.
+    // The best fix for this is to change state from a tuple-struct to a regular struct.
+    // In the code below, `state.6` means `mut prk_out` and `state.7` means `mut prk_exporter`
+
+    // new PRK_out
+    let prk_new_buf = edhoc_kdf(
+        crypto,
+        &state.prk_out,
+        11u8,
+        context,
+        context_len,
+        SHA256_DIGEST_LEN,
+    );
+    state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+
+    // new PRK_exporter
+    let prk_new_buf = edhoc_kdf(
+        crypto,
+        &state.prk_out,
+        10u8,
+        &[0x00; MAX_KDF_CONTEXT_LEN],
+        0,
+        SHA256_DIGEST_LEN,
+    );
+    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+
+    state.prk_out
+}
+
 pub fn r_process_message_1(
     state: State<Start>,
     crypto: &mut impl CryptoTrait,
@@ -289,8 +342,8 @@ pub fn r_process_message_3(
 }
 
 pub fn i_prepare_message_1a(
-    state: Start,
-    crypto: &mut impl CryptoTrait,
+    _state: Start,
+    _crypto: &mut impl CryptoTrait,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
     c_i: u8,
@@ -303,7 +356,7 @@ pub fn i_prepare_message_1a(
     Ok(PartialMessage1 {
         c_i,
         x_or_y: x,
-        gy_or_gx: g_x,
+        gx_or_gy: g_x,
         suites_i,
         suites_i_len,
     })
@@ -313,13 +366,13 @@ pub fn i_prepare_message_1b(
     state: PartialMessage1,
     crypto: &mut impl CryptoTrait,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(State<WaitMessage2>, BufferMessage1), EDHOCError> {
+) -> Result<(WaitMessage2New, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     let message_1 = encode_message_1(
         EDHOC_METHOD,
         &state.suites_i,
         state.suites_i_len,
-        &state.gy_or_gx,
+        &state.gx_or_gy,
         state.c_i,
         ead_1,
     )?;
@@ -331,33 +384,23 @@ pub fn i_prepare_message_1b(
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
     // TODO: new way
-    // Ok((WaitMessage2New { h_message_1 }, message_1))
-
-    // old way
-    let state = State {
-        current_state: PhantomData,
-        x_or_y: state.x_or_y,
-        c_i: state.c_i,
-        gy_or_gx: state.gy_or_gx,
-        prk_3e2m: Default::default(),
-        prk_4e3m: Default::default(),
-        prk_out: Default::default(),
-        prk_exporter: Default::default(),
-        h_message_1: h_message_1,
-        th_3: Default::default(),
-    };
-
-    Ok((state, message_1))
+    Ok((
+        WaitMessage2New {
+            x_or_y: state.x_or_y,
+            h_message_1,
+        },
+        message_1,
+    ))
 }
 
 // returns c_r
-pub fn i_process_message_2(
-    state: State<WaitMessage2>,
+pub fn i_process_message_2a(
+    state: WaitMessage2New,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
     cred_r_expected: Option<&[u8]>,
     i: &BytesP256ElemLen, // I's static private DH key
-) -> Result<(State<ProcessedMessage2>, u8, u8), EDHOCError> {
+) -> Result<(ProcessedMessage2New, u8, u8), EDHOCError> {
     let mut kid = 0xffu8; // invalidate kid
 
     let res = parse_message_2(message_2);
@@ -417,16 +460,9 @@ pub fn i_process_message_2(
 
                         let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
 
-                        let state = State {
-                            current_state: PhantomData,
-                            x_or_y: state.x_or_y,
-                            c_i: state.c_i,
-                            gy_or_gx: state.gy_or_gx,
+                        let state = ProcessedMessage2New {
                             prk_3e2m: prk_3e2m,
                             prk_4e3m: prk_4e3m,
-                            prk_out: state.prk_out,
-                            prk_exporter: state.prk_exporter,
-                            h_message_1: state.h_message_1,
                             th_3: th_3,
                         };
 
@@ -449,11 +485,11 @@ pub fn i_process_message_2(
 }
 
 pub fn i_prepare_message_3(
-    state: &mut State<ProcessedMessage2>,
+    state: &mut ProcessedMessage2New,
     crypto: &mut impl CryptoTrait,
     id_cred_i: &BytesIdCred,
     cred_i: &[u8],
-) -> Result<(State<Completed>, BufferMessage3, BytesHashLen), EDHOCError> {
+) -> Result<(InitiatorCompletedNew, BufferMessage3, BytesHashLen), EDHOCError> {
     let mac_3 = compute_mac_3(crypto, &state.prk_4e3m, &state.th_3, id_cred_i, cred_i);
 
     let ead_3 = i_prepare_ead_3();
@@ -489,22 +525,17 @@ pub fn i_prepare_message_3(
         0,
         SHA256_DIGEST_LEN,
     );
-    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+    let mut prk_exporter: BytesHashLen = Default::default();
+    prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-    let state = State {
-        current_state: PhantomData,
-        x_or_y: state.x_or_y,
-        c_i: state.c_i,
-        gy_or_gx: state.gy_or_gx,
-        prk_3e2m: state.prk_3e2m,
-        prk_4e3m: state.prk_4e3m,
-        prk_out: prk_out,
-        prk_exporter: state.prk_exporter,
-        h_message_1: state.h_message_1,
-        th_3: state.th_3,
-    };
-
-    Ok((state, message_3, prk_out))
+    Ok((
+        InitiatorCompletedNew {
+            prk_out,
+            prk_exporter,
+        },
+        message_3,
+        prk_out,
+    ))
 }
 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
