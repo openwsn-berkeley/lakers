@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # This script builds the static library for a cortex-m4 target
 # It also generates the header files for the c wrapper
 # The script takes one argument: the cargo feature to use
