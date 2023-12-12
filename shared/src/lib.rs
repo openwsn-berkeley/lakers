@@ -91,7 +91,7 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 // This is sealed
 pub trait EDHOCState: core::fmt::Debug {}
 // For both initiator and responder
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Start;
 impl EDHOCState for Start {}
 // For the initiator
@@ -140,6 +140,20 @@ pub struct State<Phase: EDHOCState> {
     pub prk_exporter: BytesHashLen,
     pub h_message_1: BytesHashLen,
     pub th_3: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct PartialMessage1 {
+    pub c_i: u8,                    // connection identifier chosen by the initiator
+    pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
+    pub gy_or_gx: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
+    pub suites_i: BytesSuites,
+    pub suites_i_len: usize,
+}
+
+#[derive(Debug)]
+pub struct WaitMessage2New {
+    pub h_message_1: BytesHashLen,
 }
 
 impl Default for State<Start> {

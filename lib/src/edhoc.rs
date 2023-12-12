@@ -288,22 +288,41 @@ pub fn r_process_message_3(
     }
 }
 
-pub fn i_prepare_message_1(
-    state: State<Start>,
+pub fn i_prepare_message_1a(
+    state: Start,
     crypto: &mut impl CryptoTrait,
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
     c_i: u8,
-) -> Result<(State<WaitMessage2>, BufferMessage1), EDHOCError> {
+) -> Result<PartialMessage1, EDHOCError> {
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
     let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
     suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-    let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i_len - 1]);
+    Ok(PartialMessage1 {
+        c_i,
+        x_or_y: x,
+        gy_or_gx: g_x,
+        suites_i,
+        suites_i_len,
+    })
+}
 
+pub fn i_prepare_message_1b(
+    state: PartialMessage1,
+    crypto: &mut impl CryptoTrait,
+    ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
+) -> Result<(State<WaitMessage2>, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(EDHOC_METHOD, &suites_i, suites_i_len, &g_x, c_i, &ead_1)?;
+    let message_1 = encode_message_1(
+        EDHOC_METHOD,
+        &state.suites_i,
+        state.suites_i_len,
+        &state.gy_or_gx,
+        state.c_i,
+        ead_1,
+    )?;
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
@@ -311,17 +330,21 @@ pub fn i_prepare_message_1(
     // hash message_1 here to avoid saving the whole message in the state
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
+    // TODO: new way
+    // Ok((WaitMessage2New { h_message_1 }, message_1))
+
+    // old way
     let state = State {
         current_state: PhantomData,
-        x_or_y: x,
-        c_i: c_i,
+        x_or_y: state.x_or_y,
+        c_i: state.c_i,
         gy_or_gx: state.gy_or_gx,
-        prk_3e2m: state.prk_3e2m,
-        prk_4e3m: state.prk_4e3m,
-        prk_out: state.prk_out,
-        prk_exporter: state.prk_exporter,
+        prk_3e2m: Default::default(),
+        prk_4e3m: Default::default(),
+        prk_out: Default::default(),
+        prk_exporter: Default::default(),
         h_message_1: h_message_1,
-        th_3: state.th_3,
+        th_3: Default::default(),
     };
 
     Ok((state, message_1))
