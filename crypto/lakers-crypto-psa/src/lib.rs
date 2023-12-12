@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::{Crypto as CryptoTrait, *};
+use lakers_shared::{Crypto as CryptoTrait, *};
 use psa_crypto::operations::hash::hash_compute;
 use psa_crypto::operations::{aead, key_agreement, key_management, other::generate_random};
 use psa_crypto::types::algorithm::Hash;

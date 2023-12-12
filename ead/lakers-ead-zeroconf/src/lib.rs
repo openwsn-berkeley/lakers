@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::{Crypto as CryptoTrait, *};
+use lakers_shared::{Crypto as CryptoTrait, *};
 
 // ---- initiator side (device)
 
@@ -694,8 +694,8 @@ fn encode_voucher_response(
 
 #[cfg(test)]
 mod test_vectors {
-    use edhoc_consts::*;
     use hexlit::hex;
+    use lakers_shared::*;
 
     // inputs
     // U
@@ -758,7 +758,7 @@ mod test_initiator {
     use super::*;
     use test_vectors::*;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     #[test]
     fn test_compute_keys() {
@@ -888,7 +888,7 @@ mod test_responder {
     use super::*;
     use test_vectors::*;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     #[test]
     fn test_parse_ead_1_value() {
@@ -979,7 +979,7 @@ mod test_enrollment_server {
     use super::*;
     use test_vectors::*;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     #[test]
     fn test_encode_voucher_input() {
@@ -1067,7 +1067,7 @@ mod test_stateless_operation {
     use super::*;
     use test_vectors::*;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     #[test]
     fn slo_test_encode_voucher_request() {

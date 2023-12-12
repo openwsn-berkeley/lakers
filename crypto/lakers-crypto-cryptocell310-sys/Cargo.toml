@@ -1,5 +1,5 @@
 [package]
-name = "edhoc-crypto-cryptocell310"
+name = "lakers-crypto-cryptocell310"
 version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
@@ -9,7 +9,7 @@ links = "nrf_cc310_0.9.13"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true
 
 [build-dependencies]
 bindgen = "0.69.1"

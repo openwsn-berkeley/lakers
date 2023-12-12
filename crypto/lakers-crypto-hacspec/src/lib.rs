@@ -1,12 +1,12 @@
 #![no_std]
 
-use edhoc_consts::{Crypto as CryptoTrait, *};
 use hacspec_aes::*;
 use hacspec_aes_ccm::*;
 use hacspec_hkdf::*;
 use hacspec_lib::*;
 use hacspec_p256::*;
 use hacspec_sha256::*;
+use lakers_shared::{Crypto as CryptoTrait, *};
 use rand::Rng;
 
 // Types and functions to aid in translation between the hacspec and non-hacspec world

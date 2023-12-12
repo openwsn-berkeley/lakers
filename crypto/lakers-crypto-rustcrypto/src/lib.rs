@@ -1,6 +1,6 @@
 #![no_std]
 
-use edhoc_consts::{
+use lakers_shared::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
     AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
@@ -30,7 +30,7 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> Crypto<Rng> {
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto<Rng> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
-        f.debug_struct("edhoc_crypto_rustcrypto::Crypto")
+        f.debug_struct("lakers_crypto_rustcrypto::Crypto")
             .field("rng", &core::any::type_name::<Rng>())
             .finish()
     }

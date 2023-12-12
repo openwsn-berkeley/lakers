@@ -8,4 +8,4 @@ description = "EDHOC EAD none (just a placeholder)"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true

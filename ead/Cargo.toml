@@ -8,12 +8,12 @@ description = "EDHOC EAD library dispatch crate"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
+lakers-shared.workspace = true
 
-edhoc-ead-none = { workspace = true, optional = true }
-edhoc-ead-zeroconf = { workspace = true, optional = true }
+lakers-ead-none = { workspace = true, optional = true }
+lakers-ead-zeroconf = { workspace = true, optional = true }
 
 [features]
 default = [ "ead-none" ]
-ead-none = [ "edhoc-ead-none" ]
-ead-zeroconf = [ "edhoc-ead-zeroconf" ]
+ead-none = [ "lakers-ead-none" ]
+ead-zeroconf = [ "lakers-ead-zeroconf" ]

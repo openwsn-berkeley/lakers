@@ -1,9 +1,11 @@
 #![cfg_attr(not(test), no_std)]
 
-pub use {edhoc_consts::Crypto as CryptoTrait, edhoc_consts::State as EdhocState, edhoc_consts::*};
+pub use {
+    lakers_shared::Crypto as CryptoTrait, lakers_shared::State as EdhocState, lakers_shared::*,
+};
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
-pub use edhoc_ead::*;
+pub use lakers_ead::*;
 
 mod edhoc;
 use edhoc::*;
@@ -343,7 +345,7 @@ mod test {
 
     use hexlit::hex;
 
-    use edhoc_crypto::default_crypto;
+    use lakers_crypto::default_crypto;
 
     const ID_CRED_I: &[u8] = &hex!("a104412b");
     const ID_CRED_R: &[u8] = &hex!("a104410a");

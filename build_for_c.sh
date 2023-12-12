@@ -24,10 +24,10 @@ echo "Changing crate-type to:   $new_value"
 sed -i -E "s/crate-type.*/$new_value/" lib/Cargo.toml
 
 # generate the static library
-cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package edhoc-crypto --package edhoc-ead  --features="$cargo_features" --release
+cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package lakers-crypto --package lakers-ead  --features="$cargo_features" --release
 
 # generate the headers
-cbindgen --config consts/cbindgen.toml --crate edhoc-consts --output ./target/include/edhoc_consts.h -v
+cbindgen --config consts/cbindgen.toml --crate lakers-shared --output ./target/include/lakers_shared.h -v
 cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output ./target/include/edhoc_rs.h -v
 
 # zip to a single file

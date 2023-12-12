@@ -23,7 +23,7 @@ fn main() {
     let state = Default::default();
     let initiator = EdhocInitiator::new(
         state,
-        edhoc_crypto::default_crypto(),
+        lakers_crypto::default_crypto(),
         &I,
         &CRED_I,
         Some(&CRED_R),
@@ -31,7 +31,7 @@ fn main() {
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
-    let c_i = generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto());
+    let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
     let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
     msg_1_buf.extend_from_slice(message_1.as_slice());
     println!("message_1 len = {}", msg_1_buf.len());

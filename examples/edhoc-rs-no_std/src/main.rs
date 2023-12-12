@@ -13,8 +13,8 @@ use panic_semihosting as _;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
-use edhoc_crypto::{default_crypto, CryptoTrait};
 use edhoc_rs::*;
+use lakers_crypto::{default_crypto, CryptoTrait};
 
 extern crate alloc;
 
@@ -76,7 +76,7 @@ fn main() -> ! {
         let state = Default::default();
         let _initiator = EdhocInitiator::new(
             state,
-            edhoc_crypto::default_crypto(),
+            lakers_crypto::default_crypto(),
             I,
             CRED_I,
             Some(CRED_R),
@@ -102,14 +102,14 @@ fn main() -> ! {
         let state = Default::default();
         let mut initiator = EdhocInitiator::new(
             state,
-            edhoc_crypto::default_crypto(),
+            lakers_crypto::default_crypto(),
             I,
             CRED_I,
             Some(CRED_R),
         );
 
         let c_i: u8 =
-            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
+            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
         let message_1 = initiator.prepare_message_1(c_i);
         assert!(message_1.is_ok());
     }
@@ -121,7 +121,7 @@ fn main() -> ! {
         let state_initiator = Default::default();
         let mut initiator = EdhocInitiator::new(
             state_initiator,
-            edhoc_crypto::default_crypto(),
+            lakers_crypto::default_crypto(),
             I,
             CRED_I,
             Some(CRED_R),
@@ -129,20 +129,20 @@ fn main() -> ! {
         let state_responder = Default::default();
         let responder = EdhocResponder::new(
             state_responder,
-            edhoc_crypto::default_crypto(),
+            lakers_crypto::default_crypto(),
             R,
             CRED_R,
             Some(CRED_I),
         );
 
         let c_i: u8 =
-            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
+            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
         let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
 
         let responder = responder.process_message_1(&message_1).unwrap();
 
         let c_r: u8 =
-            generate_connection_identifier_cbor(&mut edhoc_crypto::default_crypto()).into();
+            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
         let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
         assert!(c_r != 0xff);
 

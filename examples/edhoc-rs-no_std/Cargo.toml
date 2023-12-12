@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 edhoc-rs = { package = "lakers", path = "../../lib", default-features = false }
-edhoc-crypto = { path = "../../crypto", default-features = false }
+lakers-crypto = { path = "../../crypto", default-features = false }
 hexlit = "0.5.3"
 
 # depend on an allocator
@@ -23,7 +23,7 @@ rtt-target = { version = "0.3.1", features = ["cortex-m"] }
 [features]
 default = [ "rtt", "crypto-cryptocell310", "ead-none" ]
 rtt = [ ]
-crypto-psa = [ "edhoc-crypto/psa-baremetal" ]
-crypto-cryptocell310 = [ "edhoc-crypto/cryptocell310" ]
+crypto-psa = [ "lakers-crypto/psa-baremetal" ]
+crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
 ead-none = [ "edhoc-rs/ead-none" ]
 ead-zeroconf = [ "edhoc-rs/ead-zeroconf" ]

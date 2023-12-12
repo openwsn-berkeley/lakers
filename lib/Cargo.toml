@@ -8,17 +8,17 @@ description = "EDHOC implementation in Rust"
 repository.workspace = true
 
 [dependencies]
-edhoc-consts.workspace = true
-edhoc-ead = { workspace = true, default-features = false }
+lakers-shared.workspace = true
+lakers-ead = { workspace = true, default-features = false }
 
 [dev-dependencies]
-edhoc-crypto.workspace = true
+lakers-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]
-default = [ "edhoc-ead/ead-none" ]
-ead-none = [ "edhoc-ead/ead-none" ]
-ead-zeroconf = [ "edhoc-ead/ead-zeroconf" ]
+default = [ "lakers-ead/ead-none" ]
+ead-none = [ "lakers-ead/ead-none" ]
+ead-zeroconf = [ "lakers-ead/ead-zeroconf" ]
 
 [lib]
 crate-type = ["rlib"]
