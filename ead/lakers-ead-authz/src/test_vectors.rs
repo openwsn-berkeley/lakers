@@ -1,5 +1,5 @@
-use lakers_shared::BytesP256ElemLen;
 use hexlit::hex;
+use lakers_shared::BytesP256ElemLen;
 
 // inputs
 // U

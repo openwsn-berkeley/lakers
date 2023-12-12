@@ -1,13 +1,15 @@
 #![no_std]
 
-pub mod authenticator;
-pub mod device;
-pub mod server;
-
+mod authenticator;
+mod device;
+mod server;
 mod shared;
-
 #[cfg(test)]
 mod test_vectors;
+
+pub use authenticator::ZeroTouchAuthenticator;
+pub use device::ZeroTouchDevice;
+pub use server::ZeroTouchServer;
 
 #[cfg(test)]
 mod test_authz {
