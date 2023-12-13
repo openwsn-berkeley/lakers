@@ -1,3 +1,12 @@
+//! Common data structures used by [lakers] and its dependent crates
+//!
+//! This crate is separate from lakers to avoid circular dependencies that would otherwise arise
+//! from the pattern in which [lakers-ead-dispatch] combined the main crate with variations of the
+//! protocol's EAD handling. As its types will then likely move over into the main lakers crate, it
+//! is recommended to use them through the public re-export there wherever possible.
+//!
+//! [lakers]: https://docs.rs/lakers/
+//! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
 #![no_std]
 
 use core::marker::PhantomData;
@@ -160,6 +169,10 @@ impl Default for State<Start> {
     }
 }
 
+/// An owned u8 vector of a limited length
+///
+/// It is used to represent the various messages in encrypted and in decrypted form, as well as
+/// other data items. Its maximum length is [MAX_MESSAGE_SIZE_LEN].
 #[repr(C)]
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct EdhocMessageBuffer {
