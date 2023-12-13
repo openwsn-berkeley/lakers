@@ -6,6 +6,7 @@ authors = [ "Christian Amsüss <chrysn@fsfe.org>" ]
 license.workspace = true
 description = "EDHOC crypto library backend based on the RustCrypto crates"
 repository.workspace = true
+readme.workspace = true
 
 [dependencies]
 lakers-shared.workspace = true

@@ -6,6 +6,7 @@ authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license.workspace = true
 description = "EDHOC crypto library dispatch crate"
 repository.workspace = true
+readme.workspace = true
 
 [dependencies]
 lakers-shared = { package = "lakers-shared", path = "../shared", default-features = false }

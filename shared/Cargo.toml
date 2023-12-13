@@ -6,6 +6,8 @@ authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license.workspace = true
 description = "EDHOC crypto library constants crate"
 repository.workspace = true
+# It's implied, but still better for consistency to have it explicit.
+readme.workspace = true
 
 [dev-dependencies]
 hexlit = "0.5.3"
