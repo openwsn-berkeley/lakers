@@ -394,15 +394,11 @@ pub fn i_prepare_message_1b(
 }
 
 // returns c_r
-pub fn i_process_message_2a(
+pub fn i_process_message_2a<'a>(
     state: WaitMessage2New,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
-    cred_r_expected: Option<&[u8]>,
-    i: &BytesP256ElemLen, // I's static private DH key
-) -> Result<(ProcessedMessage2New, u8, u8), EDHOCError> {
-    let mut kid = 0xffu8; // invalidate kid
-
+) -> Result<(ProcessedMessage2NewA, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
@@ -416,66 +412,26 @@ pub fn i_process_message_2a(
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
 
         if let Ok((c_r_2, id_cred_r, mac_2, ead_2)) = plaintext_2_decoded {
-            let c_r = c_r_2;
+            let state = ProcessedMessage2NewA {
+                mac_2,
+                prk_2e,
+                th_2,
+                g_y,
+                plaintext_2: plaintext_2,
+                x_or_y: state.x_or_y,
+            };
 
-            let cred_r = credential_check_or_fetch(cred_r_expected, id_cred_r);
-            // IMPL: stop if credential_check_or_fetch returns Error
-            if let Ok((valid_cred_r, g_r)) = cred_r {
-                // Phase 2:
-                // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
-                // IMPL: we are sure valid_cred_r is a full credential
-
-                // Step 3: If EAD is present make it available to the application
-                let ead_res = if let Some(ead_2) = ead_2 {
-                    // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
-                    // at this point, in case of EAD = zeroconf, if it works it means that:
-                    // - the Voucher has been verified
-                    // - the received valid_cred_r (aka cred_v) has been authenticated
-                    i_process_ead_2(crypto, ead_2, valid_cred_r, &state.h_message_1)
-                } else {
-                    Ok(())
-                };
-
-                if ead_res.is_ok() {
-                    // verify mac_2
-                    let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
-
-                    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x_or_y, &g_r);
-
-                    let expected_mac_2 = compute_mac_2(
-                        crypto,
-                        &prk_3e2m,
-                        &get_id_cred(valid_cred_r)?,
-                        valid_cred_r,
-                        &th_2,
-                    );
-
-                    if mac_2 == expected_mac_2 {
-                        // step is actually from processing of message_3
-                        // but we do it here to avoid storing plaintext_2 in State
-                        let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, valid_cred_r);
-                        // message 3 processing
-
-                        let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
-
-                        let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
-
-                        let state = ProcessedMessage2New {
-                            prk_3e2m: prk_3e2m,
-                            prk_4e3m: prk_4e3m,
-                            th_3: th_3,
-                        };
-
-                        Ok((state, c_r, kid))
-                    } else {
-                        Err(EDHOCError::MacVerificationFailed)
-                    }
-                } else {
-                    Err(EDHOCError::EADError)
+            let id_cred_r = match id_cred_r {
+                IdCred::CompactKid(kid) => IdCredOwned::CompactKid(kid),
+                IdCred::FullCredential(cred) => {
+                    let Ok(buffer) = EdhocMessageBuffer::new_from_slice(cred) else {
+                        return Err(EDHOCError::ParsingError);
+                    };
+                    IdCredOwned::FullCredential(buffer)
                 }
-            } else {
-                Err(cred_r.unwrap_err())
-            }
+            };
+
+            Ok((state, c_r_2, id_cred_r, ead_2))
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -484,8 +440,50 @@ pub fn i_process_message_2a(
     }
 }
 
+pub fn i_process_message_2b(
+    state: ProcessedMessage2NewA,
+    crypto: &mut impl CryptoTrait,
+    valid_cred_r: &[u8], // TODO: have a struct to hold credentials to avoid re-computing
+    i: &BytesP256ElemLen, // I's static private DH key
+) -> Result<ProcessedMessage2NewB, EDHOCError> {
+    // verify mac_2
+    let salt_3e2m = compute_salt_3e2m(crypto, &state.prk_2e, &state.th_2);
+
+    let (g_r, _) = parse_cred(valid_cred_r)?;
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x_or_y, &g_r);
+
+    let expected_mac_2 = compute_mac_2(
+        crypto,
+        &prk_3e2m,
+        &get_id_cred(valid_cred_r)?,
+        valid_cred_r,
+        &state.th_2,
+    );
+
+    if state.mac_2 == expected_mac_2 {
+        // step is actually from processing of message_3
+        // but we do it here to avoid storing plaintext_2 in State
+        let th_3 = compute_th_3(crypto, &state.th_2, &state.plaintext_2, valid_cred_r);
+        // message 3 processing
+
+        let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
+
+        let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &state.g_y);
+
+        let state = ProcessedMessage2NewB {
+            prk_3e2m: prk_3e2m,
+            prk_4e3m: prk_4e3m,
+            th_3: th_3,
+        };
+
+        Ok(state)
+    } else {
+        Err(EDHOCError::MacVerificationFailed)
+    }
+}
+
 pub fn i_prepare_message_3(
-    state: &mut ProcessedMessage2New,
+    state: &mut ProcessedMessage2NewB,
     crypto: &mut impl CryptoTrait,
     id_cred_i: &BytesIdCred,
     cred_i: &[u8],
@@ -539,7 +537,7 @@ pub fn i_prepare_message_3(
 }
 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
-fn credential_check_or_fetch<'a>(
+pub fn credential_check_or_fetch<'a>(
     cred_expected: Option<&'a [u8]>,
     id_cred_received: IdCred<'a>,
 ) -> Result<(&'a [u8], BytesP256ElemLen), EDHOCError> {
@@ -580,6 +578,70 @@ fn credential_check_or_fetch<'a>(
             //    Is the validation successful?
             // IMPL: parse_cred(cred_r) and check it is valid
             match parse_cred(cred_received) {
+                Ok((public_key_received, _kid_received)) => {
+                    // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                    // IMPL,TODO: we just skip this step for now
+
+                    // 7. Store CRED_X as valid and trusted.
+                    //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                    // IMPL: cred_r = id_cred
+                    let public_key = public_key_received;
+                    Ok((cred_received, public_key))
+                }
+                Err(_) => Err(EDHOCError::UnknownPeer),
+            }
+        } else {
+            // IMPL: should have gotten a full credential
+            Err(EDHOCError::UnknownPeer)
+        }
+    }
+
+    // 8. Is this authentication credential good to use in the context of this EDHOC session?
+    // IMPL,TODO: we just skip this step for now
+}
+
+// Implements auth credential checking according to draft-tiloca-lake-implem-cons
+pub fn credential_check_or_fetch_new<'a>(
+    cred_expected: Option<EdhocMessageBuffer>,
+    id_cred_received: IdCredOwned,
+) -> Result<(EdhocMessageBuffer, BytesP256ElemLen), EDHOCError> {
+    // Processing of auth credentials according to draft-tiloca-lake-implem-cons
+    // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
+    if let Some(cred_expected) = cred_expected {
+        // 1. Does ID_CRED_X point to a stored authentication credential? YES
+        // IMPL: compare cred_i_expected with id_cred
+        //   IMPL: assume cred_i_expected is well formed
+        let (public_key_expected, kid_expected) = parse_cred(cred_expected.as_slice())?;
+        let public_key = public_key_expected;
+        let credentials_match = match id_cred_received {
+            IdCredOwned::CompactKid(kid_received) => kid_received == kid_expected,
+            IdCredOwned::FullCredential(cred_received) => cred_expected == cred_received,
+        };
+
+        // 2. Is this authentication credential still valid?
+        // IMPL,TODO: check cred_r_expected is still valid
+
+        // Continue by considering CRED_X as the authentication credential of the other peer.
+        // IMPL: ready to proceed, including process ead_2
+
+        if credentials_match {
+            Ok((cred_expected, public_key))
+        } else {
+            Err(EDHOCError::UnknownPeer)
+        }
+    } else {
+        // 1. Does ID_CRED_X point to a stored authentication credential? NO
+        // IMPL: cred_i_expected provided by application is None
+        //       id_cred must be a full credential
+        if let IdCredOwned::FullCredential(cred_received) = id_cred_received {
+            // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+
+            // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+            // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+            //    Is the validation successful?
+            // IMPL: parse_cred(cred_r) and check it is valid
+            match parse_cred(cred_received.as_slice()) {
                 Ok((public_key_received, _kid_received)) => {
                     // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
                     // IMPL,TODO: we just skip this step for now

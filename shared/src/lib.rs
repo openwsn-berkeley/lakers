@@ -158,7 +158,17 @@ pub struct WaitMessage2New {
 }
 
 #[derive(Debug)]
-pub struct ProcessedMessage2New {
+pub struct ProcessedMessage2NewA {
+    pub mac_2: BytesMac2,
+    pub prk_2e: BytesHashLen,
+    pub th_2: BytesHashLen,
+    pub x_or_y: BytesP256ElemLen,
+    pub g_y: BytesP256ElemLen,
+    pub plaintext_2: EdhocMessageBuffer,
+}
+
+#[derive(Debug)]
+pub struct ProcessedMessage2NewB {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
     pub th_3: BytesHashLen,
@@ -209,6 +219,15 @@ impl EdhocMessageBuffer {
         EdhocMessageBuffer {
             content: [0u8; MAX_MESSAGE_SIZE_LEN],
             len: 0,
+        }
+    }
+
+    pub fn new_from_slice(slice: &[u8]) -> Result<Self, ()> {
+        let mut buffer = Self::new();
+        if buffer.fill_with_slice(slice).is_ok() {
+            Ok(buffer)
+        } else {
+            Err(())
         }
     }
 
@@ -305,10 +324,16 @@ impl EADTrait for EADItem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum IdCred<'a> {
     CompactKid(u8),
     FullCredential(&'a [u8]),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum IdCredOwned {
+    CompactKid(u8),
+    FullCredential(EdhocMessageBuffer),
 }
 
 // TODO: remove this, once ead-zeroconf is adjusted to use cbor_decoder

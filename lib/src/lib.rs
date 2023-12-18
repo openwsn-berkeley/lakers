@@ -38,9 +38,18 @@ pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
+pub struct EdhocInitiatorPartialM2<'a, Crypto: CryptoTrait> {
+    state: ProcessedMessage2NewA, // opaque state
+    i: &'a [u8],                  // private authentication key of I
+    cred_i: &'a [u8],             // I's full credential
+    cred_r: Option<&'a [u8]>,     // R's full credential (if provided)
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
 pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
-    state: ProcessedMessage2New, // opaque state
-    cred_i: &'a [u8],            // I's full credential
+    state: ProcessedMessage2NewB, // opaque state
+    cred_i: &'a [u8],             // I's full credential
     crypto: Crypto,
 }
 
@@ -258,25 +267,52 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM1<'a, Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
     pub fn process_message_2a(
         mut self,
-        message_2: &BufferMessage2,
-    ) -> Result<(EdhocInitiatorBuildM3<'a, Crypto>, u8), EDHOCError> {
-        match i_process_message_2a(
+        message_2: &'a BufferMessage2,
+    ) -> Result<
+        (
+            EdhocInitiatorPartialM2<'a, Crypto>,
+            u8,
+            IdCredOwned,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
+        match i_process_message_2a(self.state, &mut self.crypto, message_2) {
+            Ok((state, c_r, id_cred_r, ead_2)) => Ok((
+                EdhocInitiatorPartialM2 {
+                    state,
+                    i: self.i,
+                    cred_i: self.cred_i,
+                    cred_r: self.cred_r,
+                    crypto: self.crypto,
+                },
+                c_r,
+                id_cred_r,
+                ead_2,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM2<'a, Crypto> {
+    pub fn process_message_2b(
+        mut self,
+        valid_cred_r: &[u8],
+    ) -> Result<EdhocInitiatorBuildM3<'a, Crypto>, EDHOCError> {
+        match i_process_message_2b(
             self.state,
             &mut self.crypto,
-            message_2,
-            self.cred_r,
+            valid_cred_r,
             self.i
                 .try_into()
                 .expect("Wrong length of initiator private key"),
         ) {
-            Ok((state, c_r, _kid)) => Ok((
-                EdhocInitiatorBuildM3 {
-                    state,
-                    cred_i: self.cred_i,
-                    crypto: self.crypto,
-                },
-                c_r,
-            )),
+            Ok(state) => Ok(EdhocInitiatorBuildM3 {
+                state,
+                cred_i: self.cred_i,
+                crypto: self.crypto,
+            }),
             Err(error) => Err(error),
         }
     }
@@ -475,7 +511,14 @@ mod test {
         let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
 
         assert!(c_r != 0xff);
-        let (initiator, _) = initiator.process_message_2a(&message_2).unwrap();
+        let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (valid_cred_r, g_r) =
+            credential_check_or_fetch_new(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        // Phase 2: Process EAD_X items that have not been processed yet, and that can be processed before message verification
+        // i_process_ead_2(crypto, ead_2, valid_cred_r, &state.h_message_1)
+        let initiator = initiator
+            .process_message_2b(valid_cred_r.as_slice())
+            .unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
 
