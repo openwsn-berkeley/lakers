@@ -110,7 +110,7 @@ fn main() -> ! {
 
         let c_i: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let message_1 = initiator.prepare_message_1(c_i);
+        let message_1 = initiator.prepare_message_1a(c_i);
         assert!(message_1.is_ok());
     }
 
@@ -137,18 +137,24 @@ fn main() -> ! {
 
         let c_i: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
+        let initiator = initiator.prepare_message_1a(c_i).unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1b(&None).unwrap();
 
         let responder = responder.process_message_1(&message_1).unwrap();
-
         let c_r: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
         assert!(c_r != 0xff);
+        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
 
-        let (initiator, _c_r) = initiator.process_message_2(&message_2).unwrap();
+        let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (valid_cred_r, g_r) =
+            credential_check_or_fetch_new(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        let initiator = initiator
+            .process_message_2b(valid_cred_r.as_slice())
+            .unwrap();
 
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        let initiator = initiator.prepare_message_3a().unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
 
         let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
 

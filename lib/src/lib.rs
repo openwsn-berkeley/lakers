@@ -418,6 +418,70 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
     conn_id
 }
 
+// Implements auth credential checking according to draft-tiloca-lake-implem-cons
+pub fn credential_check_or_fetch_new<'a>(
+    cred_expected: Option<EdhocMessageBuffer>,
+    id_cred_received: IdCredOwned,
+) -> Result<(EdhocMessageBuffer, BytesP256ElemLen), EDHOCError> {
+    // Processing of auth credentials according to draft-tiloca-lake-implem-cons
+    // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
+    if let Some(cred_expected) = cred_expected {
+        // 1. Does ID_CRED_X point to a stored authentication credential? YES
+        // IMPL: compare cred_i_expected with id_cred
+        //   IMPL: assume cred_i_expected is well formed
+        let (public_key_expected, kid_expected) = parse_cred(cred_expected.as_slice())?;
+        let public_key = public_key_expected;
+        let credentials_match = match id_cred_received {
+            IdCredOwned::CompactKid(kid_received) => kid_received == kid_expected,
+            IdCredOwned::FullCredential(cred_received) => cred_expected == cred_received,
+        };
+
+        // 2. Is this authentication credential still valid?
+        // IMPL,TODO: check cred_r_expected is still valid
+
+        // Continue by considering CRED_X as the authentication credential of the other peer.
+        // IMPL: ready to proceed, including process ead_2
+
+        if credentials_match {
+            Ok((cred_expected, public_key))
+        } else {
+            Err(EDHOCError::UnknownPeer)
+        }
+    } else {
+        // 1. Does ID_CRED_X point to a stored authentication credential? NO
+        // IMPL: cred_i_expected provided by application is None
+        //       id_cred must be a full credential
+        if let IdCredOwned::FullCredential(cred_received) = id_cred_received {
+            // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+
+            // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+            // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+            //    Is the validation successful?
+            // IMPL: parse_cred(cred_r) and check it is valid
+            match parse_cred(cred_received.as_slice()) {
+                Ok((public_key_received, _kid_received)) => {
+                    // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                    // IMPL,TODO: we just skip this step for now
+
+                    // 7. Store CRED_X as valid and trusted.
+                    //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                    // IMPL: cred_r = id_cred
+                    let public_key = public_key_received;
+                    Ok((cred_received, public_key))
+                }
+                Err(_) => Err(EDHOCError::UnknownPeer),
+            }
+        } else {
+            // IMPL: should have gotten a full credential
+            Err(EDHOCError::UnknownPeer)
+        }
+    }
+
+    // 8. Is this authentication credential good to use in the context of this EDHOC session?
+    // IMPL,TODO: we just skip this step for now
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
