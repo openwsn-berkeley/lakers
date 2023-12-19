@@ -152,9 +152,23 @@ pub struct PreparingM1 {
 }
 
 #[derive(Debug)]
-pub struct WaitM2 {
-    pub x_or_y: BytesP256ElemLen,
+pub struct ProcessingM1 {
+    pub c_i: u8,
+    pub g_x: BytesP256ElemLen, // ephemeral public key of the initiator
     pub h_message_1: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct WaitM2 {
+    pub x_or_y: BytesP256ElemLen, // ephemeral private key of the initiator
+    pub h_message_1: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct WaitM3 {
+    pub y: BytesP256ElemLen, // ephemeral private key of the responder
+    pub prk_3e2m: BytesHashLen,
+    pub th_3: BytesHashLen,
 }
 
 #[derive(Debug)]
@@ -172,6 +186,15 @@ pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
     pub th_3: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct ProcessingM3 {
+    pub mac_3: BytesMac3,
+    pub y: BytesP256ElemLen, // ephemeral private key of the responder
+    pub prk_3e2m: BytesHashLen,
+    pub th_3: BytesHashLen,
+    pub plaintext_3: EdhocMessageBuffer,
 }
 
 #[derive(Debug)]

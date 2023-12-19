@@ -109,47 +109,30 @@ pub fn edhoc_key_update_new(
 }
 
 pub fn r_process_message_1(
-    state: State<Start>,
+    state: Start,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
-) -> Result<State<ProcessedMessage1>, EDHOCError> {
+) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {
     // Step 1: decode message_1
     // g_x will be saved to the state
-    let res = parse_message_1(message_1);
-
-    if let Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)) = res {
+    if let Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)) = parse_message_1(message_1) {
         // verify that the method is supported
         if method == EDHOC_METHOD {
             // Step 2: verify that the selected cipher suite is supported
             if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
-                // Step 3: If EAD is present make it available to the application
-                let ead_success = if let Some(ead_1) = ead_1 {
-                    r_process_ead_1(crypto, &ead_1, message_1).is_ok()
-                } else {
-                    true
-                };
-                if ead_success {
-                    // hash message_1 and save the hash to the state to avoid saving the whole message
-                    let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                    message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-                    let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+                // hash message_1 and save the hash to the state to avoid saving the whole message
+                let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+                message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
+                let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-                    let state = State {
-                        current_state: PhantomData,
-                        x_or_y: state.x_or_y,
+                Ok((
+                    ProcessingM1 {
                         c_i,
-                        gy_or_gx: g_x,
-                        prk_3e2m: state.prk_3e2m,
-                        prk_4e3m: state.prk_4e3m,
-                        prk_out: state.prk_out,
-                        prk_exporter: state.prk_exporter,
+                        g_x,
                         h_message_1,
-                        th_3: state.th_3,
-                    };
-                    Ok(state)
-                } else {
-                    Err(EDHOCError::EADError)
-                }
+                    },
+                    ead_1,
+                ))
             } else {
                 Err(EDHOCError::UnsupportedCipherSuite)
             }
@@ -162,34 +145,26 @@ pub fn r_process_message_1(
 }
 
 pub fn r_prepare_message_2(
-    state: State<ProcessedMessage1>,
+    state: ProcessingM1,
     crypto: &mut impl CryptoTrait,
     cred_r: &[u8],
     r: &BytesP256ElemLen, // R's static private DH key
     y: BytesP256ElemLen,
     g_y: BytesP256ElemLen,
     c_r: u8,
-) -> Result<(State<WaitMessage3>, BufferMessage2), EDHOCError> {
+    id_cred_r: &IdCred,
+    ead_2: &Option<EADItem>,
+) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
     // compute TH_2
     let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(crypto, &y, &state.gy_or_gx, &th_2);
+    let prk_2e = compute_prk_2e(crypto, &y, &state.g_x, &th_2);
     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
-    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &state.gy_or_gx);
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &state.g_x);
 
     // compute MAC_2
     let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r)?, cred_r, &th_2);
-
-    let ead_2 = r_prepare_ead_2();
-
-    let id_cred_r = if ead_2.is_some() {
-        // NOTE: assume EAD_2 is for zeroconf
-        IdCred::FullCredential(cred_r)
-    } else {
-        let (_g_r, kid) = parse_cred(cred_r)?;
-        IdCred::CompactKid(kid)
-    };
 
     // compute ciphertext_2
     let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2)?;
@@ -207,137 +182,107 @@ pub fn r_prepare_message_2(
 
     let message_2 = encode_message_2(&g_y, &ct);
 
-    let state = State {
-        current_state: PhantomData,
-        x_or_y: y,
-        c_i: state.c_i,
-        gy_or_gx: state.gy_or_gx,
-        prk_3e2m: prk_3e2m,
-        prk_4e3m: state.prk_4e3m,
-        prk_out: state.prk_out,
-        prk_exporter: state.prk_exporter,
-        h_message_1: state.h_message_1,
-        th_3: th_3,
-    };
-
-    Ok((state, message_2))
+    Ok((
+        WaitM3 {
+            y: y,
+            prk_3e2m: prk_3e2m,
+            th_3: th_3,
+        },
+        message_2,
+    ))
 }
 
 // FIXME fetch ID_CRED_I and CRED_I based on kid
-pub fn r_process_message_3(
-    state: &mut State<WaitMessage3>,
+pub fn r_process_message_3a(
+    state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
-    cred_i_expected: Option<&[u8]>,
-) -> Result<(State<Completed>, BytesHashLen), EDHOCError> {
+) -> Result<(ProcessingM3, Option<EADItem>), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
         let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
         if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
-            // The implementation currently supports the following two cases on handling the credentials:
-            // 1. R receives a kid and has a corresponding CRED_x passed in as cred_i_expected
-            // 2. R receives CRED_x by value in the message and uses it
-            // TODO: add support for fetching CRED_x based on kid received in the message
-
-            let cred_i = credential_check_or_fetch(cred_i_expected, id_cred_i);
-            // IMPL: stop if credential_check_or_fetch returns Error
-
-            if let Ok((valid_cred_i, g_i)) = cred_i {
-                // Phase 2:
-                // - Process EAD_X items that have not been processed yet, and that can be processed before message verification
-                // IMPL: we are sure valid_cred_i is a full credential
-
-                // Step 3: If EAD is present make it available to the application
-                let ead_res = if let Some(ead_3) = ead_3 {
-                    // IMPL: if EAD-zeroconf is present, then id_cred must contain a full credential
-                    // at this point, in case of EAD = zeroconf, if it works it means that:
-                    // - the Voucher has been verified
-                    // - the received valid_cred_i (aka cred_i) has been authenticated
-                    r_process_ead_3(ead_3)
-                } else {
-                    Ok(())
-                };
-
-                if ead_res.is_ok() {
-                    // verify mac_3
-
-                    // compute salt_4e3m
-                    let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
-                    // TODO compute prk_4e3m
-                    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.x_or_y, &g_i);
-
-                    // compute mac_3
-                    let expected_mac_3 = compute_mac_3(
-                        crypto,
-                        &prk_4e3m,
-                        &state.th_3,
-                        &get_id_cred(valid_cred_i)?,
-                        valid_cred_i,
-                    );
-
-                    // verify mac_3
-                    if mac_3 == expected_mac_3 {
-                        let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, valid_cred_i);
-
-                        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-                        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
-                        // compute prk_out
-                        // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-                        let prk_out_buf = edhoc_kdf(
-                            crypto,
-                            &prk_4e3m,
-                            7u8,
-                            &th_4_buf,
-                            th_4.len(),
-                            SHA256_DIGEST_LEN,
-                        );
-                        let mut prk_out: BytesHashLen = Default::default();
-                        prk_out[..SHA256_DIGEST_LEN]
-                            .copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
-
-                        // compute prk_exporter from prk_out
-                        // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-                        let prk_exporter_buf = edhoc_kdf(
-                            crypto,
-                            &prk_out,
-                            10u8,
-                            &[0x00u8; MAX_KDF_CONTEXT_LEN],
-                            0,
-                            SHA256_DIGEST_LEN,
-                        );
-                        state.prk_exporter[..SHA256_DIGEST_LEN]
-                            .copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
-
-                        let state = State {
-                            current_state: PhantomData,
-                            x_or_y: state.x_or_y,
-                            c_i: state.c_i,
-                            gy_or_gx: state.gy_or_gx,
-                            prk_3e2m: state.prk_3e2m,
-                            prk_4e3m: state.prk_4e3m,
-                            prk_out: prk_out,
-                            prk_exporter: state.prk_exporter,
-                            h_message_1: state.h_message_1,
-                            th_3: state.th_3,
-                        };
-                        Ok((state, prk_out))
-                    } else {
-                        Err(EDHOCError::MacVerificationFailed)
-                    }
-                } else {
-                    Err(EDHOCError::EADError)
-                }
-            } else {
-                Err(cred_i.unwrap_err())
-            }
+            Ok((
+                ProcessingM3 {
+                    mac_3,
+                    y: state.y,
+                    prk_3e2m: state.prk_3e2m,
+                    th_3: state.th_3,
+                    plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at step 'b'
+                },
+                ead_3,
+            ))
         } else {
             Err(decoded_p3_res.unwrap_err())
         }
     } else {
         // error handling for err = decrypt_message_3(&prk_3e2m, &th_3, message_3);
         Err(plaintext_3.unwrap_err())
+    }
+}
+
+pub fn r_process_message_3b(
+    state: &mut ProcessingM3,
+    crypto: &mut impl CryptoTrait,
+    valid_cred_i: &[u8],
+) -> Result<(CompletedNew, BytesHashLen), EDHOCError> {
+    let (g_i, _kid_i) = parse_cred(valid_cred_i)?;
+
+    // compute salt_4e3m
+    let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
+    // TODO compute prk_4e3m
+    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.y, &g_i);
+
+    // compute mac_3
+    let expected_mac_3 = compute_mac_3(
+        crypto,
+        &prk_4e3m,
+        &state.th_3,
+        &get_id_cred(valid_cred_i)?,
+        valid_cred_i,
+    );
+
+    // verify mac_3
+    if state.mac_3 == expected_mac_3 {
+        let th_4 = compute_th_4(crypto, &state.th_3, &state.plaintext_3, valid_cred_i);
+
+        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
+        // compute prk_out
+        // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
+        let prk_out_buf = edhoc_kdf(
+            crypto,
+            &prk_4e3m,
+            7u8,
+            &th_4_buf,
+            th_4.len(),
+            SHA256_DIGEST_LEN,
+        );
+        let mut prk_out: BytesHashLen = Default::default();
+        prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
+
+        // compute prk_exporter from prk_out
+        // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
+        let prk_exporter_buf = edhoc_kdf(
+            crypto,
+            &prk_out,
+            10u8,
+            &[0x00u8; MAX_KDF_CONTEXT_LEN],
+            0,
+            SHA256_DIGEST_LEN,
+        );
+        let mut prk_exporter = BytesHashLen::default();
+        prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+
+        let state = CompletedNew {
+            prk_out,
+            prk_exporter,
+        };
+        Ok((state, prk_out))
+    } else {
+        Err(EDHOCError::MacVerificationFailed)
     }
 }
 
@@ -980,7 +925,7 @@ fn compute_mac_2(
 
 fn encode_plaintext_2(
     c_r: u8,
-    id_cred_r: IdCred,
+    id_cred_r: &IdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItem>,
 ) -> Result<BufferPlaintext2, EDHOCError> {
@@ -989,7 +934,7 @@ fn encode_plaintext_2(
 
     let offset_cred = match id_cred_r {
         IdCred::CompactKid(kid) => {
-            plaintext_2.content[1] = kid;
+            plaintext_2.content[1] = *kid;
             2
         }
         IdCred::FullCredential(cred) => {
@@ -1507,7 +1452,7 @@ mod tests {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
         let plaintext_2 = encode_plaintext_2(
             C_R_TV,
-            IdCred::CompactKid(ID_CRED_R_TV[ID_CRED_R_TV.len() - 1]),
+            &IdCred::CompactKid(ID_CRED_R_TV[ID_CRED_R_TV.len() - 1]),
             &MAC_2_TV,
             &None::<EADItem>,
         )
