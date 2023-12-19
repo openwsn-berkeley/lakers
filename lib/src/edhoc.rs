@@ -56,7 +56,7 @@ pub fn edhoc_key_update(
 }
 
 pub fn edhoc_exporter_new(
-    state: &InitiatorCompletedNew,
+    state: &InitiatorCompletedNewB,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -74,7 +74,7 @@ pub fn edhoc_exporter_new(
 }
 
 pub fn edhoc_key_update_new(
-    state: &mut InitiatorCompletedNew,
+    state: &mut InitiatorCompletedNewB,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -482,17 +482,34 @@ pub fn i_process_message_2b(
     }
 }
 
-pub fn i_prepare_message_3(
+pub fn i_prepare_message_3a(
     state: &mut ProcessedMessage2NewB,
     crypto: &mut impl CryptoTrait,
-    id_cred_i: &BytesIdCred,
     cred_i: &[u8],
-) -> Result<(InitiatorCompletedNew, BufferMessage3, BytesHashLen), EDHOCError> {
-    let mac_3 = compute_mac_3(crypto, &state.prk_4e3m, &state.th_3, id_cred_i, cred_i);
+) -> Result<PreparedMessage3NewA, EDHOCError> {
+    let mac_3 = compute_mac_3(
+        crypto,
+        &state.prk_4e3m,
+        &state.th_3,
+        &get_id_cred(cred_i)?,
+        cred_i,
+    );
 
-    let ead_3 = i_prepare_ead_3();
+    Ok(PreparedMessage3NewA {
+        mac_3,
+        prk_3e2m: state.prk_3e2m,
+        prk_4e3m: state.prk_4e3m,
+        th_3: state.th_3,
+    })
+}
 
-    let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3, &ead_3)?;
+pub fn i_prepare_message_3b(
+    state: &mut PreparedMessage3NewA,
+    crypto: &mut impl CryptoTrait,
+    cred_i: &[u8],
+    ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
+) -> Result<(InitiatorCompletedNewB, BufferMessage3, BytesHashLen), EDHOCError> {
+    let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &state.mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i);
@@ -527,7 +544,7 @@ pub fn i_prepare_message_3(
     prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
     Ok((
-        InitiatorCompletedNew {
+        InitiatorCompletedNewB {
             prk_out,
             prk_exporter,
         },

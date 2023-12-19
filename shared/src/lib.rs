@@ -175,7 +175,15 @@ pub struct ProcessedMessage2NewB {
 }
 
 #[derive(Debug)]
-pub struct InitiatorCompletedNew {
+pub struct PreparedMessage3NewA {
+    pub prk_3e2m: BytesHashLen,
+    pub prk_4e3m: BytesHashLen,
+    pub th_3: BytesHashLen,
+    pub mac_3: BytesMac3,
+}
+
+#[derive(Debug)]
+pub struct InitiatorCompletedNewB {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,
 }

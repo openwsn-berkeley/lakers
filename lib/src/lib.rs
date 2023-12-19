@@ -54,8 +54,15 @@ pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
+pub struct EdhocInitiatorPartialM3<'a, Crypto: CryptoTrait> {
+    state: PreparedMessage3NewA, // opaque state
+    cred_i: &'a [u8],            // I's full credential
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: InitiatorCompletedNew,
+    state: InitiatorCompletedNewB,
     crypto: Crypto,
 }
 
@@ -319,8 +326,22 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM2<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
-    pub fn prepare_message_3(
+    pub fn prepare_message_3a(mut self) -> Result<EdhocInitiatorPartialM3<'a, Crypto>, EDHOCError> {
+        match i_prepare_message_3a(&mut self.state, &mut self.crypto, self.cred_i) {
+            Ok(state) => Ok(EdhocInitiatorPartialM3 {
+                state,
+                crypto: self.crypto,
+                cred_i: self.cred_i,
+            }),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM3<'a, Crypto> {
+    pub fn prepare_message_3b(
         mut self,
+        ead_3: &Option<EADItem>,
     ) -> Result<
         (
             EdhocInitiatorDone<Crypto>,
@@ -329,12 +350,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match i_prepare_message_3(
-            &mut self.state,
-            &mut self.crypto,
-            &get_id_cred(self.cred_i)?,
-            self.cred_i,
-        ) {
+        match i_prepare_message_3b(&mut self.state, &mut self.crypto, self.cred_i, ead_3) {
             Ok((state, message_3, prk_out)) => Ok((
                 EdhocInitiatorDone {
                     state,
@@ -520,7 +536,8 @@ mod test {
             .process_message_2b(valid_cred_r.as_slice())
             .unwrap();
 
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        let initiator = initiator.prepare_message_3a().unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
 
         let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
 
