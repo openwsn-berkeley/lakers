@@ -56,7 +56,7 @@ pub fn edhoc_key_update(
 }
 
 pub fn edhoc_exporter_new(
-    state: &InitiatorCompletedNewB,
+    state: &CompletedNew,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -74,7 +74,7 @@ pub fn edhoc_exporter_new(
 }
 
 pub fn edhoc_key_update_new(
-    state: &mut InitiatorCompletedNewB,
+    state: &mut CompletedNew,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -347,13 +347,13 @@ pub fn i_prepare_message_1a(
     x: BytesP256ElemLen,
     g_x: BytesP256ElemLen,
     c_i: u8,
-) -> Result<PartialMessage1, EDHOCError> {
+) -> Result<PreparingM1, EDHOCError> {
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
     let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
     suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
 
-    Ok(PartialMessage1 {
+    Ok(PreparingM1 {
         c_i,
         x_or_y: x,
         gx_or_gy: g_x,
@@ -363,10 +363,10 @@ pub fn i_prepare_message_1a(
 }
 
 pub fn i_prepare_message_1b(
-    state: PartialMessage1,
+    state: PreparingM1,
     crypto: &mut impl CryptoTrait,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(WaitMessage2New, BufferMessage1), EDHOCError> {
+) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     let message_1 = encode_message_1(
         EDHOC_METHOD,
@@ -385,7 +385,7 @@ pub fn i_prepare_message_1b(
 
     // TODO: new way
     Ok((
-        WaitMessage2New {
+        WaitM2 {
             x_or_y: state.x_or_y,
             h_message_1,
         },
@@ -395,10 +395,10 @@ pub fn i_prepare_message_1b(
 
 // returns c_r
 pub fn i_process_message_2a<'a>(
-    state: WaitMessage2New,
+    state: WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
-) -> Result<(ProcessedMessage2NewA, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM2, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
@@ -412,7 +412,7 @@ pub fn i_process_message_2a<'a>(
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
 
         if let Ok((c_r_2, id_cred_r, mac_2, ead_2)) = plaintext_2_decoded {
-            let state = ProcessedMessage2NewA {
+            let state = ProcessingM2 {
                 mac_2,
                 prk_2e,
                 th_2,
@@ -441,11 +441,11 @@ pub fn i_process_message_2a<'a>(
 }
 
 pub fn i_process_message_2b(
-    state: ProcessedMessage2NewA,
+    state: ProcessingM2,
     crypto: &mut impl CryptoTrait,
     valid_cred_r: &[u8], // TODO: have a struct to hold credentials to avoid re-computing
     i: &BytesP256ElemLen, // I's static private DH key
-) -> Result<ProcessedMessage2NewB, EDHOCError> {
+) -> Result<ProcessedM2, EDHOCError> {
     // verify mac_2
     let salt_3e2m = compute_salt_3e2m(crypto, &state.prk_2e, &state.th_2);
 
@@ -470,7 +470,7 @@ pub fn i_process_message_2b(
 
         let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &state.g_y);
 
-        let state = ProcessedMessage2NewB {
+        let state = ProcessedM2 {
             prk_3e2m: prk_3e2m,
             prk_4e3m: prk_4e3m,
             th_3: th_3,
@@ -483,10 +483,10 @@ pub fn i_process_message_2b(
 }
 
 pub fn i_prepare_message_3a(
-    state: &mut ProcessedMessage2NewB,
+    state: &mut ProcessedM2,
     crypto: &mut impl CryptoTrait,
     cred_i: &[u8],
-) -> Result<PreparedMessage3NewA, EDHOCError> {
+) -> Result<PreparingM3, EDHOCError> {
     let mac_3 = compute_mac_3(
         crypto,
         &state.prk_4e3m,
@@ -495,7 +495,7 @@ pub fn i_prepare_message_3a(
         cred_i,
     );
 
-    Ok(PreparedMessage3NewA {
+    Ok(PreparingM3 {
         mac_3,
         prk_3e2m: state.prk_3e2m,
         prk_4e3m: state.prk_4e3m,
@@ -504,11 +504,11 @@ pub fn i_prepare_message_3a(
 }
 
 pub fn i_prepare_message_3b(
-    state: &mut PreparedMessage3NewA,
+    state: &mut PreparingM3,
     crypto: &mut impl CryptoTrait,
     cred_i: &[u8],
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(InitiatorCompletedNewB, BufferMessage3, BytesHashLen), EDHOCError> {
+) -> Result<(CompletedNew, BufferMessage3, BytesHashLen), EDHOCError> {
     let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &state.mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
@@ -544,7 +544,7 @@ pub fn i_prepare_message_3b(
     prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
     Ok((
-        InitiatorCompletedNewB {
+        CompletedNew {
             prk_out,
             prk_exporter,
         },

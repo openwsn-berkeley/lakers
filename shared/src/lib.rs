@@ -143,7 +143,7 @@ pub struct State<Phase: EDHOCState> {
 }
 
 #[derive(Debug)]
-pub struct PartialMessage1 {
+pub struct PreparingM1 {
     pub c_i: u8,                    // connection identifier chosen by the initiator
     pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
     pub gx_or_gy: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
@@ -152,13 +152,13 @@ pub struct PartialMessage1 {
 }
 
 #[derive(Debug)]
-pub struct WaitMessage2New {
+pub struct WaitM2 {
     pub x_or_y: BytesP256ElemLen,
     pub h_message_1: BytesHashLen,
 }
 
 #[derive(Debug)]
-pub struct ProcessedMessage2NewA {
+pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
     pub prk_2e: BytesHashLen,
     pub th_2: BytesHashLen,
@@ -168,14 +168,14 @@ pub struct ProcessedMessage2NewA {
 }
 
 #[derive(Debug)]
-pub struct ProcessedMessage2NewB {
+pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
     pub th_3: BytesHashLen,
 }
 
 #[derive(Debug)]
-pub struct PreparedMessage3NewA {
+pub struct PreparingM3 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
     pub th_3: BytesHashLen,
@@ -183,7 +183,7 @@ pub struct PreparedMessage3NewA {
 }
 
 #[derive(Debug)]
-pub struct InitiatorCompletedNewB {
+pub struct CompletedNew {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,
 }

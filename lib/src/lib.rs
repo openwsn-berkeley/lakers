@@ -20,8 +20,8 @@ pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorPartialM1<'a, Crypto: CryptoTrait> {
-    state: PartialMessage1,   // opaque state
+pub struct EdhocInitiatorPreparingM1<'a, Crypto: CryptoTrait> {
+    state: PreparingM1,       // opaque state
     i: &'a [u8],              // private authentication key of I
     cred_i: &'a [u8],         // I's full credential
     cred_r: Option<&'a [u8]>, // R's full credential (if provided)
@@ -30,7 +30,7 @@ pub struct EdhocInitiatorPartialM1<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
-    state: WaitMessage2New,   // opaque state
+    state: WaitM2,            // opaque state
     i: &'a [u8],              // private authentication key of I
     cred_i: &'a [u8],         // I's full credential
     cred_r: Option<&'a [u8]>, // R's full credential (if provided)
@@ -38,31 +38,31 @@ pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorPartialM2<'a, Crypto: CryptoTrait> {
-    state: ProcessedMessage2NewA, // opaque state
-    i: &'a [u8],                  // private authentication key of I
-    cred_i: &'a [u8],             // I's full credential
-    cred_r: Option<&'a [u8]>,     // R's full credential (if provided)
+pub struct EdhocInitiatorProcessingM2<'a, Crypto: CryptoTrait> {
+    state: ProcessingM2,      // opaque state
+    i: &'a [u8],              // private authentication key of I
+    cred_i: &'a [u8],         // I's full credential
+    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
-    state: ProcessedMessage2NewB, // opaque state
-    cred_i: &'a [u8],             // I's full credential
+pub struct EdhocInitiatorProcessedM2<'a, Crypto: CryptoTrait> {
+    state: ProcessedM2, // opaque state
+    cred_i: &'a [u8],   // I's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorPartialM3<'a, Crypto: CryptoTrait> {
-    state: PreparedMessage3NewA, // opaque state
-    cred_i: &'a [u8],            // I's full credential
+pub struct EdhocInitiatorPreparingM3<'a, Crypto: CryptoTrait> {
+    state: PreparingM3, // opaque state
+    cred_i: &'a [u8],   // I's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: InitiatorCompletedNewB,
+    state: CompletedNew,
     crypto: Crypto,
 }
 
@@ -234,11 +234,11 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
     pub fn prepare_message_1a(
         mut self,
         c_i: u8,
-    ) -> Result<EdhocInitiatorPartialM1<'a, Crypto>, EDHOCError> {
+    ) -> Result<EdhocInitiatorPreparingM1<'a, Crypto>, EDHOCError> {
         let (x, g_x) = self.crypto.p256_generate_key_pair();
 
         match i_prepare_message_1a(self.state, &mut self.crypto, x, g_x, c_i) {
-            Ok(state) => Ok(EdhocInitiatorPartialM1 {
+            Ok(state) => Ok(EdhocInitiatorPreparingM1 {
                 state,
                 i: self.i,
                 cred_i: self.cred_i,
@@ -250,7 +250,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM1<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorPreparingM1<'a, Crypto> {
     pub fn prepare_message_1b(
         mut self,
         ead_1: &Option<EADItem>,
@@ -277,7 +277,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
         message_2: &'a BufferMessage2,
     ) -> Result<
         (
-            EdhocInitiatorPartialM2<'a, Crypto>,
+            EdhocInitiatorProcessingM2<'a, Crypto>,
             u8,
             IdCredOwned,
             Option<EADItem>,
@@ -286,7 +286,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
     > {
         match i_process_message_2a(self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
-                EdhocInitiatorPartialM2 {
+                EdhocInitiatorProcessingM2 {
                     state,
                     i: self.i,
                     cred_i: self.cred_i,
@@ -302,11 +302,11 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM2<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<'a, Crypto> {
     pub fn process_message_2b(
         mut self,
         valid_cred_r: &[u8],
-    ) -> Result<EdhocInitiatorBuildM3<'a, Crypto>, EDHOCError> {
+    ) -> Result<EdhocInitiatorProcessedM2<'a, Crypto>, EDHOCError> {
         match i_process_message_2b(
             self.state,
             &mut self.crypto,
@@ -315,7 +315,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM2<'a, Crypto> {
                 .try_into()
                 .expect("Wrong length of initiator private key"),
         ) {
-            Ok(state) => Ok(EdhocInitiatorBuildM3 {
+            Ok(state) => Ok(EdhocInitiatorProcessedM2 {
                 state,
                 cred_i: self.cred_i,
                 crypto: self.crypto,
@@ -325,10 +325,12 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM2<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
-    pub fn prepare_message_3a(mut self) -> Result<EdhocInitiatorPartialM3<'a, Crypto>, EDHOCError> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
+    pub fn prepare_message_3a(
+        mut self,
+    ) -> Result<EdhocInitiatorPreparingM3<'a, Crypto>, EDHOCError> {
         match i_prepare_message_3a(&mut self.state, &mut self.crypto, self.cred_i) {
-            Ok(state) => Ok(EdhocInitiatorPartialM3 {
+            Ok(state) => Ok(EdhocInitiatorPreparingM3 {
                 state,
                 crypto: self.crypto,
                 cred_i: self.cred_i,
@@ -338,7 +340,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorPartialM3<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorPreparingM3<'a, Crypto> {
     pub fn prepare_message_3b(
         mut self,
         ead_3: &Option<EADItem>,
