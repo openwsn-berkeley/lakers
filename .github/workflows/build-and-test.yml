@@ -21,7 +21,22 @@ jobs:
     - name: Check if code is well formatted
       run: cargo fmt --check
 
-  unit-tests: # run before build because it is faster
+  unit-tests-default:
+    needs: check-style
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Run unit tests with default features
+      run: RUST_BACKTRACE=1 cargo test
+
+
+  unit-tests:
     needs: check-style
     runs-on: ubuntu-latest
 
@@ -34,9 +49,6 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
-
-    - name: Run unit tests with default features
-      run: RUST_BACKTRACE=1 cargo test
 
     - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-zeroconf` when testing with that config
       run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-zeroconf' && '-p lakers-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
