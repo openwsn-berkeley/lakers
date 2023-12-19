@@ -197,13 +197,23 @@ pub fn r_process_message_3a(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
-) -> Result<(ProcessingM3, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM3, IdCredOwned, Option<EADItem>), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
         let decoded_p3_res = decode_plaintext_3(&plaintext_3);
 
         if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
+            let id_cred_i = match id_cred_i {
+                IdCred::CompactKid(kid) => IdCredOwned::CompactKid(kid),
+                IdCred::FullCredential(cred) => {
+                    let Ok(buffer) = EdhocMessageBuffer::new_from_slice(cred) else {
+                        return Err(EDHOCError::ParsingError);
+                    };
+                    IdCredOwned::FullCredential(buffer)
+                }
+            };
+
             Ok((
                 ProcessingM3 {
                     mac_3,
@@ -212,6 +222,7 @@ pub fn r_process_message_3a(
                     th_3: state.th_3,
                     plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at step 'b'
                 },
+                id_cred_i,
                 ead_3,
             ))
         } else {
@@ -496,70 +507,6 @@ pub fn i_prepare_message_3b(
         message_3,
         prk_out,
     ))
-}
-
-// Implements auth credential checking according to draft-tiloca-lake-implem-cons
-pub fn credential_check_or_fetch<'a>(
-    cred_expected: Option<&'a [u8]>,
-    id_cred_received: IdCred<'a>,
-) -> Result<(&'a [u8], BytesP256ElemLen), EDHOCError> {
-    // Processing of auth credentials according to draft-tiloca-lake-implem-cons
-    // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
-    if let Some(cred_expected) = cred_expected {
-        // 1. Does ID_CRED_X point to a stored authentication credential? YES
-        // IMPL: compare cred_i_expected with id_cred
-        //   IMPL: assume cred_i_expected is well formed
-        let (public_key_expected, kid_expected) = parse_cred(cred_expected)?;
-        let public_key = public_key_expected;
-        let credentials_match = match id_cred_received {
-            IdCred::CompactKid(kid_received) => kid_received == kid_expected,
-            IdCred::FullCredential(cred_received) => cred_expected == cred_received,
-        };
-
-        // 2. Is this authentication credential still valid?
-        // IMPL,TODO: check cred_r_expected is still valid
-
-        // Continue by considering CRED_X as the authentication credential of the other peer.
-        // IMPL: ready to proceed, including process ead_2
-
-        if credentials_match {
-            Ok((cred_expected, public_key))
-        } else {
-            Err(EDHOCError::UnknownPeer)
-        }
-    } else {
-        // 1. Does ID_CRED_X point to a stored authentication credential? NO
-        // IMPL: cred_i_expected provided by application is None
-        //       id_cred must be a full credential
-        if let IdCred::FullCredential(cred_received) = id_cred_received {
-            // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
-
-            // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
-
-            // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
-            //    Is the validation successful?
-            // IMPL: parse_cred(cred_r) and check it is valid
-            match parse_cred(cred_received) {
-                Ok((public_key_received, _kid_received)) => {
-                    // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
-                    // IMPL,TODO: we just skip this step for now
-
-                    // 7. Store CRED_X as valid and trusted.
-                    //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
-                    // IMPL: cred_r = id_cred
-                    let public_key = public_key_received;
-                    Ok((cred_received, public_key))
-                }
-                Err(_) => Err(EDHOCError::UnknownPeer),
-            }
-        } else {
-            // IMPL: should have gotten a full credential
-            Err(EDHOCError::UnknownPeer)
-        }
-    }
-
-    // 8. Is this authentication credential good to use in the context of this EDHOC session?
-    // IMPL,TODO: we just skip this step for now
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {

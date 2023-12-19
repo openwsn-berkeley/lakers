@@ -148,7 +148,7 @@ fn main() -> ! {
 
         let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
         let (valid_cred_r, g_r) =
-            credential_check_or_fetch_new(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         let initiator = initiator
             .process_message_2b(valid_cred_r.as_slice())
             .unwrap();

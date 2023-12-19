@@ -179,14 +179,22 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
     pub fn process_message_3a(
         mut self,
         message_3: &'a BufferMessage3,
-    ) -> Result<(EdhocResponderProcessingM3<Crypto>, Option<EADItem>), EDHOCError> {
+    ) -> Result<
+        (
+            EdhocResponderProcessingM3<Crypto>,
+            IdCredOwned,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
         match r_process_message_3a(&mut self.state, &mut self.crypto, message_3) {
-            Ok((state, ead_3)) => Ok((
+            Ok((state, id_cred_i, ead_3)) => Ok((
                 EdhocResponderProcessingM3 {
                     state,
                     crypto: self.crypto,
                     cred_i: self.cred_i,
                 },
+                id_cred_i,
                 ead_3,
             )),
             Err(error) => Err(error),
@@ -453,7 +461,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 }
 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
-pub fn credential_check_or_fetch_new<'a>(
+pub fn credential_check_or_fetch<'a>(
     cred_expected: Option<EdhocMessageBuffer>,
     id_cred_received: IdCredOwned,
 ) -> Result<(EdhocMessageBuffer, BytesP256ElemLen), EDHOCError> {
@@ -628,7 +636,7 @@ mod test {
         assert!(c_r != 0xff);
         let (initiator, c_r, id_cred_r, _ead_2) = initiator.process_message_2a(&message_2).unwrap();
         let (valid_cred_r, g_r) =
-            credential_check_or_fetch_new(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         // Phase 2: Process EAD_X items that have not been processed yet, and that can be processed before message verification
         // i_process_ead_2(crypto, ead_2, valid_cred_r, &state.h_message_1)
         let initiator = initiator
@@ -638,8 +646,9 @@ mod test {
         let initiator = initiator.prepare_message_3a().unwrap();
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
 
-        let (responder, _ead_3) = responder.process_message_3a(&message_3).unwrap();
-        // let cred_i = credential_check_or_fetch(cred_i_expected, id_cred_i);
+        let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
+        let (valid_cred_i, g_i) =
+            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
         // r_process_ead_3(ead_3)
         let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
 
