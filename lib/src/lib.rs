@@ -8,6 +8,7 @@ pub use lakers_ead::*;
 mod edhoc;
 use edhoc::*;
 
+// TODO: clean these structs and remove the cred_x whre they are not needed anymore
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
     state: Start,             // opaque state
@@ -198,8 +199,9 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<'a, Crypto> {
     pub fn process_message_3b(
         mut self,
+        cred_i: &[u8],
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match r_process_message_3b(&mut self.state, &mut self.crypto, self.cred_i.unwrap()) {
+        match r_process_message_3b(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
                 EdhocResponderDone {
                     state,
@@ -619,7 +621,9 @@ mod test {
         let (valid_cred_i, g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
         // if ead_3: process ead_3
-        let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
+        let (mut responder, r_prk_out) = responder
+            .process_message_3b(valid_cred_i.as_slice())
+            .unwrap();
         // ---- end responder handling
 
         // check that prk_out is equal at initiator and responder side
@@ -729,7 +733,9 @@ mod test {
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
         let (valid_cred_i, _g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut _responder, r_prk_out) = responder.process_message_3b().unwrap();
+        let (mut _responder, r_prk_out) = responder
+            .process_message_3b(valid_cred_i.as_slice())
+            .unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
