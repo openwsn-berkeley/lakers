@@ -525,12 +525,9 @@ mod test {
     const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // used
     const _G_I_Y_COORD: &[u8] =
         &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
     const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
-    const G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const C_R_TV: [u8; 1] = hex!("27");
 
     const MESSAGE_1_TV_FIRST_TIME: &str =
         "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
@@ -690,7 +687,7 @@ mod test {
         let initiator = initiator.prepare_message_1a(None).unwrap();
         let (ead_1, mut device) = device.prepare_ead_1(
             &mut default_crypto(),
-            &initiator.state.x_or_y,
+            &initiator.state.x,
             initiator.state.suites_i[initiator.state.suites_i_len - 1],
         );
         let (initiator, message_1) = initiator.prepare_message_1b(&Some(ead_1)).unwrap();
@@ -715,8 +712,8 @@ mod test {
         let kid = IdCred::CompactKid(ID_CRED_R[3]);
         let (responder, message_2) = responder.prepare_message_2(&kid, None, &ead_2).unwrap();
 
-        let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
-        let (valid_cred_r, g_r) =
+        let (initiator, _c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (valid_cred_r, _g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         if let Some(ead_2) = ead_2 {
             let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
@@ -727,12 +724,12 @@ mod test {
             .unwrap();
 
         let initiator = initiator.prepare_message_3a().unwrap();
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+        let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
-        let (valid_cred_i, g_i) =
+        let (valid_cred_i, _g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
+        let (mut _responder, r_prk_out) = responder.process_message_3b().unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

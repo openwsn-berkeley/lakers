@@ -105,9 +105,9 @@ pub struct Start;
 
 #[derive(Debug)]
 pub struct PreparingM1 {
-    pub c_i: u8,                    // connection identifier chosen by the initiator
-    pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
-    pub gx_or_gy: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
+    pub c_i: u8,               // connection identifier chosen by the initiator
+    pub x: BytesP256ElemLen,   // ephemeral private key of myself
+    pub g_x: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
     pub suites_i: BytesSuites,
     pub suites_i_len: usize,
 }
@@ -121,7 +121,7 @@ pub struct ProcessingM1 {
 
 #[derive(Debug)]
 pub struct WaitM2 {
-    pub x_or_y: BytesP256ElemLen, // ephemeral private key of the initiator
+    pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
@@ -137,7 +137,7 @@ pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
     pub prk_2e: BytesHashLen,
     pub th_2: BytesHashLen,
-    pub x_or_y: BytesP256ElemLen,
+    pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
 }

@@ -1,5 +1,3 @@
-use core::marker::PhantomData;
-use lakers_ead::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 pub fn edhoc_exporter(
@@ -258,8 +256,8 @@ pub fn i_prepare_message_1a(
 
     Ok(PreparingM1 {
         c_i,
-        x_or_y: x,
-        gx_or_gy: g_x,
+        x,
+        g_x,
         suites_i,
         suites_i_len,
     })
@@ -275,7 +273,7 @@ pub fn i_prepare_message_1b(
         EDHOC_METHOD,
         &state.suites_i,
         state.suites_i_len,
-        &state.gx_or_gy,
+        &state.g_x,
         state.c_i,
         ead_1,
     )?;
@@ -286,10 +284,9 @@ pub fn i_prepare_message_1b(
     // hash message_1 here to avoid saving the whole message in the state
     let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
 
-    // TODO: new way
     Ok((
         WaitM2 {
-            x_or_y: state.x_or_y,
+            x: state.x,
             h_message_1,
         },
         message_1,
@@ -307,7 +304,7 @@ pub fn i_process_message_2a<'a>(
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
 
         // compute prk_2e
-        let prk_2e = compute_prk_2e(crypto, &state.x_or_y, &g_y, &th_2);
+        let prk_2e = compute_prk_2e(crypto, &state.x, &g_y, &th_2);
 
         let plaintext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ciphertext_2);
 
@@ -321,7 +318,7 @@ pub fn i_process_message_2a<'a>(
                 th_2,
                 g_y,
                 plaintext_2: plaintext_2,
-                x_or_y: state.x_or_y,
+                x: state.x,
             };
 
             let id_cred_r = match id_cred_r {
@@ -353,7 +350,7 @@ pub fn i_process_message_2b(
     let salt_3e2m = compute_salt_3e2m(crypto, &state.prk_2e, &state.th_2);
 
     let (g_r, _) = parse_cred(valid_cred_r)?;
-    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x_or_y, &g_r);
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x, &g_r);
 
     let expected_mac_2 = compute_mac_2(
         crypto,
@@ -1010,8 +1007,6 @@ mod tests {
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
     const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc";
-    const PLAINTEXT_2_WITH_DUMMY_CRITICAL_EAD_TV: &str = "3248d0d1a594797d0aaf20cccccc";
-    const PLAINTEXT_3_WITH_DUMMY_CRITICAL_EAD_TV: &str = "2b48ddf106b86fd22fe420cccccc";
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;
@@ -1023,7 +1018,6 @@ mod tests {
         hex!("356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084b");
     const TH_3_TV: BytesHashLen =
         hex!("dfe5b065e64c72d226d500c12d49bee6dc4881ded0965e9bdf89d24a54f2e59a");
-    const CIPHERTEXT_3_TV: &str = "473dd16077dd71d65b56e6bd71e7a49d6012";
     const TH_4_TV: BytesHashLen =
         hex!("baf60adbc500fce789af25b108ada2275575056c52c1c2036a2da4a643891cb4");
     const PRK_2E_TV: BytesP256ElemLen =
@@ -1109,7 +1103,7 @@ mod tests {
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, _decoder) = res.unwrap();
+        let (suites_i, _suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i, SUITES_I_TV);
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
@@ -1117,7 +1111,7 @@ mod tests {
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, _decoder) = res.unwrap();
+        let (suites_i, _suites_i_len, _decoder) = res.unwrap();
         assert_eq!(suites_i[0], 0x18);
 
         // let (suites_i, suites_i_len, raw_suites_len) =
@@ -1158,7 +1152,7 @@ mod tests {
         // first time message_1 parsing
         let res = parse_message_1(&message_1_tv_first_time);
         assert!(res.is_ok());
-        let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
+        let (method, suites_i, _suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV_FIRST_TIME);
         assert_eq!(suites_i, SUITES_I_TV_FIRST_TIME);
@@ -1169,7 +1163,7 @@ mod tests {
         // second time message_1
         let res = parse_message_1(&message_1_tv);
         assert!(res.is_ok());
-        let (method, suites_i, suites_i_len, g_x, c_i, ead_1) = res.unwrap();
+        let (method, suites_i, _suites_i_len, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV);
         assert_eq!(suites_i, SUITES_I_TV);
@@ -1369,7 +1363,6 @@ mod tests {
     #[test]
     fn test_decode_plaintext_2() {
         let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let ead_2_tv = [0x00u8; 0];
 
         let plaintext_2 = decode_plaintext_2(&plaintext_2_tv);
         assert!(plaintext_2.is_ok());
@@ -1570,6 +1563,7 @@ mod tests {
         assert_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
     }
 
+    #[test]
     fn test_compute_prk_out() {
         let mut prk_out: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
         let mut th_4_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];

@@ -78,7 +78,7 @@ mod test_authz {
             device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
         device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
-        let (_loc_w, voucher_request, authenticator) = authenticator
+        let (_loc_w, voucher_request, _authenticator) = authenticator
             .process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap())
             .unwrap();
 
