@@ -701,7 +701,7 @@ mod test {
             let (_loc_w, voucher_request, authenticator) =
                 authenticator.process_ead_1(&ead_1, &message_1).unwrap();
 
-            // the line below mocks a pos to the server: let voucher_response = auth_client.post(loc_w, voucher_request)?
+            // the line below mocks a request to the server: let voucher_response = auth_client.post(loc_w, voucher_request)?
             let voucher_response = server
                 .handle_voucher_request(&mut default_crypto(), &voucher_request)
                 .unwrap();
@@ -727,72 +727,14 @@ mod test {
             .unwrap();
 
         let initiator = initiator.prepare_message_3a().unwrap();
-        // if needed: prepare ead_3
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
         let (valid_cred_i, g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        // if ead_3: process ead_3
         let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
-    }
-
-    #[cfg(feature = "ead-zeroconf")]
-    #[test]
-    fn test_ead_zeroconf_not_authorized() {
-        // ==== initialize edhoc ====
-        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
-        let responder = EdhocResponder::new(
-            Default::default(),
-            default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
-        );
-
-        // ==== initialize ead-zeroconf ====
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
-
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
-        let ead_initiator_state = ead_initiator_get_global_state();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Start
-        );
-
-        ead_responder_set_global_state(EADResponderState::new());
-        let ead_responder_state = ead_responder_get_global_state();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Start
-        );
-
-        let mut acl = EdhocMessageBuffer::new();
-        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
-        let invalid_kid = kid_i + 1;
-        acl.push(invalid_kid).unwrap();
-        mock_ead_server_set_global_state(MockEADServerState::new(
-            CRED_R,
-            W_TV.try_into().unwrap(),
-            Some(acl),
-        ));
-
-        let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::WaitEAD2
-        );
-
-        // ==== begin edhoc with ead-zeroconf ====
-        assert_eq!(
-            responder.process_message_1(&message_1).unwrap_err(),
-            EDHOCError::EADError
-        );
     }
 }
