@@ -1,8 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 
-pub use {
-    lakers_shared::Crypto as CryptoTrait, lakers_shared::State as EdhocState, lakers_shared::*,
-};
+pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
 #[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
 pub use lakers_ead::*;
@@ -62,7 +60,7 @@ pub struct EdhocInitiatorPreparingM3<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: CompletedNew,
+    state: Completed,
     crypto: Crypto,
 }
 
@@ -100,22 +98,16 @@ pub struct EdhocResponderProcessingM3<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocResponderDone<Crypto: CryptoTrait> {
-    state: CompletedNew,
+    state: Completed,
     crypto: Crypto,
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
-    pub fn new(
-        state: Start,
-        crypto: Crypto,
-        r: &'a [u8],
-        cred_r: &'a [u8],
-        cred_i: Option<&'a [u8]>,
-    ) -> Self {
+    pub fn new(crypto: Crypto, r: &'a [u8], cred_r: &'a [u8], cred_i: Option<&'a [u8]>) -> Self {
         assert!(r.len() == P256_ELEM_LEN);
 
         EdhocResponder {
-            state,
+            state: Start {},
             r,
             cred_r,
             cred_i,
@@ -145,11 +137,12 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM1<'a, Crypto> {
     pub fn prepare_message_2(
         mut self,
-        c_r: u8,
         id_cred_r: &IdCred,
+        c_r: Option<u8>,
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<'a, Crypto>, BufferMessage2), EDHOCError> {
         let (y, g_y) = self.crypto.p256_generate_key_pair();
+        let c_r = c_r.unwrap_or_else(|| generate_connection_identifier_cbor(&mut self.crypto));
 
         match r_prepare_message_2(
             self.state,
@@ -229,7 +222,7 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_exporter_new(
+        edhoc_exporter(
             &self.state,
             &mut self.crypto,
             label,
@@ -243,7 +236,7 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_key_update_new(
+        edhoc_key_update(
             &mut self.state,
             &mut self.crypto,
             &context_buf,
@@ -253,17 +246,11 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
-    pub fn new(
-        state: Start,
-        crypto: Crypto,
-        i: &'a [u8],
-        cred_i: &'a [u8],
-        cred_r: Option<&'a [u8]>,
-    ) -> Self {
+    pub fn new(crypto: Crypto, i: &'a [u8], cred_i: &'a [u8], cred_r: Option<&'a [u8]>) -> Self {
         assert!(i.len() == P256_ELEM_LEN);
 
         EdhocInitiator {
-            state,
+            state: Start {},
             i,
             cred_i,
             cred_r,
@@ -273,9 +260,10 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
 
     pub fn prepare_message_1a(
         mut self,
-        c_i: u8,
+        c_i: Option<u8>,
     ) -> Result<EdhocInitiatorPreparingM1<'a, Crypto>, EDHOCError> {
         let (x, g_x) = self.crypto.p256_generate_key_pair();
+        let c_i = c_i.unwrap_or_else(|| generate_connection_identifier_cbor(&mut self.crypto));
 
         match i_prepare_message_1a(self.state, &mut self.crypto, x, g_x, c_i) {
             Ok(state) => Ok(EdhocInitiatorPreparingM1 {
@@ -416,7 +404,7 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_exporter_new(
+        edhoc_exporter(
             &self.state,
             &mut self.crypto,
             label,
@@ -430,7 +418,7 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context);
 
-        edhoc_key_update_new(
+        edhoc_key_update(
             &mut self.state,
             &mut self.crypto,
             &context_buf,
@@ -551,27 +539,22 @@ mod test {
 
     #[test]
     fn test_new_initiator() {
-        let state = Default::default();
-        let _initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
-        let state = Default::default();
-        let _initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, None);
+        let _initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let _initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, None);
     }
 
     #[test]
     fn test_new_responder() {
-        let state = Default::default();
-        let _responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
-        let state = Default::default();
-        let _responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, None);
+        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
+        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R, None);
     }
 
     #[test]
     fn test_prepare_message_1() {
-        let state = Default::default();
-        let initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let message_1 = initiator.prepare_message_1a(c_i);
+        let message_1 = initiator.prepare_message_1a(Some(c_i));
         assert!(message_1.is_ok());
     }
 
@@ -579,8 +562,7 @@ mod test {
     fn test_process_message_1() {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
-        let state = Default::default();
-        let responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -589,8 +571,7 @@ mod test {
 
         // We need to create a new responder -- no message is supposed to be processed twice by a
         // responder or initiator
-        let state = Default::default();
-        let responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
@@ -606,51 +587,43 @@ mod test {
     #[cfg(feature = "ead-none")]
     #[test]
     fn test_handshake() {
-        let initiator = EdhocInitiator::new(
-            Default::default(),
-            default_crypto(),
-            I,
-            CRED_I,
-            Some(CRED_R),
-        );
-        let responder = EdhocResponder::new(
-            Default::default(),
-            default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
-        );
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
-        let c_i: u8 = generate_connection_identifier_cbor(&mut default_crypto());
-        let initiator = initiator.prepare_message_1a(c_i).unwrap();
-        // NOTE: EADs would be prepared here
-        // e.g. let ead_1 = i_prepare_ead_1(crypto, &x, suites_i[suites_i_len - 1]);
-        let (initiator, result) = initiator.prepare_message_1b(&None).unwrap();
+        // ---- begin initiator handling
+        let initiator = initiator.prepare_message_1a(None).unwrap();
+        // if needed: prepare ead_1
+        let (initiator, message_1) = initiator.prepare_message_1b(&None).unwrap();
+        // ---- end initiator handling
 
-        let (responder, _ead_1) = responder.process_message_1(&result).unwrap();
+        // ---- begin responder handling
+        let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
+        // if ead_1: process ead_1
+        // if needed: prepare ead_2
+        let kid = IdCred::CompactKid(ID_CRED_R[3]);
+        let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
+        // ---- end responder handling
 
-        let c_r = generate_connection_identifier_cbor(&mut default_crypto());
-        let kid = IdCred::CompactKid(parse_cred(CRED_R).unwrap().1);
-        let (responder, message_2) = responder.prepare_message_2(c_r, &kid, &None).unwrap();
-
-        assert!(c_r != 0xff);
+        // ---- being initiator handling
         let (initiator, c_r, id_cred_r, _ead_2) = initiator.process_message_2a(&message_2).unwrap();
         let (valid_cred_r, g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        // Phase 2: Process EAD_X items that have not been processed yet, and that can be processed before message verification
-        // i_process_ead_2(crypto, ead_2, valid_cred_r, &state.h_message_1)
         let initiator = initiator
             .process_message_2b(valid_cred_r.as_slice())
             .unwrap();
 
         let initiator = initiator.prepare_message_3a().unwrap();
+        // if needed: prepare ead_3
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+        // ---- end initiator handling
 
+        // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
         let (valid_cred_i, g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        // r_process_ead_3(ead_3)
+        // if ead_3: process ead_3
         let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
+        // ---- end responder handling
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

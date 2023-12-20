@@ -3,7 +3,7 @@ use lakers_ead::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 pub fn edhoc_exporter(
-    state: &State<Completed>,
+    state: &Completed,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -21,60 +21,7 @@ pub fn edhoc_exporter(
 }
 
 pub fn edhoc_key_update(
-    state: &mut State<Completed>,
-    crypto: &mut impl CryptoTrait,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
-) -> BytesHashLen {
-    // FIXME: Normally we would decompose `state` here, but hax disallows aliasing a `mut` item.
-    // The best fix for this is to change state from a tuple-struct to a regular struct.
-    // In the code below, `state.6` means `mut prk_out` and `state.7` means `mut prk_exporter`
-
-    // new PRK_out
-    let prk_new_buf = edhoc_kdf(
-        crypto,
-        &state.prk_out,
-        11u8,
-        context,
-        context_len,
-        SHA256_DIGEST_LEN,
-    );
-    state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
-
-    // new PRK_exporter
-    let prk_new_buf = edhoc_kdf(
-        crypto,
-        &state.prk_out,
-        10u8,
-        &[0x00; MAX_KDF_CONTEXT_LEN],
-        0,
-        SHA256_DIGEST_LEN,
-    );
-    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
-
-    state.prk_out
-}
-
-pub fn edhoc_exporter_new(
-    state: &CompletedNew,
-    crypto: &mut impl CryptoTrait,
-    label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
-    length: usize,
-) -> BytesMaxBuffer {
-    edhoc_kdf(
-        crypto,
-        &state.prk_exporter,
-        label,
-        context,
-        context_len,
-        length,
-    )
-}
-
-pub fn edhoc_key_update_new(
-    state: &mut CompletedNew,
+    state: &mut Completed,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -109,7 +56,7 @@ pub fn edhoc_key_update_new(
 }
 
 pub fn r_process_message_1(
-    state: Start,
+    _state: Start,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
 ) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {
@@ -238,7 +185,7 @@ pub fn r_process_message_3b(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
     valid_cred_i: &[u8],
-) -> Result<(CompletedNew, BytesHashLen), EDHOCError> {
+) -> Result<(Completed, BytesHashLen), EDHOCError> {
     let (g_i, _kid_i) = parse_cred(valid_cred_i)?;
 
     // compute salt_4e3m
@@ -287,7 +234,7 @@ pub fn r_process_message_3b(
         let mut prk_exporter = BytesHashLen::default();
         prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-        let state = CompletedNew {
+        let state = Completed {
             prk_out,
             prk_exporter,
         };
@@ -464,7 +411,7 @@ pub fn i_prepare_message_3b(
     crypto: &mut impl CryptoTrait,
     cred_i: &[u8],
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(CompletedNew, BufferMessage3, BytesHashLen), EDHOCError> {
+) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
     let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &state.mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
@@ -500,7 +447,7 @@ pub fn i_prepare_message_3b(
     prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
     Ok((
-        CompletedNew {
+        Completed {
             prk_out,
             prk_exporter,
         },
