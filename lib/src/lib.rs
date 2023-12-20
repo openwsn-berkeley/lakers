@@ -2,7 +2,7 @@
 
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
-#[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
+#[cfg(any(feature = "ead-none", feature = "ead-zeroconf", feature = "ead-authz"))]
 pub use lakers_ead::*;
 
 mod edhoc;
@@ -663,83 +663,81 @@ mod test {
     const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     // TODO: have a setup_test function that prepares the common objects for the ead tests
-    #[cfg(feature = "ead-zeroconf")]
+    #[cfg(feature = "ead-authz")]
     #[test]
-    fn test_ead_zeroconf() {
+    fn test_ead_authz() {
         // ==== initialize edhoc ====
-        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
-        let responder = EdhocResponder::new(
-            Default::default(),
-            default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
+
+        // ==== initialize ead-authz ====
+        let device = ZeroTouchDevice::new(
+            ID_U_TV.try_into().unwrap(),
+            G_W_TV.try_into().unwrap(),
+            LOC_W_TV.try_into().unwrap(),
         );
+        let authenticator = ZeroTouchAuthenticator::default();
 
-        // ==== initialize ead-zeroconf ====
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
-
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
-        let ead_initiator_state = ead_initiator_get_global_state();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Start
-        );
-
-        ead_responder_set_global_state(EADResponderState::new());
-        let ead_responder_state = ead_responder_get_global_state();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Start
-        );
-
-        let mut acl = EdhocMessageBuffer::new();
-        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
-        acl.push(kid_i).unwrap();
-        mock_ead_server_set_global_state(MockEADServerState::new(
-            CRED_R,
+        let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap();
+        let server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
+            CRED_R.try_into().unwrap(),
             Some(acl),
-        ));
-
-        let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::WaitEAD2
         );
 
-        // ==== begin edhoc with ead-zeroconf ====
-        let responder = responder.process_message_1(&message_1).unwrap();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::ProcessedEAD1
+        // ==== begin edhoc with ead-authz ====
+
+        let initiator = initiator.prepare_message_1a(None).unwrap();
+        let (ead_1, mut device) = device.prepare_ead_1(
+            &mut default_crypto(),
+            &initiator.state.x_or_y,
+            initiator.state.suites_i[initiator.state.suites_i_len - 1],
         );
+        let (initiator, message_1) = initiator.prepare_message_1b(&Some(ead_1)).unwrap();
+        device.set_h_message_1(initiator.state.h_message_1.clone());
 
-        let c_r = generate_connection_identifier_cbor(&mut default_crypto());
-        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Completed
-        );
+        let (responder, ead_1) = responder.process_message_1(&message_1).unwrap();
+        let ead_2 = if let Some(ead_1) = ead_1 {
+            let (_loc_w, voucher_request, authenticator) =
+                authenticator.process_ead_1(&ead_1, &message_1).unwrap();
 
-        let (initiator, _) = initiator.process_message_2(&message_2).unwrap();
+            // the line below mocks a pos to the server: let voucher_response = auth_client.post(loc_w, voucher_request)?
+            let voucher_response = server
+                .handle_voucher_request(&mut default_crypto(), &voucher_request)
+                .unwrap();
 
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Completed
-        );
+            let res = authenticator.prepare_ead_2(&voucher_response);
+            assert!(res.is_ok());
+            authenticator.prepare_ead_2(&voucher_response).ok()
+        } else {
+            None
+        };
+        let kid = IdCred::CompactKid(ID_CRED_R[3]);
+        let (responder, message_2) = responder.prepare_message_2(&kid, None, &ead_2).unwrap();
 
-        let (initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (valid_cred_r, g_r) =
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        if let Some(ead_2) = ead_2 {
+            let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
+            assert!(result.is_ok());
+        }
+        let initiator = initiator
+            .process_message_2b(valid_cred_r.as_slice())
+            .unwrap();
 
-        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
+        let initiator = initiator.prepare_message_3a().unwrap();
+        // if needed: prepare ead_3
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+
+        let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
+        let (valid_cred_i, g_i) =
+            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+        // if ead_3: process ead_3
+        let (mut responder, r_prk_out) = responder.process_message_3b().unwrap();
+
+        // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Completed
-        );
     }
 
     #[cfg(feature = "ead-zeroconf")]

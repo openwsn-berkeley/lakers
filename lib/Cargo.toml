@@ -19,6 +19,7 @@ hexlit = "0.5.3"
 default = [ "lakers-ead/ead-none" ]
 ead-none = [ "lakers-ead/ead-none" ]
 ead-zeroconf = [ "lakers-ead/ead-zeroconf" ]
+ead-authz = [ "lakers-ead/ead-authz" ]
 
 [lib]
 crate-type = ["rlib"]

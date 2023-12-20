@@ -37,6 +37,7 @@ mod test_authz {
 
         let (ead_1, device) =
             device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+        device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
         // ead_1 will be transported within message_1
 
@@ -54,12 +55,7 @@ mod test_authz {
 
         // ead_2 will be transported within message_2
 
-        let result = device.process_ead_2(
-            &mut default_crypto(),
-            ead_2,
-            CRED_V_TV,
-            H_MESSAGE_1_TV.try_into().unwrap(),
-        );
+        let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_V_TV);
         assert!(result.is_ok());
     }
 }
