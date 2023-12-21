@@ -9,6 +9,7 @@ mod edhoc;
 use edhoc::*;
 
 // TODO: clean these structs and remove the cred_x whre they are not needed anymore
+/// Starting point for performing EDHOC in the role of the Initiator.
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
     state: Start,             // opaque state
@@ -75,7 +76,7 @@ pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocResponderProcessingM1<'a, Crypto: CryptoTrait> {
+pub struct EdhocResponderProcessedM1<'a, Crypto: CryptoTrait> {
     state: ProcessingM1,      // opaque state
     r: &'a [u8],              // private authentication key of R
     cred_r: &'a [u8],         // R's full credential
@@ -119,11 +120,11 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn process_message_1(
         mut self,
         message_1: &BufferMessage1,
-    ) -> Result<(EdhocResponderProcessingM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
+    ) -> Result<(EdhocResponderProcessedM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
         let (state, ead_1) = r_process_message_1(self.state, &mut self.crypto, message_1)?;
 
         Ok((
-            EdhocResponderProcessingM1 {
+            EdhocResponderProcessedM1 {
                 state,
                 r: self.r,
                 cred_r: self.cred_r,
@@ -135,7 +136,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM1<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
     pub fn prepare_message_2(
         mut self,
         id_cred_r: &IdCred,

@@ -16,23 +16,25 @@ const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32
 const _G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
 fn main() {
+    match client_handshake() {
+        Ok(_) => println!("Handshake completed"),
+        Err(e) => panic!("Handshake failed with error: {:?}", e),
+    }
+}
+
+fn client_handshake() -> Result<(), EDHOCError> {
     let url = "coap://127.0.0.1:5683/.well-known/edhoc";
     let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
 
-    let state = Default::default();
-    let initiator = EdhocInitiator::new(
-        state,
-        lakers_crypto::default_crypto(),
-        &I,
-        &CRED_I,
-        Some(&CRED_R),
-    );
+    let initiator =
+        EdhocInitiator::new(lakers_crypto::default_crypto(), &I, &CRED_I, Some(&CRED_R));
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
     let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
-    let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
+    let initiator = initiator.prepare_message_1a(Some(c_i))?;
+    let (initiator, message_1) = initiator.prepare_message_1b(&None)?;
     msg_1_buf.extend_from_slice(message_1.as_slice());
     println!("message_1 len = {}", msg_1_buf.len());
 
@@ -43,45 +45,44 @@ fn main() {
     println!("response_vec = {:02x?}", response.message.payload);
     println!("message_2 len = {}", response.message.payload.len());
 
-    let m2result = initiator.process_message_2(
-        &response.message.payload[..]
-            .try_into()
-            .expect("wrong length"),
-    );
+    let message_2 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
+    let (initiator, c_r, id_cred_r, _ead_2) = initiator.process_message_2a(&message_2)?;
+    let (valid_cred_r, _g_r) =
+        credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+    let initiator = initiator.process_message_2b(valid_cred_r.as_slice())?;
 
-    if let Ok((initiator, c_r)) = m2result {
-        let mut msg_3 = Vec::from([c_r]);
-        let (mut initiator, message_3, prk_out) = initiator.prepare_message_3().unwrap();
-        msg_3.extend_from_slice(message_3.as_slice());
-        println!("message_3 len = {}", msg_3.len());
+    let mut msg_3 = Vec::from([c_r]);
+    let initiator = initiator.prepare_message_3a()?;
+    let (mut initiator, message_3, prk_out) = initiator.prepare_message_3b(&None)?;
+    msg_3.extend_from_slice(message_3.as_slice());
+    println!("message_3 len = {}", msg_3.len());
 
-        let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
-        // we don't care about the response to message_3 for now
+    let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
+    // we don't care about the response to message_3 for now
 
-        println!("EDHOC exchange successfully completed");
-        println!("PRK_out: {:02x?}", prk_out);
+    println!("EDHOC exchange successfully completed");
+    println!("PRK_out: {:02x?}", prk_out);
 
-        let mut _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let mut _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+    let mut oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+    let mut oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
 
-        println!("OSCORE secret: {:02x?}", _oscore_secret);
-        println!("OSCORE salt: {:02x?}", _oscore_salt);
+    println!("OSCORE secret: {:02x?}", oscore_secret);
+    println!("OSCORE salt: {:02x?}", oscore_salt);
 
-        // context of key update is a test vector from draft-ietf-lake-traces
-        let prk_out_new = initiator.edhoc_key_update(&[
-            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
-            0xbc, 0xea,
-        ]);
+    // context of key update is a test vector from draft-ietf-lake-traces
+    let prk_out_new = initiator.edhoc_key_update(&[
+        0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8, 0xbc,
+        0xea,
+    ]);
 
-        println!("PRK_out after key update: {:02x?}?", prk_out_new);
+    println!("PRK_out after key update: {:02x?}?", prk_out_new);
 
-        // compute OSCORE secret and salt after key update
-        _oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        _oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+    // compute OSCORE secret and salt after key update
+    oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+    oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
 
-        println!("OSCORE secret after key update: {:02x?}", _oscore_secret);
-        println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
-    } else {
-        panic!("Message 2 processing error: {:#?}", m2result);
-    }
+    println!("OSCORE secret after key update: {:02x?}", oscore_secret);
+    println!("OSCORE salt after key update: {:02x?}", oscore_salt);
+
+    Ok(())
 }
