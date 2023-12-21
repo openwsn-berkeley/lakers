@@ -6,6 +6,7 @@ authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]
 license.workspace = true
 description = "EDHOC EAD zeroconf (draf-lake-authz)"
 repository.workspace = true
+readme.workspace = true
 
 [dependencies]
 lakers-shared.workspace = true
