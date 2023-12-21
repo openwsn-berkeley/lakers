@@ -232,11 +232,13 @@ pub fn r_process_message_3b(
         let mut prk_exporter = BytesHashLen::default();
         prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-        let state = Completed {
+        Ok((
+            Completed {
+                prk_out,
+                prk_exporter,
+            },
             prk_out,
-            prk_exporter,
-        };
-        Ok((state, prk_out))
+        ))
     } else {
         Err(EDHOCError::MacVerificationFailed)
     }

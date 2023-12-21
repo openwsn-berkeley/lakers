@@ -160,7 +160,10 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<'a, Crypto>, BufferMessage2), EDHOCError> {
         let (y, g_y) = self.crypto.p256_generate_key_pair();
-        let c_r = c_r.unwrap_or_else(|| generate_connection_identifier_cbor(&mut self.crypto));
+        let c_r = match c_r {
+            Some(c_r) => c_r,
+            None => generate_connection_identifier_cbor(&mut self.crypto),
+        };
 
         match r_prepare_message_2(
             self.state,
@@ -282,7 +285,10 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
         c_i: Option<u8>,
     ) -> Result<EdhocInitiatorPreparingM1<'a, Crypto>, EDHOCError> {
         let (x, g_x) = self.crypto.p256_generate_key_pair();
-        let c_i = c_i.unwrap_or_else(|| generate_connection_identifier_cbor(&mut self.crypto));
+        let c_i = match c_i {
+            Some(c_i) => c_i,
+            None => generate_connection_identifier_cbor(&mut self.crypto),
+        };
 
         match i_prepare_message_1a(self.state, &mut self.crypto, x, g_x, c_i) {
             Ok(state) => Ok(EdhocInitiatorPreparingM1 {

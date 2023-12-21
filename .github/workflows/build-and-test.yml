@@ -78,7 +78,6 @@ jobs:
 
 
   generate-fstar:
-    needs: unit-tests
     runs-on: ubuntu-latest
 
     steps:
