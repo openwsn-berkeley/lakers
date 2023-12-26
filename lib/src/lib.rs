@@ -307,7 +307,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
         }
     }
 
-    pub fn compute_secret(&mut self, g_a: &BytesP256ElemLen) -> BytesP256ElemLen {
+    pub fn compute_ephemeral_secret(&mut self, g_a: &BytesP256ElemLen) -> BytesP256ElemLen {
         self.crypto.p256_ecdh(&self.state.x, g_a)
     }
 
@@ -685,7 +685,7 @@ mod test {
 
         let (ead_1, mut device) = device.prepare_ead_1(
             &mut default_crypto(),
-            initiator.compute_secret(&device.g_w),
+            initiator.compute_ephemeral_secret(&device.g_w),
             initiator.selected_cipher_suite(),
         );
         let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
