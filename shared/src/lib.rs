@@ -17,6 +17,9 @@ pub use helpers::*;
 mod crypto;
 pub use crypto::Crypto;
 
+mod cred;
+pub use cred::*;
+
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
 pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
@@ -94,6 +97,11 @@ pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+
+pub enum LakersCredentialTransfer {
+    ByReference,
+    ByValue,
+}
 
 #[repr(C)]
 #[derive(PartialEq, Debug)]
