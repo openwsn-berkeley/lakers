@@ -12,6 +12,16 @@ pub(crate) fn compute_prk<Crypto: CryptoTrait>(
     crypto.hkdf_extract(&salt, &g_ab)
 }
 
+pub(crate) fn compute_prk_from_secret<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    g_ab: &BytesP256ElemLen,
+) -> BytesHashLen {
+    // NOTE: salt should be h'' (the zero-length byte string), but crypto backends are hardcoded to salts of size SHA256_DIGEST_LEN (32).
+    //       nevertheless, using a salt of HashLen zeros works as well (see RFC 5869, Section 2.2).
+    let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
+    crypto.hkdf_extract(&salt, &g_ab)
+}
+
 pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     received_voucher: &BytesEncodedVoucher,

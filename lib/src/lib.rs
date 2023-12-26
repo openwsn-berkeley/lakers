@@ -306,6 +306,14 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
             Err(error) => Err(error),
         }
     }
+
+    pub fn compute_secret(&mut self, g_a: &BytesP256ElemLen) -> BytesP256ElemLen {
+        self.crypto.p256_ecdh(&self.state.x, g_a)
+    }
+
+    pub fn selected_cipher_suite(&self) -> u8 {
+        self.state.suites_i[self.state.suites_i_len - 1]
+    }
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
@@ -655,7 +663,7 @@ mod test {
     #[test]
     fn test_ead_authz() {
         // ==== initialize edhoc ====
-        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let mut initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
         let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // ==== initialize ead-authz ====
@@ -677,8 +685,8 @@ mod test {
 
         let (ead_1, mut device) = device.prepare_ead_1(
             &mut default_crypto(),
-            &initiator.state.x, // FIXME: avoid accessing private ephemeral key from application code
-            initiator.state.suites_i[initiator.state.suites_i_len - 1],
+            initiator.compute_secret(&device.g_w),
+            initiator.selected_cipher_suite(),
         );
         let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
         device.set_h_message_1(initiator.state.h_message_1.clone());

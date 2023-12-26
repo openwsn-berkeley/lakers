@@ -37,7 +37,7 @@ mod test_authz {
         // using .unwrap below since detailed errors are tested in each entity's tests
 
         let (ead_1, mut device) =
-            device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+            device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
         // ead_1 will be transported within message_1
@@ -75,7 +75,7 @@ mod test_authz {
         );
 
         let (ead_1, mut device) =
-            device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+            device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
         let (_loc_w, voucher_request, _authenticator) = authenticator

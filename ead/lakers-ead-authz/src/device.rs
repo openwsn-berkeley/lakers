@@ -4,7 +4,7 @@ use lakers_shared::{Crypto as CryptoTrait, *};
 #[derive(Debug)]
 pub struct ZeroTouchDevice {
     pub(crate) id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
-    pub(crate) g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
+    pub g_w: BytesP256ElemLen,           // public key of the enrollment server (W)
     pub(crate) loc_w: EdhocMessageBuffer, // address of the enrollment server (W)
 }
 
@@ -27,11 +27,11 @@ impl ZeroTouchDevice {
     pub fn prepare_ead_1<Crypto: CryptoTrait>(
         &self,
         crypto: &mut Crypto,
-        x: &BytesP256ElemLen,
+        secret: BytesP256ElemLen,
         ss: u8,
     ) -> (EADItem, ZeroTouchDeviceWaitEAD2) {
         // PRK = EDHOC-Extract(salt, IKM)
-        let prk = compute_prk(crypto, x, &self.g_w);
+        let prk = compute_prk_from_secret(crypto, &secret);
 
         // plaintext = (ID_U: bstr)
         let encoded_id_u = encode_id_u(&self.id_u);
@@ -155,7 +155,7 @@ mod test_device {
         );
 
         let (ead_1, _ead_authz) =
-            ead_device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+            ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);

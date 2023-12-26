@@ -24,6 +24,8 @@ pub const ACL_INVALID_TV: &[u8] = &hex!("fe"); // random invalid kid
 // EAD_1
 pub const SS_TV: u8 = 2;
 pub const ENC_ID_TV: &[u8] = &hex!("da9784962883c96ed01ff122c3");
+pub const G_XW_TV: &[u8] =
+    &hex!("03a658e9628c79c3f1e59239ca5e604953d11e01c2a442823c944da6682d0b6c");
 pub const PRK_TV: &[u8] = &hex!("d40f1601b577dbe7827bb3a20e0d16f7231c3a25225c1ed733f9094050d59666");
 pub const K_1_TV: &[u8] = &hex!("6f2a9112801a5011aa33576b5c7862ad");
 pub const IV_1_TV: &[u8] = &hex!("d31bc0d128349f290e79f0bde3");
