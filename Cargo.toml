@@ -5,6 +5,7 @@ members = [
   "ead",
   "ead/lakers-ead-none",
   "ead/lakers-ead-zeroconf",
+  "ead/lakers-ead-authz",
   "crypto",
   "crypto/lakers-crypto-cc2538",
   "crypto/lakers-crypto-hacspec",
