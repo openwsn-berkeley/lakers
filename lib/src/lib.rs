@@ -27,16 +27,7 @@ use edhoc::*;
 /// Starting point for performing EDHOC in the role of the Initiator.
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
-    state: Start,             // opaque state
-    i: &'a [u8],              // private authentication key of I
-    cred_i: &'a [u8],         // I's full credential
-    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
-    crypto: Crypto,
-}
-
-#[derive(Debug)]
-pub struct EdhocInitiatorPreparingM1<'a, Crypto: CryptoTrait> {
-    state: PreparingM1,       // opaque state
+    state: InitiatorStart,    // opaque state
     i: &'a [u8],              // private authentication key of I
     cred_i: &'a [u8],         // I's full credential
     cred_r: Option<&'a [u8]>, // R's full credential (if provided)
@@ -69,13 +60,6 @@ pub struct EdhocInitiatorProcessedM2<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorPreparingM3<'a, Crypto: CryptoTrait> {
-    state: PreparingM3, // opaque state
-    cred_i: &'a [u8],   // I's full credential
-    crypto: Crypto,
-}
-
-#[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
     state: Completed,
     crypto: Crypto,
@@ -84,7 +68,7 @@ pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
 /// Starting point for performing EDHOC in the role of the Responder.
 #[derive(Debug)]
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
-    state: Start,             // opaque state
+    state: ResponderStart,    // opaque state
     r: &'a [u8],              // private authentication key of R
     cred_r: &'a [u8],         // R's full credential
     cred_i: Option<&'a [u8]>, // I's full credential (if provided)
@@ -121,11 +105,17 @@ pub struct EdhocResponderDone<Crypto: CryptoTrait> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
-    pub fn new(crypto: Crypto, r: &'a [u8], cred_r: &'a [u8], cred_i: Option<&'a [u8]>) -> Self {
+    pub fn new(
+        mut crypto: Crypto,
+        r: &'a [u8],
+        cred_r: &'a [u8],
+        cred_i: Option<&'a [u8]>,
+    ) -> Self {
         assert!(r.len() == P256_ELEM_LEN);
+        let (y, g_y) = crypto.p256_generate_key_pair();
 
         EdhocResponder {
-            state: Start {},
+            state: ResponderStart { y, g_y },
             r,
             cred_r,
             cred_i,
@@ -159,7 +149,6 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
         c_r: Option<u8>,
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<'a, Crypto>, BufferMessage2), EDHOCError> {
-        let (y, g_y) = self.crypto.p256_generate_key_pair();
         let c_r = match c_r {
             Some(c_r) => c_r,
             None => generate_connection_identifier_cbor(&mut self.crypto),
@@ -170,8 +159,6 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
             &mut self.crypto,
             self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
-            y,
-            g_y,
             c_r,
             id_cred_r,
             ead_2,
@@ -268,11 +255,26 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
-    pub fn new(crypto: Crypto, i: &'a [u8], cred_i: &'a [u8], cred_r: Option<&'a [u8]>) -> Self {
+    pub fn new(
+        mut crypto: Crypto,
+        i: &'a [u8],
+        cred_i: &'a [u8],
+        cred_r: Option<&'a [u8]>,
+    ) -> Self {
         assert!(i.len() == P256_ELEM_LEN);
+        // we only support a single cipher suite which is already CBOR-encoded
+        let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
+        let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
+        suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
+        let (x, g_x) = crypto.p256_generate_key_pair();
 
         EdhocInitiator {
-            state: Start {},
+            state: InitiatorStart {
+                x,
+                g_x,
+                suites_i,
+                suites_i_len,
+            },
             i,
             cred_i,
             cred_r,
@@ -280,35 +282,17 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
         }
     }
 
-    pub fn prepare_message_1a(
+    pub fn prepare_message_1(
         mut self,
         c_i: Option<u8>,
-    ) -> Result<EdhocInitiatorPreparingM1<'a, Crypto>, EDHOCError> {
-        let (x, g_x) = self.crypto.p256_generate_key_pair();
+        ead_1: &Option<EADItem>,
+    ) -> Result<(EdhocInitiatorWaitM2<'a, Crypto>, EdhocMessageBuffer), EDHOCError> {
         let c_i = match c_i {
             Some(c_i) => c_i,
             None => generate_connection_identifier_cbor(&mut self.crypto),
         };
 
-        match i_prepare_message_1a(self.state, &mut self.crypto, x, g_x, c_i) {
-            Ok(state) => Ok(EdhocInitiatorPreparingM1 {
-                state,
-                i: self.i,
-                cred_i: self.cred_i,
-                cred_r: self.cred_r,
-                crypto: self.crypto,
-            }),
-            Err(error) => Err(error),
-        }
-    }
-}
-
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorPreparingM1<'a, Crypto> {
-    pub fn prepare_message_1b(
-        mut self,
-        ead_1: &Option<EADItem>,
-    ) -> Result<(EdhocInitiatorWaitM2<'a, Crypto>, EdhocMessageBuffer), EDHOCError> {
-        match i_prepare_message_1b(self.state, &mut self.crypto, ead_1) {
+        match i_prepare_message_1(self.state, &mut self.crypto, c_i, ead_1) {
             Ok((state, message_1)) => Ok((
                 EdhocInitiatorWaitM2 {
                     state,
@@ -379,22 +363,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
-    pub fn prepare_message_3a(
-        mut self,
-    ) -> Result<EdhocInitiatorPreparingM3<'a, Crypto>, EDHOCError> {
-        match i_prepare_message_3a(&mut self.state, &mut self.crypto, self.cred_i) {
-            Ok(state) => Ok(EdhocInitiatorPreparingM3 {
-                state,
-                crypto: self.crypto,
-                cred_i: self.cred_i,
-            }),
-            Err(error) => Err(error),
-        }
-    }
-}
-
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorPreparingM3<'a, Crypto> {
-    pub fn prepare_message_3b(
+    pub fn prepare_message_3(
         mut self,
         ead_3: &Option<EADItem>,
     ) -> Result<
@@ -405,7 +374,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorPreparingM3<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match i_prepare_message_3b(&mut self.state, &mut self.crypto, self.cred_i, ead_3) {
+        match i_prepare_message_3(&mut self.state, &mut self.crypto, self.cred_i, ead_3) {
             Ok((state, message_3, prk_out)) => Ok((
                 EdhocInitiatorDone {
                     state,
@@ -576,8 +545,8 @@ mod test {
         let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let message_1 = initiator.prepare_message_1a(Some(c_i));
-        assert!(message_1.is_ok());
+        let result = initiator.prepare_message_1(Some(c_i), &None);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -613,9 +582,8 @@ mod test {
         let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // ---- begin initiator handling
-        let initiator = initiator.prepare_message_1a(None).unwrap();
         // if needed: prepare ead_1
-        let (initiator, message_1) = initiator.prepare_message_1b(&None).unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
@@ -627,21 +595,21 @@ mod test {
         // ---- end responder handling
 
         // ---- being initiator handling
-        let (initiator, c_r, id_cred_r, _ead_2) = initiator.process_message_2a(&message_2).unwrap();
-        let (valid_cred_r, g_r) =
+        let (initiator, _c_r, id_cred_r, _ead_2) =
+            initiator.process_message_2a(&message_2).unwrap();
+        let (valid_cred_r, _g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         let initiator = initiator
             .process_message_2b(valid_cred_r.as_slice())
             .unwrap();
 
-        let initiator = initiator.prepare_message_3a().unwrap();
         // if needed: prepare ead_3
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
-        let (valid_cred_i, g_i) =
+        let (valid_cred_i, _g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
         // if ead_3: process ead_3
         let (mut responder, r_prk_out) = responder
@@ -711,13 +679,12 @@ mod test {
 
         // ==== begin edhoc with ead-authz ====
 
-        let initiator = initiator.prepare_message_1a(None).unwrap();
         let (ead_1, mut device) = device.prepare_ead_1(
             &mut default_crypto(),
             &initiator.state.x,
             initiator.state.suites_i[initiator.state.suites_i_len - 1],
         );
-        let (initiator, message_1) = initiator.prepare_message_1b(&Some(ead_1)).unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
         device.set_h_message_1(initiator.state.h_message_1.clone());
 
         let (responder, ead_1) = responder.process_message_1(&message_1).unwrap();
@@ -750,8 +717,7 @@ mod test {
             .process_message_2b(valid_cred_r.as_slice())
             .unwrap();
 
-        let initiator = initiator.prepare_message_3a().unwrap();
-        let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+        let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
         let (valid_cred_i, _g_i) =

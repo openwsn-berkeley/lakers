@@ -110,19 +110,23 @@ pub enum EDHOCError {
 }
 
 #[derive(Debug)]
-pub struct Start;
-
-#[derive(Debug)]
-pub struct PreparingM1 {
-    pub c_i: u8,               // connection identifier chosen by the initiator
-    pub x: BytesP256ElemLen,   // ephemeral private key of myself
-    pub g_x: BytesP256ElemLen, // g_y or g_x, ephemeral public key of myself
+pub struct InitiatorStart {
     pub suites_i: BytesSuites,
     pub suites_i_len: usize,
+    pub x: BytesP256ElemLen,   // ephemeral private key of myself
+    pub g_x: BytesP256ElemLen, // ephemeral public key of myself
+}
+
+#[derive(Debug)]
+pub struct ResponderStart {
+    pub y: BytesP256ElemLen,   // ephemeral private key of myself
+    pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
 #[derive(Debug)]
 pub struct ProcessingM1 {
+    pub y: BytesP256ElemLen,
+    pub g_y: BytesP256ElemLen,
     pub c_i: u8,
     pub g_x: BytesP256ElemLen, // ephemeral public key of the initiator
     pub h_message_1: BytesHashLen,

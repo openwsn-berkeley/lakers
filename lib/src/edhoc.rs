@@ -54,7 +54,7 @@ pub fn edhoc_key_update(
 }
 
 pub fn r_process_message_1(
-    _state: Start,
+    state: ResponderStart,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
 ) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {
@@ -72,6 +72,8 @@ pub fn r_process_message_1(
 
                 Ok((
                     ProcessingM1 {
+                        y: state.y,
+                        g_y: state.g_y,
                         c_i,
                         g_x,
                         h_message_1,
@@ -94,17 +96,15 @@ pub fn r_prepare_message_2(
     crypto: &mut impl CryptoTrait,
     cred_r: &[u8],
     r: &BytesP256ElemLen, // R's static private DH key
-    y: BytesP256ElemLen,
-    g_y: BytesP256ElemLen,
     c_r: u8,
     id_cred_r: &IdCred,
     ead_2: &Option<EADItem>,
 ) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
     // compute TH_2
-    let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
+    let th_2 = compute_th_2(crypto, &state.g_y, &state.h_message_1);
 
     // compute prk_3e2m
-    let prk_2e = compute_prk_2e(crypto, &y, &state.g_x, &th_2);
+    let prk_2e = compute_prk_2e(crypto, &state.y, &state.g_x, &th_2);
     let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
     let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &state.g_x);
 
@@ -125,11 +125,11 @@ pub fn r_prepare_message_2(
 
     ct.fill_with_slice(ciphertext_2.as_slice()).unwrap(); // TODO(hax): same as just above.
 
-    let message_2 = encode_message_2(&g_y, &ct);
+    let message_2 = encode_message_2(&state.g_y, &ct);
 
     Ok((
         WaitM3 {
-            y: y,
+            y: state.y,
             prk_3e2m: prk_3e2m,
             th_3: th_3,
         },
@@ -244,30 +244,10 @@ pub fn r_process_message_3b(
     }
 }
 
-pub fn i_prepare_message_1a(
-    _state: Start,
-    _crypto: &mut impl CryptoTrait,
-    x: BytesP256ElemLen,
-    g_x: BytesP256ElemLen,
-    c_i: u8,
-) -> Result<PreparingM1, EDHOCError> {
-    // we only support a single cipher suite which is already CBOR-encoded
-    let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-    let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-    suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-
-    Ok(PreparingM1 {
-        c_i,
-        x,
-        g_x,
-        suites_i,
-        suites_i_len,
-    })
-}
-
-pub fn i_prepare_message_1b(
-    state: PreparingM1,
+pub fn i_prepare_message_1(
+    state: InitiatorStart,
     crypto: &mut impl CryptoTrait,
+    c_i: u8,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
@@ -276,7 +256,7 @@ pub fn i_prepare_message_1b(
         &state.suites_i,
         state.suites_i_len,
         &state.g_x,
-        state.c_i,
+        c_i,
         ead_1,
     )?;
 
@@ -384,11 +364,12 @@ pub fn i_process_message_2b(
     }
 }
 
-pub fn i_prepare_message_3a(
+pub fn i_prepare_message_3(
     state: &mut ProcessedM2,
     crypto: &mut impl CryptoTrait,
     cred_i: &[u8],
-) -> Result<PreparingM3, EDHOCError> {
+    ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
+) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
     let mac_3 = compute_mac_3(
         crypto,
         &state.prk_4e3m,
@@ -397,21 +378,7 @@ pub fn i_prepare_message_3a(
         cred_i,
     );
 
-    Ok(PreparingM3 {
-        mac_3,
-        prk_3e2m: state.prk_3e2m,
-        prk_4e3m: state.prk_4e3m,
-        th_3: state.th_3,
-    })
-}
-
-pub fn i_prepare_message_3b(
-    state: &mut PreparingM3,
-    crypto: &mut impl CryptoTrait,
-    cred_i: &[u8],
-    ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
-    let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &state.mac_3, &ead_3)?;
+    let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i);
