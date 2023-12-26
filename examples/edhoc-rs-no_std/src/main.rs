@@ -98,7 +98,7 @@ fn main() -> ! {
 
         let c_i: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let message_1 = initiator.prepare_message_1a(None);
+        let message_1 = initiator.prepare_message_1(None, &None);
         assert!(message_1.is_ok());
     }
 
@@ -111,29 +111,24 @@ fn main() -> ! {
         let responder =
             EdhocResponder::new(lakers_crypto::default_crypto(), R, CRED_R, Some(CRED_I));
 
-        let initiator = initiator.prepare_message_1a(None).unwrap();
-        let (initiator, message_1) = initiator.prepare_message_1b(&None).unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
         let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
         let kid = IdCred::CompactKid(ID_CRED_R[3]);
         let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
 
-        let (initiator, c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
         let (valid_cred_r, g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        let initiator = initiator
-            .process_message_2b(valid_cred_r.as_slice())
-            .unwrap();
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
-        let initiator = initiator.prepare_message_3a().unwrap();
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3b(&None).unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
 
-        let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let (valid_cred_i, g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut responder, r_prk_out) = responder
-            .process_message_3b(valid_cred_i.as_slice())
-            .unwrap();
+        let (mut responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

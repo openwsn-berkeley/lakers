@@ -64,7 +64,7 @@ fn main() {
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
                 let message_3 =
                     EdhocMessageBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
-                let Ok((responder, id_cred_i, _ead_3)) = responder.process_message_3a(&message_3)
+                let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
                 else {
                     println!("EDHOC processing error: {:?}", message_3);
                     // We don't get another chance, it's popped and can't be used any further
@@ -74,7 +74,7 @@ fn main() {
                 let (valid_cred_i, _g_i) =
                     credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
                 let Ok((mut responder, prk_out)) =
-                    responder.process_message_3b(valid_cred_i.as_slice())
+                    responder.verify_message_3(valid_cred_i.as_slice())
                 else {
                     println!("EDHOC processing error: {:?}", valid_cred_i);
                     continue;

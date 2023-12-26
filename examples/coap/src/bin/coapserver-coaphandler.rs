@@ -82,7 +82,7 @@ impl coap_handler::Handler for EdhocHandler {
             println!("Found state with connection identifier {:?}", c_r_rcvd);
 
             let message_3 = EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).unwrap();
-            let result = responder.process_message_3a(&message_3);
+            let result = responder.parse_message_3(&message_3);
             let Ok((responder, id_cred_i, _ead_3)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections
@@ -90,7 +90,7 @@ impl coap_handler::Handler for EdhocHandler {
             };
             let (valid_cred_i, _g_i) =
                 credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-            let result = responder.process_message_3b(valid_cred_i.as_slice());
+            let result = responder.verify_message_3(valid_cred_i.as_slice());
             let Ok((mut responder, prk_out)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections

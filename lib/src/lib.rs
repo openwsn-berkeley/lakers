@@ -177,7 +177,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
-    pub fn process_message_3a(
+    pub fn parse_message_3(
         mut self,
         message_3: &'a BufferMessage3,
     ) -> Result<
@@ -188,7 +188,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match r_process_message_3a(&mut self.state, &mut self.crypto, message_3) {
+        match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
             Ok((state, id_cred_i, ead_3)) => Ok((
                 EdhocResponderProcessingM3 {
                     state,
@@ -204,11 +204,11 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<'a, Crypto> {
-    pub fn process_message_3b(
+    pub fn verify_message_3(
         mut self,
         cred_i: &[u8],
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match r_process_message_3b(&mut self.state, &mut self.crypto, cred_i) {
+        match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
                 EdhocResponderDone {
                     state,
@@ -309,7 +309,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
-    pub fn process_message_2a(
+    pub fn parse_message_2(
         mut self,
         message_2: &'a BufferMessage2,
     ) -> Result<
@@ -321,7 +321,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match i_process_message_2a(self.state, &mut self.crypto, message_2) {
+        match i_parse_message_2(self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
                 EdhocInitiatorProcessingM2 {
                     state,
@@ -340,11 +340,11 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<'a, Crypto> {
-    pub fn process_message_2b(
+    pub fn verify_message_2(
         mut self,
         valid_cred_r: &[u8],
     ) -> Result<EdhocInitiatorProcessedM2<'a, Crypto>, EDHOCError> {
-        match i_process_message_2b(
+        match i_verify_message_2(
             self.state,
             &mut self.crypto,
             valid_cred_r,
@@ -595,26 +595,22 @@ mod test {
         // ---- end responder handling
 
         // ---- being initiator handling
-        let (initiator, _c_r, id_cred_r, _ead_2) =
-            initiator.process_message_2a(&message_2).unwrap();
+        let (initiator, _c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2).unwrap();
         let (valid_cred_r, _g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        let initiator = initiator
-            .process_message_2b(valid_cred_r.as_slice())
-            .unwrap();
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
         // if needed: prepare ead_3
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
-        let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let (valid_cred_i, _g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
         // if ead_3: process ead_3
-        let (mut responder, r_prk_out) = responder
-            .process_message_3b(valid_cred_i.as_slice())
-            .unwrap();
+        let (mut responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
         // ---- end responder handling
 
         // check that prk_out is equal at initiator and responder side
@@ -681,7 +677,7 @@ mod test {
 
         let (ead_1, mut device) = device.prepare_ead_1(
             &mut default_crypto(),
-            &initiator.state.x,
+            &initiator.state.x, // FIXME: avoid accessing private ephemeral key from application code
             initiator.state.suites_i[initiator.state.suites_i_len - 1],
         );
         let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
@@ -706,25 +702,22 @@ mod test {
         let kid = IdCred::CompactKid(ID_CRED_R[3]);
         let (responder, message_2) = responder.prepare_message_2(&kid, None, &ead_2).unwrap();
 
-        let (initiator, _c_r, id_cred_r, ead_2) = initiator.process_message_2a(&message_2).unwrap();
+        let (initiator, _c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
         let (valid_cred_r, _g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         if let Some(ead_2) = ead_2 {
             let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
             assert!(result.is_ok());
         }
-        let initiator = initiator
-            .process_message_2b(valid_cred_r.as_slice())
-            .unwrap();
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
         let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
 
-        let (responder, id_cred_i, _ead_3) = responder.process_message_3a(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let (valid_cred_i, _g_i) =
             credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut _responder, r_prk_out) = responder
-            .process_message_3b(valid_cred_i.as_slice())
-            .unwrap();
+        let (mut _responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

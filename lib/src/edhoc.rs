@@ -138,7 +138,7 @@ pub fn r_prepare_message_2(
 }
 
 // FIXME fetch ID_CRED_I and CRED_I based on kid
-pub fn r_process_message_3a(
+pub fn r_parse_message_3(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
@@ -179,7 +179,7 @@ pub fn r_process_message_3a(
     }
 }
 
-pub fn r_process_message_3b(
+pub fn r_verify_message_3(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
     valid_cred_i: &[u8],
@@ -276,7 +276,7 @@ pub fn i_prepare_message_1(
 }
 
 // returns c_r
-pub fn i_process_message_2a<'a>(
+pub fn i_parse_message_2<'a>(
     state: WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
@@ -322,7 +322,7 @@ pub fn i_process_message_2a<'a>(
     }
 }
 
-pub fn i_process_message_2b(
+pub fn i_verify_message_2(
     state: ProcessingM2,
     crypto: &mut impl CryptoTrait,
     valid_cred_r: &[u8], // TODO: have a struct to hold credentials to avoid re-computing
