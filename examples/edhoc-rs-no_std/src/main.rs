@@ -61,7 +61,7 @@ fn main() -> ! {
     use hexlit::hex;
 
     const _ID_CRED_I: &[u8] = &hex!("a104412b");
-    const _ID_CRED_R: &[u8] = &hex!("a104410a");
+    const ID_CRED_R: &[u8] = &hex!("a104410a");
     const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
@@ -73,14 +73,8 @@ fn main() -> ! {
     const _C_R_TV: [u8; 1] = hex!("27");
 
     fn test_new_initiator() {
-        let state = Default::default();
-        let _initiator = EdhocInitiator::new(
-            state,
-            lakers_crypto::default_crypto(),
-            I,
-            CRED_I,
-            Some(CRED_R),
-        );
+        let _initiator =
+            EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I, Some(CRED_R));
     }
 
     test_new_initiator();
@@ -99,18 +93,12 @@ fn main() -> ! {
     println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let state = Default::default();
-        let mut initiator = EdhocInitiator::new(
-            state,
-            lakers_crypto::default_crypto(),
-            I,
-            CRED_I,
-            Some(CRED_R),
-        );
+        let mut initiator =
+            EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let message_1 = initiator.prepare_message_1(c_i);
+        let message_1 = initiator.prepare_message_1(None, &None);
         assert!(message_1.is_ok());
     }
 
@@ -118,39 +106,29 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
-        let state_initiator = Default::default();
-        let mut initiator = EdhocInitiator::new(
-            state_initiator,
-            lakers_crypto::default_crypto(),
-            I,
-            CRED_I,
-            Some(CRED_R),
-        );
-        let state_responder = Default::default();
-        let responder = EdhocResponder::new(
-            state_responder,
-            lakers_crypto::default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
-        );
+        let mut initiator =
+            EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I, Some(CRED_R));
+        let responder =
+            EdhocResponder::new(lakers_crypto::default_crypto(), R, CRED_R, Some(CRED_I));
 
-        let c_i: u8 =
-            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
+        let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
-        let responder = responder.process_message_1(&message_1).unwrap();
+        let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
+        let kid = IdCred::CompactKid(ID_CRED_R[3]);
+        let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
 
-        let c_r: u8 =
-            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
-        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
-        assert!(c_r != 0xff);
+        let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
+        let (valid_cred_r, g_r) =
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
-        let (initiator, _c_r) = initiator.process_message_2(&message_2).unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
 
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
-
-        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
+        let (valid_cred_i, g_i) =
+            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+        let (mut responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

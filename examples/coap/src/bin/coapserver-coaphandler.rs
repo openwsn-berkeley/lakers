@@ -5,7 +5,7 @@ use lakers_crypto::Crypto;
 use embedded_nal::UdpFullStack;
 
 const _ID_CRED_I: &[u8] = &hex!("a104412b");
-const _ID_CRED_R: &[u8] = &hex!("a104410a");
+const ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
 const _G_I_Y_COORD: &[u8] =
@@ -46,7 +46,7 @@ enum EdhocResponse {
     // take up a slot there anyway) if we make it an enum.
     OkSend2 {
         c_r: u8,
-        responder: EdhocResponderBuildM2<'static, Crypto>,
+        responder: EdhocResponderProcessedM1<'static, Crypto>,
     },
     Message3Processed,
 }
@@ -60,20 +60,13 @@ impl coap_handler::Handler for EdhocHandler {
         let starts_with_true = request.payload().get(0) == Some(&0xf5);
 
         if starts_with_true {
-            let state = EdhocState::default();
-
-            let responder = EdhocResponder::new(
-                state,
-                lakers_crypto::default_crypto(),
-                &R,
-                &CRED_R,
-                Some(&CRED_I),
-            );
+            let responder =
+                EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R, Some(&CRED_I));
 
             let response = responder
                 .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));
 
-            if let Ok(responder) = response {
+            if let Ok((responder, _ead_1)) = response {
                 let c_r = self.new_c_r();
                 EdhocResponse::OkSend2 { c_r, responder }
             } else {
@@ -87,9 +80,17 @@ impl coap_handler::Handler for EdhocHandler {
                 .expect("No such C_R found");
 
             println!("Found state with connection identifier {:?}", c_r_rcvd);
-            let result = responder
-                .process_message_3(&request.payload()[1..].try_into().expect("wrong length"));
 
+            let message_3 = EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).unwrap();
+            let result = responder.parse_message_3(&message_3);
+            let Ok((responder, id_cred_i, _ead_3)) = result else {
+                println!("EDHOC processing error: {:?}", result);
+                // FIXME remove state from edhoc_connections
+                panic!("Handler can't just not respond");
+            };
+            let (valid_cred_i, _g_i) =
+                credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+            let result = responder.verify_message_3(valid_cred_i.as_slice());
             let Ok((mut responder, prk_out)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections
@@ -130,7 +131,9 @@ impl coap_handler::Handler for EdhocHandler {
         response.set_code(coap_numbers::code::CHANGED.try_into().ok().unwrap());
         match req {
             EdhocResponse::OkSend2 { c_r, responder } => {
-                let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
+                let kid = IdCred::CompactKid(ID_CRED_R[3]);
+                let (responder, message_2) =
+                    responder.prepare_message_2(&kid, Some(c_r), &None).unwrap();
                 self.connections.push((c_r, responder));
                 response.set_payload(message_2.as_slice());
             }

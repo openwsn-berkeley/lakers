@@ -4,7 +4,7 @@ use hexlit::hex;
 use std::net::UdpSocket;
 
 const _ID_CRED_I: &[u8] = &hex!("a104412b");
-const _ID_CRED_R: &[u8] = &hex!("a104410a");
+const ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
 const _G_I_Y_COORD: &[u8] =
@@ -31,9 +31,7 @@ fn main() {
             println!("Received message from {}", src);
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
-                let state = EdhocState::default();
                 let responder = EdhocResponder::new(
-                    state,
                     lakers_crypto::default_crypto(),
                     &R,
                     &CRED_R,
@@ -46,10 +44,12 @@ fn main() {
                         .expect("wrong length"),
                 );
 
-                if let Ok(responder) = result {
+                if let Ok((responder, _ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
-                    let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
+                    let kid = IdCred::CompactKid(ID_CRED_R[3]);
+                    let (responder, message_2) =
+                        responder.prepare_message_2(&kid, Some(c_r), &None).unwrap();
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));
@@ -62,15 +62,21 @@ fn main() {
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let result = responder.process_message_3(
-                    &request.message.payload[1..]
-                        .try_into()
-                        .expect("wrong length"),
-                );
-                let Ok((mut responder, prk_out)) = result else {
-                    println!("EDHOC processing error: {:?}", response);
+                let message_3 =
+                    EdhocMessageBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
+                let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
+                else {
+                    println!("EDHOC processing error: {:?}", message_3);
                     // We don't get another chance, it's popped and can't be used any further
                     // anyway legally
+                    continue;
+                };
+                let (valid_cred_i, _g_i) =
+                    credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+                let Ok((mut responder, prk_out)) =
+                    responder.verify_message_3(valid_cred_i.as_slice())
+                else {
+                    println!("EDHOC processing error: {:?}", valid_cred_i);
                     continue;
                 };
 

@@ -18,6 +18,7 @@ mod test_authz {
         test_vectors::*,
     };
     use lakers_crypto::default_crypto;
+    use lakers_shared::EDHOCError;
 
     #[test]
     fn test_complete_flow() {
@@ -35,8 +36,9 @@ mod test_authz {
 
         // using .unwrap below since detailed errors are tested in each entity's tests
 
-        let (ead_1, device) =
+        let (ead_1, mut device) =
             device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+        device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
         // ead_1 will be transported within message_1
 
@@ -54,12 +56,34 @@ mod test_authz {
 
         // ead_2 will be transported within message_2
 
-        let result = device.process_ead_2(
-            &mut default_crypto(),
-            ead_2,
-            CRED_V_TV,
-            H_MESSAGE_1_TV.try_into().unwrap(),
-        );
+        let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_V_TV);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_complete_flow_unauthorized() {
+        let device = ZeroTouchDevice::new(
+            ID_U_TV.try_into().unwrap(),
+            G_W_TV.try_into().unwrap(),
+            LOC_W_TV.try_into().unwrap(),
+        );
+        let authenticator = ZeroTouchAuthenticator::default();
+        let server = ZeroTouchServer::new(
+            W_TV.try_into().unwrap(),
+            CRED_V_TV.try_into().unwrap(),
+            Some(ACL_INVALID_TV.try_into().unwrap()),
+        );
+
+        let (ead_1, mut device) =
+            device.prepare_ead_1(&mut default_crypto(), &X_TV.try_into().unwrap(), SS_TV);
+        device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
+
+        let (_loc_w, voucher_request, _authenticator) = authenticator
+            .process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap())
+            .unwrap();
+
+        let voucher_response =
+            server.handle_voucher_request(&mut default_crypto(), &voucher_request);
+        assert_eq!(voucher_response.unwrap_err(), EDHOCError::EADError);
     }
 }

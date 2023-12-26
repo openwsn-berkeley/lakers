@@ -9,8 +9,6 @@
 //! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
 #![no_std]
 
-use core::marker::PhantomData;
-
 pub use cbor::*;
 pub use cbor_decoder::*;
 pub use edhoc_parser::*;
@@ -97,31 +95,6 @@ pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
 
-// This is sealed
-pub trait EDHOCState: core::fmt::Debug {}
-// For both initiator and responder
-#[derive(Debug)]
-pub struct Start;
-impl EDHOCState for Start {}
-// For the initiator
-#[derive(Debug)]
-pub struct WaitMessage2;
-impl EDHOCState for WaitMessage2 {}
-#[derive(Debug)]
-pub struct ProcessedMessage2;
-impl EDHOCState for ProcessedMessage2 {}
-// For the responder
-#[derive(Debug)]
-pub struct ProcessedMessage1;
-impl EDHOCState for ProcessedMessage1 {}
-#[derive(Debug)]
-pub struct WaitMessage3;
-impl EDHOCState for WaitMessage3 {}
-// For both again
-#[derive(Debug)]
-pub struct Completed;
-impl EDHOCState for Completed {}
-
 #[repr(C)]
 #[derive(PartialEq, Debug)]
 pub enum EDHOCError {
@@ -136,37 +109,80 @@ pub enum EDHOCError {
     UnknownError = 9,
 }
 
-#[repr(C)]
 #[derive(Debug)]
-pub struct State<Phase: EDHOCState> {
-    pub current_state: PhantomData<Phase>,
-    pub x_or_y: BytesP256ElemLen,   // ephemeral private key of myself
-    pub c_i: u8,                    // connection identifier chosen by the initiator
-    pub gy_or_gx: BytesP256ElemLen, // g_y or g_x, ephemeral public key of the peer
-    pub prk_3e2m: BytesHashLen,
-    pub prk_4e3m: BytesHashLen,
-    pub prk_out: BytesHashLen,
-    pub prk_exporter: BytesHashLen,
+pub struct InitiatorStart {
+    pub suites_i: BytesSuites,
+    pub suites_i_len: usize,
+    pub x: BytesP256ElemLen,   // ephemeral private key of myself
+    pub g_x: BytesP256ElemLen, // ephemeral public key of myself
+}
+
+#[derive(Debug)]
+pub struct ResponderStart {
+    pub y: BytesP256ElemLen,   // ephemeral private key of myself
+    pub g_y: BytesP256ElemLen, // ephemeral public key of myself
+}
+
+#[derive(Debug)]
+pub struct ProcessingM1 {
+    pub y: BytesP256ElemLen,
+    pub g_y: BytesP256ElemLen,
+    pub c_i: u8,
+    pub g_x: BytesP256ElemLen, // ephemeral public key of the initiator
     pub h_message_1: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct WaitM2 {
+    pub x: BytesP256ElemLen, // ephemeral private key of the initiator
+    pub h_message_1: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct WaitM3 {
+    pub y: BytesP256ElemLen, // ephemeral private key of the responder
+    pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
 }
 
-impl Default for State<Start> {
-    fn default() -> Self {
-        // This is also what `#[derive(Default)]` would do, but we can't limit that to Start.
-        State {
-            current_state: Default::default(),
-            x_or_y: Default::default(),
-            c_i: Default::default(),
-            gy_or_gx: Default::default(),
-            prk_3e2m: Default::default(),
-            prk_4e3m: Default::default(),
-            prk_out: Default::default(),
-            prk_exporter: Default::default(),
-            h_message_1: Default::default(),
-            th_3: Default::default(),
-        }
-    }
+#[derive(Debug)]
+pub struct ProcessingM2 {
+    pub mac_2: BytesMac2,
+    pub prk_2e: BytesHashLen,
+    pub th_2: BytesHashLen,
+    pub x: BytesP256ElemLen,
+    pub g_y: BytesP256ElemLen,
+    pub plaintext_2: EdhocMessageBuffer,
+}
+
+#[derive(Debug)]
+pub struct ProcessedM2 {
+    pub prk_3e2m: BytesHashLen,
+    pub prk_4e3m: BytesHashLen,
+    pub th_3: BytesHashLen,
+}
+
+#[derive(Debug)]
+pub struct ProcessingM3 {
+    pub mac_3: BytesMac3,
+    pub y: BytesP256ElemLen, // ephemeral private key of the responder
+    pub prk_3e2m: BytesHashLen,
+    pub th_3: BytesHashLen,
+    pub plaintext_3: EdhocMessageBuffer,
+}
+
+#[derive(Debug)]
+pub struct PreparingM3 {
+    pub prk_3e2m: BytesHashLen,
+    pub prk_4e3m: BytesHashLen,
+    pub th_3: BytesHashLen,
+    pub mac_3: BytesMac3,
+}
+
+#[derive(Debug)]
+pub struct Completed {
+    pub prk_out: BytesHashLen,
+    pub prk_exporter: BytesHashLen,
 }
 
 /// An owned u8 vector of a limited length
@@ -194,6 +210,15 @@ impl EdhocMessageBuffer {
         EdhocMessageBuffer {
             content: [0u8; MAX_MESSAGE_SIZE_LEN],
             len: 0,
+        }
+    }
+
+    pub fn new_from_slice(slice: &[u8]) -> Result<Self, ()> {
+        let mut buffer = Self::new();
+        if buffer.fill_with_slice(slice).is_ok() {
+            Ok(buffer)
+        } else {
+            Err(())
         }
     }
 
@@ -290,10 +315,17 @@ impl EADTrait for EADItem {
     }
 }
 
-#[derive(Debug)]
+// FIXME: homogenize the two structs below (likey keep only the owned version)
+#[derive(Debug, Clone, Copy)]
 pub enum IdCred<'a> {
     CompactKid(u8),
     FullCredential(&'a [u8]),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum IdCredOwned {
+    CompactKid(u8),
+    FullCredential(EdhocMessageBuffer),
 }
 
 // TODO: remove this, once ead-zeroconf is adjusted to use cbor_decoder

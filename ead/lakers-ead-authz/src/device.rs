@@ -11,6 +11,7 @@ pub struct ZeroTouchDevice {
 #[derive(Debug)]
 pub struct ZeroTouchDeviceWaitEAD2 {
     prk: BytesHashLen,
+    pub h_message_1: BytesHashLen,
 }
 
 #[derive(Debug)]
@@ -43,17 +44,26 @@ impl ZeroTouchDevice {
             value,
         };
 
-        (ead_1, ZeroTouchDeviceWaitEAD2 { prk })
+        (
+            ead_1,
+            ZeroTouchDeviceWaitEAD2 {
+                prk,
+                h_message_1: [0; SHA256_DIGEST_LEN],
+            },
+        )
     }
 }
 
 impl ZeroTouchDeviceWaitEAD2 {
+    pub fn set_h_message_1(&mut self, h_message_1: BytesHashLen) {
+        self.h_message_1 = h_message_1;
+    }
+
     pub fn process_ead_2<Crypto: CryptoTrait>(
         &self,
         crypto: &mut Crypto,
         ead_2: EADItem,
         cred_v: &[u8],
-        h_message_1: &BytesHashLen,
     ) -> Result<ZeroTouchDeviceDone, ()> {
         if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
             return Err(());
@@ -61,7 +71,7 @@ impl ZeroTouchDeviceWaitEAD2 {
         let mut ead_2_value: BytesEncodedVoucher = Default::default();
         ead_2_value[..].copy_from_slice(&ead_2.value.unwrap().content[..ENCODED_VOUCHER_LEN]);
 
-        match verify_voucher(crypto, &ead_2_value, h_message_1, cred_v, &self.prk) {
+        match verify_voucher(crypto, &ead_2_value, &self.h_message_1, cred_v, &self.prk) {
             Ok(voucher) => Ok(ZeroTouchDeviceDone { voucher }),
             Err(_) => Err(()),
         }
@@ -179,13 +189,13 @@ mod test_device {
 
         let ead_device = ZeroTouchDeviceWaitEAD2 {
             prk: PRK_TV.try_into().unwrap(),
+            h_message_1: H_MESSAGE_1_TV.try_into().unwrap(),
         };
 
         let res = ead_device.process_ead_2(
             &mut default_crypto(),
             ead_2_tv,
             CRED_V_TV.try_into().unwrap(),
-            &H_MESSAGE_1_TV.try_into().unwrap(),
         );
         assert!(res.is_ok());
         let ead_device = res.unwrap();

@@ -15,20 +15,19 @@
 //! [EDHOC]: https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/
 #![cfg_attr(not(test), no_std)]
 
-pub use {
-    lakers_shared::Crypto as CryptoTrait, lakers_shared::State as EdhocState, lakers_shared::*,
-};
+pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
-#[cfg(any(feature = "ead-none", feature = "ead-zeroconf"))]
+#[cfg(any(feature = "ead-none", feature = "ead-zeroconf", feature = "ead-authz"))]
 pub use lakers_ead::*;
 
 mod edhoc;
 use edhoc::*;
 
+// TODO: clean these structs and remove the cred_x whre they are not needed anymore
 /// Starting point for performing EDHOC in the role of the Initiator.
 #[derive(Debug)]
 pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
-    state: EdhocState<Start>, // opaque state
+    state: InitiatorStart,    // opaque state
     i: &'a [u8],              // private authentication key of I
     cred_i: &'a [u8],         // I's full credential
     cred_r: Option<&'a [u8]>, // R's full credential (if provided)
@@ -37,30 +36,39 @@ pub struct EdhocInitiator<'a, Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<'a, Crypto: CryptoTrait> {
-    state: EdhocState<WaitMessage2>, // opaque state
-    i: &'a [u8],                     // private authentication key of I
-    cred_i: &'a [u8],                // I's full credential
-    cred_r: Option<&'a [u8]>,        // R's full credential (if provided)
+    state: WaitM2,            // opaque state
+    i: &'a [u8],              // private authentication key of I
+    cred_i: &'a [u8],         // I's full credential
+    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorBuildM3<'a, Crypto: CryptoTrait> {
-    state: EdhocState<ProcessedMessage2>, // opaque state
-    cred_i: &'a [u8],                     // I's full credential
+pub struct EdhocInitiatorProcessingM2<'a, Crypto: CryptoTrait> {
+    state: ProcessingM2,      // opaque state
+    i: &'a [u8],              // private authentication key of I
+    cred_i: &'a [u8],         // I's full credential
+    cred_r: Option<&'a [u8]>, // R's full credential (if provided)
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
+pub struct EdhocInitiatorProcessedM2<'a, Crypto: CryptoTrait> {
+    state: ProcessedM2, // opaque state
+    cred_i: &'a [u8],   // I's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
-    state: EdhocState<Completed>,
+    state: Completed,
     crypto: Crypto,
 }
 
 /// Starting point for performing EDHOC in the role of the Responder.
 #[derive(Debug)]
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
-    state: EdhocState<Start>, // opaque state
+    state: ResponderStart,    // opaque state
     r: &'a [u8],              // private authentication key of R
     cred_r: &'a [u8],         // R's full credential
     cred_i: Option<&'a [u8]>, // I's full credential (if provided)
@@ -68,39 +76,46 @@ pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocResponderBuildM2<'a, Crypto: CryptoTrait> {
-    state: EdhocState<ProcessedMessage1>, // opaque state
-    r: &'a [u8],                          // private authentication key of R
-    cred_r: &'a [u8],                     // R's full credential
-    cred_i: Option<&'a [u8]>,             // I's full credential (if provided)
+pub struct EdhocResponderProcessedM1<'a, Crypto: CryptoTrait> {
+    state: ProcessingM1,      // opaque state
+    r: &'a [u8],              // private authentication key of R
+    cred_r: &'a [u8],         // R's full credential
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderWaitM3<'a, Crypto: CryptoTrait> {
-    state: EdhocState<WaitMessage3>, // opaque state
-    cred_i: Option<&'a [u8]>,        // I's full credential (if provided)
+    state: WaitM3,            // opaque state
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
+pub struct EdhocResponderProcessingM3<'a, Crypto: CryptoTrait> {
+    state: ProcessingM3,      // opaque state
+    cred_i: Option<&'a [u8]>, // I's full credential (if provided)
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderDone<Crypto: CryptoTrait> {
-    state: EdhocState<Completed>,
+    state: Completed,
     crypto: Crypto,
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn new(
-        state: EdhocState<Start>,
-        crypto: Crypto,
+        mut crypto: Crypto,
         r: &'a [u8],
         cred_r: &'a [u8],
         cred_i: Option<&'a [u8]>,
     ) -> Self {
         assert!(r.len() == P256_ELEM_LEN);
+        let (y, g_y) = crypto.p256_generate_key_pair();
 
         EdhocResponder {
-            state,
+            state: ResponderStart { y, g_y },
             r,
             cred_r,
             cred_i,
@@ -111,34 +126,42 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn process_message_1(
         mut self,
         message_1: &BufferMessage1,
-    ) -> Result<EdhocResponderBuildM2<'a, Crypto>, EDHOCError> {
-        let state = r_process_message_1(self.state, &mut self.crypto, message_1)?;
+    ) -> Result<(EdhocResponderProcessedM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
+        let (state, ead_1) = r_process_message_1(self.state, &mut self.crypto, message_1)?;
 
-        Ok(EdhocResponderBuildM2 {
-            state,
-            r: self.r,
-            cred_r: self.cred_r,
-            cred_i: self.cred_i,
-            crypto: self.crypto,
-        })
+        Ok((
+            EdhocResponderProcessedM1 {
+                state,
+                r: self.r,
+                cred_r: self.cred_r,
+                cred_i: self.cred_i,
+                crypto: self.crypto,
+            },
+            ead_1,
+        ))
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
     pub fn prepare_message_2(
         mut self,
-        c_r: u8,
+        id_cred_r: &IdCred,
+        c_r: Option<u8>,
+        ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<'a, Crypto>, BufferMessage2), EDHOCError> {
-        let (y, g_y) = self.crypto.p256_generate_key_pair();
+        let c_r = match c_r {
+            Some(c_r) => c_r,
+            None => generate_connection_identifier_cbor(&mut self.crypto),
+        };
 
         match r_prepare_message_2(
             self.state,
             &mut self.crypto,
             self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
-            y,
-            g_y,
             c_r,
+            id_cred_r,
+            ead_2,
         ) {
             Ok((state, message_2)) => Ok((
                 EdhocResponderWaitM3 {
@@ -154,11 +177,38 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderBuildM2<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<'a, Crypto> {
-    pub fn process_message_3(
+    pub fn parse_message_3(
         mut self,
-        message_3: &BufferMessage3,
+        message_3: &'a BufferMessage3,
+    ) -> Result<
+        (
+            EdhocResponderProcessingM3<Crypto>,
+            IdCredOwned,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
+        match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
+            Ok((state, id_cred_i, ead_3)) => Ok((
+                EdhocResponderProcessingM3 {
+                    state,
+                    crypto: self.crypto,
+                    cred_i: self.cred_i,
+                },
+                id_cred_i,
+                ead_3,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<'a, Crypto> {
+    pub fn verify_message_3(
+        mut self,
+        cred_i: &[u8],
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
-        match r_process_message_3(&mut self.state, &mut self.crypto, message_3, self.cred_i) {
+        match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
                 EdhocResponderDone {
                     state,
@@ -206,16 +256,25 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
     pub fn new(
-        state: EdhocState<Start>,
-        crypto: Crypto,
+        mut crypto: Crypto,
         i: &'a [u8],
         cred_i: &'a [u8],
         cred_r: Option<&'a [u8]>,
     ) -> Self {
         assert!(i.len() == P256_ELEM_LEN);
+        // we only support a single cipher suite which is already CBOR-encoded
+        let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
+        let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
+        suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
+        let (x, g_x) = crypto.p256_generate_key_pair();
 
         EdhocInitiator {
-            state,
+            state: InitiatorStart {
+                x,
+                g_x,
+                suites_i,
+                suites_i_len,
+            },
             i,
             cred_i,
             cred_r,
@@ -225,11 +284,15 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
 
     pub fn prepare_message_1(
         mut self,
-        c_i: u8,
-    ) -> Result<(EdhocInitiatorWaitM2<'a, Crypto>, BufferMessage1), EDHOCError> {
-        let (x, g_x) = self.crypto.p256_generate_key_pair();
+        c_i: Option<u8>,
+        ead_1: &Option<EADItem>,
+    ) -> Result<(EdhocInitiatorWaitM2<'a, Crypto>, EdhocMessageBuffer), EDHOCError> {
+        let c_i = match c_i {
+            Some(c_i) => c_i,
+            None => generate_connection_identifier_cbor(&mut self.crypto),
+        };
 
-        match i_prepare_message_1(self.state, &mut self.crypto, x, g_x, c_i) {
+        match i_prepare_message_1(self.state, &mut self.crypto, c_i, ead_1) {
             Ok((state, message_1)) => Ok((
                 EdhocInitiatorWaitM2 {
                     state,
@@ -246,35 +309,63 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<'a, Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<'a, Crypto> {
-    pub fn process_message_2(
+    pub fn parse_message_2(
         mut self,
-        message_2: &BufferMessage2,
-    ) -> Result<(EdhocInitiatorBuildM3<'a, Crypto>, u8), EDHOCError> {
-        match i_process_message_2(
-            self.state,
-            &mut self.crypto,
-            message_2,
-            self.cred_r,
-            self.i
-                .try_into()
-                .expect("Wrong length of initiator private key"),
-        ) {
-            Ok((state, c_r, _kid)) => Ok((
-                EdhocInitiatorBuildM3 {
+        message_2: &'a BufferMessage2,
+    ) -> Result<
+        (
+            EdhocInitiatorProcessingM2<'a, Crypto>,
+            u8,
+            IdCredOwned,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
+        match i_parse_message_2(self.state, &mut self.crypto, message_2) {
+            Ok((state, c_r, id_cred_r, ead_2)) => Ok((
+                EdhocInitiatorProcessingM2 {
                     state,
+                    i: self.i,
                     cred_i: self.cred_i,
+                    cred_r: self.cred_r,
                     crypto: self.crypto,
                 },
                 c_r,
+                id_cred_r,
+                ead_2,
             )),
             Err(error) => Err(error),
         }
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<'a, Crypto> {
+    pub fn verify_message_2(
+        mut self,
+        valid_cred_r: &[u8],
+    ) -> Result<EdhocInitiatorProcessedM2<'a, Crypto>, EDHOCError> {
+        match i_verify_message_2(
+            self.state,
+            &mut self.crypto,
+            valid_cred_r,
+            self.i
+                .try_into()
+                .expect("Wrong length of initiator private key"),
+        ) {
+            Ok(state) => Ok(EdhocInitiatorProcessedM2 {
+                state,
+                cred_i: self.cred_i,
+                crypto: self.crypto,
+            }),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
     pub fn prepare_message_3(
         mut self,
+        ead_3: &Option<EADItem>,
     ) -> Result<
         (
             EdhocInitiatorDone<Crypto>,
@@ -283,12 +374,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorBuildM3<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match i_prepare_message_3(
-            &mut self.state,
-            &mut self.crypto,
-            &get_id_cred(self.cred_i)?,
-            self.cred_i,
-        ) {
+        match i_prepare_message_3(&mut self.state, &mut self.crypto, self.cred_i, ead_3) {
             Ok((state, message_3, prk_out)) => Ok((
                 EdhocInitiatorDone {
                     state,
@@ -356,6 +442,70 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
     conn_id
 }
 
+// Implements auth credential checking according to draft-tiloca-lake-implem-cons
+pub fn credential_check_or_fetch<'a>(
+    cred_expected: Option<EdhocMessageBuffer>,
+    id_cred_received: IdCredOwned,
+) -> Result<(EdhocMessageBuffer, BytesP256ElemLen), EDHOCError> {
+    // Processing of auth credentials according to draft-tiloca-lake-implem-cons
+    // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
+    if let Some(cred_expected) = cred_expected {
+        // 1. Does ID_CRED_X point to a stored authentication credential? YES
+        // IMPL: compare cred_i_expected with id_cred
+        //   IMPL: assume cred_i_expected is well formed
+        let (public_key_expected, kid_expected) = parse_cred(cred_expected.as_slice())?;
+        let public_key = public_key_expected;
+        let credentials_match = match id_cred_received {
+            IdCredOwned::CompactKid(kid_received) => kid_received == kid_expected,
+            IdCredOwned::FullCredential(cred_received) => cred_expected == cred_received,
+        };
+
+        // 2. Is this authentication credential still valid?
+        // IMPL,TODO: check cred_r_expected is still valid
+
+        // Continue by considering CRED_X as the authentication credential of the other peer.
+        // IMPL: ready to proceed, including process ead_2
+
+        if credentials_match {
+            Ok((cred_expected, public_key))
+        } else {
+            Err(EDHOCError::UnknownPeer)
+        }
+    } else {
+        // 1. Does ID_CRED_X point to a stored authentication credential? NO
+        // IMPL: cred_i_expected provided by application is None
+        //       id_cred must be a full credential
+        if let IdCredOwned::FullCredential(cred_received) = id_cred_received {
+            // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+
+            // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+
+            // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+            //    Is the validation successful?
+            // IMPL: parse_cred(cred_r) and check it is valid
+            match parse_cred(cred_received.as_slice()) {
+                Ok((public_key_received, _kid_received)) => {
+                    // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+                    // IMPL,TODO: we just skip this step for now
+
+                    // 7. Store CRED_X as valid and trusted.
+                    //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
+                    // IMPL: cred_r = id_cred
+                    let public_key = public_key_received;
+                    Ok((cred_received, public_key))
+                }
+                Err(_) => Err(EDHOCError::UnknownPeer),
+            }
+        } else {
+            // IMPL: should have gotten a full credential
+            Err(EDHOCError::UnknownPeer)
+        }
+    }
+
+    // 8. Is this authentication credential good to use in the context of this EDHOC session?
+    // IMPL,TODO: we just skip this step for now
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -369,12 +519,9 @@ mod test {
     const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6"); // used
     const _G_I_Y_COORD: &[u8] =
         &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
     const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
-    const G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const C_R_TV: [u8; 1] = hex!("27");
 
     const MESSAGE_1_TV_FIRST_TIME: &str =
         "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
@@ -383,36 +530,30 @@ mod test {
 
     #[test]
     fn test_new_initiator() {
-        let state = Default::default();
-        let _initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
-        let state = Default::default();
-        let _initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, None);
+        let _initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let _initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, None);
     }
 
     #[test]
     fn test_new_responder() {
-        let state = Default::default();
-        let _responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
-        let state = Default::default();
-        let _responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, None);
+        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
+        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R, None);
     }
 
     #[test]
     fn test_prepare_message_1() {
-        let state = Default::default();
-        let initiator = EdhocInitiator::new(state, default_crypto(), I, CRED_I, Some(CRED_R));
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let message_1 = initiator.prepare_message_1(c_i);
-        assert!(message_1.is_ok());
+        let result = initiator.prepare_message_1(Some(c_i), &None);
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_process_message_1() {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
-        let state = Default::default();
-        let responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -421,8 +562,7 @@ mod test {
 
         // We need to create a new responder -- no message is supposed to be processed twice by a
         // responder or initiator
-        let state = Default::default();
-        let responder = EdhocResponder::new(state, default_crypto(), R, CRED_R, Some(CRED_I));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
@@ -438,27 +578,40 @@ mod test {
     #[cfg(feature = "ead-none")]
     #[test]
     fn test_handshake() {
-        let state_initiator = Default::default();
-        let initiator =
-            EdhocInitiator::new(state_initiator, default_crypto(), I, CRED_I, Some(CRED_R));
-        let state_responder = Default::default();
-        let responder =
-            EdhocResponder::new(state_responder, default_crypto(), R, CRED_R, Some(CRED_I));
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
 
-        let c_i: u8 = generate_connection_identifier_cbor(&mut default_crypto());
-        let (initiator, result) = initiator.prepare_message_1(c_i).unwrap(); // to update the state
+        // ---- begin initiator handling
+        // if needed: prepare ead_1
+        let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
+        // ---- end initiator handling
 
-        let responder = responder.process_message_1(&result).unwrap();
+        // ---- begin responder handling
+        let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
+        // if ead_1: process ead_1
+        // if needed: prepare ead_2
+        let kid = IdCred::CompactKid(ID_CRED_R[3]);
+        let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
+        // ---- end responder handling
 
-        let c_r = generate_connection_identifier_cbor(&mut default_crypto());
-        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
+        // ---- being initiator handling
+        let (initiator, _c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2).unwrap();
+        let (valid_cred_r, _g_r) =
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
-        assert!(c_r != 0xff);
-        let (initiator, _) = initiator.process_message_2(&message_2).unwrap();
+        // if needed: prepare ead_3
+        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
+        // ---- end initiator handling
 
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
-
-        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
+        // ---- begin responder handling
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
+        let (valid_cred_i, _g_i) =
+            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+        // if ead_3: process ead_3
+        let (mut responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
+        // ---- end responder handling
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
@@ -498,138 +651,75 @@ mod test {
     const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     // TODO: have a setup_test function that prepares the common objects for the ead tests
-    #[cfg(feature = "ead-zeroconf")]
+    #[cfg(feature = "ead-authz")]
     #[test]
-    fn test_ead_zeroconf() {
+    fn test_ead_authz() {
         // ==== initialize edhoc ====
-        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
-        let responder = EdhocResponder::new(
-            Default::default(),
-            default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
+        let initiator = EdhocInitiator::new(default_crypto(), I, CRED_I, Some(CRED_R));
+        let responder = EdhocResponder::new(default_crypto(), R, CRED_R, Some(CRED_I));
+
+        // ==== initialize ead-authz ====
+        let device = ZeroTouchDevice::new(
+            ID_U_TV.try_into().unwrap(),
+            G_W_TV.try_into().unwrap(),
+            LOC_W_TV.try_into().unwrap(),
         );
+        let authenticator = ZeroTouchAuthenticator::default();
 
-        // ==== initialize ead-zeroconf ====
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
-
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
-        let ead_initiator_state = ead_initiator_get_global_state();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Start
-        );
-
-        ead_responder_set_global_state(EADResponderState::new());
-        let ead_responder_state = ead_responder_get_global_state();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Start
-        );
-
-        let mut acl = EdhocMessageBuffer::new();
-        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
-        acl.push(kid_i).unwrap();
-        mock_ead_server_set_global_state(MockEADServerState::new(
-            CRED_R,
+        let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap();
+        let server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
+            CRED_R.try_into().unwrap(),
             Some(acl),
-        ));
-
-        let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::WaitEAD2
         );
 
-        // ==== begin edhoc with ead-zeroconf ====
-        let responder = responder.process_message_1(&message_1).unwrap();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::ProcessedEAD1
+        // ==== begin edhoc with ead-authz ====
+
+        let (ead_1, mut device) = device.prepare_ead_1(
+            &mut default_crypto(),
+            &initiator.state.x, // FIXME: avoid accessing private ephemeral key from application code
+            initiator.state.suites_i[initiator.state.suites_i_len - 1],
         );
+        let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
+        device.set_h_message_1(initiator.state.h_message_1.clone());
 
-        let c_r = generate_connection_identifier_cbor(&mut default_crypto());
-        let (responder, message_2) = responder.prepare_message_2(c_r).unwrap();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Completed
-        );
+        let (responder, ead_1) = responder.process_message_1(&message_1).unwrap();
+        let ead_2 = if let Some(ead_1) = ead_1 {
+            let (_loc_w, voucher_request, authenticator) =
+                authenticator.process_ead_1(&ead_1, &message_1).unwrap();
 
-        let (initiator, _) = initiator.process_message_2(&message_2).unwrap();
+            // the line below mocks a request to the server: let voucher_response = auth_client.post(loc_w, voucher_request)?
+            let voucher_response = server
+                .handle_voucher_request(&mut default_crypto(), &voucher_request)
+                .unwrap();
 
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Completed
-        );
+            let res = authenticator.prepare_ead_2(&voucher_response);
+            assert!(res.is_ok());
+            authenticator.prepare_ead_2(&voucher_response).ok()
+        } else {
+            None
+        };
+        let kid = IdCred::CompactKid(ID_CRED_R[3]);
+        let (responder, message_2) = responder.prepare_message_2(&kid, None, &ead_2).unwrap();
 
-        let (initiator, message_3, i_prk_out) = initiator.prepare_message_3().unwrap();
+        let (initiator, _c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
+        let (valid_cred_r, _g_r) =
+            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        if let Some(ead_2) = ead_2 {
+            let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
+            assert!(result.is_ok());
+        }
+        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
 
-        let (mut responder, r_prk_out) = responder.process_message_3(&message_3).unwrap();
+        let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
+
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
+        let (valid_cred_i, _g_i) =
+            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+        let (mut _responder, r_prk_out) =
+            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
+
+        // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Completed
-        );
-    }
-
-    #[cfg(feature = "ead-zeroconf")]
-    #[test]
-    fn test_ead_zeroconf_not_authorized() {
-        // ==== initialize edhoc ====
-        let initiator = EdhocInitiator::new(Default::default(), default_crypto(), I, CRED_I, None);
-        let responder = EdhocResponder::new(
-            Default::default(),
-            default_crypto(),
-            R,
-            CRED_R,
-            Some(CRED_I),
-        );
-
-        // ==== initialize ead-zeroconf ====
-        let id_u: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
-        let g_w: BytesP256ElemLen = G_W_TV.try_into().unwrap();
-        let loc_w: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
-
-        ead_initiator_set_global_state(EADInitiatorState::new(id_u, g_w, loc_w));
-        let ead_initiator_state = ead_initiator_get_global_state();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::Start
-        );
-
-        ead_responder_set_global_state(EADResponderState::new());
-        let ead_responder_state = ead_responder_get_global_state();
-        assert_eq!(
-            ead_responder_state.protocol_state,
-            EADResponderProtocolState::Start
-        );
-
-        let mut acl = EdhocMessageBuffer::new();
-        let (_g, kid_i) = parse_cred(CRED_I).unwrap();
-        let invalid_kid = kid_i + 1;
-        acl.push(invalid_kid).unwrap();
-        mock_ead_server_set_global_state(MockEADServerState::new(
-            CRED_R,
-            W_TV.try_into().unwrap(),
-            Some(acl),
-        ));
-
-        let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let (initiator, message_1) = initiator.prepare_message_1(c_i).unwrap();
-        assert_eq!(
-            ead_initiator_state.protocol_state,
-            EADInitiatorProtocolState::WaitEAD2
-        );
-
-        // ==== begin edhoc with ead-zeroconf ====
-        assert_eq!(
-            responder.process_message_1(&message_1).unwrap_err(),
-            EDHOCError::EADError
-        );
     }
 }

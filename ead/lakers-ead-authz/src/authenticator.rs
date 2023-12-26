@@ -1,5 +1,5 @@
 use super::shared::*;
-use lakers_shared::{Crypto as CryptoTrait, *};
+use lakers_shared::*;
 
 #[derive(Debug, Default)]
 pub struct ZeroTouchAuthenticator;
@@ -113,7 +113,6 @@ fn parse_voucher_response(
 mod test_authenticator {
     use super::*;
     use crate::test_vectors::*;
-    use lakers_crypto::default_crypto;
 
     #[test]
     fn test_parse_ead_1_value() {
@@ -184,7 +183,6 @@ mod test_authenticator {
 mod test_responder_stateless_operation {
     use super::*;
     use crate::test_vectors::*;
-    use lakers_crypto::default_crypto;
 
     #[test]
     fn test_slo_encode_voucher_request() {
