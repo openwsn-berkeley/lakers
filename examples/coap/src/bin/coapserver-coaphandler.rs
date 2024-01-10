@@ -15,11 +15,11 @@ const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3
 
 #[derive(Default, Debug)]
 struct EdhocHandler {
-    connections: Vec<(u8, EdhocResponderWaitM3<'static, Crypto>)>,
+    connections: Vec<(u8, EdhocResponderWaitM3<Crypto>)>,
 }
 
 impl EdhocHandler {
-    fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<'static, Crypto>> {
+    fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<Crypto>> {
         let index = self
             .connections
             .iter()
@@ -60,8 +60,7 @@ impl coap_handler::Handler for EdhocHandler {
         let starts_with_true = request.payload().get(0) == Some(&0xf5);
 
         if starts_with_true {
-            let responder =
-                EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R, Some(&CRED_I));
+            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R);
 
             let response = responder
                 .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));
