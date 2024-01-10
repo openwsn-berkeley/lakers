@@ -9,7 +9,6 @@
 //! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
 #![no_std]
 
-pub use cbor::*;
 pub use cbor_decoder::*;
 pub use edhoc_parser::*;
 pub use helpers::*;
@@ -336,53 +335,6 @@ pub enum IdCredOwned {
     FullCredential(EdhocMessageBuffer),
 }
 
-// TODO: remove this, once ead-zeroconf is adjusted to use cbor_decoder
-mod cbor {
-    use super::*;
-
-    /// Check for: an unsigned integer encoded as a single byte
-    #[inline(always)]
-    pub fn is_cbor_uint_1byte(byte: u8) -> bool {
-        byte >= CBOR_UINT_1BYTE_START && byte <= CBOR_UINT_1BYTE_END
-    }
-
-    /// Check for: an unsigned integer encoded as two bytes
-    #[inline(always)]
-    pub fn is_cbor_uint_2bytes(byte: u8) -> bool {
-        byte == CBOR_UINT_1BYTE
-    }
-
-    /// Check for: a negative integer encoded as a single byte
-    #[inline(always)]
-    pub fn is_cbor_neg_int_1byte(byte: u8) -> bool {
-        byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END
-    }
-
-    /// Check for: a bstr denoted by a single byte which encodes both type and content length
-    #[inline(always)]
-    pub fn is_cbor_bstr_1byte_prefix(byte: u8) -> bool {
-        byte >= CBOR_MAJOR_BYTE_STRING && byte <= CBOR_MAJOR_BYTE_STRING_MAX
-    }
-
-    /// Check for: a bstr denoted by two bytes, one for type the other for content length
-    #[inline(always)]
-    pub fn is_cbor_bstr_2bytes_prefix(byte: u8) -> bool {
-        byte == CBOR_BYTE_STRING
-    }
-
-    /// Check for: a tstr denoted by two bytes, one for type the other for content length
-    #[inline(always)]
-    pub fn is_cbor_tstr_2bytes_prefix(byte: u8) -> bool {
-        byte == CBOR_TEXT_STRING
-    }
-
-    /// Check for: an array denoted by a single byte which encodes both type and content length
-    #[inline(always)]
-    pub fn is_cbor_array_1byte_prefix(byte: u8) -> bool {
-        byte >= CBOR_MAJOR_ARRAY && byte <= CBOR_MAJOR_ARRAY_MAX
-    }
-}
-
 mod helpers {
     use super::*;
 
@@ -417,76 +369,6 @@ mod helpers {
         };
 
         (info, info_len)
-    }
-
-    pub fn parse_cred(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
-        // NOTE: this routine is only guaranteed to work with credentials from lake-traces
-        const CCS_PREFIX_LEN: usize = 3;
-        const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
-        const COSE_KEY_FIRST_ITEMS_LEN: usize = 6;
-
-        if cred.len()
-            < 3 + CCS_PREFIX_LEN
-                + 1
-                + CNF_AND_COSE_KEY_PREFIX_LEN
-                + COSE_KEY_FIRST_ITEMS_LEN
-                + P256_ELEM_LEN
-        {
-            Err(EDHOCError::ParsingError)
-        } else {
-            let subject_len = CBORDecoder::info_of(cred[2]) as usize;
-
-            let id_cred_offset: usize = CCS_PREFIX_LEN
-                .checked_add(subject_len)
-                .and_then(|x| x.checked_add(CNF_AND_COSE_KEY_PREFIX_LEN))
-                .ok_or(EDHOCError::ParsingError)?;
-
-            let g_a_x_offset: usize = id_cred_offset
-                .checked_add(COSE_KEY_FIRST_ITEMS_LEN)
-                .ok_or(EDHOCError::ParsingError)?;
-
-            if g_a_x_offset
-                .checked_add(P256_ELEM_LEN)
-                .map_or(false, |end| end <= cred.len())
-            {
-                Ok((
-                    cred[g_a_x_offset..g_a_x_offset + P256_ELEM_LEN]
-                        .try_into()
-                        .expect("Wrong key length"),
-                    cred[id_cred_offset],
-                ))
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        }
-    }
-
-    pub fn get_id_cred(cred: &[u8]) -> Result<BytesIdCred, EDHOCError> {
-        if let Ok((_g, kid)) = parse_cred(cred) {
-            Ok([0xa1, 0x04, 0x41, kid])
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::helpers::*;
-    use hexlit::hex;
-
-    const CRED_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    const G_A_TV: &[u8] = &hex!("BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F0");
-    const ID_CRED_TV: &[u8] = &hex!("a1044132");
-
-    #[test]
-    fn test_parse_cred() {
-        let res = parse_cred(CRED_TV);
-        assert!(res.is_ok());
-        let (g_a, kid) = res.unwrap();
-        assert_eq!(g_a, G_A_TV);
-        assert_eq!(kid, ID_CRED_TV[3]);
-        assert_eq!(get_id_cred(CRED_TV).unwrap(), ID_CRED_TV);
     }
 }
 
