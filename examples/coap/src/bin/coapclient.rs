@@ -27,8 +27,7 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
 
-    let initiator =
-        EdhocInitiator::new(lakers_crypto::default_crypto(), &I, &CRED_I, Some(&CRED_R));
+    let initiator = EdhocInitiator::new(lakers_crypto::default_crypto(), &I, &CRED_I);
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true
