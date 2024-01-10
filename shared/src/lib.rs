@@ -17,6 +17,9 @@ pub use helpers::*;
 mod crypto;
 pub use crypto::Crypto;
 
+mod cred;
+pub use cred::*;
+
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
 pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
