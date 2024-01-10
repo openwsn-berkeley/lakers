@@ -60,7 +60,8 @@ impl coap_handler::Handler for EdhocHandler {
         let starts_with_true = request.payload().get(0) == Some(&0xf5);
 
         if starts_with_true {
-            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R);
+            let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
             let response = responder
                 .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));

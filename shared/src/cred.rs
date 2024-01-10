@@ -1,15 +1,16 @@
 use super::*;
 
-pub struct LakersCredentialRPK {
+#[derive(Debug)]
+pub struct CredentialRPK {
     pub value: EdhocMessageBuffer,
     pub public_key: BytesP256ElemLen, // could be a reference, but safe Rust doesn't allow self-referencing structs
     pub kid: u8,
 }
 
-impl LakersCredentialRPK {
+impl CredentialRPK {
     pub fn new(value: EdhocMessageBuffer) -> Result<Self, EDHOCError> {
-        let (public_key, kid) = LakersCredentialRPK::parse(value.as_slice())?;
-        Ok(LakersCredentialRPK {
+        let (public_key, kid) = Self::parse(value.as_slice())?;
+        Ok(Self {
             value,
             public_key,
             kid,
@@ -76,7 +77,7 @@ mod test {
     fn test_new_cred() {
         let cred_tv: EdhocMessageBuffer = CRED_TV.try_into().unwrap();
 
-        let res = LakersCredentialRPK::new(CRED_TV.try_into().unwrap());
+        let res = CredentialRPK::new(CRED_TV.try_into().unwrap());
         assert!(res.is_ok());
         let cred = res.unwrap();
         assert_eq!(cred.value, cred_tv);

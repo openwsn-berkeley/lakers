@@ -44,9 +44,9 @@ pub struct EdhocInitiatorProcessingM2<Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorProcessedM2<'a, Crypto: CryptoTrait> {
-    state: ProcessedM2, // opaque state
-    cred_i: &'a [u8],   // I's full credential
+pub struct EdhocInitiatorProcessedM2<Crypto: CryptoTrait> {
+    state: ProcessedM2,    // opaque state
+    cred_i: CredentialRPK, // I's full credential
     crypto: Crypto,
 }
 
@@ -61,15 +61,15 @@ pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
     state: ResponderStart, // opaque state
     r: &'a [u8],           // private authentication key of R
-    cred_r: &'a [u8],      // R's full credential
+    cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderProcessedM1<'a, Crypto: CryptoTrait> {
-    state: ProcessingM1, // opaque state
-    r: &'a [u8],         // private authentication key of R
-    cred_r: &'a [u8],    // R's full credential
+    state: ProcessingM1,   // opaque state
+    r: &'a [u8],           // private authentication key of R
+    cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
 
@@ -92,7 +92,7 @@ pub struct EdhocResponderDone<Crypto: CryptoTrait> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
-    pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: &'a [u8]) -> Self {
+    pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: CredentialRPK) -> Self {
         assert!(r.len() == P256_ELEM_LEN);
         let (y, g_y) = crypto.p256_generate_key_pair();
 
@@ -314,9 +314,9 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     pub fn verify_message_2(
         mut self,
         i: &'a [u8],
-        cred_i: &'a [u8],
+        cred_i: CredentialRPK,
         valid_cred_r: &[u8],
-    ) -> Result<EdhocInitiatorProcessedM2<'a, Crypto>, EDHOCError> {
+    ) -> Result<EdhocInitiatorProcessedM2<Crypto>, EDHOCError> {
         match i_verify_message_2(
             self.state,
             &mut self.crypto,
@@ -333,7 +333,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
     pub fn prepare_message_3(
         mut self,
         cred_transfer: CredentialTransfer,
@@ -513,7 +513,11 @@ mod test {
 
     #[test]
     fn test_new_responder() {
-        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let _responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
     }
 
     #[test]
@@ -529,7 +533,11 @@ mod test {
     fn test_process_message_1() {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -538,7 +546,11 @@ mod test {
 
         // We need to create a new responder -- no message is supposed to be processed twice by a
         // responder or initiator
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
 
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
@@ -554,8 +566,11 @@ mod test {
     #[cfg(feature = "ead-none")]
     #[test]
     fn test_handshake() {
+        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
         let initiator = EdhocInitiator::new(default_crypto()); // can choose which identity to use after learning R's identity
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R); // has to select an identity before learning who is I
+        let responder = EdhocResponder::new(default_crypto(), R, cred_r); // has to select an identity before learning who is I
 
         // ---- begin initiator handling
         // if needed: prepare ead_1
@@ -576,7 +591,7 @@ mod test {
         let (valid_cred_r, _g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
         let initiator = initiator
-            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
+            .verify_message_2(I, cred_i, valid_cred_r.as_slice())
             .unwrap();
 
         // if needed: prepare ead_3
@@ -635,9 +650,12 @@ mod test {
     #[cfg(feature = "ead-authz")]
     #[test]
     fn test_ead_authz() {
+        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
         // ==== initialize edhoc ====
         let mut initiator = EdhocInitiator::new(default_crypto());
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(default_crypto(), R, cred_r);
 
         // ==== initialize ead-authz ====
         let device = ZeroTouchDevice::new(
@@ -647,7 +665,7 @@ mod test {
         );
         let authenticator = ZeroTouchAuthenticator::default();
 
-        let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap();
+        let acl = EdhocMessageBuffer::new_from_slice(&[cred_i.kid]).unwrap();
         let server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
             CRED_R.try_into().unwrap(),
@@ -691,7 +709,7 @@ mod test {
             assert!(result.is_ok());
         }
         let initiator = initiator
-            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
+            .verify_message_2(I, cred_i, valid_cred_r.as_slice())
             .unwrap();
 
         let (mut _initiator, message_3, i_prk_out) = initiator

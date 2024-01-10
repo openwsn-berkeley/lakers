@@ -31,7 +31,8 @@ fn main() {
             println!("Received message from {}", src);
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
-                let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R);
+                let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+                let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
                 let result = responder.process_message_1(
                     &request.message.payload[1..]
