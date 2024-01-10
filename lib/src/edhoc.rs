@@ -193,27 +193,30 @@ pub fn r_parse_message_3(
 pub fn r_verify_message_3(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
-    valid_cred_i: &[u8],
+    valid_cred_i: CredentialRPK,
 ) -> Result<(Completed, BytesHashLen), EDHOCError> {
-    let (g_i, _kid_i) = parse_cred(valid_cred_i)?;
-
     // compute salt_4e3m
     let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
     // TODO compute prk_4e3m
-    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.y, &g_i);
+    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.y, &valid_cred_i.public_key);
 
     // compute mac_3
     let expected_mac_3 = compute_mac_3(
         crypto,
         &prk_4e3m,
         &state.th_3,
-        &get_id_cred(valid_cred_i)?,
-        valid_cred_i,
+        &valid_cred_i.get_id_cred(),
+        valid_cred_i.value.as_slice(),
     );
 
     // verify mac_3
     if state.mac_3 == expected_mac_3 {
-        let th_4 = compute_th_4(crypto, &state.th_3, &state.plaintext_3, valid_cred_i);
+        let th_4 = compute_th_4(
+            crypto,
+            &state.th_3,
+            &state.plaintext_3,
+            valid_cred_i.value.as_slice(),
+        );
 
         let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
         th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
@@ -336,27 +339,31 @@ pub fn i_parse_message_2<'a>(
 pub fn i_verify_message_2(
     state: ProcessingM2,
     crypto: &mut impl CryptoTrait,
-    valid_cred_r: &[u8], // TODO: have a struct to hold credentials to avoid re-computing
-    i: &BytesP256ElemLen, // I's static private DH key
+    valid_cred_r: CredentialRPK, // TODO: have a struct to hold credentials to avoid re-computing
+    i: &BytesP256ElemLen,        // I's static private DH key
 ) -> Result<ProcessedM2, EDHOCError> {
     // verify mac_2
     let salt_3e2m = compute_salt_3e2m(crypto, &state.prk_2e, &state.th_2);
 
-    let (g_r, _) = parse_cred(valid_cred_r)?;
-    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x, &g_r);
+    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x, &valid_cred_r.public_key);
 
     let expected_mac_2 = compute_mac_2(
         crypto,
         &prk_3e2m,
-        &get_id_cred(valid_cred_r)?,
-        valid_cred_r,
+        &valid_cred_r.get_id_cred(),
+        valid_cred_r.value.as_slice(),
         &state.th_2,
     );
 
     if state.mac_2 == expected_mac_2 {
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        let th_3 = compute_th_3(crypto, &state.th_2, &state.plaintext_2, valid_cred_r);
+        let th_3 = compute_th_3(
+            crypto,
+            &state.th_2,
+            &state.plaintext_2,
+            valid_cred_r.value.as_slice(),
+        );
         // message 3 processing
 
         let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
