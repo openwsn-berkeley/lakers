@@ -73,7 +73,7 @@ fn main() -> ! {
     const _C_R_TV: [u8; 1] = hex!("27");
 
     fn test_new_initiator() {
-        let _initiator = EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I);
+        let _initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
     }
 
     test_new_initiator();
@@ -92,7 +92,7 @@ fn main() -> ! {
     println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I);
+        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
 
         let c_i: u8 =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
@@ -104,7 +104,7 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
-        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto(), I, CRED_I);
+        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
         let responder = EdhocResponder::new(lakers_crypto::default_crypto(), R, CRED_R);
 
         let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
@@ -116,7 +116,9 @@ fn main() -> ! {
         let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
         let (valid_cred_r, g_r) =
             credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        let initiator = initiator.verify_message_2(valid_cred_r.as_slice()).unwrap();
+        let initiator = initiator
+            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
+            .unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
 
