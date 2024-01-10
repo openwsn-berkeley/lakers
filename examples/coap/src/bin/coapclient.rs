@@ -50,7 +50,8 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let initiator = initiator.verify_message_2(&I, &CRED_I, valid_cred_r.as_slice())?;
 
     let mut msg_3 = Vec::from([c_r]);
-    let (mut initiator, message_3, prk_out) = initiator.prepare_message_3(&None)?;
+    let (mut initiator, message_3, prk_out) =
+        initiator.prepare_message_3(CredentialTransfer::ByReference, &None)?;
     msg_3.extend_from_slice(message_3.as_slice());
     println!("message_3 len = {}", msg_3.len());
 

@@ -42,9 +42,9 @@ fn main() {
                 if let Ok((responder, _ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
-                    let kid = IdCred::CompactKid(ID_CRED_R[3]);
-                    let (responder, message_2) =
-                        responder.prepare_message_2(&kid, Some(c_r), &None).unwrap();
+                    let (responder, message_2) = responder
+                        .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &None)
+                        .unwrap();
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));

@@ -97,7 +97,7 @@ pub fn r_prepare_message_2(
     cred_r: &[u8],
     r: &BytesP256ElemLen, // R's static private DH key
     c_r: u8,
-    id_cred_r: &IdCred,
+    cred_transfer: CredentialTransfer,
     ead_2: &Option<EADItem>,
 ) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
     // compute TH_2
@@ -111,8 +111,16 @@ pub fn r_prepare_message_2(
     // compute MAC_2
     let mac_2 = compute_mac_2(crypto, &prk_3e2m, &get_id_cred(cred_r)?, cred_r, &th_2);
 
+    let id_cred_r = match cred_transfer {
+        CredentialTransfer::ByValue => IdCred::FullCredential(cred_r),
+        CredentialTransfer::ByReference => {
+            let (_, kid) = parse_cred(cred_r)?;
+            IdCred::CompactKid(kid)
+        }
+    };
+
     // compute ciphertext_2
-    let plaintext_2 = encode_plaintext_2(c_r, id_cred_r, &mac_2, &ead_2)?;
+    let plaintext_2 = encode_plaintext_2(c_r, &id_cred_r, &mac_2, &ead_2)?;
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
@@ -368,6 +376,7 @@ pub fn i_prepare_message_3(
     state: &mut ProcessedM2,
     crypto: &mut impl CryptoTrait,
     cred_i: &[u8],
+    cred_transfer: CredentialTransfer,
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
     let mac_3 = compute_mac_3(
@@ -378,6 +387,7 @@ pub fn i_prepare_message_3(
         cred_i,
     );
 
+    assert!(matches!(cred_transfer, CredentialTransfer::ByReference)); // TODO: handle ByValue case as well
     let plaintext_3 = encode_plaintext_3(&get_id_cred(cred_i)?, &mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 

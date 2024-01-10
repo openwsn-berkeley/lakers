@@ -185,6 +185,11 @@ pub struct Completed {
     pub prk_exporter: BytesHashLen,
 }
 
+pub enum CredentialTransfer {
+    ByReference,
+    ByValue,
+}
+
 /// An owned u8 vector of a limited length
 ///
 /// It is used to represent the various messages in encrypted and in decrypted form, as well as

@@ -130,9 +130,9 @@ impl coap_handler::Handler for EdhocHandler {
         response.set_code(coap_numbers::code::CHANGED.try_into().ok().unwrap());
         match req {
             EdhocResponse::OkSend2 { c_r, responder } => {
-                let kid = IdCred::CompactKid(ID_CRED_R[3]);
-                let (responder, message_2) =
-                    responder.prepare_message_2(&kid, Some(c_r), &None).unwrap();
+                let (responder, message_2) = responder
+                    .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &None)
+                    .unwrap();
                 self.connections.push((c_r, responder));
                 response.set_payload(message_2.as_slice());
             }
