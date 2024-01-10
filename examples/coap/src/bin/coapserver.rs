@@ -67,11 +67,9 @@ fn main() {
                     // anyway legally
                     continue;
                 };
-                let (valid_cred_i, _g_i) =
-                    credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-                let Ok((mut responder, prk_out)) =
-                    responder.verify_message_3(valid_cred_i.as_slice())
-                else {
+                let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+                let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+                let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
                     println!("EDHOC processing error: {:?}", valid_cred_i);
                     continue;
                 };

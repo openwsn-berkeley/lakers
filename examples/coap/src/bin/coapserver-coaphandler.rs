@@ -88,9 +88,9 @@ impl coap_handler::Handler for EdhocHandler {
                 // FIXME remove state from edhoc_connections
                 panic!("Handler can't just not respond");
             };
-            let (valid_cred_i, _g_i) =
-                credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-            let result = responder.verify_message_3(valid_cred_i.as_slice());
+            let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+            let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+            let result = responder.verify_message_3(valid_cred_i);
             let Ok((mut responder, prk_out)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections
