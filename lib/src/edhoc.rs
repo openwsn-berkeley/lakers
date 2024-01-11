@@ -115,6 +115,7 @@ pub fn r_prepare_message_2(
         &cred_r.get_id_cred(),
         cred_r.value.as_slice(),
         &th_2,
+        ead_2,
     );
 
     let id_cred_r = match cred_transfer {
@@ -176,7 +177,8 @@ pub fn r_parse_message_3(
                     y: state.y,
                     prk_3e2m: state.prk_3e2m,
                     th_3: state.th_3,
-                    plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at step 'b'
+                    plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at the 'verify' step
+                    ead_3: ead_3.clone(), // NOTE: this clone could be avoided by using a reference or an index to the ead_3 item in plaintext_3
                 },
                 id_cred_i,
                 ead_3,
@@ -207,6 +209,7 @@ pub fn r_verify_message_3(
         &state.th_3,
         &valid_cred_i.get_id_cred(),
         valid_cred_i.value.as_slice(),
+        &state.ead_3,
     );
 
     // verify mac_3
@@ -312,9 +315,10 @@ pub fn i_parse_message_2<'a>(
                 mac_2,
                 prk_2e,
                 th_2,
+                x: state.x,
                 g_y,
                 plaintext_2: plaintext_2,
-                x: state.x,
+                ead_2: ead_2.clone(), // needed for compute_mac_2
             };
 
             let id_cred_r = match id_cred_r {
@@ -353,6 +357,7 @@ pub fn i_verify_message_2(
         &valid_cred_r.get_id_cred(),
         valid_cred_r.value.as_slice(),
         &state.th_2,
+        &state.ead_2,
     );
 
     if state.mac_2 == expected_mac_2 {
@@ -395,6 +400,7 @@ pub fn i_prepare_message_3(
         &state.th_3,
         &cred_i.get_id_cred(),
         cred_i.value.as_slice(),
+        ead_3,
     );
 
     assert!(matches!(cred_transfer, CredentialTransfer::ByReference)); // TODO: handle ByValue case as well
@@ -743,9 +749,10 @@ fn encode_kdf_context(
     id_cred: &BytesIdCred,
     th: &BytesHashLen,
     cred: &[u8],
+    ead: &Option<EADItem>,
 ) -> (BytesMaxContextBuffer, usize) {
     // encode context in line
-    // assumes ID_CRED_R and CRED_R are already CBOR-encoded
+    // assumes ID_CRED_R and CRED_R are already CBOR-encoded (and also EAD)
     let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
     output[..id_cred.len()].copy_from_slice(&id_cred[..]);
     output[id_cred.len()] = CBOR_BYTE_STRING;
@@ -754,7 +761,14 @@ fn encode_kdf_context(
     output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred.len()]
         .copy_from_slice(cred);
 
-    let output_len = id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len();
+    let output_len = if let Some(ead) = ead {
+        let idx = id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len();
+        let encoded_ead = encode_ead_item(ead).unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
+        output[idx..idx + encoded_ead.len].copy_from_slice(encoded_ead.as_slice());
+        idx + encoded_ead.len
+    } else {
+        id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len()
+    };
 
     (output, output_len)
 }
@@ -765,9 +779,10 @@ fn compute_mac_3(
     th_3: &BytesHashLen,
     id_cred_i: &BytesIdCred,
     cred_i: &[u8],
+    ead_3: &Option<EADItem>,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i);
+    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i, ead_3);
 
     // compute mac_3
     let output_buf = edhoc_kdf(
@@ -790,9 +805,10 @@ fn compute_mac_2(
     id_cred_r: &BytesIdCred,
     cred_r: &[u8],
     th_2: &BytesHashLen,
+    ead_2: &Option<EADItem>,
 ) -> BytesMac2 {
     // compute MAC_2
-    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r);
+    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, ead_2);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
@@ -1307,6 +1323,7 @@ mod tests {
             &TH_3_TV,
             &ID_CRED_I_TV,
             &CRED_I_TV,
+            &None,
         );
         assert_eq!(mac_3, MAC_3_TV);
     }
@@ -1319,6 +1336,7 @@ mod tests {
             &ID_CRED_R_TV,
             &CRED_R_TV,
             &TH_2_TV,
+            &None,
         );
 
         assert_eq!(rcvd_mac_2, MAC_2_TV);
