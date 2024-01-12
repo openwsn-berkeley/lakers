@@ -27,6 +27,9 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let timeout = Duration::new(5, 0);
     println!("Client request: {}", url);
 
+    let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+    let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
     let initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
 
     // Send Message 1 over CoAP and convert the response to byte
@@ -45,9 +48,8 @@ fn client_handshake() -> Result<(), EDHOCError> {
 
     let message_2 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
     let (initiator, c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2)?;
-    let (valid_cred_r, _g_r) =
-        credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-    let initiator = initiator.verify_message_2(&I, &CRED_I, valid_cred_r.as_slice())?;
+    let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
+    let initiator = initiator.verify_message_2(&I, cred_i, valid_cred_r)?;
 
     let mut msg_3 = Vec::from([c_r]);
     let (mut initiator, message_3, prk_out) =

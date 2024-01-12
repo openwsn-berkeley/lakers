@@ -44,9 +44,9 @@ pub struct EdhocInitiatorProcessingM2<Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
-pub struct EdhocInitiatorProcessedM2<'a, Crypto: CryptoTrait> {
-    state: ProcessedM2, // opaque state
-    cred_i: &'a [u8],   // I's full credential
+pub struct EdhocInitiatorProcessedM2<Crypto: CryptoTrait> {
+    state: ProcessedM2,    // opaque state
+    cred_i: CredentialRPK, // I's full credential
     crypto: Crypto,
 }
 
@@ -61,15 +61,15 @@ pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
 pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
     state: ResponderStart, // opaque state
     r: &'a [u8],           // private authentication key of R
-    cred_r: &'a [u8],      // R's full credential
+    cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
 pub struct EdhocResponderProcessedM1<'a, Crypto: CryptoTrait> {
-    state: ProcessingM1, // opaque state
-    r: &'a [u8],         // private authentication key of R
-    cred_r: &'a [u8],    // R's full credential
+    state: ProcessingM1,   // opaque state
+    r: &'a [u8],           // private authentication key of R
+    cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
 
@@ -92,7 +92,7 @@ pub struct EdhocResponderDone<Crypto: CryptoTrait> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
-    pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: &'a [u8]) -> Self {
+    pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: CredentialRPK) -> Self {
         assert!(r.len() == P256_ELEM_LEN);
         let (y, g_y) = crypto.p256_generate_key_pair();
 
@@ -184,7 +184,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
     pub fn verify_message_3(
         mut self,
-        cred_i: &[u8],
+        cred_i: CredentialRPK,
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
         match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
@@ -314,9 +314,9 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     pub fn verify_message_2(
         mut self,
         i: &'a [u8],
-        cred_i: &'a [u8],
-        valid_cred_r: &[u8],
-    ) -> Result<EdhocInitiatorProcessedM2<'a, Crypto>, EDHOCError> {
+        cred_i: CredentialRPK,
+        valid_cred_r: CredentialRPK,
+    ) -> Result<EdhocInitiatorProcessedM2<Crypto>, EDHOCError> {
         match i_verify_message_2(
             self.state,
             &mut self.crypto,
@@ -333,7 +333,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
     pub fn prepare_message_3(
         mut self,
         cred_transfer: CredentialTransfer,
@@ -422,20 +422,18 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
 pub fn credential_check_or_fetch<'a>(
-    cred_expected: Option<EdhocMessageBuffer>,
+    cred_expected: Option<CredentialRPK>,
     id_cred_received: IdCredOwned,
-) -> Result<(EdhocMessageBuffer, BytesP256ElemLen), EDHOCError> {
+) -> Result<CredentialRPK, EDHOCError> {
     // Processing of auth credentials according to draft-tiloca-lake-implem-cons
     // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
     if let Some(cred_expected) = cred_expected {
         // 1. Does ID_CRED_X point to a stored authentication credential? YES
         // IMPL: compare cred_i_expected with id_cred
         //   IMPL: assume cred_i_expected is well formed
-        let (public_key_expected, kid_expected) = parse_cred(cred_expected.as_slice())?;
-        let public_key = public_key_expected;
         let credentials_match = match id_cred_received {
-            IdCredOwned::CompactKid(kid_received) => kid_received == kid_expected,
-            IdCredOwned::FullCredential(cred_received) => cred_expected == cred_received,
+            IdCredOwned::CompactKid(kid_received) => kid_received == cred_expected.kid,
+            IdCredOwned::FullCredential(cred_received) => cred_received == cred_expected.value,
         };
 
         // 2. Is this authentication credential still valid?
@@ -445,7 +443,7 @@ pub fn credential_check_or_fetch<'a>(
         // IMPL: ready to proceed, including process ead_2
 
         if credentials_match {
-            Ok((cred_expected, public_key))
+            Ok(cred_expected)
         } else {
             Err(EDHOCError::UnknownPeer)
         }
@@ -461,16 +459,15 @@ pub fn credential_check_or_fetch<'a>(
             // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
             //    Is the validation successful?
             // IMPL: parse_cred(cred_r) and check it is valid
-            match parse_cred(cred_received.as_slice()) {
-                Ok((public_key_received, _kid_received)) => {
+            match CredentialRPK::new(cred_received) {
+                Ok(cred_received) => {
                     // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
                     // IMPL,TODO: we just skip this step for now
 
                     // 7. Store CRED_X as valid and trusted.
                     //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
                     // IMPL: cred_r = id_cred
-                    let public_key = public_key_received;
-                    Ok((cred_received, public_key))
+                    Ok(cred_received)
                 }
                 Err(_) => Err(EDHOCError::UnknownPeer),
             }
@@ -513,7 +510,11 @@ mod test {
 
     #[test]
     fn test_new_responder() {
-        let _responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let _responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
     }
 
     #[test]
@@ -529,7 +530,11 @@ mod test {
     fn test_process_message_1() {
         let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
 
         // process message_1 first time, when unsupported suite is selected
         let error = responder.process_message_1(&message_1_tv_first_time);
@@ -538,7 +543,11 @@ mod test {
 
         // We need to create a new responder -- no message is supposed to be processed twice by a
         // responder or initiator
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            R,
+            CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
+        );
 
         // process message_1 second time
         let error = responder.process_message_1(&message_1_tv);
@@ -554,8 +563,11 @@ mod test {
     #[cfg(feature = "ead-none")]
     #[test]
     fn test_handshake() {
+        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
         let initiator = EdhocInitiator::new(default_crypto()); // can choose which identity to use after learning R's identity
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R); // has to select an identity before learning who is I
+        let responder = EdhocResponder::new(default_crypto(), R, cred_r.clone()); // has to select an identity before learning who is I
 
         // ---- begin initiator handling
         // if needed: prepare ead_1
@@ -573,11 +585,8 @@ mod test {
 
         // ---- being initiator handling
         let (initiator, _c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2).unwrap();
-        let (valid_cred_r, _g_r) =
-            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        let initiator = initiator
-            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
-            .unwrap();
+        let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
+        let initiator = initiator.verify_message_2(I, cred_i, valid_cred_r).unwrap();
 
         // if needed: prepare ead_3
         let (mut initiator, message_3, i_prk_out) = initiator
@@ -587,11 +596,9 @@ mod test {
 
         // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
-        let (valid_cred_i, _g_i) =
-            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
+        let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
         // if ead_3: process ead_3
-        let (mut responder, r_prk_out) =
-            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
+        let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
         // ---- end responder handling
 
         // check that prk_out is equal at initiator and responder side
@@ -635,9 +642,12 @@ mod test {
     #[cfg(feature = "ead-authz")]
     #[test]
     fn test_ead_authz() {
+        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
         // ==== initialize edhoc ====
         let mut initiator = EdhocInitiator::new(default_crypto());
-        let responder = EdhocResponder::new(default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(default_crypto(), R, cred_r);
 
         // ==== initialize ead-authz ====
         let device = ZeroTouchDevice::new(
@@ -647,7 +657,7 @@ mod test {
         );
         let authenticator = ZeroTouchAuthenticator::default();
 
-        let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap();
+        let acl = EdhocMessageBuffer::new_from_slice(&[cred_i.kid]).unwrap();
         let server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
             CRED_R.try_into().unwrap(),
@@ -685,24 +695,20 @@ mod test {
             .unwrap();
 
         let (initiator, _c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
-        let (valid_cred_r, _g_r) = credential_check_or_fetch(None, id_cred_r).unwrap();
+        let valid_cred_r = credential_check_or_fetch(None, id_cred_r).unwrap();
         if let Some(ead_2) = ead_2 {
             let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
             assert!(result.is_ok());
         }
-        let initiator = initiator
-            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
-            .unwrap();
+        let initiator = initiator.verify_message_2(I, cred_i, valid_cred_r).unwrap();
 
         let (mut _initiator, message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
-        let (valid_cred_i, _g_i) =
-            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut _responder, r_prk_out) =
-            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
+        let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+        let (mut _responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);

@@ -60,7 +60,8 @@ impl coap_handler::Handler for EdhocHandler {
         let starts_with_true = request.payload().get(0) == Some(&0xf5);
 
         if starts_with_true {
-            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, &CRED_R);
+            let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
             let response = responder
                 .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));
@@ -87,9 +88,9 @@ impl coap_handler::Handler for EdhocHandler {
                 // FIXME remove state from edhoc_connections
                 panic!("Handler can't just not respond");
             };
-            let (valid_cred_i, _g_i) =
-                credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-            let result = responder.verify_message_3(valid_cred_i.as_slice());
+            let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+            let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+            let result = responder.verify_message_3(valid_cred_i);
             let Ok((mut responder, prk_out)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections

@@ -104,8 +104,11 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
+        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+
         let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
-        let responder = EdhocResponder::new(lakers_crypto::default_crypto(), R, CRED_R);
+        let responder = EdhocResponder::new(lakers_crypto::default_crypto(), R, cred_r.clone());
 
         let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
@@ -115,21 +118,16 @@ fn main() -> ! {
             .unwrap();
 
         let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
-        let (valid_cred_r, g_r) =
-            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
-        let initiator = initiator
-            .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
-            .unwrap();
+        let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
+        let initiator = initiator.verify_message_2(I, cred_i, valid_cred_r).unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
-        let (valid_cred_i, g_i) =
-            credential_check_or_fetch(Some(CRED_I.try_into().unwrap()), id_cred_i).unwrap();
-        let (mut responder, r_prk_out) =
-            responder.verify_message_3(valid_cred_i.as_slice()).unwrap();
+        let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+        let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
