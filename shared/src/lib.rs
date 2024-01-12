@@ -155,6 +155,7 @@ pub struct ProcessingM2 {
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
+    pub ead_2: Option<EADItem>,
 }
 
 #[derive(Debug)]
@@ -171,6 +172,7 @@ pub struct ProcessingM3 {
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
     pub plaintext_3: EdhocMessageBuffer,
+    pub ead_3: Option<EADItem>,
 }
 
 #[derive(Debug)]
@@ -300,7 +302,7 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EADItem {
     pub label: u8,
     pub is_critical: bool,
@@ -308,12 +310,8 @@ pub struct EADItem {
     pub value: Option<EdhocMessageBuffer>,
 }
 
-pub trait EADTrait {
-    fn new() -> Self;
-}
-
-impl EADTrait for EADItem {
-    fn new() -> Self {
+impl EADItem {
+    pub fn new() -> Self {
         EADItem {
             label: 0,
             is_critical: false,
