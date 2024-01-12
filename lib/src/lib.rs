@@ -125,7 +125,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
     pub fn prepare_message_2(
         mut self,
-        id_cred_r: &IdCred,
+        cred_transfer: CredentialTransfer,
         c_r: Option<u8>,
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<Crypto>, BufferMessage2), EDHOCError> {
@@ -140,7 +140,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
             self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
             c_r,
-            id_cred_r,
+            cred_transfer,
             ead_2,
         ) {
             Ok((state, message_2)) => Ok((
@@ -336,6 +336,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
     pub fn prepare_message_3(
         mut self,
+        cred_transfer: CredentialTransfer,
         ead_3: &Option<EADItem>,
     ) -> Result<
         (
@@ -345,7 +346,13 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<'a, Crypto> {
         ),
         EDHOCError,
     > {
-        match i_prepare_message_3(&mut self.state, &mut self.crypto, self.cred_i, ead_3) {
+        match i_prepare_message_3(
+            &mut self.state,
+            &mut self.crypto,
+            self.cred_i,
+            cred_transfer,
+            ead_3,
+        ) {
             Ok((state, message_3, prk_out)) => Ok((
                 EdhocInitiatorDone {
                     state,
@@ -559,8 +566,9 @@ mod test {
         let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
         // if ead_1: process ead_1
         // if needed: prepare ead_2
-        let kid = IdCred::CompactKid(ID_CRED_R[3]);
-        let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
+        let (responder, message_2) = responder
+            .prepare_message_2(CredentialTransfer::ByReference, None, &None)
+            .unwrap();
         // ---- end responder handling
 
         // ---- being initiator handling
@@ -572,7 +580,9 @@ mod test {
             .unwrap();
 
         // if needed: prepare ead_3
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator
+            .prepare_message_3(CredentialTransfer::ByReference, &None)
+            .unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
@@ -670,12 +680,12 @@ mod test {
         } else {
             None
         };
-        let kid = IdCred::CompactKid(ID_CRED_R[3]);
-        let (responder, message_2) = responder.prepare_message_2(&kid, None, &ead_2).unwrap();
+        let (responder, message_2) = responder
+            .prepare_message_2(CredentialTransfer::ByValue, None, &ead_2)
+            .unwrap();
 
         let (initiator, _c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
-        let (valid_cred_r, _g_r) =
-            credential_check_or_fetch(Some(CRED_R.try_into().unwrap()), id_cred_r).unwrap();
+        let (valid_cred_r, _g_r) = credential_check_or_fetch(None, id_cred_r).unwrap();
         if let Some(ead_2) = ead_2 {
             let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_R);
             assert!(result.is_ok());
@@ -684,7 +694,9 @@ mod test {
             .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
             .unwrap();
 
-        let (mut _initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
+        let (mut _initiator, message_3, i_prk_out) = initiator
+            .prepare_message_3(CredentialTransfer::ByReference, &None)
+            .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let (valid_cred_i, _g_i) =

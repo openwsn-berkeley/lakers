@@ -110,8 +110,9 @@ fn main() -> ! {
         let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
         let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
-        let kid = IdCred::CompactKid(ID_CRED_R[3]);
-        let (responder, message_2) = responder.prepare_message_2(&kid, None, &None).unwrap();
+        let (responder, message_2) = responder
+            .prepare_message_2(CredentialTransfer::ByReference, None, &None)
+            .unwrap();
 
         let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
         let (valid_cred_r, g_r) =
@@ -120,7 +121,9 @@ fn main() -> ! {
             .verify_message_2(I, CRED_I, valid_cred_r.as_slice())
             .unwrap();
 
-        let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(&None).unwrap();
+        let (mut initiator, message_3, i_prk_out) = initiator
+            .prepare_message_3(CredentialTransfer::ByReference, &None)
+            .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let (valid_cred_i, g_i) =
