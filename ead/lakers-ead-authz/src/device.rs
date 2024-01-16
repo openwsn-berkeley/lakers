@@ -29,7 +29,7 @@ impl ZeroTouchDevice {
         crypto: &mut Crypto,
         secret: BytesP256ElemLen,
         ss: u8,
-    ) -> (EADItem, ZeroTouchDeviceWaitEAD2) {
+    ) -> (ZeroTouchDeviceWaitEAD2, EADItem) {
         // PRK = EDHOC-Extract(salt, IKM)
         let prk = compute_prk_from_secret(crypto, &secret);
 
@@ -45,11 +45,11 @@ impl ZeroTouchDevice {
         };
 
         (
-            ead_1,
             ZeroTouchDeviceWaitEAD2 {
                 prk,
                 h_message_1: [0; SHA256_DIGEST_LEN],
             },
+            ead_1,
         )
     }
 }
@@ -154,7 +154,7 @@ mod test_device {
             LOC_W_TV.try_into().unwrap(),
         );
 
-        let (ead_1, _ead_authz) =
+        let (_ead_device, ead_1) =
             ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
         assert_eq!(ead_1.is_critical, true);
