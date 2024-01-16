@@ -74,11 +74,11 @@ mod test_authz {
             Some(ACL_INVALID_TV.try_into().unwrap()),
         );
 
-        let (ead_1, mut device) =
+        let (mut device, ead_1) =
             device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         device.set_h_message_1(H_MESSAGE_1_TV.try_into().unwrap());
 
-        let (_loc_w, voucher_request, _authenticator) = authenticator
+        let (_authenticator, _loc_w, voucher_request) = authenticator
             .process_ead_1(&ead_1, &MESSAGE_1_WITH_EAD_TV.try_into().unwrap())
             .unwrap();
 
