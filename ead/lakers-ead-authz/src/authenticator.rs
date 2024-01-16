@@ -13,9 +13,9 @@ impl ZeroTouchAuthenticator {
         message_1: &EdhocMessageBuffer,
     ) -> Result<
         (
-            EdhocMessageBuffer,
-            EdhocMessageBuffer,
             ZeroTouchAuthenticatorWaitVoucherResp,
+            EdhocMessageBuffer,
+            EdhocMessageBuffer,
         ),
         EDHOCError,
     > {
@@ -29,9 +29,9 @@ impl ZeroTouchAuthenticator {
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
         Ok((
+            ZeroTouchAuthenticatorWaitVoucherResp::default(),
             loc_w,
             voucher_request,
-            ZeroTouchAuthenticatorWaitVoucherResp::default(),
         ))
     }
 }

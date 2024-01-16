@@ -666,7 +666,7 @@ mod test {
 
         // ==== begin edhoc with ead-authz ====
 
-        let (ead_1, mut device) = device.prepare_ead_1(
+        let (mut device, ead_1) = device.prepare_ead_1(
             &mut default_crypto(),
             initiator.compute_ephemeral_secret(&device.g_w),
             initiator.selected_cipher_suite(),
@@ -676,7 +676,7 @@ mod test {
 
         let (responder, ead_1) = responder.process_message_1(&message_1).unwrap();
         let ead_2 = if let Some(ead_1) = ead_1 {
-            let (_loc_w, voucher_request, authenticator) =
+            let (authenticator, _loc_w, voucher_request) =
                 authenticator.process_ead_1(&ead_1, &message_1).unwrap();
 
             // the line below mocks a request to the server: let voucher_response = auth_client.post(loc_w, voucher_request)?
