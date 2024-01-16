@@ -44,14 +44,14 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [lakers-crypto/hacspec, lakers-crypto/psa, lakers-crypto/rustcrypto]
-        ead: [ead-none, ead-zeroconf]
+        ead: [ead-none, ead-authz]
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-zeroconf` when testing with that config
-      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-zeroconf' && '-p lakers-ead-zeroconf' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
+    - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-authz` when testing with that config
+      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
   build-edhoc-package:
@@ -62,7 +62,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [lakers-crypto/hacspec, lakers-crypto/psa, lakers-crypto/psa-baremetal, lakers-crypto/cryptocell310, lakers-crypto/rustcrypto]
-        ead: [ead-none, ead-zeroconf]
+        ead: [ead-none, ead-authz]
 
     steps:
     - name: Checkout repo
@@ -113,7 +113,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [crypto-psa]
-        ead: [ead-none, ead-zeroconf]
+        ead: [ead-none, ead-authz]
 
     steps:
     - name: Checkout repo
@@ -138,7 +138,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [crypto-psa, crypto-cryptocell310]
-        ead: [ead-none, ead-zeroconf]
+        ead: [ead-none, ead-authz]
 
     steps:
     - name: Checkout repo

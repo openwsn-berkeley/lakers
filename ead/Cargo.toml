@@ -11,12 +11,9 @@ readme.workspace = true
 [dependencies]
 lakers-shared.workspace = true
 
-lakers-ead-none = { workspace = true, optional = true }
-lakers-ead-zeroconf = { workspace = true, optional = true }
 lakers-ead-authz = { workspace = true, optional = true }
 
 [features]
 default = [ "ead-none" ]
-ead-none = [ "lakers-ead-none" ]
-ead-zeroconf = [ "lakers-ead-zeroconf" ]
+ead-none = [  ]
 ead-authz = [ "lakers-ead-authz" ]
