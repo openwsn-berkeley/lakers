@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug)]
+#[repr(C)]
 pub struct CredentialRPK {
     pub value: EdhocMessageBuffer,
     pub public_key: BytesP256ElemLen, // could be a reference, but safe Rust doesn't allow self-referencing structs

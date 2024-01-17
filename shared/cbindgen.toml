@@ -10,9 +10,12 @@ header = """
  */"""
 
 [export]
-include = ["EdhocMessageBuffer", "EADItemC", "EdhocInitiatorWaitM2C"]
-# include = ["EdhocMessageBuffer", "EdhocInitiatorWaitM2C"]
-# include = ["EdhocMessageBuffer"]
+include = [
+    "EdhocMessageBuffer",
+    "EADItemC",
+    "CredentialRPK",
+    "EdhocInitiatorWaitM2C",
+]
 
 [parse.expand]
 crates = ["lakers-shared"]

@@ -115,6 +115,7 @@ pub enum EDHOCError {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct InitiatorStart {
     pub suites_i: BytesSuites,
     pub suites_i_len: usize,

@@ -1,9 +1,22 @@
 use crate::*;
 
 /// structs compatible with the C FFI
+#[derive(Debug)]
+#[repr(C)]
+pub struct EdhocInitiatorC {
+    pub state: InitiatorStart,
+}
+
+#[derive(Debug)]
 #[repr(C)]
 pub struct EdhocInitiatorWaitM2C {
-    pub state: WaitM2, // opaque state
+    pub state: WaitM2,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct EdhocInitiatorProcessingM2C {
+    pub state: ProcessingM2,
 }
 
 #[derive(Clone, Debug)]

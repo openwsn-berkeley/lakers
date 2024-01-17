@@ -19,12 +19,13 @@ int main(void)
     uint8_t out_public_key[32] = {0};
     p256_generate_key_pair_from_c(out_private_key, out_public_key);
     puts("End test: generate key pair.");
-    od_hex_dump(out_private_key, 32, OD_WIDTH_DEFAULT);
-    od_hex_dump(out_public_key, 32, OD_WIDTH_DEFAULT);
+    // od_hex_dump(out_private_key, 32, OD_WIDTH_DEFAULT);
+    // od_hex_dump(out_public_key, 32, OD_WIDTH_DEFAULT);
 
     EdhocMessageBuffer message_1;
     EdhocInitiatorWaitM2C initiator;
     int res = initiator_prepare_message_1(NULL, NULL, &initiator, &message_1);
+    od_hex_dump(message_1.content, 48, OD_WIDTH_DEFAULT);
     if (res != 0) printf("Error prep msg1: %d\n", res);
 
     puts("All went good.");

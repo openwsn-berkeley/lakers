@@ -21,7 +21,7 @@ pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 pub use lakers_ead::*;
 
 mod edhoc;
-use edhoc::*;
+pub use edhoc::*;
 
 // TODO: clean these structs and remove the cred_x whre they are not needed anymore
 /// Starting point for performing EDHOC in the role of the Initiator.
