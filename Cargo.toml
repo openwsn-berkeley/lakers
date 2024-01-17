@@ -13,6 +13,7 @@ members = [
   "examples/coap",
   "examples/edhoc-rs-no_std",
   "examples/edhoc-rs-cc2538",
+  "lakers-ffi",
 ]
 
 # reduced "default-members", should include only packages that can be built and
