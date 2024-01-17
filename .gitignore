@@ -11,3 +11,5 @@ cscope*
 .DS_Store
 .vscode
 *.fst
+
+bin
