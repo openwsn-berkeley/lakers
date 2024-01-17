@@ -11,32 +11,24 @@ set -e
 # for example, running tests required a panic handler and an "eh_personality" function, but then
 # this would clash when building the static library or the no_std example.
 
-cargo_features=$1
+# cargo_features=$1
 
-if [[ $cargo_features != "crypto-cryptocell310" && $cargo_features != "crypto-psa-baremetal" ]]; then
-    echo "Select one of: crypto-cryptocell310, crypto-psa-baremetal"
-    echo "Example: ./build_static_lib.sh crypto-cryptocell310"
-    exit 1
-fi
-
-original_value=`grep crate-type lib/Cargo.toml`
-
-new_value='crate-type = ["staticlib"]'
-echo "Changing crate-type to:   $new_value"
-sed -i -E "s/crate-type.*/$new_value/" lib/Cargo.toml
+# if [[ $cargo_features != "crypto-cryptocell310" && $cargo_features != "crypto-psa-baremetal" ]]; then
+#     echo "Select one of: crypto-cryptocell310, crypto-psa-baremetal"
+#     echo "Example: ./build_static_lib.sh crypto-cryptocell310"
+#     exit 1
+# fi
 
 # generate the static library
-cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package lakers-crypto --package lakers-ead  --features="$cargo_features" --release
+# cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package lakers-crypto --package lakers-ead  --features="$cargo_features" --release
+cargo build --target=thumbv7em-none-eabihf -p lakers-ffi --no-default-features --features="crypto-cryptocell310" --release
 
 # generate the headers
-cbindgen --config consts/cbindgen.toml --crate lakers-shared --output ./target/include/lakers_shared.h -v
-cbindgen --config lib/cbindgen.toml --crate edhoc-rs --output ./target/include/edhoc_rs.h -v
+cbindgen --config shared/cbindgen.toml --crate lakers-shared --output target/include/lakers_shared.h -v
+cbindgen --config lakers-ffi/cbindgen.toml --crate lakers-ffi --output target/include/lakers_ffi.h -v
 
-# zip to a single file
-cd target
-zip -r staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip include/
-zip -u -j staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip thumbv7em-none-eabihf/release/libedhoc_rs.a
-cd -
-
-echo "Reverting crate-type to original value:   $original_value"
-sed -i -E "s/crate-type.*/$original_value/" lib/Cargo.toml
+# # zip to a single file
+# cd target
+# zip -r staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip include/
+# zip -u -j staticlib-"$cargo_features"-thumbv7em-none-eabihf.zip thumbv7em-none-eabihf/release/libedhoc_rs.a
+# cd -

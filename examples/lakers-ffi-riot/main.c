@@ -22,5 +22,11 @@ int main(void)
     od_hex_dump(out_private_key, 32, OD_WIDTH_DEFAULT);
     od_hex_dump(out_public_key, 32, OD_WIDTH_DEFAULT);
 
+    EdhocMessageBuffer message_1;
+    EdhocInitiatorWaitM2C initiator;
+    int res = initiator_prepare_message_1(NULL, NULL, &initiator, &message_1);
+    if (res != 0) printf("Error prep msg1: %d\n", res);
+
+    puts("All went good.");
     return 0;
 }

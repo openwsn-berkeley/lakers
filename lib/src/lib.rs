@@ -33,7 +33,7 @@ pub struct EdhocInitiator<Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<Crypto: CryptoTrait> {
-    state: WaitM2, // opaque state
+    pub(crate) state: WaitM2, // opaque state
     crypto: Crypto,
 }
 
@@ -306,6 +306,12 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
                 ead_2,
             )),
             Err(error) => Err(error),
+        }
+    }
+
+    pub fn to_c(&self) -> EdhocInitiatorWaitM2C {
+        EdhocInitiatorWaitM2C {
+            state: self.state.clone(),
         }
     }
 }
