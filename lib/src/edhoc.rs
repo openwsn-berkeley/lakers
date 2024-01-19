@@ -112,6 +112,7 @@ pub fn r_prepare_message_2(
     let mac_2 = compute_mac_2(
         crypto,
         &prk_3e2m,
+        c_r,
         &cred_r.get_id_cred(),
         cred_r.value.as_slice(),
         &th_2,
@@ -318,6 +319,7 @@ pub fn i_parse_message_2<'a>(
                 x: state.x,
                 g_y,
                 plaintext_2: plaintext_2,
+                c_r: c_r_2,
                 ead_2: ead_2.clone(), // needed for compute_mac_2
             };
 
@@ -354,6 +356,7 @@ pub fn i_verify_message_2(
     let expected_mac_2 = compute_mac_2(
         crypto,
         &prk_3e2m,
+        state.c_r,
         &valid_cred_r.get_id_cred(),
         valid_cred_r.value.as_slice(),
         &state.th_2,
@@ -746,6 +749,7 @@ fn decrypt_message_3(
 
 // output must hold id_cred.len() + cred.len()
 fn encode_kdf_context(
+    c_r: Option<u8>, // only present for MAC_2
     id_cred: &BytesIdCred,
     th: &BytesHashLen,
     cred: &[u8],
@@ -754,20 +758,30 @@ fn encode_kdf_context(
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded (and also EAD)
     let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    output[..id_cred.len()].copy_from_slice(&id_cred[..]);
-    output[id_cred.len()] = CBOR_BYTE_STRING;
-    output[id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
-    output[id_cred.len() + 2..id_cred.len() + 2 + th.len()].copy_from_slice(&th[..]);
-    output[id_cred.len() + 2 + th.len()..id_cred.len() + 2 + th.len() + cred.len()]
+
+    let mut output_len = if let Some(c_r) = c_r {
+        output[0] = c_r;
+        1 // size of u8
+    } else {
+        0 // no u8 encoded
+    };
+    output[output_len..output_len + id_cred.len()].copy_from_slice(&id_cred[..]);
+    output[output_len + id_cred.len()] = CBOR_BYTE_STRING;
+    output[output_len + id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
+    output[output_len + id_cred.len() + 2..output_len + id_cred.len() + 2 + th.len()]
+        .copy_from_slice(&th[..]);
+    output[output_len + id_cred.len() + 2 + th.len()
+        ..output_len + id_cred.len() + 2 + th.len() + cred.len()]
         .copy_from_slice(cred);
 
-    let output_len = if let Some(ead) = ead {
-        let idx = id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len();
+    output_len = output_len + id_cred.len() + 2 + th.len() + cred.len();
+
+    output_len += if let Some(ead) = ead {
         let encoded_ead = encode_ead_item(ead).unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-        output[idx..idx + encoded_ead.len].copy_from_slice(encoded_ead.as_slice());
-        idx + encoded_ead.len
+        output[output_len..output_len + encoded_ead.len].copy_from_slice(encoded_ead.as_slice());
+        encoded_ead.len
     } else {
-        id_cred.len() + 2 + SHA256_DIGEST_LEN + cred.len()
+        0
     };
 
     (output, output_len)
@@ -782,7 +796,7 @@ fn compute_mac_3(
     ead_3: &Option<EADItem>,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let (context, context_len) = encode_kdf_context(id_cred_i, th_3, cred_i, ead_3);
+    let (context, context_len) = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
 
     // compute mac_3
     let output_buf = edhoc_kdf(
@@ -802,13 +816,14 @@ fn compute_mac_3(
 fn compute_mac_2(
     crypto: &mut impl CryptoTrait,
     prk_3e2m: &BytesHashLen,
+    c_r: u8,
     id_cred_r: &BytesIdCred,
     cred_r: &[u8],
     th_2: &BytesHashLen,
     ead_2: &Option<EADItem>,
 ) -> BytesMac2 {
     // compute MAC_2
-    let (context, context_len) = encode_kdf_context(id_cred_r, th_2, cred_r, ead_2);
+    let (context, context_len) = encode_kdf_context(Some(c_r), id_cred_r, th_2, cred_r, ead_2);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
@@ -1015,16 +1030,16 @@ mod tests {
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     const C_R_TV: u8 = 0x27;
-    const MESSAGE_2_TV: &str = "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a11de42a95d785386a";
-    const CIPHERTEXT_2_TV: &str = "9862a11de42a95d785386a";
+    const MESSAGE_2_TV: &str = "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a1eef9e0e7e1886fcd";
+    const CIPHERTEXT_2_TV: &str = "9862a1eef9e0e7e1886fcd";
     const H_MESSAGE_1_TV: BytesHashLen =
         hex!("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
     const TH_2_TV: BytesHashLen =
         hex!("356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084b");
     const TH_3_TV: BytesHashLen =
-        hex!("dfe5b065e64c72d226d500c12d49bee6dc4881ded0965e9bdf89d24a54f2e59a");
+        hex!("adaf67a78a4bcc91e018f8882762a722000b2507039df0bc1bbf0c161bb3155c");
     const TH_4_TV: BytesHashLen =
-        hex!("baf60adbc500fce789af25b108ada2275575056c52c1c2036a2da4a643891cb4");
+        hex!("c902b1e3a4326c93c5551f5f3aa6c5ecc0246806765612e52b5d99e6059d6b6e");
     const PRK_2E_TV: BytesP256ElemLen =
         hex!("5aa0d69f3e3d1e0c479f0b8a486690c9802630c3466b1dc92371c982563170b5");
     const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len() / 2 - P256_ELEM_LEN - 2;
@@ -1032,36 +1047,36 @@ mod tests {
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN_TV] = hex!("bf50e9e7bad0bb68173399");
     const PRK_3E2M_TV: BytesP256ElemLen =
         hex!("0ca3d3398296b3c03900987620c11f6fce70781c1d1219720f9ec08c122d8434");
-    const CONTEXT_INFO_MAC_2_TV: [u8; 133] = hex!("a10441325820356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084ba2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    const MAC_2_TV: BytesMac2 = hex!("fa5efa2ebf920bf3");
+    const CONTEXT_INFO_MAC_2_TV: [u8; 134] = hex!("27a10441325820356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084ba2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
+    const MAC_2_TV: BytesMac2 = hex!("0943305c899f5c54");
     const ID_CRED_I_TV: BytesIdCred = hex!("a104412b");
-    const MAC_3_TV: BytesMac3 = hex!("a5eeb9effdabfc39");
-    const MESSAGE_3_TV: &str = "52473dd16077dd71d65b56e6bd71e7a49d6012";
+    const MAC_3_TV: BytesMac3 = hex!("623c91df41e34c2f");
+    const MESSAGE_3_TV: &str = "52e562097bc417dd5919485ac7891ffd90a9fc";
     const PRK_4E3M_TV: BytesP256ElemLen =
-        hex!("e9cb832a240095d3d0643dbe12e9e2e7b18f0360a3172cea7ac0013ee240e072");
+        hex!("81cc8a298e357044e3c466bb5c0a1e507e01d49238aeba138df94635407c0ff7");
     const CRED_I_TV : [u8; 107] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a5010202412b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const ID_CRED_R_TV: BytesIdCred = hex!("a1044132");
     const CRED_R_TV : [u8; 95] = hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    const PLAINTEXT_2_TV: &str = "273248fa5efa2ebf920bf3";
+    const PLAINTEXT_2_TV: &str = "2732480943305c899f5c54";
     const SK_I_TV: BytesP256ElemLen =
         hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     const G_R_TV: BytesP256ElemLen =
         hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const PLAINTEXT_3_TV: &str = "2b48a5eeb9effdabfc39";
+    const PLAINTEXT_3_TV: &str = "2b48623c91df41e34c2f";
     const SALT_3E2M_TV: BytesHashLen =
         hex!("af4e103a47cb3cf32570d5c25ad27732bd8d8178e9a69d061c31a27f8e3ca926");
     const SALT_4E3M_TV: BytesHashLen =
-        hex!("84f8a2a9534ddd78dcc7e76e0d4df60bfad7cd3ad6e1d531c7f373a7eda52d1c");
+        hex!("cfddf9515a7e46e7b4dbff31cbd56cd04ba332250de9ea5de1caf9f6d13914a7");
     const G_XY_TV: BytesP256ElemLen =
         hex!("2f0cb7e860ba538fbf5c8bded009f6259b4b628fe1eb7dbe9378e5ecf7a824ba");
     const PRK_OUT_TV: BytesHashLen =
-        hex!("6b2dae4032306571cfbc2e4f94a255fb9f1f3fb29ca6f379fec989d4fa90dcf0");
+        hex!("2c71afc1a9338a940bb3529ca734b886f30d1aba0b4dc51beeaeabdfea9ecbf8");
     const PRK_EXPORTER_TV: BytesHashLen =
-        hex!("4f0a5a823d06d0005e1becda8a6e61f3c8c67a8b15da7d44d3585ec5854e91e2");
-    const OSCORE_MASTER_SECRET_TV: BytesCcmKeyLen = hex!("8c409a332223ad900e44f3434d2d2ce3");
-    const OSCORE_MASTER_SALT_TV: Bytes8 = hex!("6163f44be862adfa");
+        hex!("e14d06699cee248c5a04bf9227bbcd4ce394de7dcb56db43555474171e6446db");
+    const OSCORE_MASTER_SECRET_TV: BytesCcmKeyLen = hex!("f9868f6a3aca78a05d1485b35030b162");
+    const OSCORE_MASTER_SALT_TV: Bytes8 = hex!("ada24c7dbfc85eeb");
 
     // invalid test vectors, should result in a parsing error
     const MESSAGE_1_INVALID_ARRAY_TV: &str =
@@ -1333,6 +1348,7 @@ mod tests {
         let rcvd_mac_2 = compute_mac_2(
             &mut default_crypto(),
             &PRK_3E2M_TV,
+            C_R_TV,
             &ID_CRED_R_TV,
             &CRED_R_TV,
             &TH_2_TV,
