@@ -13,8 +13,9 @@ header = """
 include = [
     "EdhocMessageBuffer",
     "EADItemC",
-    "CredentialRPK",
-    "EdhocInitiatorWaitM2C",
+    "CredentialRPK", "CredentialTransfer",
+    "InitiatorStart", "WaitM2", "Completed",
+    "EdhocInitiatorC", "EdhocInitiatorWaitM2C", "EdhocInitiatorProcessingM2C", "EdhocInitiatorProcessedM2C", "EdhocInitiatorDoneC",
 ]
 
 [parse.expand]

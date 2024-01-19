@@ -19,9 +19,6 @@ pub use crypto::Crypto;
 mod cred;
 pub use cred::*;
 
-mod ffi;
-pub use ffi::*;
-
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
 pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
@@ -153,6 +150,7 @@ pub struct WaitM3 {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
     pub prk_2e: BytesHashLen,
@@ -164,6 +162,7 @@ pub struct ProcessingM2 {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -189,11 +188,13 @@ pub struct PreparingM3 {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,
 }
 
+#[repr(C)]
 pub enum CredentialTransfer {
     ByReference,
     ByValue,

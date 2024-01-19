@@ -22,6 +22,7 @@ int main(void)
     // od_hex_dump(out_private_key, 32, OD_WIDTH_DEFAULT);
     // od_hex_dump(out_public_key, 32, OD_WIDTH_DEFAULT);
 
+    puts("Begin test: edhoc initiator.");
     EdhocMessageBuffer message_1;
     EdhocInitiatorWaitM2C initiator;
     int res = initiator_prepare_message_1(NULL, NULL, &initiator, &message_1);

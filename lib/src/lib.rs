@@ -308,12 +308,6 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
             Err(error) => Err(error),
         }
     }
-
-    pub fn to_c(&self) -> EdhocInitiatorWaitM2C {
-        EdhocInitiatorWaitM2C {
-            state: self.state.clone(),
-        }
-    }
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
