@@ -11,7 +11,7 @@ header = """
 
 [export]
 include = [
-    "EdhocMessageBuffer",
+    "EdhocMessageBuffer", "BytesMac",
     "EADItemC",
     "CredentialRPK", "CredentialTransfer",
     "InitiatorStart", "WaitM2", "Completed",

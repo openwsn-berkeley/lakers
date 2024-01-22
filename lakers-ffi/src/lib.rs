@@ -4,6 +4,7 @@
 use edhoc_rs::{EADItem, EdhocMessageBuffer};
 use lakers_crypto::{default_crypto, CryptoTrait};
 
+pub mod ead_authz;
 pub mod initiator;
 
 // Panic handler for cortex-m targets
