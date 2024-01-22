@@ -1,14 +1,27 @@
 use crate::*;
+use core::slice;
 use edhoc_rs::*;
 use lakers_crypto::default_crypto;
 
 #[no_mangle]
 pub unsafe extern "C" fn authz_device_new(
-    id_u: EdhocMessageBuffer,
-    g_w: *const BytesP256ElemLen,
-    loc_w: EdhocMessageBuffer,
+    id_u: *const u8,
+    id_u_len: usize,
+    g_w_u8: *const u8,
+    g_w_u8_len: usize,
+    loc_w: *const u8,
+    loc_w_len: usize,
 ) -> ZeroTouchDevice {
-    ZeroTouchDevice::new(id_u, *g_w, loc_w)
+    let mut g_w = BytesP256ElemLen::default();
+    g_w.copy_from_slice(slice::from_raw_parts(g_w_u8, g_w_u8_len));
+
+    ZeroTouchDevice::new(
+        EdhocMessageBuffer::new_from_slice(unsafe { slice::from_raw_parts(id_u, id_u_len) })
+            .expect("Wrong length"),
+        g_w,
+        EdhocMessageBuffer::new_from_slice(unsafe { slice::from_raw_parts(loc_w, loc_w_len) })
+            .expect("Wrong length"),
+    )
 }
 
 #[no_mangle]

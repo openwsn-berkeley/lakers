@@ -27,6 +27,6 @@ RIOTBASE ?= $(CURDIR)/../../../RIOT
 DEVELHELP ?= 1
 
 # flags for development only
-CFLAGS += -Wno-error=unused-variable -Wno-error=unused-function -Wno-error=unused-parameter -Wno-error=pedantic
+CFLAGS += -Wno-error=unused-variable -Wno-error=unused-const-variable -Wno-error=unused-function -Wno-error=unused-parameter -Wno-error=pedantic
 
 include $(RIOTBASE)/Makefile.include
