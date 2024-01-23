@@ -7,18 +7,14 @@ use lakers_crypto::default_crypto;
 pub unsafe extern "C" fn authz_device_new(
     id_u: *const u8,
     id_u_len: usize,
-    g_w_u8: *const u8,
-    g_w_u8_len: usize,
+    g_w: *const BytesP256ElemLen,
     loc_w: *const u8,
     loc_w_len: usize,
 ) -> ZeroTouchDevice {
-    let mut g_w = BytesP256ElemLen::default();
-    g_w.copy_from_slice(slice::from_raw_parts(g_w_u8, g_w_u8_len));
-
     ZeroTouchDevice::new(
         EdhocMessageBuffer::new_from_slice(unsafe { slice::from_raw_parts(id_u, id_u_len) })
             .expect("Wrong length"),
-        g_w,
+        *g_w,
         EdhocMessageBuffer::new_from_slice(unsafe { slice::from_raw_parts(loc_w, loc_w_len) })
             .expect("Wrong length"),
     )
@@ -27,14 +23,14 @@ pub unsafe extern "C" fn authz_device_new(
 #[no_mangle]
 pub unsafe extern "C" fn authz_device_prepare_ead_1(
     // input parans
-    device_c: ZeroTouchDevice,
+    device_c: *const ZeroTouchDevice,
     secret: *const BytesP256ElemLen,
     ss: u8,
     // output parans
     device_c_out: *mut ZeroTouchDeviceWaitEAD2,
     ead_1_c_out: *mut EADItemC,
 ) -> i8 {
-    let (device, ead_1) = device_c.prepare_ead_1(&mut default_crypto(), *secret, ss);
+    let (device, ead_1) = (*device_c).prepare_ead_1(&mut default_crypto(), *secret, ss);
     *device_c_out = device;
     EADItemC::from_rust_to_c(ead_1, ead_1_c_out);
 

@@ -41,6 +41,7 @@ pub struct EdhocInitiatorDoneC {
     state: Completed,
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn initiator_new() -> EdhocInitiatorC {
     // we only support a single cipher suite which is already CBOR-encoded
     let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
@@ -60,6 +61,7 @@ pub unsafe extern "C" fn initiator_new() -> EdhocInitiatorC {
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_prepare_message_1(
+    initiator_c: *mut EdhocInitiatorC,
     // input params
     c_i: *mut u8,
     ead_1_c: *mut EADItemC,
@@ -67,6 +69,8 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     initiator_c_out: *mut EdhocInitiatorWaitM2C,
     message_1: *mut EdhocMessageBuffer,
 ) -> i8 {
+    let state = core::ptr::read(&(*initiator_c).state);
+
     let c_i = if c_i.is_null() {
         generate_connection_identifier_cbor(&mut default_crypto())
     } else {
@@ -80,9 +84,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
         Some(ead_1)
     };
 
-    let initiator_c = initiator_new();
-
-    let result = match i_prepare_message_1(initiator_c.state, &mut default_crypto(), c_i, &ead_1) {
+    let result = match i_prepare_message_1(state, &mut default_crypto(), c_i, &ead_1) {
         Ok((state, msg_1)) => {
             *message_1 = msg_1;
             *initiator_c_out = EdhocInitiatorWaitM2C { state };
@@ -197,4 +199,18 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
         }
         Err(err) => err as i8,
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn initiator_compute_ephemeral_secret(
+    initiator_c: *const EdhocInitiatorC,
+    g_a: *const BytesP256ElemLen,
+    secret_c_out: *mut BytesP256ElemLen,
+) -> i8 {
+    let state = core::ptr::read(&(*initiator_c).state);
+
+    let secret = default_crypto().p256_ecdh(&state.x, &(*g_a));
+    core::ptr::copy_nonoverlapping(secret.as_ptr(), secret_c_out as *mut u8, secret.len());
+
+    0
 }
