@@ -1,7 +1,8 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
-#include "od.h"
-#include "ztimer.h"
+#include "lakers_shared.h"
+#include "lakers_ead_authz.h"
 #include "lakers_ffi.h"
 
 static const uint8_t ID_U[] = {0xa1, 0x04, 0x41, 0x2b};
@@ -19,15 +20,22 @@ static const uint8_t SS = 2;
 // static const uint8_t R[] = {0x72, 0xcc, 0x47, 0x61, 0xdb, 0xd4, 0xc7, 0x8f, 0x75, 0x89, 0x31, 0xaa, 0x58, 0x9d, 0x34, 0x8d, 0x1e, 0xf8, 0x74, 0xa7, 0xe3, 0x03, 0xed, 0xe2, 0xf1, 0x40, 0xdc, 0xf3, 0xe6, 0xaa, 0x4a, 0xac};
 // static const uint8_t I[] = {0xfb, 0x13, 0xad, 0xeb, 0x65, 0x18, 0xce, 0xe5, 0xf8, 0x84, 0x17, 0x66, 0x08, 0x41, 0x14, 0x2e, 0x83, 0x0a, 0x81, 0xfe, 0x33, 0x43, 0x80, 0xa9, 0x53, 0x40, 0x6a, 0x13, 0x05, 0xe8, 0x70, 0x6b};
 
+void print_hex(uint8_t *arr, size_t len) {
+    for (int i = 0; i < len; i++)
+        printf("%02X", arr[i]);
+    printf("\n");
+}
+
 int main(void)
  {
-    ztimer_sleep(ZTIMER_MSEC, 500); // wait for serial connection to become ready
-    puts("Calling lakers from C!");
+    printf("Calling lakers from C!\n");
 
     puts("Begin test: generate key pair.");
     uint8_t out_private_key[32] = {0};
     uint8_t out_public_key[32] = {0};
     p256_generate_key_pair_from_c(out_private_key, out_public_key);
+    print_hex(out_private_key, 32);
+    print_hex(out_public_key, 32);
     puts("End test: generate key pair.");
 
     puts("creating edhoc initiator.");
@@ -39,21 +47,20 @@ int main(void)
     puts("computing authz_secret.");
     BytesP256ElemLen authz_secret;
     initiator_compute_ephemeral_secret(&initiator, &G_W, &authz_secret);
-    // od_hex_dump(authz_secret, 32, OD_WIDTH_DEFAULT);
 
     puts("computing ead_1.");
     ZeroTouchDeviceWaitEAD2 device_wait;
     EADItemC ead_1;
     authz_device_prepare_ead_1(&device, &authz_secret, SS, &device_wait, &ead_1);
-    od_hex_dump(ead_1.value->content, ead_1.value->len, OD_WIDTH_DEFAULT);
+    print_hex(ead_1.value->content, ead_1.value->len);
 
     puts("Begin test: edhoc initiator.");
     EdhocMessageBuffer message_1;
     EdhocInitiatorWaitM2C initiator_wait_m2;
     // int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1); // if no EAD is used
     int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
-    od_hex_dump(message_1.content, message_1.len, OD_WIDTH_DEFAULT);
     if (res != 0) printf("Error prep msg1: %d\n", res);
+    print_hex(message_1.content, message_1.len);
 
     puts("All went good.");
     return 0;

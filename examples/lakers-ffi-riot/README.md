@@ -1,6 +1,7 @@
 # Using the C Wrapper with RIOT
 
 This example enables using `lakers` alongside the [RIOT operating system](https://github.com/RIOT-OS/RIOT).
+It uses ARM's Crypto Cell as crypto backend.
 See [Requirements](#requirements) below.
 
 # Build and run
@@ -8,21 +9,13 @@ See [Requirements](#requirements) below.
 First, go to the top level directory and generate the headers and static library:
 
 ```bash
-# TODO
+./build_for_c.sh crypto-cryptocell310
 ```
 
 Then, compile and flash to the board (default is nRF52840), as shown below.
 
-With `crypto-cryptocell310`:
-
 ```bash
 make flash term
-```
-
-With `crypto-psa-baremetal`:
-
-```bash
-make flash term EDHOC_CRYPTO=CRYPTO_PSA
 ```
 
 # Requirements

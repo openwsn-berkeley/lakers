@@ -12,15 +12,19 @@ readme.workspace = true
 edhoc-rs = { package = "lakers", path = "../lib", default-features = false }
 lakers-crypto = { path = "../crypto", default-features = false }
 hexlit = "0.5.3"
-panic-semihosting = { version = "0.6.0", features = ["exit"], optional = true }
+
+panic-semihosting = { version = "0.6.0", features = ["exit"] }
+embedded-alloc = "0.5.1"
+critical-section = { version = "1.1", features = ["std"], optional = true }
 
 [build-dependencies]
 cbindgen = "0.24.5"
 
 [features]
 default = [ "crypto-cryptocell310", "ead-none" ]
-crypto-psa = [ "lakers-crypto/psa-baremetal", "panic-semihosting" ]
-crypto-cryptocell310 = [ "lakers-crypto/cryptocell310", "panic-semihosting" ]
+crypto-psa = [ "lakers-crypto/psa", "critical-section" ]
+crypto-psa-baremetal = [ "lakers-crypto/psa-baremetal" ]
+crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
 ead-none = [ "edhoc-rs/ead-none" ]
 ead-authz = [ "edhoc-rs/ead-authz" ]
 

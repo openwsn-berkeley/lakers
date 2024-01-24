@@ -7,9 +7,11 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 pub mod ead_authz;
 pub mod initiator;
 
-// Panic handler for cortex-m targets
-#[cfg(any(feature = "crypto-cryptocell310", feature = "crypto-psa-baremetal"))]
+// crate type staticlib requires a panic handler and an allocator
+use embedded_alloc::Heap;
 use panic_semihosting as _;
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
 
 // This function is useful to test the FFI
 #[no_mangle]

@@ -4,24 +4,28 @@ set -e
 
 # This script builds the static library for a cortex-m4 target
 # It also generates the header files for the c wrapper
-# The script takes one argument: the cargo feature to use
+# It takes one argument: the selected crypto backend
 
-# This script should not be necessary, it exists due to several flags clashing and preventing CI from passing.
-# The main reason being that the build behaves differently then crate-type is set to staticlib,
-# for example, running tests required a panic handler and an "eh_personality" function, but then
-# this would clash when building the static library or the no_std example.
+feature_crypto=$1
+if [[ $feature_crypto != "crypto-cryptocell310" && $feature_crypto != "crypto-psa-baremetal" && $feature_crypto != "crypto-psa" ]]; then
+    echo "crypto should be one of: crypto-cryptocell310, crypto-psa-baremetal, crypto-psa"
+    echo "Example: ./build_static_lib.sh crypto-cryptocell310"
+    exit 1
+fi
 
-# cargo_features=$1
+if [[ $feature_crypto == "crypto-cryptocell310" || $feature_crypto == "crypto-psa-baremetal" ]]; then
+    rust_target=thumbv7em-none-eabihf
+else
+    rust_target=`rustc -vV | sed -n 's|host: ||p'`
+fi
 
-# if [[ $cargo_features != "crypto-cryptocell310" && $cargo_features != "crypto-psa-baremetal" ]]; then
-#     echo "Select one of: crypto-cryptocell310, crypto-psa-baremetal"
-#     echo "Example: ./build_static_lib.sh crypto-cryptocell310"
-#     exit 1
-# fi
+# hardcoded for now
+feature_ead=ead-authz
 
 # generate the static library
-# cargo build --target thumbv7em-none-eabihf --package edhoc-rs --package lakers-crypto --package lakers-ead  --features="$cargo_features" --release
-cargo build --target=thumbv7em-none-eabihf -p lakers-ffi --no-default-features --features="crypto-cryptocell310, ead-authz" --release
+cargo build --target="$rust_target" -p lakers-ffi --no-default-features  --features="$feature_crypto, $feature_ead" #--release
+# cargo build --target=thumbv7em-none-eabihf -p lakers-ffi --no-default-features --features="crypto-cryptocell310, ead-authz" --release
+# cargo build --target=thumbv7em-none-eabihf -p lakers-ffi --no-default-features --features="crypto-psa-baremetal, ead-authz" --release
 
 # generate the headers
 cbindgen --config shared/cbindgen.toml --crate lakers-shared --output target/include/lakers_shared.h -v
