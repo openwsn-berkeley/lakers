@@ -14,7 +14,7 @@ all: $(TARGET)
 
 # rule for building the target executable
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -g -O0 -o $@ $^ -L$(LIB_DIR) -l$(LIB_NAME)
+	$(CC) $(CFLAGS) -g -O0 -o $@ $^ -L$(LIB_DIR) -l$(LIB_NAME) -lcoap-3
 
 # rule for building object files
 %.o: %.c

@@ -49,6 +49,9 @@ fn main() {
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));
+                } else {
+                    println!("msg1 err");
+                    response.set_status(ResponseType::BadRequest);
                 }
             } else {
                 // potentially message 3

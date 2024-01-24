@@ -4,6 +4,8 @@
 #include "lakers_shared.h"
 #include "lakers_ead_authz.h"
 #include "lakers_ffi.h"
+#include <coap3/coap.h>
+#include <arpa/inet.h>
 
 static const uint8_t ID_U[] = {0xa1, 0x04, 0x41, 0x2b};
 static const uint8_t ID_U_LEN = sizeof(ID_U) / sizeof(ID_U[0]);
@@ -20,15 +22,59 @@ static const uint8_t SS = 2;
 // static const uint8_t R[] = {0x72, 0xcc, 0x47, 0x61, 0xdb, 0xd4, 0xc7, 0x8f, 0x75, 0x89, 0x31, 0xaa, 0x58, 0x9d, 0x34, 0x8d, 0x1e, 0xf8, 0x74, 0xa7, 0xe3, 0x03, 0xed, 0xe2, 0xf1, 0x40, 0xdc, 0xf3, 0xe6, 0xaa, 0x4a, 0xac};
 // static const uint8_t I[] = {0xfb, 0x13, 0xad, 0xeb, 0x65, 0x18, 0xce, 0xe5, 0xf8, 0x84, 0x17, 0x66, 0x08, 0x41, 0x14, 0x2e, 0x83, 0x0a, 0x81, 0xfe, 0x33, 0x43, 0x80, 0xa9, 0x53, 0x40, 0x6a, 0x13, 0x05, 0xe8, 0x70, 0x6b};
 
-void print_hex(uint8_t *arr, size_t len) {
+static int have_response = 0;
+static uint8_t coap_payload[MAX_MESSAGE_SIZE_LEN];
+static uint8_t coap_payload_len;
+
+void print_hex(uint8_t *arr, size_t len)
+{
+    printf("%ld bytes: ", len);
     for (int i = 0; i < len; i++)
         printf("%02X", arr[i]);
     printf("\n");
 }
 
+static coap_response_t message_handler(coap_session_t *session COAP_UNUSED,
+                                       const coap_pdu_t *sent,
+                                       const coap_pdu_t *received,
+                                       const coap_mid_t id COAP_UNUSED)
+{
+    have_response = 1;
+    // coap_show_pdu(COAP_LOG_WARN, received);
+    const uint8_t *data;
+    coap_get_data(received, &coap_payload_len, &data);
+    memcpy(coap_payload, data, coap_payload_len);
+    print_hex((uint8_t *)coap_payload, coap_payload_len);
+    return COAP_RESPONSE_OK;
+}
+
 int main(void)
- {
+{
     printf("Calling lakers from C!\n");
+
+    // coap init
+    coap_context_t *ctx = NULL;
+    coap_session_t *session = NULL;
+    coap_address_t dst;
+    coap_pdu_t *pdu = NULL;
+    coap_startup();
+    coap_set_log_level(COAP_LOG_WARN);
+    coap_address_init(&dst);
+    dst.addr.sin.sin_family = AF_INET;
+    dst.addr.sin.sin_port = htons(5683);
+    inet_pton(AF_INET, "127.0.0.1", &(dst.addr.sin.sin_addr));
+    if (!(ctx = coap_new_context(NULL)))
+    {
+        coap_log_emerg("cannot create libcoap context\n");
+        goto finish;
+    }
+    if (!(session = coap_new_client_session(ctx, NULL, &dst,
+                                            COAP_PROTO_UDP)))
+    {
+        coap_log_emerg("cannot create client session\n");
+        goto finish;
+    }
+    coap_register_response_handler(ctx, message_handler);
 
     puts("Begin test: generate key pair.");
     uint8_t out_private_key[32] = {0};
@@ -57,11 +103,37 @@ int main(void)
     puts("Begin test: edhoc initiator.");
     EdhocMessageBuffer message_1;
     EdhocInitiatorWaitM2C initiator_wait_m2;
-    // int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1); // if no EAD is used
-    int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
-    if (res != 0) printf("Error prep msg1: %d\n", res);
+    int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1); // if no EAD is used
+    // int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
+    if (res != 0)
+        printf("Error prep msg1: %d\n", res);
     print_hex(message_1.content, message_1.len);
 
+    // coap_send(message_1);
+    pdu = coap_pdu_init(COAP_MESSAGE_CON,
+                        COAP_REQUEST_CODE_GET,
+                        coap_new_message_id(session),
+                        coap_session_max_pdu_size(session));
+    coap_add_option(pdu, COAP_OPTION_URI_PATH, 17, (const uint8_t *)".well-known/edhoc");
+    uint8_t payload[MAX_MESSAGE_SIZE_LEN];
+    payload[0] = 0xf5;
+    memcpy(payload+1, message_1.content, message_1.len);
+    coap_add_data(pdu, message_1.len+1, payload);
+    // coap_show_pdu(COAP_LOG_WARN, pdu);
+    if (coap_send(session, pdu) == COAP_INVALID_MID)
+    {
+        coap_log_err("cannot send CoAP pdu\n");
+        goto finish;
+    }
+    while (have_response == 0)
+        coap_io_process(ctx, COAP_IO_WAIT);
+
     puts("All went good.");
+
+finish:
+    coap_session_release(session);
+    coap_free_context(ctx);
+    coap_cleanup();
+
     return 0;
 }
