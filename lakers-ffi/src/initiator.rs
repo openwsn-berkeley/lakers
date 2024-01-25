@@ -25,7 +25,8 @@ pub struct EdhocInitiatorWaitM2C {
 #[derive(Debug)]
 #[repr(C)]
 pub struct EdhocInitiatorProcessingM2C {
-    pub state: *mut c_void, // ProcessingM2
+    pub state: ProcessingM2C,
+    // pub state: *mut c_void, // ProcessingM2
 }
 
 #[derive(Debug)]
@@ -101,6 +102,8 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiatorWaitM2C,
     message_2: *const EdhocMessageBuffer,
+    expected_cred_r: *const u8,
+    expected_cred_r_len: usize,
     // output params
     initiator_c_out: *mut EdhocInitiatorProcessingM2C,
     c_r_out: *mut u8,
@@ -110,21 +113,29 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // manually take `state` because Rust cannot move out of a dereferenced raw pointer directly
     // raw pointers do not have ownership information, requiring manual handling of the data
     let state = core::ptr::read(&(*initiator_c).state);
+    let expected_cred_r = slice::from_raw_parts(expected_cred_r, expected_cred_r_len);
 
     let result = match i_parse_message_2(state, &mut default_crypto(), &(*message_2)) {
-        Ok((mut state, c_r, id_cred_r, ead_2)) => {
-            *initiator_c_out = EdhocInitiatorProcessingM2C {
-                state: &mut state as *mut _ as *mut c_void,
-            };
+        Ok((state, c_r, id_cred_r, ead_2)) => {
+            ProcessingM2C::copy_into_c(state, &mut (*initiator_c_out).state);
             *c_r_out = c_r;
 
             // NOTE: this is just to avoid having IdCredOwnedC being passed across the ffi boundary
-            let valid_cred_r = credential_check_or_fetch(None, id_cred_r).unwrap();
+            let expected_cred_r =
+                CredentialRPK::new(EdhocMessageBuffer::new_from_slice(expected_cred_r).unwrap())
+                    .unwrap();
+            let Ok(valid_cred_r) = credential_check_or_fetch(Some(expected_cred_r), id_cred_r)
+            else {
+                return -1;
+            };
             *valid_cred_r_out = valid_cred_r;
 
             if let Some(ead_2) = ead_2 {
-                EADItemC::from_rust_to_c(ead_2, ead_2_c_out);
+                EADItemC::copy_into_c(ead_2, ead_2_c_out);
+            } else {
+                *ead_2_c_out = core::ptr::null_mut();
             }
+
             0
         }
         Err(err) => err as i8,
@@ -144,7 +155,7 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     // output params
     initiator_c_out: *mut EdhocInitiatorProcessedM2C,
 ) -> i8 {
-    let state = core::ptr::read((*initiator_c).state as *mut ProcessingM2);
+    let state = core::ptr::read(&(*initiator_c).state).to_rust();
     let i = slice::from_raw_parts(i, i_len);
 
     match i_verify_message_2(

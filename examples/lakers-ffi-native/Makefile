@@ -14,11 +14,11 @@ all: $(TARGET)
 
 # rule for building the target executable
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -g -O0 -o $@ $^ -L$(LIB_DIR) -l$(LIB_NAME) -lcoap-3
+	$(CC) $(CFLAGS) -ggdb -O0 -o $@ $^ -L$(LIB_DIR) -l$(LIB_NAME) -lcoap-3
 
 # rule for building object files
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -ggdb -c $<
 
 clean:
 	rm -f $(OBJ) $(TARGET)

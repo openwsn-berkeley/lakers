@@ -12,7 +12,7 @@ include_guard = "LAKERS_SHARED_H"
 
 [export]
 include = [
-    "EdhocMessageBuffer", "BytesMac",
+    "EdhocMessageBuffer", "BytesMac", "BytesMac2",
     "EADItemC",
     "CredentialRPK", "CredentialTransfer",
     "InitiatorStart", "WaitM2", "Completed",

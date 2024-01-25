@@ -32,7 +32,7 @@ pub unsafe extern "C" fn authz_device_prepare_ead_1(
 ) -> i8 {
     let (device, ead_1) = (*device_c).prepare_ead_1(&mut default_crypto(), *secret, ss);
     *device_c_out = device;
-    EADItemC::from_rust_to_c(ead_1, ead_1_c_out);
+    EADItemC::copy_into_c(ead_1, ead_1_c_out);
 
     0
 }

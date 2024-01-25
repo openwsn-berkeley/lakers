@@ -149,7 +149,7 @@ pub struct WaitM3 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
