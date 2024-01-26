@@ -155,6 +155,7 @@ pub struct ProcessingM2 {
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
+    pub c_r: u8,
     pub ead_2: Option<EADItem>,
 }
 
