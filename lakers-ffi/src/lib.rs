@@ -111,3 +111,19 @@ impl ProcessingM2C {
         }
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn credential_rpk_new(
+    value: *const u8,
+    value_len: usize,
+    cred: *mut CredentialRPK,
+) -> i8 {
+    let value = core::slice::from_raw_parts(value, value_len);
+    match CredentialRPK::new(EdhocMessageBuffer::new_from_slice(value).unwrap()) {
+        Ok(cred_rpk) => {
+            *cred = cred_rpk;
+            0
+        }
+        Err(_) => -1,
+    }
+}

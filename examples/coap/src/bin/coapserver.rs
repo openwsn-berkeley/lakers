@@ -32,6 +32,7 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+                println!("cred: {:?}", cred_r);
                 let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
                 let result = responder.process_message_1(
@@ -65,7 +66,7 @@ fn main() {
                     EdhocMessageBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
                 let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
                 else {
-                    println!("EDHOC processing error: {:?}", message_3);
+                    println!("EDHOC error at parse_message_3: {:?}", message_3);
                     // We don't get another chance, it's popped and can't be used any further
                     // anyway legally
                     continue;
@@ -73,7 +74,7 @@ fn main() {
                 let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
                 let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
-                    println!("EDHOC processing error: {:?}", valid_cred_i);
+                    println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };
 

@@ -10,6 +10,10 @@ OBJ=$(SRC:.c=.o)
 LIB_DIR=../../target/x86_64-unknown-linux-gnu/debug/
 LIB_NAME=lakers_ffi
 
+ifeq ($(LAKERS_EAD), authz)
+	CFLAGS += -DLAKERS_EAD_AUTHZ
+endif
+
 all: $(TARGET)
 
 # rule for building the target executable
