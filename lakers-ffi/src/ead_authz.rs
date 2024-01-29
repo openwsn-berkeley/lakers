@@ -1,6 +1,5 @@
 use crate::*;
 use core::slice;
-use edhoc_rs::*;
 use lakers_crypto::default_crypto;
 
 #[no_mangle]

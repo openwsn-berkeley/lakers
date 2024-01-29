@@ -96,10 +96,7 @@ impl ProcessingM2C {
         }
     }
 
-    pub unsafe fn copy_into_c(
-        mut processing_m2: ProcessingM2,
-        processing_m2_c: *mut ProcessingM2C,
-    ) {
+    pub unsafe fn copy_into_c(processing_m2: ProcessingM2, processing_m2_c: *mut ProcessingM2C) {
         (*processing_m2_c).mac_2 = processing_m2.mac_2;
         (*processing_m2_c).prk_2e = processing_m2.prk_2e;
         (*processing_m2_c).th_2 = processing_m2.th_2;

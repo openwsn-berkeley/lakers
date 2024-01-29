@@ -22,6 +22,8 @@ static const uint8_t CRED_R[] = {0xA2, 0x02, 0x60, 0x08, 0xA1, 0x01, 0xA5, 0x01,
 static const BytesP256ElemLen R = {0x72, 0xcc, 0x47, 0x61, 0xdb, 0xd4, 0xc7, 0x8f, 0x75, 0x89, 0x31, 0xaa, 0x58, 0x9d, 0x34, 0x8d, 0x1e, 0xf8, 0x74, 0xa7, 0xe3, 0x03, 0xed, 0xe2, 0xf1, 0x40, 0xdc, 0xf3, 0xe6, 0xaa, 0x4a, 0xac};
 static const BytesP256ElemLen I = {0xfb, 0x13, 0xad, 0xeb, 0x65, 0x18, 0xce, 0xe5, 0xf8, 0x84, 0x17, 0x66, 0x08, 0x41, 0x14, 0x2e, 0x83, 0x0a, 0x81, 0xfe, 0x33, 0x43, 0x80, 0xa9, 0x53, 0x40, 0x6a, 0x13, 0x05, 0xe8, 0x70, 0x6b};
 
+static coap_context_t *ctx = NULL;
+static coap_session_t *session = NULL;
 static int has_coap_response = 0;
 static uint8_t coap_payload[MAX_MESSAGE_SIZE_LEN];
 static uint8_t coap_payload_len;
@@ -48,19 +50,41 @@ static coap_response_t message_handler(coap_session_t *session COAP_UNUSED,
     return COAP_RESPONSE_OK;
 }
 
+int coap_send_edhoc_message(uint8_t *edhoc_msg, size_t edhoc_msg_len, uint8_t value_to_prepend)
+{
+
+    coap_pdu_t *pdu = coap_pdu_init(COAP_MESSAGE_CON,
+                                    COAP_REQUEST_CODE_GET,
+                                    coap_new_message_id(session),
+                                    coap_session_max_pdu_size(session));
+    coap_add_option(pdu, COAP_OPTION_URI_PATH, 17, (const uint8_t *)".well-known/edhoc");
+    uint8_t payload[MAX_MESSAGE_SIZE_LEN];
+    payload[0] = value_to_prepend;
+    memcpy(payload + 1, edhoc_msg, edhoc_msg_len);
+    coap_add_data(pdu, edhoc_msg_len + 1, payload);
+    // coap_show_pdu(COAP_LOG_WARN, pdu);
+    if (coap_send(session, pdu) == COAP_INVALID_MID)
+    {
+        coap_log_err("cannot send CoAP pdu\n");
+        return -1;
+    }
+    while (has_coap_response == 0)
+        coap_io_process(ctx, COAP_IO_WAIT);
+    has_coap_response = 0;
+
+    return 0;
+}
+
 int main(void)
 {
     printf("Calling lakers from C!\n");
 
     CredentialRPK cred_i = {0}, cred_r = {0};
-    credential_rpk_new(CRED_I, 84, &cred_i);
+    credential_rpk_new(CRED_I, 107, &cred_i);
     credential_rpk_new(CRED_R, 84, &cred_r);
 
     // coap init
-    coap_context_t *ctx = NULL;
-    coap_session_t *session = NULL;
     coap_address_t dst;
-    coap_pdu_t *pdu = NULL;
     coap_startup();
     coap_set_log_level(COAP_LOG_WARN);
     coap_address_init(&dst);
@@ -118,25 +142,8 @@ int main(void)
         printf("Error prep msg1: %d\n", res);
     print_hex(message_1.content, message_1.len);
 
-    // coap_send(message_1);
-    pdu = coap_pdu_init(COAP_MESSAGE_CON,
-                        COAP_REQUEST_CODE_GET,
-                        coap_new_message_id(session),
-                        coap_session_max_pdu_size(session));
-    coap_add_option(pdu, COAP_OPTION_URI_PATH, 17, (const uint8_t *)".well-known/edhoc");
-    uint8_t payload[MAX_MESSAGE_SIZE_LEN];
-    payload[0] = 0xf5;
-    memcpy(payload + 1, message_1.content, message_1.len);
-    coap_add_data(pdu, message_1.len + 1, payload);
-    // coap_show_pdu(COAP_LOG_WARN, pdu);
-    if (coap_send(session, pdu) == COAP_INVALID_MID)
-    {
-        coap_log_err("cannot send CoAP pdu\n");
-        goto finish;
-    }
-    while (has_coap_response == 0)
-        coap_io_process(ctx, COAP_IO_WAIT);
-    has_coap_response = 0;
+    puts("sending msg1");
+    coap_send_edhoc_message(message_1.content, message_1.len, 0xf5);
 
     puts("processing msg2");
     EdhocMessageBuffer message_2 = {.len = coap_payload_len};
@@ -154,33 +161,17 @@ int main(void)
     if (res != 0)
         printf("Error verify msg2: %d\n", res);
 
-    puts("processing msg3");
+    puts("preparing msg3");
     EdhocInitiatorDoneC initiator_done;
     EdhocMessageBuffer message_3;
     uint8_t prk_out[SHA256_DIGEST_LEN];
     res = initiator_prepare_message_3(&initiator_processed_m2, ByReference, NULL, &initiator_done, &message_3, prk_out);
     if (res != 0)
-        printf("Error verify msg2: %d\n", res);
+        printf("Error prep msg3: %d\n", res);
+    print_hex(message_3.content, message_3.len);
 
-    // coap_send(message_2);
-    pdu = coap_pdu_init(COAP_MESSAGE_CON,
-                        COAP_REQUEST_CODE_GET,
-                        coap_new_message_id(session),
-                        coap_session_max_pdu_size(session));
-    coap_add_option(pdu, COAP_OPTION_URI_PATH, 17, (const uint8_t *)".well-known/edhoc");
-    // uint8_t payload[MAX_MESSAGE_SIZE_LEN];
-    payload[0] = c_r;
-    memcpy(payload + 1, message_3.content, message_3.len);
-    coap_add_data(pdu, message_3.len + 1, payload);
-    // coap_show_pdu(COAP_LOG_WARN, pdu);
-    if (coap_send(session, pdu) == COAP_INVALID_MID)
-    {
-        coap_log_err("cannot send CoAP pdu\n");
-        goto finish;
-    }
-    while (has_coap_response == 0)
-        coap_io_process(ctx, COAP_IO_WAIT);
-    has_coap_response = 0;
+    puts("sending msg3");
+    coap_send_edhoc_message(message_3.content, message_3.len, c_r);
 
     puts("All went good.");
 

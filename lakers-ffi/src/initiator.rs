@@ -1,4 +1,3 @@
-use core::ffi::c_void;
 use core::slice;
 
 use edhoc_rs::*;
@@ -26,13 +25,12 @@ pub struct EdhocInitiatorWaitM2C {
 #[repr(C)]
 pub struct EdhocInitiatorProcessingM2C {
     pub state: ProcessingM2C,
-    // pub state: *mut c_void, // ProcessingM2
 }
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct EdhocInitiatorProcessedM2C {
-    state: *mut c_void, // ProcessedM2
+    state: ProcessedM2,
     cred_i: CredentialRPK,
 }
 
@@ -166,11 +164,8 @@ pub unsafe extern "C" fn initiator_verify_message_2(
         &(*i),
         // i.try_into().expect("Wrong length of initiator private key"),
     ) {
-        Ok(mut state) => {
-            *initiator_c_out = EdhocInitiatorProcessedM2C {
-                state: &mut state as *mut _ as *mut c_void,
-                cred_i,
-            };
+        Ok(state) => {
+            *initiator_c_out = EdhocInitiatorProcessedM2C { state, cred_i };
             0
         }
         Err(err) => err as i8,
@@ -188,7 +183,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     message_3: *mut EdhocMessageBuffer,
     prk_out_c: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
-    let mut state = core::ptr::read((*initiator_c).state as *mut ProcessedM2);
+    let mut state = core::ptr::read(&(*initiator_c).state);
 
     let ead_3 = if ead_3_c.is_null() {
         None
