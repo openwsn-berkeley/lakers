@@ -131,6 +131,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
             if let Some(ead_2) = ead_2 {
                 EADItemC::copy_into_c(ead_2, ead_2_c_out);
             }
+            // TODO:
             //  else {
             //     *ead_2_c_out = core::ptr::null_mut();
             // }
@@ -155,15 +156,8 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     initiator_c_out: *mut EdhocInitiatorProcessedM2C,
 ) -> i8 {
     let state = core::ptr::read(&(*initiator_c).state).to_rust();
-    // let i = slice::from_raw_parts(i, i_len);
 
-    match i_verify_message_2(
-        state,
-        &mut default_crypto(),
-        valid_cred_r,
-        &(*i),
-        // i.try_into().expect("Wrong length of initiator private key"),
-    ) {
+    match i_verify_message_2(state, &mut default_crypto(), valid_cred_r, &(*i)) {
         Ok(state) => {
             *initiator_c_out = EdhocInitiatorProcessedM2C { state, cred_i };
             0

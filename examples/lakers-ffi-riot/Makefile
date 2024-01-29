@@ -1,9 +1,10 @@
 # name of your application
-APPLICATION = lakers-ffi-riot
+APPLICATION = lakers-c-riot
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= nrf52840dk
 
+# adjust these according to your needs
 INCLUDES += -I$(CURDIR)/../../target/include
 ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/liblakers_ffi.a
 

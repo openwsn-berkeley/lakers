@@ -1,14 +1,14 @@
 CC=gcc
 CFLAGS=-Wall -I../../target/include
 
-TARGET=lakers_ffi_native
+TARGET=lakers_c_native
 
 SRC=main.c
 
 OBJ=$(SRC:.c=.o)
 
 LIB_DIR=../../target/x86_64-unknown-linux-gnu/debug/
-LIB_NAME=lakers_ffi
+LIB_NAME=lakers_c
 
 ifeq ($(LAKERS_EAD), authz)
 	CFLAGS += -DLAKERS_EAD_AUTHZ

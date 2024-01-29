@@ -4,6 +4,8 @@ This example enables using `lakers` alongside the [RIOT operating system](https:
 It uses ARM's Crypto Cell as crypto backend.
 See [Requirements](#requirements) below.
 
+Note: it only demonstrates key generation and preparation of message 1.
+
 # Build and run
 
 First, go to the top level directory and generate the headers and static library:

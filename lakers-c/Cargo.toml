@@ -1,5 +1,5 @@
 [package]
-name = "lakers-ffi"
+name = "lakers-c"
 edition = "2021"
 version.workspace = true
 repository.workspace = true

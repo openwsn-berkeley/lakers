@@ -46,6 +46,7 @@ static coap_response_t message_handler(coap_session_t *session COAP_UNUSED,
     const uint8_t *data;
     coap_get_data(received, &coap_payload_len, &data);
     memcpy(coap_payload, data, coap_payload_len);
+    puts("received coap response");
     print_hex((uint8_t *)coap_payload, coap_payload_len);
     return COAP_RESPONSE_OK;
 }
