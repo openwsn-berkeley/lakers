@@ -3,7 +3,7 @@ use edhoc_rs::*;
 use hexlit::hex;
 use std::net::UdpSocket;
 
-const _ID_CRED_I: &[u8] = &hex!("a104412b");
+const ID_CRED_I: &[u8] = &hex!("a104412b");
 const ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
@@ -12,11 +12,22 @@ const _G_I_Y_COORD: &[u8] =
 const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
 
+// ead authz
+const W_TV: &[u8] = &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
+
 fn main() {
-    let mut buf = [0; 100];
+    let mut buf = [0; MAX_MESSAGE_SIZE_LEN];
     let socket = UdpSocket::bind("127.0.0.1:5683").unwrap();
 
     let mut edhoc_connections = Vec::new();
+
+    // ead authz server (W)
+    let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap(); // [kid]
+    let server = ZeroTouchServer::new(
+        W_TV.try_into().unwrap(),
+        CRED_R.try_into().unwrap(),
+        Some(acl),
+    );
 
     println!("Waiting for CoAP messages...");
     loop {
@@ -32,21 +43,43 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
-                println!("cred: {:?}", cred_r);
+                println!("TMP: cred_r: {:?}", cred_r);
                 let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
-                let result = responder.process_message_1(
-                    &request.message.payload[1..]
-                        .try_into()
-                        .expect("wrong length"),
-                );
+                println!("TMP: message_1: {:?}", request.message.payload);
+                let message_1: EdhocMessageBuffer = request.message.payload[1..]
+                    .try_into()
+                    .expect("wrong length");
+                println!("TMP: message_1: {:?}", message_1);
+                let result = responder.process_message_1(&message_1);
 
-                if let Ok((responder, _ead_1)) = result {
+                if let Ok((responder, ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
+                    let ead_2 = if let Some(ead_1) = ead_1 {
+                        let authenticator = ZeroTouchAuthenticator::default();
+                        let (authenticator, _loc_w, voucher_request) =
+                            authenticator.process_ead_1(&ead_1, &message_1).unwrap();
+
+                        // mock a request to the server
+                        let voucher_response = server
+                            .handle_voucher_request(
+                                &mut lakers_crypto::default_crypto(),
+                                &voucher_request,
+                            )
+                            .unwrap();
+
+                        let res = authenticator.prepare_ead_2(&voucher_response);
+                        assert!(res.is_ok());
+                        authenticator.prepare_ead_2(&voucher_response).ok()
+                    } else {
+                        None
+                    };
+                    println!("TMP: ead_2: {:?}", ead_2);
                     let (responder, message_2) = responder
-                        .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &None)
+                        .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
                         .unwrap();
+                    println!("TMP: message_2: {:?}", message_2);
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));

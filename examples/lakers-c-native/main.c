@@ -7,12 +7,14 @@
 #include <coap3/coap.h>
 #include <arpa/inet.h>
 
+#define LAKERS_EAD_AUTHZ // FIXME: for debug only
+
 static const uint8_t ID_U[] = {0xa1, 0x04, 0x41, 0x2b};
 static const uint8_t ID_U_LEN = sizeof(ID_U) / sizeof(ID_U[0]);
 
 static const BytesP256ElemLen G_W = {0xFF, 0xA4, 0xF1, 0x02, 0x13, 0x40, 0x29, 0xB3, 0xB1, 0x56, 0x89, 0x0B, 0x88, 0xC9, 0xD9, 0x61, 0x95, 0x01, 0x19, 0x65, 0x74, 0x17, 0x4D, 0xCB, 0x68, 0xA0, 0x7D, 0xB0, 0x58, 0x8E, 0x4D, 0x41};
 
-static const uint8_t LOC_W[] = {0x6, 0x3, 0x6, 0xf, 0x6, 0x1, 0x7, 0x0, 0x3, 0xa, 0x2, 0xf, 0x2, 0xf, 0x6, 0x5, 0x6, 0xe, 0x7, 0x2, 0x6, 0xf, 0x6, 0xc, 0x6, 0xc, 0x6, 0xd, 0x6, 0x5, 0x6, 0xe, 0x7, 0x4, 0x2, 0xe, 0x7, 0x3, 0x6, 0x5, 0x7, 0x2, 0x7, 0x6, 0x6, 0x5, 0x7, 0x2};
+static const uint8_t LOC_W[] = {0x63, 0x6F, 0x61, 0x70, 0x3A, 0x2F, 0x2F, 0x65, 0x6E, 0x72, 0x6F, 0x6C, 0x6C, 0x6D, 0x65, 0x6E, 0x74, 0x2E, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72};
 static const uint8_t LOC_W_LEN = sizeof(LOC_W) / sizeof(LOC_W[0]);
 
 static const uint8_t SS = 2;
@@ -25,8 +27,8 @@ static const BytesP256ElemLen I = {0xfb, 0x13, 0xad, 0xeb, 0x65, 0x18, 0xce, 0xe
 static coap_context_t *ctx = NULL;
 static coap_session_t *session = NULL;
 static int has_coap_response = 0;
-static uint8_t coap_payload[MAX_MESSAGE_SIZE_LEN];
-static uint8_t coap_payload_len;
+static uint8_t coap_response_payload[MAX_MESSAGE_SIZE_LEN];
+static uint8_t coap_response_payload_len;
 
 void print_hex(uint8_t *arr, size_t len)
 {
@@ -44,16 +46,16 @@ static coap_response_t message_handler(coap_session_t *session COAP_UNUSED,
     has_coap_response = 1;
     // coap_show_pdu(COAP_LOG_WARN, received);
     const uint8_t *data;
-    coap_get_data(received, &coap_payload_len, &data);
-    memcpy(coap_payload, data, coap_payload_len);
+    coap_get_data(received, &coap_response_payload_len, &data);
+    memcpy(coap_response_payload, data, coap_response_payload_len);
     puts("received coap response");
-    print_hex((uint8_t *)coap_payload, coap_payload_len);
+    print_hex((uint8_t *)coap_response_payload, coap_response_payload_len);
     return COAP_RESPONSE_OK;
 }
 
 int coap_send_edhoc_message(uint8_t *edhoc_msg, size_t edhoc_msg_len, uint8_t value_to_prepend)
 {
-
+    printf("sending coap message of size %d+1\n", edhoc_msg_len);
     coap_pdu_t *pdu = coap_pdu_init(COAP_MESSAGE_CON,
                                     COAP_REQUEST_CODE_GET,
                                     coap_new_message_id(session),
@@ -62,6 +64,7 @@ int coap_send_edhoc_message(uint8_t *edhoc_msg, size_t edhoc_msg_len, uint8_t va
     uint8_t payload[MAX_MESSAGE_SIZE_LEN];
     payload[0] = value_to_prepend;
     memcpy(payload + 1, edhoc_msg, edhoc_msg_len);
+    print_hex(payload, edhoc_msg_len+1);
     coap_add_data(pdu, edhoc_msg_len + 1, payload);
     // coap_show_pdu(COAP_LOG_WARN, pdu);
     if (coap_send(session, pdu) == COAP_INVALID_MID)
@@ -139,24 +142,39 @@ int main(void)
 #else
     int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1);
 #endif
-    if (res != 0)
+    if (res != 0) {
         printf("Error prep msg1: %d\n", res);
+        return 1;
+    }
     print_hex(message_1.content, message_1.len);
 
     puts("sending msg1");
     coap_send_edhoc_message(message_1.content, message_1.len, 0xf5);
 
     puts("processing msg2");
-    EdhocMessageBuffer message_2 = {.len = coap_payload_len};
-    memcpy(message_2.content, coap_payload, coap_payload_len);
+    EdhocMessageBuffer message_2 = {.len = coap_response_payload_len};
+    memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
     EdhocInitiatorProcessingM2C initiator_processing_m2;
     uint8_t c_r;
     CredentialRPK fetched_cred_r = {0};
-    // EADItemC ead_2;
-    // res = initiator_parse_message_2(&initiator_wait_m2, &message_2, &CRED_R, 84, &initiator_processing_m2, &c_r, &fetched_cred_r, ead_2);
-    res = initiator_parse_message_2(&initiator_wait_m2, &message_2, &CRED_R, 84, &initiator_processing_m2, &c_r, &fetched_cred_r, NULL);
-    if (res != 0)
+#ifdef LAKERS_EAD_AUTHZ
+    EADItemC ead_2;
+    res = initiator_parse_message_2(&initiator_wait_m2, &message_2, cred_r, &initiator_processing_m2, &c_r, &fetched_cred_r, &ead_2);
+#else
+    res = initiator_parse_message_2(&initiator_wait_m2, &message_2, cred_r, &initiator_processing_m2, &c_r, &fetched_cred_r, NULL);
+#endif
+    if (res != 0) {
         printf("Error parse msg2: %d\n", res);
+        return 1;
+    }
+#ifdef LAKERS_EAD_AUTHZ
+    ZeroTouchDeviceDone device_done;
+    res = authz_device_process_ead_2(&device_wait, &ead_2, cred_r, &device_done);
+    if (res != 0) {
+        printf("Error process ead2 (authz): %d\n", res);
+        return 1;
+    }
+#endif
     EdhocInitiatorProcessedM2C initiator_processed_m2;
     initiator_verify_message_2(&initiator_processing_m2, &I, cred_i, fetched_cred_r, &initiator_processed_m2);
     if (res != 0)
@@ -167,8 +185,10 @@ int main(void)
     EdhocMessageBuffer message_3;
     uint8_t prk_out[SHA256_DIGEST_LEN];
     res = initiator_prepare_message_3(&initiator_processed_m2, ByReference, NULL, &initiator_done, &message_3, prk_out);
-    if (res != 0)
+    if (res != 0) {
         printf("Error prep msg3: %d\n", res);
+        return 1;
+    }
     print_hex(message_3.content, message_3.len);
 
     puts("sending msg3");

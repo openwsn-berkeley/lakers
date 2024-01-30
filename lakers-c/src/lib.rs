@@ -96,6 +96,7 @@ impl ProcessingM2C {
         }
     }
 
+    /// note that it is a shallow copy
     pub unsafe fn copy_into_c(processing_m2: ProcessingM2, processing_m2_c: *mut ProcessingM2C) {
         (*processing_m2_c).mac_2 = processing_m2.mac_2;
         (*processing_m2_c).prk_2e = processing_m2.prk_2e;
@@ -103,9 +104,9 @@ impl ProcessingM2C {
         (*processing_m2_c).x = processing_m2.x;
         (*processing_m2_c).g_y = processing_m2.g_y;
         (*processing_m2_c).plaintext_2 = processing_m2.plaintext_2;
-        if processing_m2.ead_2.is_some() {
-            EADItemC::copy_into_c(processing_m2.ead_2.unwrap(), (*processing_m2_c).ead_2);
-        }
+        // if processing_m2.ead_2.is_some() {
+        //     EADItemC::copy_into_c(processing_m2.ead_2.unwrap(), (*processing_m2_c).ead_2);
+        // }
     }
 }
 

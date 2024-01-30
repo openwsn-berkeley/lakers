@@ -100,8 +100,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiatorWaitM2C,
     message_2: *const EdhocMessageBuffer,
-    expected_cred_r: *const u8,
-    expected_cred_r_len: usize,
+    expected_cred_r: CredentialRPK,
     // output params
     initiator_c_out: *mut EdhocInitiatorProcessingM2C,
     c_r_out: *mut u8,
@@ -111,17 +110,13 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // manually take `state` because Rust cannot move out of a dereferenced raw pointer directly
     // raw pointers do not have ownership information, requiring manual handling of the data
     let state = core::ptr::read(&(*initiator_c).state);
-    let expected_cred_r = slice::from_raw_parts(expected_cred_r, expected_cred_r_len);
 
     let result = match i_parse_message_2(state, &mut default_crypto(), &(*message_2)) {
         Ok((state, c_r, id_cred_r, ead_2)) => {
             ProcessingM2C::copy_into_c(state, &mut (*initiator_c_out).state);
             *c_r_out = c_r;
 
-            // NOTE: this is just to avoid having IdCredOwnedC being passed across the ffi boundary
-            let expected_cred_r =
-                CredentialRPK::new(EdhocMessageBuffer::new_from_slice(expected_cred_r).unwrap())
-                    .unwrap();
+            // NOTE: checking here to avoid having IdCredOwnedC being passed across the ffi boundary
             let Ok(valid_cred_r) = credential_check_or_fetch(Some(expected_cred_r), id_cred_r)
             else {
                 return -1;
@@ -130,6 +125,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
 
             if let Some(ead_2) = ead_2 {
                 EADItemC::copy_into_c(ead_2, ead_2_c_out);
+                (*initiator_c_out).state.ead_2 = ead_2_c_out;
             }
             // TODO:
             //  else {

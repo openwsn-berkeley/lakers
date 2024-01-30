@@ -39,13 +39,13 @@ pub unsafe extern "C" fn authz_device_prepare_ead_1(
 #[no_mangle]
 pub unsafe extern "C" fn authz_device_process_ead_2(
     // input parans
-    device: ZeroTouchDeviceWaitEAD2,
+    device: *mut ZeroTouchDeviceWaitEAD2,
     ead_2_c: *const EADItemC,
     cred_v: CredentialRPK,
     // output parans
     device_c_out: *mut ZeroTouchDeviceDone,
 ) -> i8 {
-    match device.process_ead_2(
+    match (*device).process_ead_2(
         &mut default_crypto(),
         (*ead_2_c).to_rust(),
         cred_v.value.as_slice(),
