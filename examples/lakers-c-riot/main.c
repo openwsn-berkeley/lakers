@@ -2,7 +2,7 @@
 #include <string.h>
 #include "od.h"
 #include "ztimer.h"
-#include "lakers_ffi.h"
+#include "lakers.h"
 
 static const uint8_t ID_U[] = {0xa1, 0x04, 0x41, 0x2b};
 static const uint8_t ID_U_LEN = sizeof(ID_U) / sizeof(ID_U[0]);

@@ -3,7 +3,7 @@
 #include <string.h>
 #include "lakers_shared.h"
 #include "lakers_ead_authz.h"
-#include "lakers_ffi.h"
+#include "lakers.h"
 #include <coap3/coap.h>
 #include <arpa/inet.h>
 

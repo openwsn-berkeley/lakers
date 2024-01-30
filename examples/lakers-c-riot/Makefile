@@ -6,7 +6,7 @@ BOARD ?= nrf52840dk
 
 # adjust these according to your needs
 INCLUDES += -I$(CURDIR)/../../target/include
-ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/liblakers_ffi.a
+ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/liblakers_c.a
 
 ifeq ($(EDHOC_CRYPTO), CRYPTO_PSA)
 	CFLAGS += -D$(EDHOC_CRYPTO)
