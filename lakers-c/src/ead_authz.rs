@@ -40,7 +40,7 @@ pub unsafe extern "C" fn authz_device_prepare_ead_1(
 pub unsafe extern "C" fn authz_device_process_ead_2(
     // input parans
     device: *mut ZeroTouchDeviceWaitEAD2,
-    ead_2_c: *const EADItemC,
+    ead_2_c: *mut EADItemC,
     cred_v: CredentialRPK,
     // output parans
     device_c_out: *mut ZeroTouchDeviceDone,

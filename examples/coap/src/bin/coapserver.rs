@@ -43,14 +43,11 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
-                println!("TMP: cred_r: {:?}", cred_r);
                 let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
-                println!("TMP: message_1: {:?}", request.message.payload);
                 let message_1: EdhocMessageBuffer = request.message.payload[1..]
                     .try_into()
                     .expect("wrong length");
-                println!("TMP: message_1: {:?}", message_1);
                 let result = responder.process_message_1(&message_1);
 
                 if let Ok((responder, ead_1)) = result {
@@ -75,11 +72,9 @@ fn main() {
                     } else {
                         None
                     };
-                    println!("TMP: ead_2: {:?}", ead_2);
                     let (responder, message_2) = responder
                         .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
                         .unwrap();
-                    println!("TMP: message_2: {:?}", message_2);
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
                     edhoc_connections.push((c_r, responder));

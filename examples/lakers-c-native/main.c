@@ -131,7 +131,7 @@ int main(void)
     ZeroTouchDeviceWaitEAD2 device_wait;
     EADItemC ead_1;
     authz_device_prepare_ead_1(&device, &authz_secret, SS, &device_wait, &ead_1);
-    print_hex(ead_1.value->content, ead_1.value->len);
+    print_hex(ead_1.value.content, ead_1.value.len);
 #endif
 
     puts("Begin test: edhoc initiator.");
@@ -139,6 +139,7 @@ int main(void)
     EdhocInitiatorWaitM2C initiator_wait_m2;
 #ifdef LAKERS_EAD_AUTHZ
     int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
+    memcpy(device_wait.h_message_1, initiator_wait_m2.state.h_message_1, SHA256_DIGEST_LEN);
 #else
     int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1);
 #endif
@@ -168,11 +169,14 @@ int main(void)
         return 1;
     }
 #ifdef LAKERS_EAD_AUTHZ
+    puts("processing ead2");
     ZeroTouchDeviceDone device_done;
     res = authz_device_process_ead_2(&device_wait, &ead_2, cred_r, &device_done);
     if (res != 0) {
         printf("Error process ead2 (authz): %d\n", res);
         return 1;
+    } else {
+        puts("ead-authz voucher received and validated");
     }
 #endif
     EdhocInitiatorProcessedM2C initiator_processed_m2;

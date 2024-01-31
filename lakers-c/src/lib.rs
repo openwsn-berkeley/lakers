@@ -34,21 +34,19 @@ pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_pu
     }
 }
 
+/// Note that while the Rust version supports optional value to indicate an empty value,
+/// in the C version an empty buffer will be used for that.
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct EADItemC {
     pub label: u8,
     pub is_critical: bool,
-    pub value: *mut EdhocMessageBuffer,
+    pub value: EdhocMessageBuffer,
 }
 
 impl EADItemC {
     pub fn to_rust(&self) -> EADItem {
-        let value = if self.value.is_null() {
-            None
-        } else {
-            Some(unsafe { *self.value })
-        };
+        let value = Some(self.value);
 
         EADItem {
             label: self.label,
@@ -60,10 +58,9 @@ impl EADItemC {
     pub unsafe fn copy_into_c(mut ead: EADItem, ead_c: *mut EADItemC) {
         (*ead_c).label = ead.label;
         (*ead_c).is_critical = ead.is_critical;
-        (*ead_c).value = ead
-            .value
-            .as_mut()
-            .map_or(core::ptr::null_mut(), |v| v as *mut EdhocMessageBuffer)
+        if let Some(value) = ead.value {
+            (*ead_c).value = value;
+        }
     }
 }
 
