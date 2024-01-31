@@ -6,8 +6,6 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 use crate::*;
 
 /// structs compatible with the C FFI
-/// some of them have state as `*mut c_void` to hide fields that are not
-/// compatible with C, such as `Option<..>`
 
 #[derive(Debug)]
 #[repr(C)]
@@ -127,10 +125,6 @@ pub unsafe extern "C" fn initiator_parse_message_2(
                 EADItemC::copy_into_c(ead_2, ead_2_c_out);
                 (*initiator_c_out).state.ead_2 = ead_2_c_out;
             }
-            // TODO:
-            //  else {
-            //     *ead_2_c_out = core::ptr::null_mut();
-            // }
 
             0
         }

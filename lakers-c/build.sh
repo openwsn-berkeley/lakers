@@ -23,8 +23,9 @@ fi
 feature_ead=ead-authz
 
 # build the static library
-cargo build --target="$rust_target" --no-default-features  --features="$feature_crypto, $feature_ead" #--release
-# cargo build --target=thumbv7em-none-eabihf --no-default-features --features="crypto-cryptocell310, ead-authz" --release
+cargo build --target="$rust_target" --no-default-features  --features="$feature_crypto, $feature_ead" --release
+# example just for testing:
+#   cargo build --target=thumbv7em-none-eabihf --no-default-features --features="crypto-cryptocell310, ead-authz" --release
 
 # generate the headers
 cbindgen --config ../shared/cbindgen.toml --crate lakers-shared --output ../target/include/lakers_shared.h -v

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { package = "lakers", path = "../../lib", features = ["ead-authz"]}
+edhoc-rs = { package = "lakers", path = "../../lib", features = ["ead-authz"] }
 lakers-crypto = { path = "../../crypto/", features = [ "hacspec" ] }
 hexlit = "0.5.3"
 coap = { version = "0.13" }

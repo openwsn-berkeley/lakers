@@ -7,7 +7,7 @@ SRC=main.c
 
 OBJ=$(SRC:.c=.o)
 
-LIB_DIR=../../target/x86_64-unknown-linux-gnu/debug/
+LIB_DIR=../../target/x86_64-unknown-linux-gnu/release/
 LIB_NAME=lakers_c
 
 ifeq ($(LAKERS_EAD), authz)

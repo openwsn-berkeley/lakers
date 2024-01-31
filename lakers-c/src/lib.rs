@@ -1,5 +1,10 @@
 #![no_std]
-/// to compile this module for the nRF52840:
+/// This module contains the FFI bindings for the lakers-c library.
+/// Normally the structs can be derived from the Rust structs, except in cases
+/// where we need to hide fields that are not compatible with C, such as `Option<..>`.
+/// Specifically in the case of `Option<..>` we use a pointer instead, where `NULL` indicates `None`.
+///
+/// Example command to compile this module for the nRF52840:
 /// cargo build --target='thumbv7em-none-eabihf' --no-default-features --features="crypto-cryptocell310"
 use edhoc_rs::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
@@ -13,29 +18,8 @@ use panic_semihosting as _;
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
 
-// This function is useful to test the FFI
-#[no_mangle]
-pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_public_key: *mut u8) {
-    let (private_key, public_key) = default_crypto().p256_generate_key_pair();
-
-    unsafe {
-        // copy the arrays to the pointers received from C
-        // this makes sure that data is not dropped when the function returns
-        core::ptr::copy_nonoverlapping(
-            private_key.as_ptr(),
-            out_private_key,
-            edhoc_rs::P256_ELEM_LEN,
-        );
-        core::ptr::copy_nonoverlapping(
-            public_key.as_ptr(),
-            out_public_key,
-            edhoc_rs::P256_ELEM_LEN,
-        );
-    }
-}
-
 /// Note that while the Rust version supports optional value to indicate an empty value,
-/// in the C version an empty buffer will be used for that.
+/// in the C version we use an empty buffer for that case.
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct EADItemC {
@@ -101,9 +85,6 @@ impl ProcessingM2C {
         (*processing_m2_c).x = processing_m2.x;
         (*processing_m2_c).g_y = processing_m2.g_y;
         (*processing_m2_c).plaintext_2 = processing_m2.plaintext_2;
-        // if processing_m2.ead_2.is_some() {
-        //     EADItemC::copy_into_c(processing_m2.ead_2.unwrap(), (*processing_m2_c).ead_2);
-        // }
     }
 }
 
@@ -120,5 +101,26 @@ pub unsafe extern "C" fn credential_rpk_new(
             0
         }
         Err(_) => -1,
+    }
+}
+
+// This function is useful to test the FFI
+#[no_mangle]
+pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_public_key: *mut u8) {
+    let (private_key, public_key) = default_crypto().p256_generate_key_pair();
+
+    unsafe {
+        // copy the arrays to the pointers received from C
+        // this makes sure that data is not dropped when the function returns
+        core::ptr::copy_nonoverlapping(
+            private_key.as_ptr(),
+            out_private_key,
+            edhoc_rs::P256_ELEM_LEN,
+        );
+        core::ptr::copy_nonoverlapping(
+            public_key.as_ptr(),
+            out_public_key,
+            edhoc_rs::P256_ELEM_LEN,
+        );
     }
 }

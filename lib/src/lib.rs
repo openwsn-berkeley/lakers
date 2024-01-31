@@ -33,7 +33,7 @@ pub struct EdhocInitiator<Crypto: CryptoTrait> {
 
 #[derive(Debug)]
 pub struct EdhocInitiatorWaitM2<Crypto: CryptoTrait> {
-    pub(crate) state: WaitM2, // opaque state
+    state: WaitM2, // opaque state
     crypto: Crypto,
 }
 

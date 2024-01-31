@@ -13,13 +13,7 @@ include_guard = "LAKERS_SHARED_H"
 [export]
 include = [
     "EdhocMessageBuffer", "BytesMac", "BytesMac2",
-    "EADItemC",
-    "CredentialRPK", "CredentialTransfer",
+    "EADItemC", "CredentialRPK", "CredentialTransfer",
     "InitiatorStart", "WaitM2", "Completed", "ProcessedM2",
     "EdhocInitiatorC", "EdhocInitiatorWaitM2C", "EdhocInitiatorProcessingM2C", "EdhocInitiatorProcessedM2C", "EdhocInitiatorDoneC",
 ]
-
-[parse.expand]
-crates = ["lakers-shared"]
-# default_features = false
-# features = ["rust"]
