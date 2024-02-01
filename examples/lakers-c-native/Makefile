@@ -7,7 +7,9 @@ SRC=main.c
 
 OBJ=$(SRC:.c=.o)
 
-LIB_DIR=../../target/x86_64-unknown-linux-gnu/release/
+HOST_TRIPLE := $(shell rustc -vV | sed -n 's|host: ||p')
+
+LIB_DIR=../../target/$(HOST_TRIPLE)/release/
 LIB_NAME=lakers_c
 
 ifeq ($(LAKERS_EAD), authz)

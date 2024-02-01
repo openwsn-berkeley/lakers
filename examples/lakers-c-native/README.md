@@ -15,4 +15,5 @@ make LAKERS_EAD=authz && ./lakers_c_native
 # Requirements
 
 - See the README in the `lakers-c` crate.
-- [libcoap](https://libcoap.net/install.html).
+- Install [libcoap](https://libcoap.net/install.html):
+  - tested with the following configuration: `./configure --disable-doxygen --disable-manpages --disable-dtls --disable-oscore`

@@ -22,6 +22,7 @@ cbindgen = "0.24.5"
 
 [features]
 default = [ "crypto-cryptocell310", "ead-none" ]
+crypto-rustcrypto = [ "lakers-crypto/rustcrypto", "critical-section" ]
 crypto-psa = [ "lakers-crypto/psa", "critical-section" ]
 crypto-psa-baremetal = [ "lakers-crypto/psa-baremetal" ]
 crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
