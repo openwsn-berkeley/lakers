@@ -1,7 +1,7 @@
-//! Cryptography dispatch for the edhoc-rs crate
+//! Cryptography dispatch for the lakers crate
 //!
-//! This crate is used by edhoc-rs to decide which cryptographic back-end to use. Its presence
-//! avoids the need for all edhoc-rs types to be generic over a back-end, which would then be
+//! This crate is used by lakers to decide which cryptographic back-end to use. Its presence
+//! avoids the need for all lakers types to be generic over a back-end, which would then be
 //! provided by the user at initialization time. On the long run, its type may turn into a
 //! default associated type.
 #![no_std]

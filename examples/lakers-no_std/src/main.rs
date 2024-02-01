@@ -13,7 +13,7 @@ use panic_semihosting as _;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln as println, rtt_init_print};
 
-use edhoc_rs::*;
+use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 
 extern crate alloc;
@@ -52,12 +52,12 @@ fn main() -> ! {
     }
 
     // testing output
-    println!("Hello, edhoc-rs!");
+    println!("Hello, lakers!");
 
     // testing asserts
     assert!(1 == 1);
 
-    // edhoc-rs test code
+    // lakers test code
     use hexlit::hex;
 
     const _ID_CRED_I: &[u8] = &hex!("a104412b");

@@ -1,7 +1,7 @@
 # Introduction
 
 This folder contains a bare metal (no_std) application for Cortex-M, intended
-to be used to test edhoc-rs on no_std targets.
+to be used to test lakers on no_std targets.
 
 It's configured to work on the lm3s6965evb (Cortex-M3) board, which happens to
 be supported by QEMU's system emulation.

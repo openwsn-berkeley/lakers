@@ -127,7 +127,7 @@ jobs:
       run: sudo apt-get -y install qemu-system-arm
 
     - name: Run tests in QEMU
-      run: cd examples/edhoc-rs-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
+      run: cd examples/lakers-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
 
 
   build-example-for-cortex-m4:
@@ -150,7 +150,7 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build example
-      run: cd examples/edhoc-rs-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}, rtt" --release
+      run: cd examples/lakers-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}, rtt" --release
 
 
   build-coap-example:

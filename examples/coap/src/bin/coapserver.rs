@@ -1,6 +1,6 @@
 use coap_lite::{CoapRequest, Packet, ResponseType};
-use edhoc_rs::*;
 use hexlit::hex;
+use lakers::*;
 use std::net::UdpSocket;
 
 const ID_CRED_I: &[u8] = &hex!("a104412b");

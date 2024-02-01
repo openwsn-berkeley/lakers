@@ -1,6 +1,6 @@
 use core::slice;
 
-use edhoc_rs::*;
+use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 
 use crate::*;
