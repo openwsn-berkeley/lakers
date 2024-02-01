@@ -1,0 +1,33 @@
+[package]
+name = "lakers-c"
+edition = "2021"
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+edhoc-rs = { package = "lakers", path = "../lib", default-features = false }
+lakers-crypto = { path = "../crypto", default-features = false }
+hexlit = "0.5.3"
+
+panic-semihosting = { version = "0.6.0", features = ["exit"] }
+embedded-alloc = "0.5.1"
+critical-section = { version = "1.1", features = ["std"], optional = true }
+
+[build-dependencies]
+cbindgen = "0.24.5"
+
+[features]
+default = [ "crypto-cryptocell310", "ead-none" ]
+crypto-rustcrypto = [ "lakers-crypto/rustcrypto", "critical-section" ]
+crypto-psa = [ "lakers-crypto/psa", "critical-section" ]
+crypto-psa-baremetal = [ "lakers-crypto/psa-baremetal" ]
+crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
+ead-none = [ "edhoc-rs/ead-none" ]
+ead-authz = [ "edhoc-rs/ead-authz" ]
+
+[lib]
+crate-type = ["staticlib"]

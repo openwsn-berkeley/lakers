@@ -112,6 +112,7 @@ pub enum EDHOCError {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct InitiatorStart {
     pub suites_i: BytesSuites,
     pub suites_i_len: usize,
@@ -134,7 +135,8 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+#[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
@@ -147,7 +149,8 @@ pub struct WaitM3 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
+#[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
     pub prk_2e: BytesHashLen,
@@ -160,6 +163,7 @@ pub struct ProcessingM2 {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -185,11 +189,13 @@ pub struct PreparingM3 {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,
 }
 
+#[repr(C)]
 pub enum CredentialTransfer {
     ByReference,
     ByValue,
