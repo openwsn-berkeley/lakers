@@ -1,5 +1,5 @@
-use edhoc_rs::*;
 use hexlit::hex;
+use lakers::*;
 use lakers_crypto::Crypto;
 
 use embedded_nal::UdpFullStack;

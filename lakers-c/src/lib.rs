@@ -6,7 +6,7 @@
 ///
 /// Example command to compile this module for the nRF52840:
 /// cargo build --target='thumbv7em-none-eabihf' --no-default-features --features="crypto-cryptocell310"
-use edhoc_rs::*;
+use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 
 pub mod ead_authz;
@@ -115,12 +115,8 @@ pub extern "C" fn p256_generate_key_pair_from_c(out_private_key: *mut u8, out_pu
         core::ptr::copy_nonoverlapping(
             private_key.as_ptr(),
             out_private_key,
-            edhoc_rs::P256_ELEM_LEN,
+            lakers::P256_ELEM_LEN,
         );
-        core::ptr::copy_nonoverlapping(
-            public_key.as_ptr(),
-            out_public_key,
-            edhoc_rs::P256_ELEM_LEN,
-        );
+        core::ptr::copy_nonoverlapping(public_key.as_ptr(), out_public_key, lakers::P256_ELEM_LEN);
     }
 }

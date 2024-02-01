@@ -1,11 +1,11 @@
 [package]
-name = "edhoc-rs-no_std"
+name = "lakers-no_std"
 authors = ["Kaspar Schleiser <kaspar@schleiser.de>"]
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-edhoc-rs = { package = "lakers", path = "../../lib", default-features = false }
+lakers = { package = "lakers", path = "../../lib", default-features = false }
 lakers-crypto = { path = "../../crypto", default-features = false }
 hexlit = "0.5.3"
 
@@ -25,5 +25,5 @@ default = [ "rtt", "crypto-cryptocell310", "ead-none" ]
 rtt = [ ]
 crypto-psa = [ "lakers-crypto/psa-baremetal" ]
 crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
-ead-none = [ "edhoc-rs/ead-none" ]
-ead-authz = [ "edhoc-rs/ead-authz" ]
+ead-none = [ "lakers/ead-none" ]
+ead-authz = [ "lakers/ead-authz" ]

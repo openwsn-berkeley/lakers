@@ -49,7 +49,7 @@ To build an example application that works on the [nrf52840dk](https://www.nordi
 
 ```bash
 # head to the example `no_std` example
-cd ./examples/edhoc-rs-no_std
+cd ./examples/lakers-no_std
 
 # build using the cryptocell310 crypto backend (hardware-accelerated)
 cargo build --target="thumbv7em-none-eabihf" --release

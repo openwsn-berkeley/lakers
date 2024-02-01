@@ -11,8 +11,8 @@ members = [
   "crypto/lakers-crypto-rustcrypto",
   "crypto/lakers-crypto-cryptocell310-sys",
   "examples/coap",
-  "examples/edhoc-rs-no_std",
-  "examples/edhoc-rs-cc2538",
+  "examples/lakers-no_std",
+  "examples/lakers-cc2538",
   "lakers-c",
 ]
 
@@ -35,7 +35,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.4.1"
-repository = "https://github.com/openwsn-berkeley/edhoc-rs/"
+repository = "https://github.com/openwsn-berkeley/lakers/"
 license = "BSD-3-Clause"
 readme = "shared/README.md"
 
@@ -52,7 +52,7 @@ lakers-crypto-hacspec = { path = "crypto/lakers-crypto-hacspec/" }
 lakers-crypto-psa = { path = "crypto/lakers-crypto-psa/" }
 lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/lakers-crypto-rustcrypto/", version = "^0.4.1" }
 
-edhoc-rs = { package = "lakers", path = "lib/", version = "^0.4.1", default-features = false }
+lakers = { package = "lakers", path = "lib/", version = "^0.4.1", default-features = false }
 
 [patch.crates-io]
 hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }

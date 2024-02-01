@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// Interface between the edhoc-rs crate and any implementations of the required crypto primitives.
+/// Interface between the lakers crate and any implementations of the required crypto primitives.
 ///
 /// Sending cryptographic operations through a trait gives the library the flexibility to use
 /// hardware acceleration on microcontrollers, implementations that facilitate hacspec/hax

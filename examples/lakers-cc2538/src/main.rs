@@ -16,8 +16,8 @@ use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};
 use cc2538_hal::{crypto::*, sys_ctrl::*};
 use cc2538_pac as pac;
 
-use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 use hexlit::hex;
+use lakers::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
 
 extern crate alloc;
 
