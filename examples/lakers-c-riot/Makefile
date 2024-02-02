@@ -8,8 +8,8 @@ BOARD ?= nrf52840dk
 INCLUDES += -I$(CURDIR)/../../target/include
 ARCHIVES += $(CURDIR)/../../target/thumbv7em-none-eabihf/release/liblakers_c.a
 
-ifeq ($(EDHOC_CRYPTO), CRYPTO_PSA)
-	CFLAGS += -D$(EDHOC_CRYPTO)
+ifeq ($(EDHOC_CRYPTO), psa)
+	CFLAGS += -DCRYPTO_PSA
 else
 	CFLAGS += -DCRYPTO_CRYPTOCELL310
 endif

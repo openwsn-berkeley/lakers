@@ -39,7 +39,7 @@ impl EADItemC {
         }
     }
 
-    pub unsafe fn copy_into_c(mut ead: EADItem, ead_c: *mut EADItemC) {
+    pub unsafe fn copy_into_c(ead: EADItem, ead_c: *mut EADItemC) {
         (*ead_c).label = ead.label;
         (*ead_c).is_critical = ead.is_critical;
         if let Some(value) = ead.value {
