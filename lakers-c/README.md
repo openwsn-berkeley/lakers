@@ -12,7 +12,7 @@ The results will be available in the `target` folder.
 To build with the PSA backend, to run in the host:
 
 ```bash
-./build.sh crypto-psa
+./build.sh crypto-psa-baremetal
 ```
 
 To build with the CC310 backend, to run in an embedded device:
