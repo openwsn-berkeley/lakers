@@ -1,5 +1,3 @@
-use core::slice;
-
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 

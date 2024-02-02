@@ -28,9 +28,9 @@ cargo build --target="$rust_target" --no-default-features  --features="$feature_
 #   cargo build --target=thumbv7em-none-eabihf --no-default-features --features="crypto-cryptocell310, ead-authz" --release
 
 # generate the headers
-cbindgen --config ../shared/cbindgen.toml --crate lakers-shared --output ../target/include/lakers_shared.h -v
-cbindgen --config ../ead/lakers-ead-authz/cbindgen.toml --crate lakers-ead-authz --output ../target/include/lakers_ead_authz.h -v
-cbindgen --config ./cbindgen.toml --crate lakers-c --output ../target/include/lakers.h -v
+cbindgen --config ../shared/cbindgen.toml --crate lakers-shared --output ../target/include/lakers_shared.h
+cbindgen --config ../ead/lakers-ead-authz/cbindgen.toml --crate lakers-ead-authz --output ../target/include/lakers_ead_authz.h
+cbindgen --config ./cbindgen.toml --crate lakers-c --output ../target/include/lakers.h
 
 # # zip to a single file
 cd ../target
