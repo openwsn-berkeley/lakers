@@ -1,15 +1,20 @@
+# build
 target/*
+bin
+.pytest_cache
+__pycache__
+.venv*
+
+# hax
+*.fst
 
 # in Rust, libraries should avoid checking the lock file in version control
 # read more: https://doc.rust-lang.org/cargo/faq.html#why-do-binaries-have-cargolock-in-version-control-but-not-libraries
 Cargo.lock
 
-cscope*
-
+# editors
 *.swp
 *.swo
+cscope*
 .DS_Store
 .vscode
-*.fst
-
-bin
