@@ -57,6 +57,7 @@ pub struct ProcessingM2C {
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
+    pub c_r: u8,
     pub ead_2: *mut EADItemC,
 }
 
@@ -69,6 +70,7 @@ impl ProcessingM2C {
             x: self.x,
             g_y: self.g_y,
             plaintext_2: self.plaintext_2,
+            c_r: self.c_r,
             ead_2: if self.ead_2.is_null() {
                 None
             } else {
@@ -77,7 +79,7 @@ impl ProcessingM2C {
         }
     }
 
-    /// note that it is a shallow copy
+    /// note that it is a shallow copy (ead_2 is handled separately by the caller)
     pub unsafe fn copy_into_c(processing_m2: ProcessingM2, processing_m2_c: *mut ProcessingM2C) {
         (*processing_m2_c).mac_2 = processing_m2.mac_2;
         (*processing_m2_c).prk_2e = processing_m2.prk_2e;
@@ -85,6 +87,7 @@ impl ProcessingM2C {
         (*processing_m2_c).x = processing_m2.x;
         (*processing_m2_c).g_y = processing_m2.g_y;
         (*processing_m2_c).plaintext_2 = processing_m2.plaintext_2;
+        (*processing_m2_c).c_r = processing_m2.c_r;
     }
 }
 
