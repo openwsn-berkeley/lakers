@@ -261,7 +261,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
             None => generate_connection_identifier_cbor(&mut self.crypto),
         };
 
-        match i_prepare_message_1(self.state, &mut self.crypto, c_i, ead_1) {
+        match i_prepare_message_1(&self.state, &mut self.crypto, c_i, ead_1) {
             Ok((state, message_1)) => Ok((
                 EdhocInitiatorWaitM2 {
                     state,

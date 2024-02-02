@@ -263,7 +263,7 @@ pub fn r_verify_message_3(
 }
 
 pub fn i_prepare_message_1(
-    state: InitiatorStart,
+    state: &InitiatorStart,
     crypto: &mut impl CryptoTrait,
     c_i: u8,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem

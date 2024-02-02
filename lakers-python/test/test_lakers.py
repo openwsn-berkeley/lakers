@@ -11,3 +11,15 @@ def test_gen_keys():
     priv, pub = lakers.p256_generate_key_pair()
     assert len(priv) == 32
     assert len(pub) == 32
+
+def test_initiator():
+    initiator = lakers.EdhocInitiator()
+    print(initiator)
+    # initiator, message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
+    message_1 = initiator.prepare_message_1(c_i=None)
+    print(message_1)
+    # assert i.I == I
+    # assert i.R == None
+
+# def test_credentials():
+#     cred_i = lakers.CredentialRPK(CRED_I)
