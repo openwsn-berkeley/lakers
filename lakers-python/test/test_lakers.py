@@ -21,5 +21,17 @@ def test_initiator():
     # assert i.I == I
     # assert i.R == None
 
+def test_responder():
+    responder = lakers.EdhocResponder()
+    print(responder)
+
+def test_handshake():
+    initiator = lakers.EdhocInitiator()
+    responder = lakers.EdhocResponder()
+    message_1 = initiator.prepare_message_1(c_i=None)
+    print(message_1)
+    # res = responder.process_message_1(message_1)
+    # print(res)
+
 # def test_credentials():
 #     cred_i = lakers.CredentialRPK(CRED_I)
