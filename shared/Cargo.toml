@@ -10,7 +10,7 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-pyo3 = { version = "0.15.1", features = ["extension-module"], optional = true}
+pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true}
 
 [dev-dependencies]
 hexlit = "0.5.3"

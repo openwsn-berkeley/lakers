@@ -140,14 +140,14 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 #[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct WaitM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
@@ -175,7 +175,7 @@ pub struct ProcessedM2 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProcessingM3 {
     pub mac_3: BytesMac3,
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
@@ -200,6 +200,8 @@ pub struct Completed {
     pub prk_exporter: BytesHashLen,
 }
 
+#[cfg_attr(feature = "python-traits", pyclass)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub enum CredentialTransfer {
     ByReference,

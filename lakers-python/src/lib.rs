@@ -14,10 +14,12 @@ fn p256_generate_key_pair() -> PyResult<(BytesP256ElemLen, BytesP256ElemLen)> {
 
 // this name must match `lib.name` in `Cargo.toml`
 #[pymodule]
-fn lakers(_py: Python, m: &PyModule) -> PyResult<()> {
+#[pyo3(name = "lakers")]
+fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
-    m.add_class::<initiator::EdhocInitiator>()?;
-    m.add_class::<responder::EdhocResponder>()?;
+    m.add_class::<initiator::PyEdhocInitiator>()?;
+    m.add_class::<responder::PyEdhocResponder>()?;
+    m.add_class::<lakers::CredentialTransfer>()?;
     // Add more functions here
     Ok(())
 }

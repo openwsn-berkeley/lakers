@@ -135,7 +135,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
         };
 
         match r_prepare_message_2(
-            self.state,
+            &self.state,
             &mut self.crypto,
             self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),

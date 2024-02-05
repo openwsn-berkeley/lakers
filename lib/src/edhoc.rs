@@ -92,7 +92,7 @@ pub fn r_process_message_1(
 }
 
 pub fn r_prepare_message_2(
-    state: ProcessingM1,
+    state: &ProcessingM1,
     crypto: &mut impl CryptoTrait,
     cred_r: CredentialRPK,
     r: &BytesP256ElemLen, // R's static private DH key

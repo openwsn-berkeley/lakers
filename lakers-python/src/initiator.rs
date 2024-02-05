@@ -1,15 +1,16 @@
-use lakers::{EdhocInitiator as EdhocInitiatorRust, *};
+use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-#[pyclass]
-pub struct EdhocInitiator {
-    state_start: InitiatorStart,
+#[pyclass(name = "EdhocInitiator")]
+pub struct PyEdhocInitiator {
+    start: InitiatorStart,
+    wait_m2: WaitM2,
 }
 
 #[pymethods]
-impl EdhocInitiator {
+impl PyEdhocInitiator {
     #[new]
     fn new() -> Self {
         // we only support a single cipher suite which is already CBOR-encoded
@@ -19,12 +20,13 @@ impl EdhocInitiator {
         let (x, g_x) = default_crypto().p256_generate_key_pair();
 
         Self {
-            state_start: InitiatorStart {
+            start: InitiatorStart {
                 x,
                 g_x,
                 suites_i,
                 suites_i_len,
             },
+            wait_m2: WaitM2::default(),
         }
     }
 
@@ -35,10 +37,10 @@ impl EdhocInitiator {
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
 
-        // match i_prepare_message_1(&self.state_start, &mut default_crypto(), c_i, ead_1) {
-        match i_prepare_message_1(&self.state_start, &mut default_crypto(), c_i, &None) {
+        // match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, ead_1) {
+        match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &None) {
             Ok((state, message_1)) => {
-                // self.state_start = state;
+                self.wait_m2 = state;
                 Ok(Vec::from(message_1.as_slice()))
             }
             Err(error) => Err(PyValueError::new_err(error as i8)),

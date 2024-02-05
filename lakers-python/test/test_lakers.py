@@ -14,22 +14,19 @@ def test_gen_keys():
 
 def test_initiator():
     initiator = lakers.EdhocInitiator()
-    print(initiator)
     # initiator, message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
     message_1 = initiator.prepare_message_1(c_i=None)
-    print(f"message_1: {message_1}")
+    print(f"message_1 (len = {len(message_1)}): {message_1}")
 
 def test_responder():
-    responder = lakers.EdhocResponder()
-    print(responder)
+    responder = lakers.EdhocResponder(R, CRED_R)
 
 def test_handshake():
     initiator = lakers.EdhocInitiator()
-    responder = lakers.EdhocResponder()
+    responder = lakers.EdhocResponder(R, CRED_R)
     message_1 = initiator.prepare_message_1(c_i=None)
-    print(f"message_1: {message_1}")
+    print(f"message_1 (len = {len(message_1)}): {message_1}")
     ead_1 = responder.process_message_1(message_1)
-    print(ead_1)
-
-# def test_credentials():
-#     cred_i = lakers.CredentialRPK(CRED_I)
+    print(f"ead_1: {ead_1}")
+    message_2 = responder.prepare_message_2(lakers.CredentialTransfer.ByReference, None, ead_1)
+    print(f"message_2 (len = {len(message_2)}): {message_2}")
