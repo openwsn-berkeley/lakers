@@ -167,7 +167,7 @@ pub struct ProcessingM2 {
     pub ead_2: Option<EADItem>,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,

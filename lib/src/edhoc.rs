@@ -295,7 +295,7 @@ pub fn i_prepare_message_1(
 
 // returns c_r
 pub fn i_parse_message_2<'a>(
-    state: WaitM2,
+    state: &WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
 ) -> Result<(ProcessingM2, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
@@ -343,7 +343,7 @@ pub fn i_parse_message_2<'a>(
 }
 
 pub fn i_verify_message_2(
-    state: ProcessingM2,
+    state: &ProcessingM2,
     crypto: &mut impl CryptoTrait,
     valid_cred_r: CredentialRPK, // TODO: have a struct to hold credentials to avoid re-computing
     i: &BytesP256ElemLen,        // I's static private DH key

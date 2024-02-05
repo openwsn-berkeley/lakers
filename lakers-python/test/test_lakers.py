@@ -14,8 +14,7 @@ def test_gen_keys():
 
 def test_initiator():
     initiator = lakers.EdhocInitiator()
-    # initiator, message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
-    message_1 = initiator.prepare_message_1(c_i=None)
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
     print(f"message_1 (len = {len(message_1)}): {message_1}")
 
 def test_responder():
@@ -24,9 +23,17 @@ def test_responder():
 def test_handshake():
     initiator = lakers.EdhocInitiator()
     responder = lakers.EdhocResponder(R, CRED_R)
-    message_1 = initiator.prepare_message_1(c_i=None)
+
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
     print(f"message_1 (len = {len(message_1)}): {message_1}")
+
     ead_1 = responder.process_message_1(message_1)
     print(f"ead_1: {ead_1}")
     message_2 = responder.prepare_message_2(lakers.CredentialTransfer.ByReference, None, ead_1)
     print(f"message_2 (len = {len(message_2)}): {message_2}")
+
+    c_r, id_cred_r, ead_2 = initiator.parse_message_2(message_2)
+    print(f"c_r: {c_r}, id_cred_r: {id_cred_r}, ead_2: {ead_2}")
+    valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
+    print(f"valid_cred_r (len = {len(valid_cred_r)}): {valid_cred_r}")
+    initiator.verify_message_2(I, CRED_I, valid_cred_r)

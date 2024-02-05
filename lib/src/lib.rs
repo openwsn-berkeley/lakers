@@ -295,7 +295,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
         ),
         EDHOCError,
     > {
-        match i_parse_message_2(self.state, &mut self.crypto, message_2) {
+        match i_parse_message_2(&self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
                 EdhocInitiatorProcessingM2 {
                     state,
@@ -318,7 +318,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
         valid_cred_r: CredentialRPK,
     ) -> Result<EdhocInitiatorProcessedM2<Crypto>, EDHOCError> {
         match i_verify_message_2(
-            self.state,
+            &self.state,
             &mut self.crypto,
             valid_cred_r,
             i.try_into().expect("Wrong length of initiator private key"),
