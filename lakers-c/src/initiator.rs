@@ -83,7 +83,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
         Some(ead_1)
     };
 
-    let result = match i_prepare_message_1(state, &mut default_crypto(), c_i, &ead_1) {
+    let result = match i_prepare_message_1(&state, &mut default_crypto(), c_i, &ead_1) {
         Ok((state, msg_1)) => {
             *message_1 = msg_1;
             *initiator_c_out = EdhocInitiatorWaitM2C { state };
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // raw pointers do not have ownership information, requiring manual handling of the data
     let state = core::ptr::read(&(*initiator_c).state);
 
-    let result = match i_parse_message_2(state, &mut default_crypto(), &(*message_2)) {
+    let result = match i_parse_message_2(&state, &mut default_crypto(), &(*message_2)) {
         Ok((state, c_r, id_cred_r, ead_2)) => {
             ProcessingM2C::copy_into_c(state, &mut (*initiator_c_out).state);
             *c_r_out = c_r;
@@ -164,7 +164,7 @@ pub unsafe extern "C" fn initiator_verify_message_2(
 
     let state = core::ptr::read(&(*initiator_c).state).to_rust();
 
-    match i_verify_message_2(state, &mut default_crypto(), valid_cred_r, &(*i)) {
+    match i_verify_message_2(&state, &mut default_crypto(), valid_cred_r, &(*i)) {
         Ok(state) => {
             *initiator_c_out = EdhocInitiatorProcessedM2C { state, cred_i };
             0
