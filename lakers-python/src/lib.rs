@@ -12,6 +12,7 @@ fn p256_generate_key_pair() -> PyResult<(BytesP256ElemLen, BytesP256ElemLen)> {
     Ok(default_crypto().p256_generate_key_pair())
 }
 
+// this name must match `lib.name` in `Cargo.toml`
 #[pymodule]
 fn lakers(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;

@@ -10,9 +10,10 @@ readme.workspace = true
 
 [dependencies]
 pyo3 = { version = "0.15.1", features = ["extension-module"] }
-lakers = { package = "lakers", path = "../lib", default-features = false }
+lakers = { package = "lakers", path = "../lib", default-features = false}
+lakers-shared = { path = "../shared", features = ["python-traits"] }
 lakers-crypto = { path = "../crypto", default-features = false, features = ["rustcrypto"] }
 
 [lib]
-name = "lakers"
+name = "lakers" # this will be the name of the python package, and it must match the module name in lib.rs
 crate-type = ["cdylib"]

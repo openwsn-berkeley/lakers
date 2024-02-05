@@ -54,7 +54,7 @@ pub fn edhoc_key_update(
 }
 
 pub fn r_process_message_1(
-    state: ResponderStart,
+    state: &ResponderStart,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
 ) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {

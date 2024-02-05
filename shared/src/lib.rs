@@ -7,7 +7,7 @@
 //!
 //! [lakers]: https://docs.rs/lakers/
 //! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
-#![no_std]
+#![cfg_attr(not(feature = "python-traits"), no_std)] // if there is no python-traits feature, the crate is no_std
 
 pub use cbor_decoder::*;
 pub use edhoc_parser::*;
@@ -18,6 +18,11 @@ pub use crypto::Crypto;
 
 mod cred;
 pub use cred::*;
+
+#[cfg(feature = "python-traits")]
+use pyo3::prelude::*;
+#[cfg(feature = "python-traits")]
+mod python;
 
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
@@ -126,7 +131,7 @@ pub struct ResponderStart {
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
@@ -309,6 +314,7 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
     }
 }
 
+#[cfg_attr(feature = "python-traits", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EADItem {
     pub label: u8,

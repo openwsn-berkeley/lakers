@@ -108,7 +108,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
         mut self,
         message_1: &BufferMessage1,
     ) -> Result<(EdhocResponderProcessedM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
-        let (state, ead_1) = r_process_message_1(self.state, &mut self.crypto, message_1)?;
+        let (state, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
         Ok((
             EdhocResponderProcessedM1 {
