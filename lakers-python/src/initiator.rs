@@ -120,4 +120,36 @@ impl PyEdhocInitiator {
             Err(error) => Err(PyValueError::new_err(error as i8)),
         }
     }
+
+    pub fn edhoc_exporter(
+        &mut self,
+        label: u8,
+        context: Vec<u8>,
+        length: usize,
+    ) -> [u8; MAX_BUFFER_LEN] {
+        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context.as_slice());
+
+        edhoc_exporter(
+            &self.completed,
+            &mut default_crypto(),
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        )
+    }
+
+    pub fn edhoc_key_update(&mut self, context: Vec<u8>) -> [u8; SHA256_DIGEST_LEN] {
+        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context.as_slice());
+        println!("init context: {:?}", context_buf);
+
+        edhoc_key_update(
+            &mut self.completed,
+            &mut default_crypto(),
+            &context_buf,
+            context.len(),
+        )
+    }
 }
