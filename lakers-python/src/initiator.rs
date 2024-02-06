@@ -142,7 +142,6 @@ impl PyEdhocInitiator {
     pub fn edhoc_key_update(&mut self, context: Vec<u8>) -> [u8; SHA256_DIGEST_LEN] {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
-        println!("init context: {:?}", context_buf);
 
         edhoc_key_update(
             &mut self.completed,

@@ -5,8 +5,9 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
 mod initiator;
-
 mod responder;
+
+mod ead_authz;
 
 #[pyfunction(name = "credential_check_or_fetch")]
 // FIXME: using inverted parameters from rust version (credential_check_or_fetch)
@@ -47,9 +48,13 @@ fn p256_generate_key_pair() -> PyResult<(BytesP256ElemLen, BytesP256ElemLen)> {
 fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
     m.add_function(wrap_pyfunction!(py_credential_check_or_fetch, m)?)?;
+    // edhoc items
     m.add_class::<initiator::PyEdhocInitiator>()?;
     m.add_class::<responder::PyEdhocResponder>()?;
     m.add_class::<lakers::CredentialTransfer>()?;
-    // Add more functions here
+    m.add_class::<lakers::EADItem>()?;
+    // ead-authz items
+    m.add_class::<ead_authz::PyAuthzAutenticator>()?;
+    m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
     Ok(())
 }
