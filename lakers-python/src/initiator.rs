@@ -10,13 +10,7 @@ pub struct PyEdhocInitiator {
     wait_m2: WaitM2,
     processing_m2: ProcessingM2,
     processed_m2: ProcessedM2,
-}
-
-#[pyclass]
-#[derive(Debug, Clone)]
-pub enum PyIdCredOwned {
-    CompactKid { value: u8 },
-    FullCredential { value: Vec<u8> },
+    completed: Completed,
 }
 
 #[pymethods]
@@ -40,6 +34,7 @@ impl PyEdhocInitiator {
             wait_m2: WaitM2::default(),
             processing_m2: ProcessingM2::default(),
             processed_m2: ProcessedM2::default(),
+            completed: Completed::default(),
         }
     }
 
@@ -101,6 +96,26 @@ impl PyEdhocInitiator {
                 self.processed_m2 = state;
                 self.cred_i = Some(cred_i);
                 Ok(())
+            }
+            Err(error) => Err(PyValueError::new_err(error as i8)),
+        }
+    }
+
+    pub fn prepare_message_3(
+        &mut self,
+        cred_transfer: CredentialTransfer,
+        ead_3: Option<EADItem>,
+    ) -> PyResult<(Vec<u8>, [u8; SHA256_DIGEST_LEN])> {
+        match i_prepare_message_3(
+            &mut self.processed_m2,
+            &mut default_crypto(),
+            self.cred_i.unwrap(),
+            cred_transfer,
+            &ead_3,
+        ) {
+            Ok((state, message_3, prk_out)) => {
+                self.completed = state;
+                Ok((Vec::from(message_3.as_slice()), prk_out))
             }
             Err(error) => Err(PyValueError::new_err(error as i8)),
         }

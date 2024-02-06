@@ -37,3 +37,15 @@ def test_handshake():
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     print(f"valid_cred_r (len = {len(valid_cred_r)}): {valid_cred_r}")
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
+    message_3, i_prk_out = initiator.prepare_message_3(lakers.CredentialTransfer.ByReference, None)
+    print(f"message_3 (len = {len(message_3)}): {message_3}")
+    print(f"i_prk_out (len = {len(i_prk_out)}): {i_prk_out}")
+
+    id_cred_i, ead_3 = responder.parse_message_3(message_3)
+    print(f"id_cred_i: {id_cred_i}, ead_3: {ead_3}")
+    valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
+    print(f"valid_cred_i (len = {len(valid_cred_i)}): {valid_cred_i}")
+    r_prk_out = responder.verify_message_3(valid_cred_i)
+    print(f"r_prk_out (len = {len(r_prk_out)}): {r_prk_out}")
+
+    assert i_prk_out == r_prk_out

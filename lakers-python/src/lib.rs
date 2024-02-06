@@ -10,10 +10,11 @@ use initiator::*;
 mod responder;
 use responder::*;
 
-/// this function is useful to test the python bindings
-#[pyfunction]
-fn p256_generate_key_pair() -> PyResult<(BytesP256ElemLen, BytesP256ElemLen)> {
-    Ok(default_crypto().p256_generate_key_pair())
+#[pyclass]
+#[derive(Debug, Clone)]
+pub enum PyIdCredOwned {
+    CompactKid { value: u8 },
+    FullCredential { value: Vec<u8> },
 }
 
 #[pyfunction(name = "credential_check_or_fetch")]
@@ -41,6 +42,12 @@ pub fn py_credential_check_or_fetch(
         )?
     };
     Ok(Vec::from(valid_cred.value.as_slice()))
+}
+
+/// this function is useful to test the python bindings
+#[pyfunction]
+fn p256_generate_key_pair() -> PyResult<(BytesP256ElemLen, BytesP256ElemLen)> {
+    Ok(default_crypto().p256_generate_key_pair())
 }
 
 // this name must match `lib.name` in `Cargo.toml`

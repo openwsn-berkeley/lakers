@@ -193,7 +193,7 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
