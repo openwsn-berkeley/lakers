@@ -132,6 +132,35 @@ jobs:
         path: ./target/lakers-c-*.zip
 
 
+  build-lakers-python:
+    needs: check-style
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Build Python package
+      run: |
+        cd lakers-python
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -U pip maturin pytest
+        pip freeze
+        maturin develop && pytest
+        maturin build
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: lakers-python
+        path: ./target/wheels/*.whl
+
+
   run-example-on-qemu:
     needs: unit-tests
     runs-on: ubuntu-latest
@@ -217,6 +246,11 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: lakers-c
+          path: ./release-artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: lakers-python
           path: ./release-artifacts
       - name: Release
         uses: ncipollo/release-action@v1
