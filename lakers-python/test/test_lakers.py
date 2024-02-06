@@ -54,3 +54,9 @@ def test_handshake():
     i_prk_out_new = initiator.edhoc_key_update(CONTEXT)
     r_prk_out_new = responder.edhoc_key_update(CONTEXT)
     assert i_prk_out_new == r_prk_out_new
+
+def test_error():
+    responder = lakers.EdhocResponder(R, CRED_R)
+    with pytest.raises(ValueError) as err:
+        ead_1 = responder.process_message_1([1, 2, 3])
+    assert str(err.value) == "EDHOCError: ParsingError"

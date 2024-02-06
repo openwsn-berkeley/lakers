@@ -10,12 +10,11 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-# pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true }
-pyo3 = { git = "https://github.com/PyO3/pyo3.git", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true }
 
 [dev-dependencies]
 hexlit = "0.5.3"
 
 [features]
 default = [  ]
-python-traits = ["pyo3"]
+python-bindings = ["pyo3"]

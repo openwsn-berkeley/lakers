@@ -9,11 +9,9 @@ readme.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# using the git version of pyo3 since `main` already supports enums with fields, which we need for `PyIdCredOwned`
-# pyo3 = { version = "0.20.2", features = ["extension-module"] }
-pyo3 = { git = "https://github.com/PyO3/pyo3.git", features = ["extension-module"] }
+pyo3 = { version = "0.20.2", features = ["extension-module"] }
 lakers = { package = "lakers", path = "../lib", default-features = false}
-lakers-shared = { path = "../shared", features = ["python-traits"] }
+lakers-shared = { path = "../shared", features = ["python-bindings"] }
 lakers-crypto = { path = "../crypto", default-features = false, features = ["rustcrypto"] }
 
 [lib]

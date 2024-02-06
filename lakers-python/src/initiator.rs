@@ -1,6 +1,5 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyclass(name = "EdhocInitiator")]
@@ -49,7 +48,7 @@ impl PyEdhocInitiator {
                 self.wait_m2 = state;
                 Ok(Vec::from(message_1.as_slice()))
             }
-            Err(error) => Err(PyValueError::new_err(error as i8)),
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -68,7 +67,7 @@ impl PyEdhocInitiator {
                 };
                 Ok((c_r, id_cred_r, ead_2))
             }
-            Err(error) => Err(PyValueError::new_err(error as i8)),
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -97,7 +96,7 @@ impl PyEdhocInitiator {
                 self.cred_i = Some(cred_i);
                 Ok(())
             }
-            Err(error) => Err(PyValueError::new_err(error as i8)),
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -117,7 +116,7 @@ impl PyEdhocInitiator {
                 self.completed = state;
                 Ok((Vec::from(message_3.as_slice()), prk_out))
             }
-            Err(error) => Err(PyValueError::new_err(error as i8)),
+            Err(error) => Err(error.into()),
         }
     }
 

@@ -5,17 +5,8 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
 mod initiator;
-use initiator::*;
 
 mod responder;
-use responder::*;
-
-#[pyclass]
-#[derive(Debug, Clone)]
-pub enum PyIdCredOwned {
-    CompactKid { value: u8 },
-    FullCredential { value: Vec<u8> },
-}
 
 #[pyfunction(name = "credential_check_or_fetch")]
 // FIXME: using inverted parameters from rust version (credential_check_or_fetch)

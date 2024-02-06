@@ -1,6 +1,5 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyclass(name = "EdhocResponder")]
@@ -68,7 +67,7 @@ impl PyEdhocResponder {
                 self.wait_m3 = state;
                 Ok(Vec::from(message_2.as_slice()))
             }
-            Err(error) => Err(PyValueError::new_err(error as i8)),
+            Err(error) => Err(error.into()),
         }
     }
 
