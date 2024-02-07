@@ -173,7 +173,7 @@ int main(void)
     }
 #endif
     EdhocInitiatorProcessedM2C initiator_processed_m2;
-    initiator_verify_message_2(&initiator_processing_m2, &I, cred_i, fetched_cred_r, &initiator_processed_m2);
+    res = initiator_verify_message_2(&initiator_processing_m2, &I, cred_i, fetched_cred_r, &initiator_processed_m2);
     if (res != 0) {
         printf("Error verify msg2: %d\n", res);
         return 1;
