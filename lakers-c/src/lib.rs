@@ -81,6 +81,10 @@ impl ProcessingM2C {
 
     /// note that it is a shallow copy (ead_2 is handled separately by the caller)
     pub unsafe fn copy_into_c(processing_m2: ProcessingM2, processing_m2_c: *mut ProcessingM2C) {
+        if processing_m2_c.is_null() {
+            panic!("processing_m2_c is null");
+        }
+
         (*processing_m2_c).mac_2 = processing_m2.mac_2;
         (*processing_m2_c).prk_2e = processing_m2.prk_2e;
         (*processing_m2_c).th_2 = processing_m2.th_2;

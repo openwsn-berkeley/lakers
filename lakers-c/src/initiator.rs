@@ -64,6 +64,10 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     initiator_c_out: *mut EdhocInitiatorWaitM2C,
     message_1: *mut EdhocMessageBuffer,
 ) -> i8 {
+    if initiator_c_out.is_null() || message_1.is_null() {
+        return -1;
+    }
+
     let state = core::ptr::read(&(*initiator_c).state);
 
     let c_i = if c_i.is_null() {
@@ -103,6 +107,17 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     valid_cred_r_out: *mut CredentialRPK,
     ead_2_c_out: *mut EADItemC,
 ) -> i8 {
+    // this is a parsing function, so all output parameters are mandatory
+    if initiator_c.is_null()
+        || message_2.is_null()
+        || initiator_c_out.is_null()
+        || c_r_out.is_null()
+        || valid_cred_r_out.is_null()
+        || ead_2_c_out.is_null()
+    {
+        return -1;
+    }
+
     // manually take `state` because Rust cannot move out of a dereferenced raw pointer directly
     // raw pointers do not have ownership information, requiring manual handling of the data
     let state = core::ptr::read(&(*initiator_c).state);
@@ -143,6 +158,10 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     // output params
     initiator_c_out: *mut EdhocInitiatorProcessedM2C,
 ) -> i8 {
+    if initiator_c.is_null() || i.is_null() || initiator_c_out.is_null() {
+        return -1;
+    }
+
     let state = core::ptr::read(&(*initiator_c).state).to_rust();
 
     match i_verify_message_2(state, &mut default_crypto(), valid_cred_r, &(*i)) {
@@ -165,6 +184,14 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     message_3: *mut EdhocMessageBuffer,
     prk_out_c: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
+    if initiator_c.is_null()
+        || initiator_c_out.is_null()
+        || message_3.is_null()
+        || prk_out_c.is_null()
+    {
+        return -1;
+    }
+
     let mut state = core::ptr::read(&(*initiator_c).state);
 
     let ead_3 = if ead_3_c.is_null() {
@@ -197,6 +224,10 @@ pub unsafe extern "C" fn initiator_compute_ephemeral_secret(
     g_a: *const BytesP256ElemLen,
     secret_c_out: *mut BytesP256ElemLen,
 ) -> i8 {
+    if initiator_c.is_null() || g_a.is_null() || secret_c_out.is_null() {
+        return -1;
+    }
+
     let state = core::ptr::read(&(*initiator_c).state);
 
     let secret = default_crypto().p256_ecdh(&state.x, &(*g_a));
