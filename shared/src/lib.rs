@@ -7,7 +7,9 @@
 //!
 //! [lakers]: https://docs.rs/lakers/
 //! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
-#![no_std]
+// NOTE: if there is no python-bindings feature, which will be the case for embedded builds,
+//       then the crate will be no_std
+#![cfg_attr(not(feature = "python-bindings"), no_std)]
 
 pub use cbor_decoder::*;
 pub use edhoc_parser::*;
@@ -18,6 +20,11 @@ pub use crypto::Crypto;
 
 mod cred;
 pub use cred::*;
+
+#[cfg(feature = "python-bindings")]
+use pyo3::prelude::*;
+#[cfg(feature = "python-bindings")]
+mod python_bindings;
 
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
@@ -126,7 +133,7 @@ pub struct ResponderStart {
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
@@ -135,14 +142,14 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 #[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct WaitM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
@@ -162,7 +169,7 @@ pub struct ProcessingM2 {
     pub ead_2: Option<EADItem>,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
@@ -170,7 +177,7 @@ pub struct ProcessedM2 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProcessingM3 {
     pub mac_3: BytesMac3,
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
@@ -188,13 +195,15 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 #[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,
 }
 
+#[cfg_attr(feature = "python-bindings", pyclass)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub enum CredentialTransfer {
     ByReference,
@@ -309,6 +318,7 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
     }
 }
 
+#[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EADItem {
     pub label: u8,

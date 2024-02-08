@@ -1,0 +1,18 @@
+[package]
+name = "lakers-python" # this will be the name of the package on pypi
+edition = "2021"
+version ="0.1.2"
+repository.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pyo3 = { version = "0.20.2", features = ["extension-module"] }
+lakers = { package = "lakers", path = "../lib", default-features = false, features = ["ead-authz"] }
+lakers-shared = { path = "../shared", features = ["python-bindings"] }
+lakers-crypto = { path = "../crypto", default-features = false, features = ["rustcrypto"] }
+
+[lib]
+name = "lakers" # this will be the name of the python package (as in `import lakers`), and it must match the module name in lib.rs
+crate-type = ["cdylib"]

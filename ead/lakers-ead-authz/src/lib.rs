@@ -7,7 +7,7 @@ mod shared;
 #[cfg(test)]
 mod test_vectors;
 
-pub use authenticator::ZeroTouchAuthenticator;
+pub use authenticator::{ZeroTouchAuthenticator, ZeroTouchAuthenticatorWaitVoucherResp};
 pub use device::{ZeroTouchDevice, ZeroTouchDeviceDone, ZeroTouchDeviceWaitEAD2};
 pub use server::ZeroTouchServer;
 

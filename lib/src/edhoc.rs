@@ -54,7 +54,7 @@ pub fn edhoc_key_update(
 }
 
 pub fn r_process_message_1(
-    state: ResponderStart,
+    state: &ResponderStart,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
 ) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {
@@ -92,7 +92,7 @@ pub fn r_process_message_1(
 }
 
 pub fn r_prepare_message_2(
-    state: ProcessingM1,
+    state: &ProcessingM1,
     crypto: &mut impl CryptoTrait,
     cred_r: CredentialRPK,
     r: &BytesP256ElemLen, // R's static private DH key
@@ -263,7 +263,7 @@ pub fn r_verify_message_3(
 }
 
 pub fn i_prepare_message_1(
-    state: InitiatorStart,
+    state: &InitiatorStart,
     crypto: &mut impl CryptoTrait,
     c_i: u8,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
@@ -295,7 +295,7 @@ pub fn i_prepare_message_1(
 
 // returns c_r
 pub fn i_parse_message_2<'a>(
-    state: WaitM2,
+    state: &WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
 ) -> Result<(ProcessingM2, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
@@ -343,7 +343,7 @@ pub fn i_parse_message_2<'a>(
 }
 
 pub fn i_verify_message_2(
-    state: ProcessingM2,
+    state: &ProcessingM2,
     crypto: &mut impl CryptoTrait,
     valid_cred_r: CredentialRPK, // TODO: have a struct to hold credentials to avoid re-computing
     i: &BytesP256ElemLen,        // I's static private DH key

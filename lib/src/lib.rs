@@ -108,7 +108,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
         mut self,
         message_1: &BufferMessage1,
     ) -> Result<(EdhocResponderProcessedM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
-        let (state, ead_1) = r_process_message_1(self.state, &mut self.crypto, message_1)?;
+        let (state, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
         Ok((
             EdhocResponderProcessedM1 {
@@ -135,7 +135,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
         };
 
         match r_prepare_message_2(
-            self.state,
+            &self.state,
             &mut self.crypto,
             self.cred_r,
             self.r.try_into().expect("Wrong length of private key"),
@@ -261,7 +261,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
             None => generate_connection_identifier_cbor(&mut self.crypto),
         };
 
-        match i_prepare_message_1(self.state, &mut self.crypto, c_i, ead_1) {
+        match i_prepare_message_1(&self.state, &mut self.crypto, c_i, ead_1) {
             Ok((state, message_1)) => Ok((
                 EdhocInitiatorWaitM2 {
                     state,
@@ -295,7 +295,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
         ),
         EDHOCError,
     > {
-        match i_parse_message_2(self.state, &mut self.crypto, message_2) {
+        match i_parse_message_2(&self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
                 EdhocInitiatorProcessingM2 {
                     state,
@@ -318,7 +318,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
         valid_cred_r: CredentialRPK,
     ) -> Result<EdhocInitiatorProcessedM2<Crypto>, EDHOCError> {
         match i_verify_message_2(
-            self.state,
+            &self.state,
             &mut self.crypto,
             valid_cred_r,
             i.try_into().expect("Wrong length of initiator private key"),
