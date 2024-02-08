@@ -6,7 +6,7 @@ members = [
   "ead/lakers-ead-authz",
   "crypto",
   "crypto/lakers-crypto-cc2538",
-  "crypto/lakers-crypto-hacspec",
+  # "crypto/lakers-crypto-hacspec",
   "crypto/lakers-crypto-psa",
   "crypto/lakers-crypto-rustcrypto",
   "crypto/lakers-crypto-cryptocell310-sys",
@@ -23,7 +23,7 @@ default-members = [
   "lib",
   "ead",
   "crypto",
-  "crypto/lakers-crypto-hacspec",
+  "crypto/lakers-crypto-rustcrypto",
   "examples/coap",
 ]
 
@@ -49,17 +49,17 @@ lakers-crypto = { path = "crypto/" }
 
 lakers-crypto-cc2538 = { path = "crypto/lakers-crypto-cc2538/" }
 lakers-crypto-cryptocell310 = { path = "crypto/lakers-crypto-cryptocell310-sys/" }
-lakers-crypto-hacspec = { path = "crypto/lakers-crypto-hacspec/" }
+# lakers-crypto-hacspec = { path = "crypto/lakers-crypto-hacspec/" }
 lakers-crypto-psa = { path = "crypto/lakers-crypto-psa/" }
 lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/lakers-crypto-rustcrypto/", version = "^0.4.1" }
 
 lakers = { package = "lakers", path = "lib/", version = "^0.4.1", default-features = false }
 
 [patch.crates-io]
-hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
-hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
-hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
-hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
-hacspec-aes = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
-hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-lib = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-p256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-hkdf = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-sha256 = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-aes = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
+# hacspec-aes-ccm = { git = "https://github.com/malishav/hacspec", branch = "aesccm" }
 psa-crypto = { git = "https://github.com/malishav/rust-psa-crypto", branch = "baremetal" }
