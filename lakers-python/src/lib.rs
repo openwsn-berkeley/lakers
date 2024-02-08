@@ -1,6 +1,5 @@
 /// This file implements the python bindings for the lakers library.
 /// Note that this module is not restricted by no_std.
-use lakers::BytesP256ElemLen;
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 use pyo3::wrap_pyfunction;

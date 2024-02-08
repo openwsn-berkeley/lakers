@@ -1,5 +1,5 @@
 use lakers::*;
-use lakers_crypto::{default_crypto, CryptoTrait};
+use lakers_crypto::default_crypto;
 use pyo3::prelude::*;
 
 #[pyclass(name = "AuthzEnrollmentServer")]

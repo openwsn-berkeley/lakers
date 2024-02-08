@@ -1,5 +1,4 @@
 use lakers::*;
-use lakers_crypto::{default_crypto, CryptoTrait};
 use pyo3::prelude::*;
 
 #[pyclass(name = "AuthzAutenticator")]
@@ -19,13 +18,14 @@ impl PyAuthzAutenticator {
     }
 
     pub fn process_ead_1(
-        &self,
+        &mut self,
         ead_1: EADItem,
         message_1: Vec<u8>,
     ) -> PyResult<(Vec<u8>, Vec<u8>)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice()).unwrap(); // FIXME: avoid unwrap
         let (state, loc_w, voucher_request) =
             self.authenticator.process_ead_1(&ead_1, &message_1)?;
+        self.authenticator_wait = state;
         Ok((
             Vec::from(loc_w.as_slice()),
             Vec::from(voucher_request.as_slice()),
