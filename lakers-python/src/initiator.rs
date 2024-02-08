@@ -1,6 +1,6 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "EdhocInitiator")]
 pub struct PyEdhocInitiator {
@@ -37,7 +37,12 @@ impl PyEdhocInitiator {
         }
     }
 
-    fn prepare_message_1(&mut self, c_i: Option<u8>, ead_1: Option<EADItem>) -> PyResult<Vec<u8>> {
+    fn prepare_message_1<'a>(
+        &mut self,
+        py: Python<'a>,
+        c_i: Option<u8>,
+        ead_1: Option<EADItem>,
+    ) -> PyResult<&'a PyBytes> {
         let c_i = match c_i {
             Some(c_i) => c_i,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
@@ -46,7 +51,7 @@ impl PyEdhocInitiator {
         match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1) {
             Ok((state, message_1)) => {
                 self.wait_m2 = state;
-                Ok(Vec::from(message_1.as_slice()))
+                Ok(PyBytes::new(py, message_1.as_slice()))
             }
             Err(error) => Err(error.into()),
         }
@@ -100,11 +105,12 @@ impl PyEdhocInitiator {
         }
     }
 
-    pub fn prepare_message_3(
+    pub fn prepare_message_3<'a>(
         &mut self,
+        py: Python<'a>,
         cred_transfer: CredentialTransfer,
         ead_3: Option<EADItem>,
-    ) -> PyResult<(Vec<u8>, [u8; SHA256_DIGEST_LEN])> {
+    ) -> PyResult<(&'a PyBytes, [u8; SHA256_DIGEST_LEN])> {
         match i_prepare_message_3(
             &mut self.processed_m2,
             &mut default_crypto(),
@@ -114,40 +120,47 @@ impl PyEdhocInitiator {
         ) {
             Ok((state, message_3, prk_out)) => {
                 self.completed = state;
-                Ok((Vec::from(message_3.as_slice()), prk_out))
+                Ok((PyBytes::new(py, message_3.as_slice()), prk_out))
             }
             Err(error) => Err(error.into()),
         }
     }
 
-    pub fn edhoc_exporter(
+    pub fn edhoc_exporter<'a>(
         &mut self,
+        py: Python<'a>,
         label: u8,
         context: Vec<u8>,
         length: usize,
-    ) -> [u8; MAX_BUFFER_LEN] {
+    ) -> PyResult<&'a PyBytes> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
-        edhoc_exporter(
+        let res = edhoc_exporter(
             &self.completed,
             &mut default_crypto(),
             label,
             &context_buf,
             context.len(),
             length,
-        )
+        );
+        Ok(PyBytes::new(py, &res[..length]))
     }
 
-    pub fn edhoc_key_update(&mut self, context: Vec<u8>) -> [u8; SHA256_DIGEST_LEN] {
+    pub fn edhoc_key_update<'a>(
+        &mut self,
+        py: Python<'a>,
+        context: Vec<u8>,
+    ) -> PyResult<&'a PyBytes> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
-        edhoc_key_update(
+        let res = edhoc_key_update(
             &mut self.completed,
             &mut default_crypto(),
             &context_buf,
             context.len(),
-        )
+        );
+        Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
     }
 }

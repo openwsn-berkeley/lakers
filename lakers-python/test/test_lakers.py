@@ -16,6 +16,7 @@ def test_gen_keys():
 def test_initiator():
     initiator = lakers.EdhocInitiator()
     message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
+    assert type(message_1) == bytes
 
 def test_responder():
     responder = lakers.EdhocResponder(R, CRED_R)
@@ -29,16 +30,21 @@ def test_handshake():
 
     # responder
     ead_1 = responder.process_message_1(message_1)
+    assert ead_1 == None
     message_2 = responder.prepare_message_2(lakers.CredentialTransfer.ByReference, None, ead_1)
+    assert type(message_2) == bytes
 
     # initiator
     c_r, id_cred_r, ead_2 = initiator.parse_message_2(message_2)
+    assert ead_2 == None
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
     message_3, i_prk_out = initiator.prepare_message_3(lakers.CredentialTransfer.ByReference, None)
+    assert type(message_3) == bytes
 
     # responder
     id_cred_i, ead_3 = responder.parse_message_3(message_3)
+    assert ead_3 == None
     valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
     r_prk_out = responder.verify_message_3(valid_cred_i)
 
@@ -59,5 +65,5 @@ def test_handshake():
 def test_error():
     responder = lakers.EdhocResponder(R, CRED_R)
     with pytest.raises(ValueError) as err:
-        ead_1 = responder.process_message_1([1, 2, 3])
-    assert str(err.value) == "EDHOCError: ParsingError"
+        _ead_1 = responder.process_message_1([1, 2, 3])
+    assert str(err.value) == "EDHOCError::ParsingError"

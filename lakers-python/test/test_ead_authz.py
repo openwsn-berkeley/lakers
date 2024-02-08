@@ -26,4 +26,4 @@ def test_authenticator_and_server():
     ead_2 = authenticator.prepare_ead_2(voucher_response)
     assert ead_2.label() == 1
     assert ead_2.is_critical() == True
-    assert bytes(ead_2.value()) == EAD_2_VALUE
+    assert ead_2.value() == EAD_2_VALUE

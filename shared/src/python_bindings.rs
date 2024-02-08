@@ -4,11 +4,11 @@
 /// Note that this module is not restricted by no_std.
 use super::*;
 use core::fmt;
-use pyo3::{exceptions::PyValueError, PyErr};
+use pyo3::{exceptions::PyValueError, types::PyBytes, PyErr};
 
 impl fmt::Display for EDHOCError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "EDHOCError: {:?}", self)
+        write!(f, "EDHOCError::{:?}", self)
     }
 }
 
@@ -29,8 +29,8 @@ impl EADItem {
         }
     }
 
-    fn value(&self) -> Option<Vec<u8>> {
-        self.value.as_ref().map(|v| Vec::from(v.as_slice()))
+    fn value<'a>(&self, py: Python<'a>) -> Option<&'a PyBytes> {
+        self.value.as_ref().map(|v| PyBytes::new(py, v.as_slice()))
     }
 
     fn label(&self) -> u8 {
