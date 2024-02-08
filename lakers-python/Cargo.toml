@@ -1,7 +1,7 @@
 [package]
-name = "lakers-python"
+name = "lakers-python" # this will be the name of the package on pypi
 edition = "2021"
-version ="0.1.0"
+version ="0.1.2"
 repository.workspace = true
 license.workspace = true
 
@@ -14,5 +14,5 @@ lakers-shared = { path = "../shared", features = ["python-bindings"] }
 lakers-crypto = { path = "../crypto", default-features = false, features = ["rustcrypto"] }
 
 [lib]
-name = "lakers" # this will be the name of the python package, and it must match the module name in lib.rs
+name = "lakers" # this will be the name of the python package (as in `import lakers`), and it must match the module name in lib.rs
 crate-type = ["cdylib"]
