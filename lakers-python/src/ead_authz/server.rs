@@ -1,6 +1,6 @@
 use lakers::*;
 use lakers_crypto::default_crypto;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "AuthzEnrollmentServer")]
 pub struct PyAuthzEnrollmentServer {
@@ -24,13 +24,13 @@ impl PyAuthzEnrollmentServer {
         }
     }
 
-    fn handle_voucher_request(&self, vreq: Vec<u8>) -> PyResult<Vec<u8>> {
+    fn handle_voucher_request<'a>(&self, py: Python<'a>, vreq: Vec<u8>) -> PyResult<&'a PyBytes> {
         let vreq = EdhocMessageBuffer::new_from_slice(vreq.as_slice()).unwrap();
         match self
             .server
             .handle_voucher_request(&mut default_crypto(), &vreq)
         {
-            Ok(voucher_response) => Ok(Vec::from(voucher_response.as_slice())),
+            Ok(voucher_response) => Ok(PyBytes::new(py, voucher_response.as_slice())),
             Err(error) => Err(error.into()),
         }
     }
