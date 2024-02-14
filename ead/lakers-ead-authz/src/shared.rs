@@ -22,23 +22,6 @@ pub(crate) fn compute_prk_from_secret<Crypto: CryptoTrait>(
     crypto.hkdf_extract(&salt, &g_ab)
 }
 
-pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
-    crypto: &mut Crypto,
-    received_voucher: &BytesEncodedVoucher,
-    h_message_1: &BytesHashLen,
-    cred_v: &[u8],
-    prk: &BytesHashLen,
-) -> Result<BytesMac, ()> {
-    let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
-    if received_voucher == prepared_voucher {
-        let mut voucher_mac: BytesMac = Default::default();
-        voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
-        return Ok(voucher_mac);
-    } else {
-        return Err(());
-    }
-}
-
 pub(crate) fn prepare_voucher<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     h_message_1: &BytesHashLen,

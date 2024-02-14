@@ -11,6 +11,14 @@ pub use authenticator::{ZeroTouchAuthenticator, ZeroTouchAuthenticatorWaitVouche
 pub use device::{ZeroTouchDevice, ZeroTouchDeviceDone, ZeroTouchDeviceWaitEAD2};
 pub use server::ZeroTouchServer;
 
+#[derive(PartialEq, Debug)]
+#[repr(C)]
+pub enum ZeroTouchError {
+    InvalidEADLabel,
+    EmptyEADValue,
+    VoucherVerificationFailed,
+}
+
 #[cfg(test)]
 mod test_authz {
     use crate::{

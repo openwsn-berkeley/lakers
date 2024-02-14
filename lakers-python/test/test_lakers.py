@@ -62,8 +62,14 @@ def test_handshake():
     r_prk_out_new = responder.edhoc_key_update(CONTEXT)
     assert i_prk_out_new == r_prk_out_new
 
-def test_error():
+def test_edhoc_error():
     responder = lakers.EdhocResponder(R, CRED_R)
     with pytest.raises(ValueError) as err:
-        _ead_1 = responder.process_message_1([1, 2, 3])
+        _ = responder.process_message_1([1, 2, 3])
     assert str(err.value) == "EDHOCError::ParsingError"
+
+def test_buffer_error():
+    initiator = lakers.EdhocInitiator()
+    with pytest.raises(ValueError) as err:
+        _ = initiator.parse_message_2([1] * 1000)
+    assert str(err.value) == "MessageBufferError::SliceTooLong"

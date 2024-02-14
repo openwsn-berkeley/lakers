@@ -61,7 +61,7 @@ impl PyEdhocInitiator {
         &mut self,
         message_2: Vec<u8>,
     ) -> PyResult<(u8, Vec<u8>, Option<EADItem>)> {
-        let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice()).unwrap(); // FIXME: avoid unwrap
+        let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => {

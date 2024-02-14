@@ -22,7 +22,7 @@ impl PyAuthzAutenticator {
         ead_1: EADItem,
         message_1: Vec<u8>,
     ) -> PyResult<(Vec<u8>, Vec<u8>)> {
-        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice()).unwrap(); // FIXME: avoid unwrap
+        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
         let (state, loc_w, voucher_request) =
             self.authenticator.process_ead_1(&ead_1, &message_1)?;
         self.authenticator_wait = state;
@@ -33,8 +33,7 @@ impl PyAuthzAutenticator {
     }
 
     pub fn prepare_ead_2(&self, voucher_response: Vec<u8>) -> PyResult<EADItem> {
-        let voucher_response =
-            EdhocMessageBuffer::new_from_slice(voucher_response.as_slice()).unwrap(); // FIXME: avoid unwrap
+        let voucher_response = EdhocMessageBuffer::new_from_slice(voucher_response.as_slice())?;
         Ok(self.authenticator_wait.prepare_ead_2(&voucher_response)?)
     }
 }

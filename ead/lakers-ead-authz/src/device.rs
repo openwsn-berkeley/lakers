@@ -1,4 +1,5 @@
 use super::shared::*;
+use crate::ZeroTouchError;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(Debug)]
@@ -67,16 +68,19 @@ impl ZeroTouchDeviceWaitEAD2 {
         crypto: &mut Crypto,
         ead_2: EADItem,
         cred_v: &[u8],
-    ) -> Result<ZeroTouchDeviceDone, ()> {
-        if ead_2.label != EAD_ZEROCONF_LABEL || ead_2.value.is_none() {
-            return Err(());
+    ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
+        if ead_2.label != EAD_ZEROCONF_LABEL {
+            return Err(ZeroTouchError::InvalidEADLabel);
         }
+        let Some(ead_2_value_buffer) = ead_2.value else {
+            return Err(ZeroTouchError::EmptyEADValue);
+        };
         let mut ead_2_value: BytesEncodedVoucher = Default::default();
-        ead_2_value[..].copy_from_slice(&ead_2.value.unwrap().content[..ENCODED_VOUCHER_LEN]);
+        ead_2_value[..].copy_from_slice(&ead_2_value_buffer.content[..ENCODED_VOUCHER_LEN]);
 
         match verify_voucher(crypto, &ead_2_value, &self.h_message_1, cred_v, &self.prk) {
             Ok(voucher) => Ok(ZeroTouchDeviceDone { voucher }),
-            Err(_) => Err(()),
+            Err(error) => Err(error),
         }
     }
 }
@@ -128,6 +132,23 @@ fn encode_ead_1_value(
     output
 }
 
+pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
+    crypto: &mut Crypto,
+    received_voucher: &BytesEncodedVoucher,
+    h_message_1: &BytesHashLen,
+    cred_v: &[u8],
+    prk: &BytesHashLen,
+) -> Result<BytesMac, ZeroTouchError> {
+    let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
+    if received_voucher == prepared_voucher {
+        let mut voucher_mac: BytesMac = Default::default();
+        voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
+        return Ok(voucher_mac);
+    } else {
+        return Err(ZeroTouchError::VoucherVerificationFailed);
+    }
+}
+
 #[cfg(test)]
 mod test_device {
     use super::*;
@@ -166,7 +187,7 @@ mod test_device {
 
     #[test]
     fn test_verify_voucher() {
-        let voucher_tv = VOUCHER_TV.try_into().unwrap();
+        let mut voucher_tv = VOUCHER_TV.try_into().unwrap();
         let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
         let prk_tv = PRK_TV.try_into().unwrap();
         let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
@@ -180,6 +201,16 @@ mod test_device {
         );
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), voucher_mac_tv);
+
+        voucher_tv[0] ^= 0x01; // change a byte to make the voucher invalid
+        let res = verify_voucher(
+            &mut default_crypto(),
+            &voucher_tv,
+            &h_message_1_tv,
+            &CRED_V_TV,
+            &prk_tv,
+        );
+        assert_eq!(res, Err(ZeroTouchError::VoucherVerificationFailed));
     }
 
     #[test]
