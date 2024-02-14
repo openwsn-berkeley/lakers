@@ -1,10 +1,10 @@
 name: Build and test
 
 on:
-  # push:
-  #   branches: [main]
-  #   tags: 'v*'
-  # pull_request:
+  push:
+    branches: [main]
+    tags: 'v*'
+  pull_request:
   workflow_dispatch:
 
 env:
@@ -132,7 +132,7 @@ jobs:
         path: ./target/lakers-c-*.zip
 
 
-  build-lakers-python:
+  test-lakers-python:
     needs: check-style
     runs-on: ubuntu-latest
 
@@ -143,22 +143,17 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v3
 
-    - name: Build Python package
+    - name: set up python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Test Python package
       run: |
         cd lakers-python
-        python3 -m venv .venv
-        source .venv/bin/activate
         pip install --upgrade pip
         pip install -U pip maturin pytest
-        pip freeze
         maturin develop && pytest
-        maturin build
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: lakers-python
-        path: ./target/wheels/*.whl
 
 
   run-example-on-qemu:
@@ -246,11 +241,6 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: lakers-c
-          path: ./release-artifacts
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: lakers-python
           path: ./release-artifacts
       - name: Release
         uses: ncipollo/release-action@v1
