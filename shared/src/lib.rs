@@ -210,6 +210,13 @@ pub enum CredentialTransfer {
     ByValue,
 }
 
+#[derive(PartialEq, Debug)]
+#[repr(C)]
+pub enum MessageBufferError {
+    BufferAlreadyFull,
+    SliceTooLong,
+}
+
 /// An owned u8 vector of a limited length
 ///
 /// It is used to represent the various messages in encrypted and in decrypted form, as well as
@@ -238,12 +245,12 @@ impl EdhocMessageBuffer {
         }
     }
 
-    pub fn new_from_slice(slice: &[u8]) -> Result<Self, ()> {
+    pub fn new_from_slice(slice: &[u8]) -> Result<Self, MessageBufferError> {
         let mut buffer = Self::new();
         if buffer.fill_with_slice(slice).is_ok() {
             Ok(buffer)
         } else {
-            Err(())
+            Err(MessageBufferError::SliceTooLong)
         }
     }
 
@@ -251,13 +258,13 @@ impl EdhocMessageBuffer {
         self.content.get(index).copied()
     }
 
-    pub fn push(&mut self, item: u8) -> Result<(), ()> {
+    pub fn push(&mut self, item: u8) -> Result<(), MessageBufferError> {
         if self.len < self.content.len() {
             self.content[self.len] = item;
             self.len += 1;
             Ok(())
         } else {
-            Err(())
+            Err(MessageBufferError::BufferAlreadyFull)
         }
     }
 
@@ -269,23 +276,23 @@ impl EdhocMessageBuffer {
         &self.content[0..self.len]
     }
 
-    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), ()> {
+    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), MessageBufferError> {
         if slice.len() <= self.content.len() {
             self.len = slice.len();
             self.content[..self.len].copy_from_slice(slice);
             Ok(())
         } else {
-            Err(())
+            Err(MessageBufferError::SliceTooLong)
         }
     }
 
-    pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), ()> {
+    pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), MessageBufferError> {
         if self.len + slice.len() <= self.content.len() {
             self.content[self.len..self.len + slice.len()].copy_from_slice(slice);
             self.len += slice.len();
             Ok(())
         } else {
-            Err(())
+            Err(MessageBufferError::SliceTooLong)
         }
     }
 
