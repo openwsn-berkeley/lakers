@@ -34,7 +34,7 @@ impl PyEdhocResponder {
     }
 
     fn process_message_1(&mut self, message_1: Vec<u8>) -> PyResult<Option<EADItem>> {
-        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice()).unwrap(); // FIXME: avoid unwrap call
+        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
         let (state, ead_1) = r_process_message_1(&self.start, &mut default_crypto(), &message_1)?;
         self.processing_m1 = state;
 
@@ -73,7 +73,7 @@ impl PyEdhocResponder {
     }
 
     pub fn parse_message_3(&mut self, message_3: Vec<u8>) -> PyResult<(Vec<u8>, Option<EADItem>)> {
-        let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice()).unwrap(); // FIXME: avoid unwrap call
+        let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
         match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
             Ok((state, id_cred_i, ead_3)) => {
                 self.processing_m3 = state;

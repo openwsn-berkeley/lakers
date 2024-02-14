@@ -1,7 +1,5 @@
 use lakers_shared::{Crypto as CryptoTrait, *};
 
-use crate::ZeroTouchError;
-
 pub(crate) fn compute_prk<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     a: &BytesP256ElemLen,
@@ -22,23 +20,6 @@ pub(crate) fn compute_prk_from_secret<Crypto: CryptoTrait>(
     //       nevertheless, using a salt of HashLen zeros works as well (see RFC 5869, Section 2.2).
     let salt: BytesHashLen = [0u8; SHA256_DIGEST_LEN];
     crypto.hkdf_extract(&salt, &g_ab)
-}
-
-pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
-    crypto: &mut Crypto,
-    received_voucher: &BytesEncodedVoucher,
-    h_message_1: &BytesHashLen,
-    cred_v: &[u8],
-    prk: &BytesHashLen,
-) -> Result<BytesMac, ZeroTouchError> {
-    let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
-    if received_voucher == prepared_voucher {
-        let mut voucher_mac: BytesMac = Default::default();
-        voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
-        return Ok(voucher_mac);
-    } else {
-        return Err(ZeroTouchError::VoucherVerificationFailed);
-    }
 }
 
 pub(crate) fn prepare_voucher<Crypto: CryptoTrait>(
