@@ -1,6 +1,7 @@
 use super::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
+/// This server also stores an ACL
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct ZeroTouchServer {
     w: BytesP256ElemLen,            // private key of the enrollment server (W)
@@ -30,14 +31,7 @@ impl ZeroTouchServer {
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
-
         let (_method, _suites_i, _suites_i_len, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
-
-        // compute hash
-        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-        let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
-
         let prk = compute_prk(crypto, &self.w, &g_x);
 
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
@@ -45,12 +39,65 @@ impl ZeroTouchServer {
         let id_u = decode_id_u(id_u_encoded)?;
 
         if self.acl.is_none() || self.authorized(id_u.content[3]) {
+            // compute hash
+            let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+            message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
+            let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+
             let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
             Ok(voucher_response)
         } else {
             Err(EDHOCError::EADError)
         }
+    }
+}
+
+/// This server can be used when the ACL is stored in the application layer
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct ZeroTouchServerUserAcl {
+    w: BytesP256ElemLen,            // private key of the enrollment server (W)
+    pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)
+}
+
+impl ZeroTouchServerUserAcl {
+    pub fn new(w: BytesP256ElemLen, cred_v: &[u8]) -> Self {
+        let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
+        Self { w, cred_v }
+    }
+
+    pub fn decode_voucher_request<Crypto: CryptoTrait>(
+        &self,
+        crypto: &mut Crypto,
+        vreq: &EdhocMessageBuffer,
+    ) -> Result<EdhocMessageBuffer, EDHOCError> {
+        let (message_1, _opaque_state) = parse_voucher_request(vreq)?;
+        let (_method, _suites_i, _suites_i_len, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
+        let prk = compute_prk(crypto, &self.w, &g_x);
+
+        let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
+        let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
+
+        decode_id_u(id_u_encoded)
+    }
+
+    pub fn prepare_voucher<Crypto: CryptoTrait>(
+        &self,
+        crypto: &mut Crypto,
+        vreq: &EdhocMessageBuffer,
+    ) -> Result<EdhocMessageBuffer, EDHOCError> {
+        let (message_1, opaque_state) = parse_voucher_request(vreq)?;
+        let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
+        let prk = compute_prk(crypto, &self.w, &g_x);
+
+        // compute hash
+        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+        message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
+        let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+
+        let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
+        let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
+        Ok(voucher_response)
     }
 }
 
@@ -235,13 +282,44 @@ mod test_enrollment_server {
 }
 
 #[cfg(test)]
+mod test_enrollment_server_acl_user {
+    use super::*;
+    use crate::test_vectors::*;
+    use lakers_crypto::default_crypto;
+
+    #[test]
+    fn test_split_voucher_request_handling() {
+        let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
+        let id_u_tv: EdhocMessageBuffer = ID_U_TV.try_into().unwrap();
+
+        let ead_server = ZeroTouchServerUserAcl::new(W_TV.try_into().unwrap(), CRED_V_TV);
+
+        let res = ead_server.decode_voucher_request(
+            &mut default_crypto(),
+            &VOUCHER_REQUEST_TV.try_into().unwrap(),
+        );
+        assert!(res.is_ok());
+        let id_u = res.unwrap();
+        assert_eq!(id_u.content, id_u_tv.content);
+
+        let res = ead_server.prepare_voucher(
+            &mut default_crypto(),
+            &VOUCHER_REQUEST_TV.try_into().unwrap(),
+        );
+        assert!(res.is_ok());
+        let voucher_response = res.unwrap();
+        assert_eq!(voucher_response.content, voucher_response_tv.content);
+    }
+}
+
+#[cfg(test)]
 mod test_server_stateless_operation {
     use super::*;
     use crate::test_vectors::*;
     use lakers_crypto::default_crypto;
 
     #[test]
-    fn test_slo_parse_voucher_request() {
+    fn test_sloparse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
