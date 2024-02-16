@@ -163,4 +163,23 @@ impl PyEdhocInitiator {
         );
         Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
     }
+
+    pub fn get_h_message_1<'a>(&self, py: Python<'a>) -> PyResult<&'a PyBytes> {
+        Ok(PyBytes::new(py, &self.wait_m2.h_message_1[..]))
+    }
+
+    pub fn compute_ephemeral_secret<'a>(
+        &self,
+        py: Python<'a>,
+        g_a: Vec<u8>,
+    ) -> PyResult<&'a PyBytes> {
+        let mut g_a_arr = BytesP256ElemLen::default();
+        g_a_arr.copy_from_slice(&g_a[..]);
+        let secret = default_crypto().p256_ecdh(&self.start.x, &g_a_arr);
+        Ok(PyBytes::new(py, &secret[..]))
+    }
+
+    pub fn selected_cipher_suite(&self) -> PyResult<u8> {
+        Ok(self.start.suites_i[self.start.suites_i_len - 1])
+    }
 }
