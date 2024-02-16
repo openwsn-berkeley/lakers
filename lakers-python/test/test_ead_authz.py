@@ -35,6 +35,15 @@ def test_authenticator_and_server():
     assert ead_2.is_critical() == True
     assert ead_2.value() == EAD_2_VALUE
 
+def test_authenticator_and_server():
+    VOUCHER_REQUEST_TV = bytes.fromhex("8158520382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6370158287818636f61703a2f2f656e726f6c6c6d656e742e7365727665724dda9784962883c96ed01ff122c3")
+    enrollment_server = lakers.AuthzServerUserAcl(W, CRED_V)
+
+    id_u = enrollment_server.decode_voucher_request(VOUCHER_REQUEST_TV)
+    assert id_u == ID_U
+    voucher_response = enrollment_server.prepare_voucher(VOUCHER_REQUEST_TV)
+    assert type(voucher_response) == bytes
+
 def test_handshake_with_authz():
     initiator = lakers.EdhocInitiator()
     responder = lakers.EdhocResponder(V, CRED_V)

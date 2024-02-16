@@ -319,7 +319,7 @@ mod test_server_stateless_operation {
     use lakers_crypto::default_crypto;
 
     #[test]
-    fn test_sloparse_voucher_request() {
+    fn test_slo_parse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
