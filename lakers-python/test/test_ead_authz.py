@@ -4,7 +4,7 @@ import pytest
 # values from traces-zeroconf.ipynb
 ID_U = bytes.fromhex("a104412b")
 G_W = bytes.fromhex("FFA4F102134029B3B156890B88C9D9619501196574174DCB68A07DB0588E4D41")
-LOC_W = bytes.fromhex("636f61703a2f2f656e726f6c6c6d656e742e736572766572")
+LOC_W = "coap://enrollment.server"
 W = bytes.fromhex("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F")
 KID_I = 0x2b
 CRED_I = bytes.fromhex("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
@@ -26,6 +26,7 @@ def test_authenticator_and_server():
 
     ead_1 = lakers.EADItem(1, True, EAD_1_VALUE)
     loc_w, voucher_request = authenticator.process_ead_1(ead_1, MESSAGE_1_WITH_EAD)
+    assert type(loc_w) == str
     voucher_response = enrollment_server.handle_voucher_request(voucher_request)
     assert type(voucher_response) == bytes
 
