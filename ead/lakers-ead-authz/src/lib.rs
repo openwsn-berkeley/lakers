@@ -9,7 +9,7 @@ mod test_vectors;
 
 pub use authenticator::{ZeroTouchAuthenticator, ZeroTouchAuthenticatorWaitVoucherResp};
 pub use device::{ZeroTouchDevice, ZeroTouchDeviceDone, ZeroTouchDeviceWaitEAD2};
-pub use server::ZeroTouchServer;
+pub use server::{ZeroTouchServer, ZeroTouchServerUserAcl};
 
 #[derive(PartialEq, Debug)]
 #[repr(C)]

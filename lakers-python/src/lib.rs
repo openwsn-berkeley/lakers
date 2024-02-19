@@ -66,5 +66,6 @@ fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzDevice>()?;
     m.add_class::<ead_authz::PyAuthzAutenticator>()?;
     m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
+    m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
     Ok(())
 }
