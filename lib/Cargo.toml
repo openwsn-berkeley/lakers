@@ -10,16 +10,14 @@ readme = "../README.md"
 
 [dependencies]
 lakers-shared.workspace = true
-lakers-ead = { workspace = true, default-features = false }
 
 [dev-dependencies]
+lakers-ead = { workspace = true, default-features = false }
 lakers-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]
 default = [ "lakers-ead/ead-none" ]
-ead-none = [ "lakers-ead/ead-none" ]
-ead-authz = [ "lakers-ead/ead-authz" ]
 
 [lib]
 crate-type = ["rlib"]

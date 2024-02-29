@@ -1,4 +1,5 @@
 use lakers::*;
+use lakers_ead::*;
 use pyo3::{
     prelude::*,
     types::{PyBytes, PyString},
