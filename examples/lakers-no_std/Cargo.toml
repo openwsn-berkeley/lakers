@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 lakers = { package = "lakers", path = "../../lib", default-features = false }
+lakers-ead-dispatch = { path = "../../ead/" }
 lakers-crypto = { path = "../../crypto", default-features = false }
 hexlit = "0.5.3"
 
@@ -25,5 +26,5 @@ default = [ "rtt", "crypto-cryptocell310", "ead-none" ]
 rtt = [ ]
 crypto-psa = [ "lakers-crypto/psa-baremetal" ]
 crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
-ead-none = [ "lakers/ead-none" ]
-ead-authz = [ "lakers/ead-authz" ]
+ead-none = [ "lakers-ead-dispatch/ead-none" ]
+ead-authz = [ "lakers-ead-dispatch/ead-authz" ]

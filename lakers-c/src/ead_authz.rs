@@ -1,6 +1,7 @@
 use crate::*;
 use core::slice;
 use lakers_crypto::default_crypto;
+use lakers_ead_dispatch::*;
 
 #[no_mangle]
 pub unsafe extern "C" fn authz_device_new(
