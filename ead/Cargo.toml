@@ -1,5 +1,5 @@
 [package]
-name = "lakers-ead-dispatch"
+name = "lakers-ead"
 version.workspace = true
 edition = "2021"
 authors = ["Geovane Fedrecheski <geonnave@gmail.com>"]

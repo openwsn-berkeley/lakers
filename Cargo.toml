@@ -44,7 +44,7 @@ readme = "shared/README.md"
 
 lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.5.0" }
 
-lakers-ead = { package = "lakers-ead-dispatch", path = "ead/", version = "^0.5.0", default-features = false }
+lakers-ead = { package = "lakers-ead", path = "ead/", version = "^0.5.0", default-features = false }
 lakers-ead-authz = { package = "lakers-ead-authz", path = "ead/lakers-ead-authz/", version = "^0.5.0" }
 
 lakers-crypto = { path = "crypto/" }

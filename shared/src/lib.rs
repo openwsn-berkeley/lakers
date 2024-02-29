@@ -1,12 +1,12 @@
 //! Common data structures used by [lakers] and its dependent crates
 //!
 //! This crate is separate from lakers to avoid circular dependencies that would otherwise arise
-//! from the pattern in which [lakers-ead-dispatch] combined the main crate with variations of the
+//! from the pattern in which [lakers-ead] combined the main crate with variations of the
 //! protocol's EAD handling. As its types will then likely move over into the main lakers crate, it
 //! is recommended to use them through the public re-export there wherever possible.
 //!
 //! [lakers]: https://docs.rs/lakers/
-//! [lakers-ead-dispatch]: https://docs.rs/lakers-ead-dispatch/latest/lakers_ead_dispatch/
+//! [lakers-ead]: https://docs.rs/lakers-ead/latest/lakers_ead/
 // NOTE: if there is no python-bindings feature, which will be the case for embedded builds,
 //       then the crate will be no_std
 #![cfg_attr(not(feature = "python-bindings"), no_std)]

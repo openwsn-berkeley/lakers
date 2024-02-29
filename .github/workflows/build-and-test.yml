@@ -44,14 +44,14 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [lakers-crypto/psa, lakers-crypto/rustcrypto]
-        ead: [ead-none, ead-authz]
+        ead: [lakers-ead/ead-none, lakers-ead/ead-authz]
 
     steps:
     - name: Checkout repo
       uses: actions/checkout@v3
 
     - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-authz` when testing with that config
-      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
+      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'lakers-ead/ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
   build-edhoc-package:
@@ -62,7 +62,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [lakers-crypto/psa, lakers-crypto/psa-baremetal, lakers-crypto/cryptocell310, lakers-crypto/rustcrypto]
-        ead: [ead-none, ead-authz]
+        ead: [lakers-ead/ead-none, lakers-ead/ead-authz]
 
     steps:
     - name: Checkout repo
@@ -74,7 +74,7 @@ jobs:
       run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
     - name: Build
-      run: cargo build --package lakers --package lakers-crypto --package lakers-ead-dispatch --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
+      run: cargo build --package lakers --package lakers-crypto --package lakers-ead --no-default-features --features="${{ matrix.crypto_backend }}, ${{ matrix.ead }}" --release
 
 
   generate-fstar:
@@ -90,7 +90,7 @@ jobs:
         cd lakers
 
         # generate the fstar files
-        cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/rustcrypto, ead-none' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
+        cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/rustcrypto, lakers-ead/ead-none' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
         cargo-hax -C -p lakers-shared \; into -i '-lakers_shared::ffi::**' fstar
 
         # even if fstar generation was ok, fail if something is not implemented
@@ -167,7 +167,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [crypto-psa]
-        ead: [ead-none, ead-authz]
+        ead: [lakers-ead/ead-none, lakers-ead/ead-authz]
 
     steps:
     - name: Checkout repo
@@ -192,7 +192,7 @@ jobs:
       fail-fast: false
       matrix:
         crypto_backend: [crypto-psa, crypto-cryptocell310]
-        ead: [ead-none, ead-authz]
+        ead: [lakers-ead/ead-none, lakers-ead/ead-authz]
 
     steps:
     - name: Checkout repo

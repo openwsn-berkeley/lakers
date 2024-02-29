@@ -1,6 +1,6 @@
 use lakers::*;
 use lakers_crypto::default_crypto;
-use lakers_ead_dispatch::*;
+use lakers_ead::*;
 use pyo3::{exceptions::PyBaseException, prelude::*, types::PyBytes};
 
 #[pyclass(name = "AuthzDevice")]
