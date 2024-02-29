@@ -351,12 +351,6 @@ pub enum IdCred<'a> {
     FullCredential(&'a [u8]),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum IdCredOwned {
-    CompactKid(u8),
-    FullCredential(EdhocMessageBuffer),
-}
-
 mod helpers {
     use super::*;
 

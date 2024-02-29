@@ -162,7 +162,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     ) -> Result<
         (
             EdhocResponderProcessingM3<Crypto>,
-            IdCredOwned,
+            CredentialRPK,
             Option<EADItem>,
         ),
         EDHOCError,
@@ -290,7 +290,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
         (
             EdhocInitiatorProcessingM2<Crypto>,
             u8,
-            IdCredOwned,
+            CredentialRPK,
             Option<EADItem>,
         ),
         EDHOCError,
@@ -423,7 +423,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
 pub fn credential_check_or_fetch<'a>(
     cred_expected: Option<CredentialRPK>,
-    id_cred_received: IdCredOwned,
+    id_cred_received: CredentialRPK,
 ) -> Result<CredentialRPK, EDHOCError> {
     // Processing of auth credentials according to draft-tiloca-lake-implem-cons
     // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
@@ -431,9 +431,10 @@ pub fn credential_check_or_fetch<'a>(
         // 1. Does ID_CRED_X point to a stored authentication credential? YES
         // IMPL: compare cred_i_expected with id_cred
         //   IMPL: assume cred_i_expected is well formed
-        let credentials_match = match id_cred_received {
-            IdCredOwned::CompactKid(kid_received) => kid_received == cred_expected.kid,
-            IdCredOwned::FullCredential(cred_received) => cred_received == cred_expected.value,
+        let credentials_match = if id_cred_received.reference_only() {
+            id_cred_received.kid == cred_expected.kid
+        } else {
+            id_cred_received.value == cred_expected.value
         };
 
         // 2. Is this authentication credential still valid?
@@ -451,30 +452,18 @@ pub fn credential_check_or_fetch<'a>(
         // 1. Does ID_CRED_X point to a stored authentication credential? NO
         // IMPL: cred_i_expected provided by application is None
         //       id_cred must be a full credential
-        if let IdCredOwned::FullCredential(cred_received) = id_cred_received {
-            // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+        // 3. Is the trust model Pre-knowledge-only? NO (hardcoded to NO for now)
+        // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
+        // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
+        //    Is the validation successful?
+        // IMPL,NOTE: the credential has already been parsed with CredentialRPK::new in the *_parse_message_* function
+        // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
+        // IMPL,TODO: we just skip this step for now
+        // 7. Store CRED_X as valid and trusted.
+        //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
 
-            // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
-
-            // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
-            //    Is the validation successful?
-            // IMPL: parse_cred(cred_r) and check it is valid
-            match CredentialRPK::new(cred_received) {
-                Ok(cred_received) => {
-                    // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
-                    // IMPL,TODO: we just skip this step for now
-
-                    // 7. Store CRED_X as valid and trusted.
-                    //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
-                    // IMPL: cred_r = id_cred
-                    Ok(cred_received)
-                }
-                Err(_) => Err(EDHOCError::UnknownPeer),
-            }
-        } else {
-            // IMPL: should have gotten a full credential
-            Err(EDHOCError::UnknownPeer)
-        }
+        assert!(!id_cred_received.reference_only());
+        Ok(id_cred_received)
     }
 
     // 8. Is this authentication credential good to use in the context of this EDHOC session?
