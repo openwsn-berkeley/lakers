@@ -77,9 +77,10 @@ impl PyEdhocResponder {
         match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
             Ok((state, id_cred_i, ead_3)) => {
                 self.processing_m3 = state;
-                let id_cred_i = match id_cred_i {
-                    IdCredOwned::CompactKid(kid) => Vec::from([kid]),
-                    IdCredOwned::FullCredential(cred) => Vec::from(cred.as_slice()),
+                let id_cred_i = if id_cred_i.reference_only() {
+                    Vec::from([id_cred_i.kid])
+                } else {
+                    Vec::from(id_cred_i.value.as_slice())
                 };
                 Ok((id_cred_i, ead_3))
             }
