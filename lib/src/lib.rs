@@ -482,26 +482,29 @@ pub fn credential_check_or_fetch<'a>(
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
+mod test_vectors_common {
     use hexlit::hex;
 
-    use lakers_crypto::default_crypto;
-
-    const ID_CRED_I: &[u8] = &hex!("a104412b");
-    const ID_CRED_R: &[u8] = &hex!("a104410a");
-    const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
-    const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
-    const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
-    const _G_I_Y_COORD: &[u8] =
+    pub const ID_CRED_I: &[u8] = &hex!("a104412b");
+    pub const ID_CRED_R: &[u8] = &hex!("a104410a");
+    pub const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
+    pub const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+    pub const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
+    pub const _G_I_Y_COORD: &[u8] =
         &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
-    const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
+    pub const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 
-    const MESSAGE_1_TV_FIRST_TIME: &str =
+    pub const MESSAGE_1_TV_FIRST_TIME: &str =
         "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
-    const MESSAGE_1_TV: &str =
+    pub const MESSAGE_1_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use lakers_crypto::default_crypto;
+    use test_vectors_common::*;
 
     #[test]
     fn test_new_initiator() {
@@ -560,7 +563,7 @@ mod test {
         assert!(conn_id >= -24 && conn_id <= 23);
     }
 
-    #[cfg(feature = "ead-none")]
+    #[cfg(feature = "test-ead-none")]
     #[test]
     fn test_handshake() {
         let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
@@ -626,6 +629,16 @@ mod test {
 
         assert_eq!(i_prk_out_new, r_prk_out_new);
     }
+}
+
+#[cfg(feature = "test-ead-authz")]
+#[cfg(test)]
+mod test_authz {
+    use super::*;
+    use hexlit::hex;
+    use lakers_crypto::default_crypto;
+    use lakers_ead::*;
+    use test_vectors_common::*;
 
     // U
     const ID_U_TV: &[u8] = &hex!("a104412b");
@@ -639,9 +652,8 @@ mod test {
     const LOC_W_TV: &[u8] = &hex!("636F61703A2F2F656E726F6C6C6D656E742E736572766572");
 
     // TODO: have a setup_test function that prepares the common objects for the ead tests
-    #[cfg(feature = "ead-authz")]
     #[test]
-    fn test_ead_authz() {
+    fn test_handshake_authz() {
         let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
         let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
 
