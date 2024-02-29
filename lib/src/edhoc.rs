@@ -155,7 +155,7 @@ pub fn r_parse_message_3(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
-) -> Result<(ProcessingM3, IdCredOwned, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM3, CredentialRPK, Option<EADItem>), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
@@ -163,12 +163,16 @@ pub fn r_parse_message_3(
 
         if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
             let id_cred_i = match id_cred_i {
-                IdCred::CompactKid(kid) => IdCredOwned::CompactKid(kid),
+                IdCred::CompactKid(kid) => CredentialRPK {
+                    value: Default::default(),
+                    public_key: Default::default(),
+                    kid,
+                },
                 IdCred::FullCredential(cred) => {
                     let Ok(buffer) = EdhocMessageBuffer::new_from_slice(cred) else {
                         return Err(EDHOCError::ParsingError);
                     };
-                    IdCredOwned::FullCredential(buffer)
+                    CredentialRPK::new(buffer)?
                 }
             };
 
@@ -298,7 +302,7 @@ pub fn i_parse_message_2<'a>(
     state: &WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
-) -> Result<(ProcessingM2, u8, IdCredOwned, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM2, u8, CredentialRPK, Option<EADItem>), EDHOCError> {
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
@@ -324,12 +328,16 @@ pub fn i_parse_message_2<'a>(
             };
 
             let id_cred_r = match id_cred_r {
-                IdCred::CompactKid(kid) => IdCredOwned::CompactKid(kid),
+                IdCred::CompactKid(kid) => CredentialRPK {
+                    value: Default::default(),
+                    public_key: Default::default(),
+                    kid,
+                },
                 IdCred::FullCredential(cred) => {
                     let Ok(buffer) = EdhocMessageBuffer::new_from_slice(cred) else {
                         return Err(EDHOCError::ParsingError);
                     };
-                    IdCredOwned::FullCredential(buffer)
+                    CredentialRPK::new(buffer)?
                 }
             };
 

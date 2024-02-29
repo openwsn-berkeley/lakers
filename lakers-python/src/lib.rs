@@ -29,13 +29,20 @@ pub fn py_credential_check_or_fetch<'a>(
         None
     };
     let valid_cred = if id_cred_received.len() == 1 {
-        credential_check_or_fetch(cred_expected, IdCredOwned::CompactKid(id_cred_received[0]))?
+        credential_check_or_fetch(
+            cred_expected,
+            CredentialRPK {
+                kid: id_cred_received[0],
+                value: Default::default(),
+                public_key: Default::default(),
+            },
+        )?
     } else {
         credential_check_or_fetch(
             cred_expected,
-            IdCredOwned::FullCredential(
+            CredentialRPK::new(
                 EdhocMessageBuffer::new_from_slice(id_cred_received.as_slice()).unwrap(),
-            ),
+            )?,
         )?
     };
     Ok(PyBytes::new(py, valid_cred.value.as_slice()))

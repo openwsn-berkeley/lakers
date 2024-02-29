@@ -66,9 +66,10 @@ impl PyEdhocInitiator {
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => {
                 self.processing_m2 = state;
-                let id_cred_r = match id_cred_r {
-                    IdCredOwned::CompactKid(kid) => Vec::from([kid]),
-                    IdCredOwned::FullCredential(cred) => Vec::from(cred.as_slice()),
+                let id_cred_r = if id_cred_r.reference_only() {
+                    Vec::from([id_cred_r.kid])
+                } else {
+                    Vec::from(id_cred_r.value.as_slice())
                 };
                 Ok((c_r, id_cred_r, ead_2))
             }

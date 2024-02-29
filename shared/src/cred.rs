@@ -18,6 +18,10 @@ impl CredentialRPK {
         })
     }
 
+    pub fn reference_only(&self) -> bool {
+        self.value.len == 0
+    }
+
     pub fn get_id_cred(&self) -> BytesIdCred {
         [0xa1, 0x04, 0x41, self.kid] // cbor map = {4: kid}
     }
