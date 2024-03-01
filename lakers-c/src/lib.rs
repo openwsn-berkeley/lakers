@@ -20,7 +20,7 @@ static HEAP: Heap = Heap::empty();
 
 /// Note that while the Rust version supports optional value to indicate an empty value,
 /// in the C version we use an empty buffer for that case.
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 #[repr(C)]
 pub struct EADItemC {
     pub label: u8,
@@ -59,6 +59,21 @@ pub struct ProcessingM2C {
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
     pub ead_2: *mut EADItemC,
+}
+
+impl Default for ProcessingM2C {
+    fn default() -> Self {
+        ProcessingM2C {
+            mac_2: Default::default(),
+            prk_2e: Default::default(),
+            th_2: Default::default(),
+            x: Default::default(),
+            g_y: Default::default(),
+            plaintext_2: Default::default(),
+            c_r: Default::default(),
+            ead_2: core::ptr::null_mut(),
+        }
+    }
 }
 
 impl ProcessingM2C {
