@@ -10,6 +10,7 @@ header = """
  */"""
 include_guard = "LAKERS_C_H"
 includes = ["lakers_shared.h", "lakers_ead_authz.h"]
+cpp_compat = true
 
 [parse.expand]
 all_features = true
