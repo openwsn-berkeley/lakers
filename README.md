@@ -26,7 +26,7 @@ let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(Credenti
 
 ## Installation
 
-To use `lakers` in your Rust project, simply add it to your Cargo.toml: `lakers = "0.5.0"` (check for the [latest version here](https://crates.io/crates/lakers)).
+To use `lakers` in your Rust project, simply add it to your Cargo.toml: `lakers = "0.5.1"` (check for the [latest version here](https://crates.io/crates/lakers)).
 
 ### C API
 C-compatible static libraries and headers are available for download in [the releases page](https://github.com/openwsn-berkeley/lakers/releases).
