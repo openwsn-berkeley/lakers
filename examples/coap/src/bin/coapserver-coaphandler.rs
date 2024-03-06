@@ -2,6 +2,8 @@ use hexlit::hex;
 use lakers::*;
 use lakers_crypto::Crypto;
 
+use coap_message::{Code, MinimalWritableMessage, MutableWritableMessage, ReadableMessage};
+use coap_message_utils::{Error, OptionsExt as _};
 use embedded_nal::UdpFullStack;
 
 const _ID_CRED_I: &[u8] = &hex!("a104412b");
@@ -53,48 +55,83 @@ enum EdhocResponse {
 
 impl coap_handler::Handler for EdhocHandler {
     type RequestData = EdhocResponse;
-    fn extract_request_data(
+
+    type ExtractRequestError = Error;
+    type BuildResponseError<M: MinimalWritableMessage> = M::UnionError;
+
+    fn extract_request_data<M: ReadableMessage>(
         &mut self,
-        request: &impl coap_message::ReadableMessage,
-    ) -> Self::RequestData {
-        let starts_with_true = request.payload().get(0) == Some(&0xf5);
+        request: &M,
+    ) -> Result<Self::RequestData, Self::ExtractRequestError> {
+        if request.code().into() != coap_numbers::code::POST {
+            return Err(Error::method_not_allowed());
+        }
+
+        request.options().ignore_elective_others()?;
+
+        let first_byte = request.payload().get(0).ok_or_else(Error::bad_request)?;
+        let starts_with_true = first_byte == &0xf5;
 
         if starts_with_true {
-            let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+            let cred_r =
+                CredentialRPK::new(CRED_R.try_into().expect("Static credential is too large"))
+                    .expect("Static credential is not processable");
             let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
             let response = responder
-                .process_message_1(&request.payload()[1..].try_into().expect("wrong length"));
+                // FIXME: It's really Request Entity Too Large
+                .process_message_1(
+                    &request.payload()[1..]
+                        .try_into()
+                        .map_err(|_| Error::bad_request())?,
+                );
 
             if let Ok((responder, _ead_1)) = response {
                 let c_r = self.new_c_r();
-                EdhocResponse::OkSend2 { c_r, responder }
+                Ok(EdhocResponse::OkSend2 { c_r, responder })
             } else {
-                panic!("How to respond to non-OK?")
+                // FIXME: Produce proper error
+                Err(Error::bad_request())
             }
         } else {
             // potentially message 3
-            let c_r_rcvd = request.payload()[0];
+            //
+            // We know our short C_R lengths
+            let (c_r_rcvd, message_3) = request
+                .payload()
+                .split_first()
+                // FIXME: Being way too short, is that an EDHOC error or a CoAP error?
+                .ok_or_else(Error::bad_request)?;
+
             let responder = self
-                .take_connection_by_c_r(c_r_rcvd)
-                .expect("No such C_R found");
+                .take_connection_by_c_r(*c_r_rcvd)
+                // FIXME: Produce proper error
+                .ok_or_else(Error::bad_request)?;
 
             println!("Found state with connection identifier {:?}", c_r_rcvd);
 
-            let message_3 = EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).unwrap();
+            let message_3 = EdhocMessageBuffer::new_from_slice(&message_3)
+                // FIXME: It's really Request Entity Too Large
+                .map_err(|_| Error::bad_request())?;
             let result = responder.parse_message_3(&message_3);
             let Ok((responder, id_cred_i, _ead_3)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections
-                panic!("Handler can't just not respond");
+                // FIXME: Produce proper error
+                return Err(Error::bad_request());
             };
-            let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
-            let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+            let cred_i =
+                CredentialRPK::new(CRED_I.try_into().expect("Static credential is too large"))
+                    .expect("Static credential is not processable");
+            let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i)
+                // FIXME: That'd probably also be an EDHOC error?
+                .map_err(|_| Error::bad_request())?;
             let result = responder.verify_message_3(valid_cred_i);
             let Ok((mut responder, prk_out)) = result else {
                 println!("EDHOC processing error: {:?}", result);
                 // FIXME remove state from edhoc_connections
-                panic!("Handler can't just not respond");
+                // FIXME: Produce proper error
+                return Err(Error::bad_request());
             };
 
             println!("EDHOC exchange successfully completed");
@@ -117,28 +154,29 @@ impl coap_handler::Handler for EdhocHandler {
             _oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
             println!("OSCORE salt after key update: {:02x?}", _oscore_salt);
 
-            EdhocResponse::Message3Processed
+            Ok(EdhocResponse::Message3Processed)
         }
     }
     fn estimate_length(&mut self, _: &Self::RequestData) -> usize {
         200
     }
-    fn build_response(
+    fn build_response<M: MutableWritableMessage>(
         &mut self,
-        response: &mut impl coap_message::MutableWritableMessage,
+        response: &mut M,
         req: Self::RequestData,
-    ) {
-        response.set_code(coap_numbers::code::CHANGED.try_into().ok().unwrap());
+    ) -> Result<(), Self::BuildResponseError<M>> {
+        response.set_code(M::Code::new(coap_numbers::code::CHANGED)?);
         match req {
             EdhocResponse::OkSend2 { c_r, responder } => {
                 let (responder, message_2) = responder
                     .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &None)
                     .unwrap();
                 self.connections.push((c_r, responder));
-                response.set_payload(message_2.as_slice());
+                response.set_payload(message_2.as_slice())?;
             }
             EdhocResponse::Message3Processed => (), // "send empty ack back"?
         };
+        Ok(())
     }
 }
 
