@@ -76,23 +76,20 @@ impl coap_handler::Handler for EdhocHandler {
             let cred_r =
                 CredentialRPK::new(CRED_R.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
-            let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
 
-            let response = responder
-                // FIXME: It's really Request Entity Too Large
-                .process_message_1(
-                    &request.payload()[1..]
-                        .try_into()
-                        .map_err(|_| Error::bad_request())?,
-                );
+            let (responder, _ead_1) =
+                EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r)
+                    .process_message_1(
+                        &request.payload()[1..]
+                            .try_into()
+                            // FIXME: It's really Request Entity Too Large
+                            .map_err(|_| Error::bad_request())?,
+                    )
+                    // FIXME: Produce proper error
+                    .map_err(|_| Error::bad_request())?;
 
-            if let Ok((responder, _ead_1)) = response {
-                let c_r = self.new_c_r();
-                Ok(EdhocResponse::OkSend2 { c_r, responder })
-            } else {
-                // FIXME: Produce proper error
-                Err(Error::bad_request())
-            }
+            let c_r = self.new_c_r();
+            Ok(EdhocResponse::OkSend2 { c_r, responder })
         } else {
             // potentially message 3
             //
@@ -114,25 +111,25 @@ impl coap_handler::Handler for EdhocHandler {
                 // FIXME: It's really Request Entity Too Large
                 .map_err(|_| Error::bad_request())?;
             let result = responder.parse_message_3(&message_3);
-            let Ok((responder, id_cred_i, _ead_3)) = result else {
-                println!("EDHOC processing error: {:?}", result);
+            let (responder, id_cred_i, _ead_3) = result.map_err(|e| {
+                println!("EDHOC processing error: {:?}", e);
                 // FIXME remove state from edhoc_connections
                 // FIXME: Produce proper error
-                return Err(Error::bad_request());
-            };
+                Error::bad_request()
+            })?;
             let cred_i =
                 CredentialRPK::new(CRED_I.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
             let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i)
                 // FIXME: That'd probably also be an EDHOC error?
                 .map_err(|_| Error::bad_request())?;
-            let result = responder.verify_message_3(valid_cred_i);
-            let Ok((mut responder, prk_out)) = result else {
-                println!("EDHOC processing error: {:?}", result);
-                // FIXME remove state from edhoc_connections
-                // FIXME: Produce proper error
-                return Err(Error::bad_request());
-            };
+            let (mut responder, prk_out) =
+                responder.verify_message_3(valid_cred_i).map_err(|e| {
+                    println!("EDHOC processing error: {:?}", e);
+                    // FIXME remove state from edhoc_connections
+                    // FIXME: Produce proper error
+                    Error::bad_request()
+                })?;
 
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
