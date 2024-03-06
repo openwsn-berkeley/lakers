@@ -109,8 +109,8 @@ int main(void)
     // lakers init
     puts("loading credentials.");
     CredentialRPK cred_i = {0}, cred_r = {0};
-    credential_rpk_new(CRED_I, 107, &cred_i);
-    credential_rpk_new(CRED_R, 84, &cred_r);
+    credential_rpk_new(&cred_i, CRED_I, 107);
+    credential_rpk_new(&cred_r, CRED_R, 84);
     puts("creating edhoc initiator.");
     EdhocInitiator initiator = {0};
     initiator_new(&initiator);

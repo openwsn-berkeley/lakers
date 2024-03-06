@@ -41,14 +41,16 @@ int main(void)
 
     puts("loading credentials.");
     CredentialRPK cred_i = {0}, cred_r = {0};
-    credential_rpk_new(CRED_I, 107, &cred_i);
-    credential_rpk_new(CRED_R, 84, &cred_r);
+    credential_rpk_new(&cred_i, CRED_I, 107);
+    credential_rpk_new(&cred_r, CRED_R, 84);
 
     puts("creating edhoc initiator.");
-    EdhocInitiatorC initiator = initiator_new();
+    EdhocInitiator initiator = {0};
+    initiator_new(&initiator);
 
     puts("creating ead-authz device.");
-    ZeroTouchDevice device = authz_device_new(ID_U, ID_U_LEN, &G_W, LOC_W, LOC_W_LEN);
+    EadAuthzDevice device = {0};
+    authz_device_new(&device, ID_U, ID_U_LEN, &G_W, LOC_W, LOC_W_LEN);
 
     puts("computing authz_secret.");
     BytesP256ElemLen authz_secret;
@@ -56,16 +58,13 @@ int main(void)
     // od_hex_dump(authz_secret, 32, OD_WIDTH_DEFAULT);
 
     puts("computing ead_1.");
-    ZeroTouchDeviceWaitEAD2 device_wait;
-    EADItemC ead_1;
-    authz_device_prepare_ead_1(&device, &authz_secret, SS, &device_wait, &ead_1);
+    EADItemC ead_1 = {0};
+    authz_device_prepare_ead_1(&device, &authz_secret, SS, &ead_1);
     od_hex_dump(ead_1.value.content, ead_1.value.len, OD_WIDTH_DEFAULT);
 
     puts("Begin test: edhoc initiator.");
-    EdhocMessageBuffer message_1;
-    EdhocInitiatorWaitM2C initiator_wait_m2;
-    // int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1); // if no EAD is used
-    int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
+    EdhocMessageBuffer message_1 = {0};
+    int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &message_1);
     od_hex_dump(message_1.content, message_1.len, OD_WIDTH_DEFAULT);
     if (res != 0) printf("Error prep msg1: %d\n", res);
 

@@ -9,7 +9,7 @@ set -e
 feature_crypto=$1
 if [[ $feature_crypto != "crypto-cryptocell310" && $feature_crypto != "crypto-psa-baremetal" && $feature_crypto != "crypto-rustcrypto" ]]; then
     echo "crypto should be one of: crypto-cryptocell310, crypto-psa-baremetal, crypto-rustcrypto"
-    echo "Example: ./build_static_lib.sh crypto-cryptocell310"
+    echo "Example: ./build.sh crypto-cryptocell310"
     exit 1
 fi
 
