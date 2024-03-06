@@ -1,5 +1,5 @@
 use lakers::*;
-use lakers_ead::*;
+use lakers_ead_authz::*;
 use pyo3::{
     prelude::*,
     types::{PyBytes, PyString},
