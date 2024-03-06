@@ -57,7 +57,8 @@ int coap_send_edhoc_message(uint8_t *edhoc_msg, size_t edhoc_msg_len, uint8_t va
                                     COAP_REQUEST_CODE_GET,
                                     coap_new_message_id(session),
                                     coap_session_max_pdu_size(session));
-    coap_add_option(pdu, COAP_OPTION_URI_PATH, 17, (const uint8_t *)".well-known/edhoc");
+    coap_add_option(pdu, COAP_OPTION_URI_PATH, 11, (const uint8_t *)".well-known");
+    coap_add_option(pdu, COAP_OPTION_URI_PATH, 5, (const uint8_t *)"edhoc");
     uint8_t payload[MAX_MESSAGE_SIZE_LEN];
     payload[0] = value_to_prepend;
     memcpy(payload + 1, edhoc_msg, edhoc_msg_len);
