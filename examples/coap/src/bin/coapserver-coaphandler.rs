@@ -67,6 +67,8 @@ impl coap_handler::Handler for EdhocHandler {
             return Err(Error::method_not_allowed());
         }
 
+        println!("{:?}", self);
+
         request.options().ignore_elective_others()?;
 
         let first_byte = request.payload().get(0).ok_or_else(Error::bad_request)?;
@@ -113,7 +115,6 @@ impl coap_handler::Handler for EdhocHandler {
             let result = responder.parse_message_3(&message_3);
             let (responder, id_cred_i, _ead_3) = result.map_err(|e| {
                 println!("EDHOC processing error: {:?}", e);
-                // FIXME remove state from edhoc_connections
                 // FIXME: Produce proper error
                 Error::bad_request()
             })?;
@@ -126,7 +127,6 @@ impl coap_handler::Handler for EdhocHandler {
             let (mut responder, prk_out) =
                 responder.verify_message_3(valid_cred_i).map_err(|e| {
                     println!("EDHOC processing error: {:?}", e);
-                    // FIXME remove state from edhoc_connections
                     // FIXME: Produce proper error
                     Error::bad_request()
                 })?;
