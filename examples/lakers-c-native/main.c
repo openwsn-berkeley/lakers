@@ -54,7 +54,7 @@ int coap_send_edhoc_message(uint8_t *edhoc_msg, size_t edhoc_msg_len, uint8_t va
 {
     printf("sending coap message of size %zu+1\n", edhoc_msg_len);
     coap_pdu_t *pdu = coap_pdu_init(COAP_MESSAGE_CON,
-                                    COAP_REQUEST_CODE_GET,
+                                    COAP_REQUEST_CODE_POST,
                                     coap_new_message_id(session),
                                     coap_session_max_pdu_size(session));
     coap_add_option(pdu, COAP_OPTION_URI_PATH, 11, (const uint8_t *)".well-known");
