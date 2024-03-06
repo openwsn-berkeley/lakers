@@ -106,6 +106,7 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 
 #[repr(C)]
 #[derive(PartialEq, Debug)]
+#[non_exhaustive]
 pub enum EDHOCError {
     UnknownPeer,
     MacVerificationFailed,
@@ -115,7 +116,6 @@ pub enum EDHOCError {
     EadLabelTooLongError,
     EadTooLongError,
     EADError,
-    UnknownError,
 }
 
 #[derive(Debug)]
