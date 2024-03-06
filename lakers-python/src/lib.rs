@@ -1,7 +1,7 @@
 /// This file implements the python bindings for the lakers library.
 /// Note that this module is not restricted by no_std.
 use lakers::*;
-// use lakers_ead::consts::*;
+// use lakers_ead_authz::consts::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, types::PyBytes};
@@ -77,7 +77,7 @@ fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
 
     let submodule = PyModule::new(_py, "consts")?;
-    submodule.add("EAD_AUTHZ_LABEL", lakers_ead::consts::EAD_AUTHZ_LABEL)?;
+    submodule.add("EAD_AUTHZ_LABEL", lakers_ead_authz::consts::EAD_AUTHZ_LABEL)?;
     m.add_submodule(submodule)?;
     Ok(())
 }

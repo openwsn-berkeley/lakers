@@ -2,7 +2,6 @@
 
 members = [
   "lib",
-  "ead",
   "ead/lakers-ead-authz",
   "crypto",
   "crypto/lakers-crypto-psa",
@@ -18,7 +17,6 @@ members = [
 # tested on the host architecture
 default-members = [
   "lib",
-  "ead",
   "crypto",
   "crypto/lakers-crypto-rustcrypto",
   "examples/coap",
@@ -43,7 +41,6 @@ categories = [ "no-std::no-alloc", "network-programming", "embedded" ]
 
 lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.5.1" }
 
-lakers-ead = { package = "lakers-ead", path = "ead/", version = "^0.5.1", default-features = false }
 lakers-ead-authz = { package = "lakers-ead-authz", path = "ead/lakers-ead-authz/", version = "^0.5.1" }
 
 lakers-crypto = { path = "crypto/" }

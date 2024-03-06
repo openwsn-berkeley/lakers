@@ -1,7 +1,7 @@
 use hexlit::hex;
 use lakers::*;
 use lakers_crypto::Crypto;
-use lakers_ead::{ZeroTouchAuthenticator, ZeroTouchServer};
+use lakers_ead_authz::{ZeroTouchAuthenticator, ZeroTouchServer};
 
 use coap_message::{Code, MinimalWritableMessage, MutableWritableMessage, ReadableMessage};
 use coap_message_utils::{Error, OptionsExt as _};
