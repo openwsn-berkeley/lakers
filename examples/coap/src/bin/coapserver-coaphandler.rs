@@ -20,6 +20,28 @@ struct EdhocHandler {
     connections: Vec<(u8, EdhocResponderWaitM3<Crypto>)>,
 }
 
+/// Render a MessageBufferError into the common Error type.
+///
+/// It is yet to be determined whether anything more informative should be returned (likely it
+/// should; maybe Request Entity Too Large or some error code about unusable credential.
+///
+/// Places using this function may be simplified if From/Into is specified (possibly after
+/// enlarging the Error type)
+fn too_small(_e: MessageBufferError) -> Error {
+    Error::bad_request()
+}
+
+/// Render an EDHOCError into the common Error type.
+///
+/// It is yet to be decided based on the EDHOC specification which EDHOCError values would be
+/// reported with precise data, and which should rather produce a generic response.
+///
+/// Places using this function may be simplified if From/Into is specified (possibly after
+/// enlarging the Error type)
+fn render_error(_e: EDHOCError) -> Error {
+    Error::bad_request()
+}
+
 impl EdhocHandler {
     fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<Crypto>> {
         let index = self
@@ -82,13 +104,10 @@ impl coap_handler::Handler for EdhocHandler {
             let (responder, _ead_1) =
                 EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r)
                     .process_message_1(
-                        &request.payload()[1..]
-                            .try_into()
-                            // FIXME: It's really Request Entity Too Large
-                            .map_err(|_| Error::bad_request())?,
+                        &EdhocMessageBuffer::new_from_slice(&request.payload()[1..])
+                            .map_err(too_small)?,
                     )
-                    // FIXME: Produce proper error
-                    .map_err(|_| Error::bad_request())?;
+                    .map_err(render_error)?;
 
             let c_r = self.new_c_r();
             Ok(EdhocResponse::OkSend2 { c_r, responder })
@@ -109,26 +128,21 @@ impl coap_handler::Handler for EdhocHandler {
 
             println!("Found state with connection identifier {:?}", c_r_rcvd);
 
-            let message_3 = EdhocMessageBuffer::new_from_slice(&message_3)
-                // FIXME: It's really Request Entity Too Large
-                .map_err(|_| Error::bad_request())?;
+            let message_3 = EdhocMessageBuffer::new_from_slice(&message_3).map_err(too_small)?;
             let result = responder.parse_message_3(&message_3);
             let (responder, id_cred_i, _ead_3) = result.map_err(|e| {
                 println!("EDHOC processing error: {:?}", e);
-                // FIXME: Produce proper error
-                Error::bad_request()
+                render_error(e)
             })?;
             let cred_i =
                 CredentialRPK::new(CRED_I.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
-            let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i)
-                // FIXME: That'd probably also be an EDHOC error?
-                .map_err(|_| Error::bad_request())?;
+            let valid_cred_i =
+                credential_check_or_fetch(Some(cred_i), id_cred_i).map_err(render_error)?;
             let (mut responder, prk_out) =
                 responder.verify_message_3(valid_cred_i).map_err(|e| {
                     println!("EDHOC processing error: {:?}", e);
-                    // FIXME: Produce proper error
-                    Error::bad_request()
+                    render_error(e)
                 })?;
 
             println!("EDHOC exchange successfully completed");
