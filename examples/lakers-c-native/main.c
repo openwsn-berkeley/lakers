@@ -109,32 +109,31 @@ int main(void)
     // lakers init
     puts("loading credentials.");
     CredentialRPK cred_i = {0}, cred_r = {0};
-    credential_rpk_new(CRED_I, 107, &cred_i);
-    credential_rpk_new(CRED_R, 84, &cred_r);
+    credential_rpk_new(&cred_i, CRED_I, 107);
+    credential_rpk_new(&cred_r, CRED_R, 84);
     puts("creating edhoc initiator.");
-    EdhocInitiatorC initiator = initiator_new();
-
+    EdhocInitiator initiator = {0};
+    initiator_new(&initiator);
 #ifdef LAKERS_EAD_AUTHZ
     puts("creating ead-authz device.");
-    ZeroTouchDevice device = authz_device_new(ID_U, ID_U_LEN, &G_W, LOC_W, LOC_W_LEN);
+    EadAuthzDevice device = {0};
+    authz_device_new(&device, ID_U, ID_U_LEN, &G_W, LOC_W, LOC_W_LEN);
     puts("computing authz_secret.");
     BytesP256ElemLen authz_secret;
     initiator_compute_ephemeral_secret(&initiator, &G_W, &authz_secret);
     puts("computing ead_1.");
-    ZeroTouchDeviceWaitEAD2 device_wait;
-    EADItemC ead_1;
-    authz_device_prepare_ead_1(&device, &authz_secret, SS, &device_wait, &ead_1);
+    EADItemC ead_1 = {0};
+    authz_device_prepare_ead_1(&device, &authz_secret, SS, &ead_1);
     print_hex(ead_1.value.content, ead_1.value.len);
 #endif
 
     puts("Begin test: edhoc initiator.");
     EdhocMessageBuffer message_1;
-    EdhocInitiatorWaitM2C initiator_wait_m2;
 #ifdef LAKERS_EAD_AUTHZ
-    int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &initiator_wait_m2, &message_1);
-    memcpy(device_wait.h_message_1, initiator_wait_m2.state.h_message_1, SHA256_DIGEST_LEN);
+    int res = initiator_prepare_message_1(&initiator, NULL, &ead_1, &message_1);
+    memcpy(device.wait_ead2.h_message_1, initiator.wait_m2.h_message_1, SHA256_DIGEST_LEN);
 #else
-    int res = initiator_prepare_message_1(&initiator, NULL, NULL, &initiator_wait_m2, &message_1);
+    int res = initiator_prepare_message_1(&initiator, NULL, NULL, &message_1);
 #endif
     if (res != 0) {
         printf("Error prep msg1: %d\n", res);
@@ -148,14 +147,13 @@ int main(void)
     puts("processing msg2");
     EdhocMessageBuffer message_2 = {.len = coap_response_payload_len};
     memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
-    EdhocInitiatorProcessingM2C initiator_processing_m2;
+    EADItemC ead_2 = {0};
     uint8_t c_r;
     CredentialRPK fetched_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
-    EADItemC ead_2;
-    res = initiator_parse_message_2(&initiator_wait_m2, &message_2, cred_r, &initiator_processing_m2, &c_r, &fetched_cred_r, &ead_2);
+    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
 #else
-    res = initiator_parse_message_2(&initiator_wait_m2, &message_2, cred_r, &initiator_processing_m2, &c_r, &fetched_cred_r, NULL);
+    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
 #endif
     if (res != 0) {
         printf("Error parse msg2: %d\n", res);
@@ -163,8 +161,7 @@ int main(void)
     }
 #ifdef LAKERS_EAD_AUTHZ
     puts("processing ead2");
-    ZeroTouchDeviceDone device_done;
-    res = authz_device_process_ead_2(&device_wait, &ead_2, cred_r, &device_done);
+    res = authz_device_process_ead_2(&device, &ead_2, cred_r);
     if (res != 0) {
         printf("Error process ead2 (authz): %d\n", res);
         return 1;
@@ -172,18 +169,16 @@ int main(void)
         puts("ead-authz voucher received and validated");
     }
 #endif
-    EdhocInitiatorProcessedM2C initiator_processed_m2;
-    res = initiator_verify_message_2(&initiator_processing_m2, &I, cred_i, fetched_cred_r, &initiator_processed_m2);
+    res = initiator_verify_message_2(&initiator, &I, cred_i, fetched_cred_r);
     if (res != 0) {
         printf("Error verify msg2: %d\n", res);
         return 1;
     }
 
     puts("preparing msg3");
-    EdhocInitiatorDoneC initiator_done;
     EdhocMessageBuffer message_3;
     uint8_t prk_out[SHA256_DIGEST_LEN];
-    res = initiator_prepare_message_3(&initiator_processed_m2, ByReference, NULL, &initiator_done, &message_3, prk_out);
+    res = initiator_prepare_message_3(&initiator, ByReference, NULL, &message_3, prk_out);
     if (res != 0) {
         printf("Error prep msg3: %d\n", res);
         return 1;

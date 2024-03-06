@@ -12,5 +12,6 @@ include_guard = "LAKERS_EAD_AUTHZ_H"
 
 [export]
 include = [
+    "EadAuthzDevice",
     "ZeroTouchDevice", "ZeroTouchDeviceWaitEAD2", "ZeroTouchDeviceDone"
 ]
