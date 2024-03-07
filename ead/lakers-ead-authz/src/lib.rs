@@ -92,6 +92,6 @@ mod test_authz {
 
         let voucher_response =
             server.handle_voucher_request(&mut default_crypto(), &voucher_request);
-        assert_eq!(voucher_response.unwrap_err(), EDHOCError::EADError);
+        assert_eq!(voucher_response.unwrap_err(), EDHOCError::AccessDenied);
     }
 }

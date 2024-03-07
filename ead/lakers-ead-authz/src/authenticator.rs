@@ -22,7 +22,7 @@ impl ZeroTouchAuthenticator {
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
         if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
-            return Err(EDHOCError::EADError);
+            return Err(EDHOCError::EADUnprocessable);
         }
 
         let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
@@ -92,7 +92,7 @@ fn parse_voucher_response(
 
     let array_size = decoder.array()?;
     if !(2..=3).contains(&array_size) {
-        return Err(EDHOCError::EADError);
+        return Err(EDHOCError::EADUnprocessable);
     }
 
     let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();

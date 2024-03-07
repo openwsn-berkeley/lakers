@@ -120,7 +120,15 @@ pub enum EDHOCError {
     ParsingError,
     EadLabelTooLongError,
     EadTooLongError,
-    EADError,
+    /// An EAD was received that was either not known (and critical), or not understood, or
+    /// otherwise erroneous.
+    EADUnprocessable,
+    /// The credential or EADs could be processed (possibly by a third party), but the decision
+    /// based on that was to not to continue the EDHOC session.
+    ///
+    /// See also
+    /// <https://datatracker.ietf.org/doc/html/draft-ietf-lake-authz#name-edhoc-error-access-denied>
+    AccessDenied,
 }
 
 impl EDHOCError {
@@ -147,7 +155,8 @@ impl EDHOCError {
             ParsingError => ErrCode::UNSPECIFIED,
             EadLabelTooLongError => ErrCode::UNSPECIFIED,
             EadTooLongError => ErrCode::UNSPECIFIED,
-            EADError => ErrCode::ACCESS_DENIED,
+            EADUnprocessable => ErrCode::UNSPECIFIED,
+            AccessDenied => ErrCode::ACCESS_DENIED,
         }
     }
 }
