@@ -109,7 +109,11 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 #[derive(PartialEq, Debug)]
 #[non_exhaustive]
 pub enum EDHOCError {
-    UnknownPeer,
+    /// In an exchange, a credential was set as "expected", but the credential configured by the
+    /// peer did not match what was presented. This is more an application internal than an EDHOC
+    /// error: When the application sets the expected credential, that process should be informed
+    /// by the known details.
+    UnexpectedCredential,
     MacVerificationFailed,
     UnsupportedMethod,
     UnsupportedCipherSuite,
@@ -136,7 +140,7 @@ impl EDHOCError {
     pub fn err_code(&self) -> ErrCode {
         use EDHOCError::*;
         match self {
-            UnknownPeer => ErrCode::UNKNOWN_CREDENTIAL,
+            UnexpectedCredential => ErrCode::UNSPECIFIED,
             MacVerificationFailed => ErrCode::UNSPECIFIED,
             UnsupportedMethod => ErrCode::UNSPECIFIED,
             UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
