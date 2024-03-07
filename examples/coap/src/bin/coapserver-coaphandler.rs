@@ -1,12 +1,13 @@
 use hexlit::hex;
 use lakers::*;
 use lakers_crypto::Crypto;
+use lakers_ead::{ZeroTouchAuthenticator, ZeroTouchServer};
 
 use coap_message::{Code, MinimalWritableMessage, MutableWritableMessage, ReadableMessage};
 use coap_message_utils::{Error, OptionsExt as _};
 use embedded_nal::UdpFullStack;
 
-const _ID_CRED_I: &[u8] = &hex!("a104412b");
+const ID_CRED_I: &[u8] = &hex!("a104412b");
 const ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
@@ -15,9 +16,13 @@ const _G_I_Y_COORD: &[u8] =
 const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
 
-#[derive(Default, Debug)]
+// authz server
+const W_TV: &[u8] = &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
+
+#[derive(Debug)]
 struct EdhocHandler {
     connections: Vec<(u8, EdhocResponderWaitM3<Crypto>)>,
+    mock_server: ZeroTouchServer,
 }
 
 /// Render a MessageBufferError into the common Error type.
@@ -71,6 +76,12 @@ enum EdhocResponse {
     OkSend2 {
         c_r: u8,
         responder: EdhocResponderProcessedM1<'static, Crypto>,
+        // FIXME: Is the ead_2 the most practical data to store here? An easy alternative is the
+        // voucher_response; ideal would be the voucher, bu that is only internal to prepare_ead_2.
+        //
+        // Also, we'll want to carry around the set of actually authenticated claims (right now
+        // it's just "if something is here, our single W completed authz")
+        ead_2: Option<EADItem>,
     },
     Message3Processed,
 }
@@ -89,8 +100,6 @@ impl coap_handler::Handler for EdhocHandler {
             return Err(Error::method_not_allowed());
         }
 
-        println!("{:?}", self);
-
         request.options().ignore_elective_others()?;
 
         let first_byte = request.payload().get(0).ok_or_else(Error::bad_request)?;
@@ -101,16 +110,42 @@ impl coap_handler::Handler for EdhocHandler {
                 CredentialRPK::new(CRED_R.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
 
-            let (responder, _ead_1) =
+            let message_1 =
+                &EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).map_err(too_small)?;
+
+            let (responder, ead_1) =
                 EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r)
-                    .process_message_1(
-                        &EdhocMessageBuffer::new_from_slice(&request.payload()[1..])
-                            .map_err(too_small)?,
-                    )
+                    .process_message_1(message_1)
                     .map_err(render_error)?;
 
+            let ead_2 = if let Some(ead_1) = ead_1 {
+                let authenticator = ZeroTouchAuthenticator::default();
+                let (authenticator, _loc_w, voucher_request) = authenticator
+                    .process_ead_1(&ead_1, &message_1)
+                    .map_err(render_error)?;
+
+                // mock a request to the server
+                let voucher_response = self
+                    .mock_server
+                    .handle_voucher_request(&mut lakers_crypto::default_crypto(), &voucher_request)
+                    .map_err(render_error)?;
+
+                let ead_2 = authenticator
+                    .prepare_ead_2(&voucher_response)
+                    .map_err(render_error)?;
+
+                println!("Authenticator confirmed authz");
+                Some(ead_2)
+            } else {
+                None
+            };
+
             let c_r = self.new_c_r();
-            Ok(EdhocResponse::OkSend2 { c_r, responder })
+            Ok(EdhocResponse::OkSend2 {
+                c_r,
+                responder,
+                ead_2,
+            })
         } else {
             // potentially message 3
             //
@@ -178,9 +213,13 @@ impl coap_handler::Handler for EdhocHandler {
     ) -> Result<(), Self::BuildResponseError<M>> {
         response.set_code(M::Code::new(coap_numbers::code::CHANGED)?);
         match req {
-            EdhocResponse::OkSend2 { c_r, responder } => {
+            EdhocResponse::OkSend2 {
+                c_r,
+                responder,
+                ead_2,
+            } => {
                 let (responder, message_2) = responder
-                    .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &None)
+                    .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
                     .unwrap();
                 self.connections.push((c_r, responder));
                 response.set_payload(message_2.as_slice())?;
@@ -194,7 +233,18 @@ impl coap_handler::Handler for EdhocHandler {
 fn build_handler() -> impl coap_handler::Handler {
     use coap_handler_implementations::{HandlerBuilder, ReportingHandlerBuilder};
 
-    let edhoc: EdhocHandler = Default::default();
+    // ead authz server (W)
+    let acl = EdhocMessageBuffer::new_from_slice(&[ID_CRED_I[3]]).unwrap(); // [kid]
+    let mock_server = ZeroTouchServer::new(
+        W_TV.try_into().unwrap(),
+        CRED_R.try_into().unwrap(),
+        Some(acl),
+    );
+
+    let edhoc = EdhocHandler {
+        connections: Vec::with_capacity(3),
+        mock_server,
+    };
 
     coap_handler_implementations::new_dispatcher()
         .at_with_attributes(&[".well-known", "edhoc"], &[], edhoc)
