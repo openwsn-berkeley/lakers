@@ -15,6 +15,8 @@ pub use cbor_decoder::*;
 pub use edhoc_parser::*;
 pub use helpers::*;
 
+use core::num::NonZeroI16;
+
 mod crypto;
 pub use crypto::Crypto;
 
@@ -115,6 +117,61 @@ pub enum EDHOCError {
     EadLabelTooLongError,
     EadTooLongError,
     EADError,
+}
+
+impl EDHOCError {
+    /// The ERR_CODE corresponding to the error
+    ///
+    /// Errors that refer to internal limitations (such as EadTooLongError) are treated the same
+    /// way as parsing errors, and return an unspecified error: Those are equivalent to limitations
+    /// of the parser, and a constrained system can not be expected to differentiate between "the
+    /// standard allows this but my number space is too small" and "this violates the standard".
+    ///
+    /// If an EDHOCError is returned through EDHOC, it will use this in its EDHOC error message.
+    ///
+    /// Note that this on its own is insufficient to create an error message: Additional ERR_INFO
+    /// is needed, which may or may not be available with the EDHOCError alone.
+    ///
+    /// TODO: Evolve the EDHOCError type such that all information needed is available.
+    pub fn err_code(&self) -> ErrCode {
+        use EDHOCError::*;
+        match self {
+            UnknownPeer => ErrCode::UNKNOWN_CREDENTIAL,
+            MacVerificationFailed => ErrCode::UNSPECIFIED,
+            UnsupportedMethod => ErrCode::UNSPECIFIED,
+            UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
+            ParsingError => ErrCode::UNSPECIFIED,
+            EadLabelTooLongError => ErrCode::UNSPECIFIED,
+            EadTooLongError => ErrCode::UNSPECIFIED,
+            EADError => ErrCode::ACCESS_DENIED,
+        }
+    }
+}
+
+/// Representation of an EDHOC ERR_CODE
+#[repr(C)]
+pub struct ErrCode(pub NonZeroI16);
+
+impl ErrCode {
+    // The way these are initialized will be simplified once const_option is stable
+
+    pub const UNSPECIFIED: Self = ErrCode(match NonZeroI16::new(1) {
+        Some(v) => v,
+        _ => unreachable!(),
+    });
+    pub const WRONG_SELECTED_CIPHER_SUITE: Self = ErrCode(match NonZeroI16::new(2) {
+        Some(v) => v,
+        _ => unreachable!(),
+    });
+    pub const UNKNOWN_CREDENTIAL: Self = ErrCode(match NonZeroI16::new(3) {
+        Some(v) => v,
+        _ => unreachable!(),
+    });
+    // Code requested in https://datatracker.ietf.org/doc/html/draft-ietf-lake-authz
+    pub const ACCESS_DENIED: Self = ErrCode(match NonZeroI16::new(3333) {
+        Some(v) => v,
+        _ => unreachable!(),
+    });
 }
 
 #[derive(Debug)]
