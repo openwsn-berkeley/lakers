@@ -27,12 +27,14 @@ pub unsafe extern "C" fn initiator_new(initiator: *mut EdhocInitiator) -> i8 {
     suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
     let (x, g_x) = default_crypto().p256_generate_key_pair();
 
-    (*initiator).start = InitiatorStart {
+    let start = InitiatorStart {
         x,
         g_x,
         suites_i,
         suites_i_len,
     };
+
+    core::ptr::write(&mut (*initiator).start, start);
 
     0
 }
@@ -68,8 +70,8 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
 
     let result = match i_prepare_message_1(&state, crypto, c_i, &ead_1) {
         Ok((state, msg_1)) => {
-            *message_1 = msg_1;
-            (*initiator_c).wait_m2 = state;
+            core::ptr::write(&mut *message_1, msg_1);
+            core::ptr::write(&mut (*initiator_c).wait_m2, state);
             0
         }
         Err(err) => err as i8,
@@ -83,7 +85,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     message_2: *const EdhocMessageBuffer,
-    expected_cred_r: CredentialRPK,
+    expected_cred_r: *const CredentialRPK,
     // output params
     c_r_out: *mut u8,
     valid_cred_r_out: *mut CredentialRPK,
@@ -101,7 +103,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     let crypto = &mut default_crypto();
 
     // manually take `state` because Rust cannot move out of a dereferenced raw pointer directly
-    // raw pointers do not have ownership information, requiring manual handling of the data
+    // (raw pointers do not have ownership information, requiring manual handling of the data)
     let state = core::ptr::read(&(*initiator_c).wait_m2);
 
     let result = match i_parse_message_2(&state, crypto, &(*message_2)) {
@@ -110,7 +112,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
             *c_r_out = c_r;
 
             // NOTE: checking here to avoid having IdCredOwnedC being passed across the ffi boundary
-            let Ok(valid_cred_r) = credential_check_or_fetch(Some(expected_cred_r), id_cred_r)
+            let Ok(valid_cred_r) = credential_check_or_fetch(Some(*expected_cred_r), id_cred_r)
             else {
                 return -1;
             };

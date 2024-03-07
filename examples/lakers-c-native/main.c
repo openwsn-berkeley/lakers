@@ -151,9 +151,9 @@ int main(void)
     uint8_t c_r;
     CredentialRPK fetched_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
-    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
+    res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &fetched_cred_r, &ead_2);
 #else
-    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
+    res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &fetched_cred_r, &ead_2);
 #endif
     if (res != 0) {
         printf("Error parse msg2: %d\n", res);
