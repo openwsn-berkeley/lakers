@@ -17,3 +17,5 @@ make LAKERS_EAD=authz && ./lakers_c_native
 - See the README in the `lakers-c` crate.
 - Install [libcoap](https://libcoap.net/install.html):
   - tested with the following configuration: `./configure --disable-doxygen --disable-manpages --disable-dtls --disable-oscore`
+
+Note: the following sanitizers are enabled in the `Makefile`: `address,undefined,leak` (see for example the [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)). They may help catch bugs but make the executable larger and slower.

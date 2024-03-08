@@ -137,8 +137,8 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     initiator_c: *mut EdhocInitiator,
     i: *const BytesP256ElemLen,
     // i_len: usize,
-    mut cred_i: CredentialRPK,
-    valid_cred_r: CredentialRPK,
+    mut cred_i: *mut CredentialRPK,
+    valid_cred_r: *mut CredentialRPK,
 ) -> i8 {
     if initiator_c.is_null() || i.is_null() {
         return -1;
@@ -147,10 +147,10 @@ pub unsafe extern "C" fn initiator_verify_message_2(
 
     let state = core::ptr::read(&(*initiator_c).processing_m2).to_rust();
 
-    match i_verify_message_2(&state, crypto, valid_cred_r, &(*i)) {
+    match i_verify_message_2(&state, crypto, *valid_cred_r, &(*i)) {
         Ok(state) => {
             (*initiator_c).processed_m2 = state;
-            (*initiator_c).cred_i = &mut cred_i as *mut CredentialRPK;
+            (*initiator_c).cred_i = cred_i;
             0
         }
         Err(err) => err as i8,
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     }
     let crypto = &mut default_crypto();
 
-    let mut state = core::ptr::read(&(*initiator_c).processed_m2);
+    let state = core::ptr::read(&(*initiator_c).processed_m2);
 
     let ead_3 = if ead_3_c.is_null() {
         None
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     };
 
     match i_prepare_message_3(
-        &mut state,
+        &state,
         crypto,
         *(*initiator_c).cred_i,
         cred_transfer,

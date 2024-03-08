@@ -9,6 +9,7 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 
+#[cfg(feature = "ead-authz")]
 pub mod ead_authz;
 pub mod initiator;
 

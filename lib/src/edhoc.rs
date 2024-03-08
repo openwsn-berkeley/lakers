@@ -399,7 +399,7 @@ pub fn i_verify_message_2(
 }
 
 pub fn i_prepare_message_3(
-    state: &mut ProcessedM2,
+    state: &ProcessedM2,
     crypto: &mut impl CryptoTrait,
     cred_i: CredentialRPK,
     cred_transfer: CredentialTransfer,
