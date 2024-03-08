@@ -48,7 +48,7 @@ impl ZeroTouchServer {
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
             Ok(voucher_response)
         } else {
-            Err(EDHOCError::EADError)
+            Err(EDHOCError::AccessDenied)
         }
     }
 }
@@ -107,7 +107,7 @@ fn parse_voucher_request(
     let mut decoder = CBORDecoder::new(vreq.as_slice());
     let array_size = decoder.array()?;
     if array_size != 1 && array_size != 2 {
-        return Err(EDHOCError::EADError);
+        return Err(EDHOCError::EADUnprocessable);
     }
 
     let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
@@ -277,7 +277,7 @@ mod test_enrollment_server {
             &mut default_crypto(),
             &VOUCHER_REQUEST_TV.try_into().unwrap(),
         );
-        assert_eq!(res.unwrap_err(), EDHOCError::EADError);
+        assert_eq!(res.unwrap_err(), EDHOCError::AccessDenied);
     }
 }
 

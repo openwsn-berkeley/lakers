@@ -446,7 +446,7 @@ pub fn credential_check_or_fetch<'a>(
         if credentials_match {
             Ok(cred_expected)
         } else {
-            Err(EDHOCError::UnknownPeer)
+            Err(EDHOCError::UnexpectedCredential)
         }
     } else {
         // 1. Does ID_CRED_X point to a stored authentication credential? NO
