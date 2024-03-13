@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -I../../target/include
+CFLAGS=-Wall -I../../target/include -fsanitize=address,undefined,leak
 
 TARGET=lakers_c_native
 
@@ -15,6 +15,8 @@ LIB_NAME=lakers_c
 ifeq ($(LAKERS_EAD), authz)
 	CFLAGS += -DLAKERS_EAD_AUTHZ
 endif
+
+LDFLAGS=-fsanitize=address,undefined,leak
 
 all: $(TARGET)
 

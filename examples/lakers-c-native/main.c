@@ -43,10 +43,13 @@ static coap_response_t message_handler(coap_session_t *session COAP_UNUSED,
     has_coap_response = 1;
     // coap_show_pdu(COAP_LOG_WARN, received);
     const uint8_t *data;
-    coap_get_data(received, &coap_response_payload_len, &data);
-    memcpy(coap_response_payload, data, coap_response_payload_len);
-    puts("received coap response");
-    print_hex((uint8_t *)coap_response_payload, coap_response_payload_len);
+    if (coap_get_data(received, &coap_response_payload_len, &data)) {
+        memcpy(coap_response_payload, data, coap_response_payload_len);
+        puts("received coap response");
+        print_hex((uint8_t *)coap_response_payload, coap_response_payload_len);
+    } else {
+        puts("received coap response without payload");
+    }
     return COAP_RESPONSE_OK;
 }
 
@@ -152,9 +155,9 @@ int main(void)
     uint8_t c_r;
     CredentialRPK fetched_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
-    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
+    res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &fetched_cred_r, &ead_2);
 #else
-    res = initiator_parse_message_2(&initiator, &message_2, cred_r, &c_r, &fetched_cred_r, &ead_2);
+    res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &fetched_cred_r, &ead_2);
 #endif
     if (res != 0) {
         printf("Error parse msg2: %d\n", res);
@@ -170,16 +173,16 @@ int main(void)
         puts("ead-authz voucher received and validated");
     }
 #endif
-    res = initiator_verify_message_2(&initiator, &I, cred_i, fetched_cred_r);
+    res = initiator_verify_message_2(&initiator, &I, &cred_i, &fetched_cred_r);
     if (res != 0) {
         printf("Error verify msg2: %d\n", res);
         return 1;
     }
 
     puts("preparing msg3");
-    EdhocMessageBuffer message_3;
-    uint8_t prk_out[SHA256_DIGEST_LEN];
-    res = initiator_prepare_message_3(&initiator, ByReference, NULL, &message_3, prk_out);
+    EdhocMessageBuffer message_3 = {0};
+    uint8_t prk_out[SHA256_DIGEST_LEN] = {0};
+    res = initiator_prepare_message_3(&initiator, ByReference, NULL, &message_3, &prk_out);
     if (res != 0) {
         printf("Error prep msg3: %d\n", res);
         return 1;

@@ -134,7 +134,7 @@ pub fn r_prepare_message_2(
     let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
     ct.fill_with_slice(plaintext_2.as_slice()).unwrap(); // TODO(hax): can we prove with hax that this won't panic since they use the same underlying buffer length?
 
-    let ciphertext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ct);
+    let ciphertext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, &ct);
 
     ct.fill_with_slice(ciphertext_2.as_slice()).unwrap(); // TODO(hax): same as just above.
 
@@ -310,7 +310,7 @@ pub fn i_parse_message_2<'a>(
         // compute prk_2e
         let prk_2e = compute_prk_2e(crypto, &state.x, &g_y, &th_2);
 
-        let plaintext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, ciphertext_2);
+        let plaintext_2 = encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, &ciphertext_2);
 
         // decode plaintext_2
         let plaintext_2_decoded = decode_plaintext_2(&plaintext_2);
@@ -399,7 +399,7 @@ pub fn i_verify_message_2(
 }
 
 pub fn i_prepare_message_3(
-    state: &mut ProcessedM2,
+    state: &ProcessedM2,
     crypto: &mut impl CryptoTrait,
     cred_i: CredentialRPK,
     cred_transfer: CredentialTransfer,
@@ -888,7 +888,7 @@ fn encrypt_decrypt_ciphertext_2(
     crypto: &mut impl CryptoTrait,
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
-    mut ciphertext_2: BufferCiphertext2,
+    ciphertext_2: &BufferCiphertext2,
 ) -> BufferCiphertext2 {
     // convert the transcript hash th_2 to BytesMaxContextBuffer type
     let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
@@ -904,11 +904,13 @@ fn encrypt_decrypt_ciphertext_2(
         ciphertext_2.len,
     );
 
+    let mut result = BufferCiphertext2::default();
     for i in 0..ciphertext_2.len {
-        ciphertext_2.content[i] ^= keystream_2[i];
+        result.content[i] = ciphertext_2.content[i] ^ keystream_2[i];
     }
+    result.len = ciphertext_2.len;
 
-    ciphertext_2
+    result
 }
 
 fn compute_salt_4e3m(
@@ -1417,7 +1419,7 @@ mod tests {
             &mut default_crypto(),
             &PRK_2E_TV,
             &TH_2_TV,
-            ciphertext_2_tv,
+            &ciphertext_2_tv,
         );
 
         assert_eq!(plaintext_2.len, PLAINTEXT_2_LEN_TV);
@@ -1427,7 +1429,7 @@ mod tests {
 
         // test encryption
         let ciphertext_2 =
-            encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, plaintext_2);
+            encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, &plaintext_2);
 
         assert_eq!(ciphertext_2.len, CIPHERTEXT_2_LEN_TV);
         for i in 0..CIPHERTEXT_2_LEN_TV {
