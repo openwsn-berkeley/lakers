@@ -27,6 +27,9 @@ lakers-crypto-cryptocell310 = { workspace = true, optional = true }
 lakers-crypto-rustcrypto = { workspace = true, optional = true }
 rand_core = { version = "0.6.4", optional = true, default-features = false }
 
+[dev-dependencies]
+hexlit = "0.5.3"
+
 [features]
 default = [  ]
 # hacspec = [ "lakers-crypto-hacspec" ]
