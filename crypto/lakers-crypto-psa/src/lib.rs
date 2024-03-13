@@ -60,13 +60,13 @@ impl CryptoTrait for Crypto {
         let mut t_i = self.hmac_sha256(&message[..info_len + 1], prk);
         output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
 
-        for i in 2..n {
+        for i in 2..=n {
             message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
             message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
                 .copy_from_slice(&info[..info_len]);
             message[SHA256_DIGEST_LEN + info_len] = i as u8;
             t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
-            output[i * SHA256_DIGEST_LEN..(i + 1) * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
+            output[(i - 1) * SHA256_DIGEST_LEN..i * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 
         output[length..].fill(0x00);

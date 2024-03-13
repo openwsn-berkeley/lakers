@@ -4,7 +4,7 @@
 //! avoids the need for all lakers types to be generic over a back-end, which would then be
 //! provided by the user at initialization time. On the long run, its type may turn into a
 //! default associated type.
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 /// Convenience re-export
 pub use lakers_shared::Crypto as CryptoTrait;
@@ -54,4 +54,44 @@ fn test_helper<T: CryptoTrait>() {}
 #[allow(dead_code)]
 fn test_implements_crypto() {
     test_helper::<Crypto>()
+}
+
+#[cfg(test)]
+mod tests {
+    use hexlit::hex;
+    use lakers_shared::*;
+    use rstest::rstest;
+
+    use super::*;
+
+    // Test vectors from RFC 5869, covering Test Cases 1 and 2
+    #[rstest]
+    #[case(
+        &hex!("077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5"),
+        &hex!("f0f1f2f3f4f5f6f7f8f9"),
+        42,
+        &hex!("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865")
+    )]
+    #[case(
+        &hex!("06a6b88c5853361a06104c9ceb35b45cef760014904671014a193f40c15fc244"),
+        &hex!("b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"),
+        82,
+        &hex!("b11e398dc80327a1c8e7f78c596a49344f012eda2d4efad8a050cc4c19afa97c59045a99cac7827271cb41c65e590e09da3275600c2f09b8367793a9aca3db71cc30c58179ec3e87c14c01d5c1f3434f1d87")
+    )]
+    fn test_hkdf_expand(
+        #[case] prk_slice: &[u8],
+        #[case] info_slice: &[u8],
+        #[case] output_length: usize,
+        #[case] expected_okm_slice: &[u8],
+    ) {
+        let mut crypto = default_crypto();
+
+        let mut prk = [0; SHA256_DIGEST_LEN];
+        prk[..prk_slice.len()].copy_from_slice(prk_slice);
+        let mut info = [0; MAX_INFO_LEN];
+        info[..info_slice.len()].copy_from_slice(info_slice);
+
+        let okm = crypto.hkdf_expand(&prk, &info, info_slice.len(), output_length);
+        assert_eq!(okm[..output_length], expected_okm_slice[..]);
+    }
 }
