@@ -6,7 +6,7 @@
 ///
 /// Example command to compile this module for the nRF52840:
 /// cargo build --target='thumbv7em-none-eabihf' --no-default-features --features="crypto-cryptocell310"
-use lakers::*;
+use lakers::{credential_check_or_fetch as credential_check_or_fetch_rust, *};
 use lakers_crypto::{default_crypto, CryptoTrait};
 
 #[cfg(feature = "ead-authz")]
@@ -124,6 +124,27 @@ pub unsafe extern "C" fn credential_rpk_new(
             0
         }
         Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn credential_check_or_fetch(
+    cred_expected: *mut CredentialRPK,
+    id_cred_received: *mut CredentialRPK,
+) -> i8 {
+    let cred_expected = if cred_expected.is_null() {
+        None
+    } else {
+        Some(*cred_expected)
+    };
+
+    let id_cred_received_value = *id_cred_received;
+    match credential_check_or_fetch_rust(cred_expected, id_cred_received_value) {
+        Ok(valid_cred) => {
+            *id_cred_received = valid_cred;
+            0
+        }
+        Err(err) => err as i8,
     }
 }
 
