@@ -85,7 +85,6 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     message_2: *const EdhocMessageBuffer,
-    // expected_cred_r: *const CredentialRPK,
     // output params
     c_r_out: *mut u8,
     id_cred_r_out: *mut CredentialRPK,
@@ -129,7 +128,6 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     i: *const BytesP256ElemLen,
-    // i_len: usize,
     mut cred_i: *mut CredentialRPK,
     valid_cred_r: *mut CredentialRPK,
 ) -> i8 {
