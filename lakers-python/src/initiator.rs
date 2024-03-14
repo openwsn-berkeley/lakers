@@ -111,7 +111,7 @@ impl PyEdhocInitiator {
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
         ead_3: Option<EADItem>,
-    ) -> PyResult<(&'a PyBytes, [u8; SHA256_DIGEST_LEN])> {
+    ) -> PyResult<(&'a PyBytes, &'a PyBytes)> {
         match i_prepare_message_3(
             &mut self.processed_m2,
             &mut default_crypto(),
@@ -121,7 +121,10 @@ impl PyEdhocInitiator {
         ) {
             Ok((state, message_3, prk_out)) => {
                 self.completed = state;
-                Ok((PyBytes::new(py, message_3.as_slice()), prk_out))
+                Ok((
+                    PyBytes::new(py, message_3.as_slice()),
+                    PyBytes::new(py, prk_out.as_slice()),
+                ))
             }
             Err(error) => Err(error.into()),
         }
