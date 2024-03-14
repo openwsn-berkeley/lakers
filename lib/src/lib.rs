@@ -421,7 +421,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 }
 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
-pub fn credential_check_or_fetch<'a>(
+pub fn credential_check_or_fetch(
     cred_expected: Option<CredentialRPK>,
     id_cred_received: CredentialRPK,
 ) -> Result<CredentialRPK, EDHOCError> {

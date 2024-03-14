@@ -85,17 +85,16 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     message_2: *const EdhocMessageBuffer,
-    expected_cred_r: *const CredentialRPK,
     // output params
     c_r_out: *mut u8,
-    valid_cred_r_out: *mut CredentialRPK,
+    id_cred_r_out: *mut CredentialRPK,
     ead_2_c_out: *mut EADItemC,
 ) -> i8 {
     // this is a parsing function, so all output parameters are mandatory
     if initiator_c.is_null()
         || message_2.is_null()
         || c_r_out.is_null()
-        || valid_cred_r_out.is_null()
+        || id_cred_r_out.is_null()
         || ead_2_c_out.is_null()
     {
         return -1;
@@ -110,14 +109,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
         Ok((state, c_r, id_cred_r, ead_2)) => {
             ProcessingM2C::copy_into_c(state, &mut (*initiator_c).processing_m2);
             *c_r_out = c_r;
-
-            // NOTE: checking here to avoid having IdCredOwnedC being passed across the ffi boundary
-            let Ok(valid_cred_r) = credential_check_or_fetch(Some(*expected_cred_r), id_cred_r)
-            else {
-                return -1;
-            };
-            *valid_cred_r_out = valid_cred_r;
-
+            *id_cred_r_out = id_cred_r;
             if let Some(ead_2) = ead_2 {
                 EADItemC::copy_into_c(ead_2, ead_2_c_out);
                 (*initiator_c).processing_m2.ead_2 = ead_2_c_out;
@@ -136,7 +128,6 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     i: *const BytesP256ElemLen,
-    // i_len: usize,
     mut cred_i: *mut CredentialRPK,
     valid_cred_r: *mut CredentialRPK,
 ) -> i8 {
