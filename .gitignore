@@ -18,3 +18,5 @@ Cargo.lock
 cscope*
 .DS_Store
 .vscode
+
+*.log

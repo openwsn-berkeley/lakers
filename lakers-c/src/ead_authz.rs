@@ -57,13 +57,13 @@ pub unsafe extern "C" fn authz_device_process_ead_2(
     // input parans
     device_c: *mut EadAuthzDevice,
     ead_2_c: *mut EADItemC,
-    cred_v: CredentialRPK,
+    cred_v: *mut CredentialRPK,
 ) -> i8 {
     let crypto = &mut default_crypto();
-    match (*device_c)
-        .wait_ead2
-        .process_ead_2(crypto, (*ead_2_c).to_rust(), cred_v.value.as_slice())
-    {
+    let device = &(*device_c);
+    let ead_2 = (*ead_2_c).to_rust();
+    let cred_v = (*cred_v).value.as_slice();
+    match device.wait_ead2.process_ead_2(crypto, ead_2, cred_v) {
         Ok(device) => {
             (*device_c).done = device;
             0

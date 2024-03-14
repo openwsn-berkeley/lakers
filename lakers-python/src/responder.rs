@@ -88,14 +88,18 @@ impl PyEdhocResponder {
         }
     }
 
-    pub fn verify_message_3(&mut self, valid_cred_i: Vec<u8>) -> PyResult<[u8; SHA256_DIGEST_LEN]> {
+    pub fn verify_message_3<'a>(
+        &mut self,
+        py: Python<'a>,
+        valid_cred_i: Vec<u8>,
+    ) -> PyResult<&'a PyBytes> {
         let valid_cred_i = CredentialRPK::new(
             EdhocMessageBuffer::new_from_slice(&valid_cred_i.as_slice()).unwrap(),
         )?;
         match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {
             Ok((state, prk_out)) => {
                 self.completed = state;
-                Ok(prk_out)
+                Ok(PyBytes::new(py, prk_out.as_slice()))
             }
             Err(error) => Err(error.into()),
         }

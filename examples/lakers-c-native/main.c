@@ -165,7 +165,7 @@ int main(void)
     }
 #ifdef LAKERS_EAD_AUTHZ
     puts("processing ead2");
-    res = authz_device_process_ead_2(&device, &ead_2, cred_r);
+    res = authz_device_process_ead_2(&device, &ead_2, &fetched_cred_r);
     if (res != 0) {
         printf("Error process ead2 (authz): %d\n", res);
         return 1;
