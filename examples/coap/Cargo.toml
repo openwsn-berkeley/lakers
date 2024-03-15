@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 lakers = { package = "lakers", path = "../../lib" }
-lakers-ead = { path = "../../ead/", features = [ "ead-authz" ] }
+lakers-ead-authz = { path = "../../ead/lakers-ead-authz" }
 lakers-crypto = { path = "../../crypto/", features = [ "rustcrypto" ] }
 hexlit = "0.5.3"
 coap = { version = "0.13" }
