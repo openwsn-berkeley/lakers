@@ -89,7 +89,7 @@ This library is structured as a [cargo workspace](https://doc.rust-lang.org/book
 Its main members are:
 
 - `lib`: The main library providing the EDHOC implementation.
-- `crypto`: Diferent cryptographic backends (e.g. psa, cryptocell310, hacspec).
+- `crypto`: Diferent cryptographic backends (e.g. psa, cryptocell310, rustcrypto).
 - `ead`: Implementation of extensions to EDHOC via the External Authorization Data (EAD) field.
 - `shared`: Defines shared structs and modules used throughout the workspace members.
 - `lakers-c`: Provides a foreign function interface that enables using `lakers` from C code.

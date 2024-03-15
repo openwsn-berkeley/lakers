@@ -32,17 +32,6 @@ fn main() -> ! {
     #[cfg(feature = "rtt")]
     rtt_init_print!();
 
-    // Initialize the allocator BEFORE you use it
-    // The hacspec version does some heap allocations
-    // TODO: we still don't have a baremetal version with hacspec as crypto backend, so maybe remove `HEAP`.
-    #[cfg(any(feature = "crypto-hacspec"))]
-    {
-        use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 1 << 10;
-        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
-    }
-
     // Memory buffer for mbedtls
     #[cfg(feature = "crypto-psa")]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
