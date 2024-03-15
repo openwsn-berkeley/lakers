@@ -14,9 +14,6 @@ lakers-shared = { package = "lakers-shared", path = "../shared", default-feature
 # hacspec
 # lakers-crypto-hacspec = { workspace = true, optional = true }
 
-# cc2538 hardware accelerated
-lakers-crypto-cc2538 = { workspace = true, optional = true }
-
 # psa
 lakers-crypto-psa = { workspace = true, default-features = false, optional = true }
 
@@ -34,7 +31,6 @@ rstest = "0.11.0"
 [features]
 default = [  ]
 # hacspec = [ "lakers-crypto-hacspec" ]
-cc2538 = [ "lakers-crypto-cc2538" ]
 psa = [ "lakers-crypto-psa" ]
 psa-baremetal = [ "psa", "lakers-crypto-psa/baremetal" ]
 cryptocell310 = [ "lakers-crypto-cryptocell310" ]

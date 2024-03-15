@@ -5,14 +5,12 @@ members = [
   "ead",
   "ead/lakers-ead-authz",
   "crypto",
-  "crypto/lakers-crypto-cc2538",
   # "crypto/lakers-crypto-hacspec",
   "crypto/lakers-crypto-psa",
   "crypto/lakers-crypto-rustcrypto",
   "crypto/lakers-crypto-cryptocell310-sys",
   "examples/coap",
   "examples/lakers-no_std",
-  "examples/lakers-cc2538",
   "lakers-c",
   "lakers-python",
 ]
@@ -48,7 +46,6 @@ lakers-ead = { package = "lakers-ead", path = "ead/", version = "^0.5.1", defaul
 lakers-ead-authz = { package = "lakers-ead-authz", path = "ead/lakers-ead-authz/", version = "^0.5.1" }
 
 lakers-crypto = { path = "crypto/" }
-lakers-crypto-cc2538 = { path = "crypto/lakers-crypto-cc2538/" }
 lakers-crypto-cryptocell310 = { path = "crypto/lakers-crypto-cryptocell310-sys/" }
 # lakers-crypto-hacspec = { path = "crypto/lakers-crypto-hacspec/" }
 lakers-crypto-psa = { path = "crypto/lakers-crypto-psa/" }

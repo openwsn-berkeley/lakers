@@ -17,10 +17,6 @@ pub const fn default_crypto() -> Crypto {
     lakers_crypto_hacspec::Crypto
 }
 
-// FIXME: Does not work with crypto-as-trait yet
-#[cfg(feature = "cc2538")]
-pub use lakers_crypto_cc2538::*;
-
 #[cfg(any(feature = "psa", feature = "psa-rust",))]
 pub type Crypto = lakers_crypto_psa::Crypto;
 
