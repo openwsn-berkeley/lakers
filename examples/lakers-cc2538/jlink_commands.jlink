@@ -1,6 +1,0 @@
-h
-loadbin ./tmp/flash.bin, 0x00200000
-verifybin ./tmp/flash.bin, 0x00200000
-r
-go
-q
