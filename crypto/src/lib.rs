@@ -9,14 +9,6 @@
 /// Convenience re-export
 pub use lakers_shared::Crypto as CryptoTrait;
 
-#[cfg(feature = "hacspec")]
-pub type Crypto = lakers_crypto_hacspec::Crypto;
-
-#[cfg(feature = "hacspec")]
-pub const fn default_crypto() -> Crypto {
-    lakers_crypto_hacspec::Crypto
-}
-
 #[cfg(any(feature = "psa", feature = "psa-rust",))]
 pub type Crypto = lakers_crypto_psa::Crypto;
 

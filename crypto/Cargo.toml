@@ -11,9 +11,6 @@ readme.workspace = true
 [dependencies]
 lakers-shared = { package = "lakers-shared", path = "../shared", default-features = false }
 
-# hacspec
-# lakers-crypto-hacspec = { workspace = true, optional = true }
-
 # psa
 lakers-crypto-psa = { workspace = true, default-features = false, optional = true }
 
@@ -30,7 +27,6 @@ rstest = "0.11.0"
 
 [features]
 default = [  ]
-# hacspec = [ "lakers-crypto-hacspec" ]
 psa = [ "lakers-crypto-psa" ]
 psa-baremetal = [ "psa", "lakers-crypto-psa/baremetal" ]
 cryptocell310 = [ "lakers-crypto-cryptocell310" ]
