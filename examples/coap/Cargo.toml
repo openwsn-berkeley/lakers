@@ -19,3 +19,12 @@ coap-handler = "0.2"
 coap-handler-implementations = "0.5"
 coap-numbers = "0.2.3"
 coap-message-utils = "0.3.1"
+
+std-embedded-nal-async = "^0.2"
+embedded-nal-async = "0.7"
+embedded-nal-coap = "0.1.0-alpha.2"
+async-std = { version = "1.12", features = [ "attributes" ] }
+rand = "0.8"
+coap-request = "0.2.0-alpha.2"
+embassy-futures = "0.1.1"
+coap-request-implementations = "0.1.0-alpha.4"
