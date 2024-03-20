@@ -646,6 +646,14 @@ mod test_authz {
         let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
         let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
 
+        let mock_fetch_cred_i = |id_cred_i: CredentialRPK| -> Result<CredentialRPK, EDHOCError> {
+            if id_cred_i.kid == cred_i.kid {
+                Ok(cred_i.clone())
+            } else {
+                Err(EDHOCError::UnexpectedCredential)
+            }
+        };
+
         // ==== initialize edhoc ====
         let mut initiator = EdhocInitiator::new(default_crypto());
         let responder = EdhocResponder::new(default_crypto(), R, cred_r);
@@ -708,7 +716,11 @@ mod test_authz {
             .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
-        let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+        let valid_cred_i = if id_cred_i.reference_only() {
+            mock_fetch_cred_i(id_cred_i).unwrap()
+        } else {
+            id_cred_i
+        };
         let (mut _responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
         // check that prk_out is equal at initiator and responder side
