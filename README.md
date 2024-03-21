@@ -2,8 +2,7 @@
 
 [![Build and test](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml)
 
-An implementation of [EDHOC](https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/) in Rust:
-- up-to-date with the [latest draft version (23)](https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/23/)
+An implementation of [EDHOC (RFC9528)](https://datatracker.ietf.org/doc/html/rfc9528) in Rust:
 - microcontroller-optimized: `no_std`, no heap allocations, zero-dependencies (other than crypto backends)
 - configurable crypto backends
 - bindings for [C](https://github.com/openwsn-berkeley/lakers/releases/) and [Python](https://pypi.org/project/lakers-python/)
