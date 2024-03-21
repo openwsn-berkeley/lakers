@@ -1,4 +1,4 @@
-//! Implementation of [EDHOC] (Ephemeral Diffie-Hellman Over COSE), a lightweight authenticated key
+//! Implementation of [EDHOC] (Ephemeral Diffie-Hellman Over COSE, RFC9528), a lightweight authenticated key
 //! exchange for the Internet of Things.
 //!
 //! The crate provides a high-level interface through the [EdhocInitiator] and the [EdhocResponder]
@@ -12,7 +12,7 @@
 //! their peer, and on eventually devolve into an [EdhocInitiatorDone] and [EdhocResponderDone],
 //! respectively, through which the EDHOC key material can be obtained.
 //!
-//! [EDHOC]: https://datatracker.ietf.org/doc/draft-ietf-lake-edhoc/
+//! [EDHOC]: https://datatracker.ietf.org/doc/html/rfc9528
 #![cfg_attr(not(test), no_std)]
 
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
@@ -606,7 +606,7 @@ mod test {
         assert_eq!(i_oscore_secret, r_oscore_secret);
         assert_eq!(i_oscore_salt, r_oscore_salt);
 
-        // test key update with context from draft-ietf-lake-traces
+        // test key update with context from RFC9529
         let i_prk_out_new = initiator.edhoc_key_update(&[
             0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
             0xbc, 0xea,
