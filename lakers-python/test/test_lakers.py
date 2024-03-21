@@ -1,7 +1,7 @@
 import lakers
 import pytest
 
-# values from draft-ietf-lake-traces
+# values from RFC9529
 CRED_I = bytes.fromhex("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
 I = bytes.fromhex("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b")
 R = bytes.fromhex("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac")
@@ -57,7 +57,7 @@ def test_handshake():
     assert i_oscore_secret == r_oscore_secret
     assert i_oscore_salt == r_oscore_salt
 
-    # test key update with context from draft-ietf-lake-traces
+    # test key update with context from RFC9529
     i_prk_out_new = initiator.edhoc_key_update(CONTEXT)
     r_prk_out_new = responder.edhoc_key_update(CONTEXT)
     assert i_prk_out_new == r_prk_out_new

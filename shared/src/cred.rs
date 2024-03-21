@@ -27,7 +27,7 @@ impl CredentialRPK {
     }
 
     fn parse(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
-        // NOTE: this routine is only guaranteed to work with credentials from lake-traces
+        // NOTE: this routine is only guaranteed to work with credentials from RFC9529
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
         const COSE_KEY_FIRST_ITEMS_LEN: usize = 6;
