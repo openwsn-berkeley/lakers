@@ -606,15 +606,13 @@ mod test {
         assert_eq!(i_oscore_secret, r_oscore_secret);
         assert_eq!(i_oscore_salt, r_oscore_salt);
 
-        // test key update with context from RFC9529
-        let i_prk_out_new = initiator.edhoc_key_update(&[
+        // test key update with context from draft-ietf-lake-traces
+        let context = &[
             0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
             0xbc, 0xea,
-        ]);
-        let r_prk_out_new = responder.edhoc_key_update(&[
-            0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8,
-            0xbc, 0xea,
-        ]);
+        ];
+        let i_prk_out_new = initiator.edhoc_key_update(context);
+        let r_prk_out_new = responder.edhoc_key_update(context);
 
         assert_eq!(i_prk_out_new, r_prk_out_new);
     }

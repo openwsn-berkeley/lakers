@@ -1,6 +1,7 @@
 # lakers: EDHOC implemented in Rust
 
 [![Build and test](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml)
+![crates.io](https://img.shields.io/crates/v/lakers.svg)
 
 An implementation of [EDHOC (RFC9528)](https://datatracker.ietf.org/doc/html/rfc9528) in Rust:
 - microcontroller-optimized: `no_std`, no heap allocations, zero-dependencies (other than crypto backends)
@@ -12,6 +13,7 @@ It currently supports authentication mode STAT-STAT and Cipher Suite 2 (AES-CCM-
 
 Here's a quick look at the API for the Initiator role (for the Responder role, and more details, check the examples or the unit tests):
 ```rust
+// perform the handshake
 let initiator = EdhocInitiator::new(default_crypto());
 
 let (initiator, message_1) = initiator.prepare_message_1(None, &None)?; // c_i and ead_1 are set to None
@@ -21,6 +23,13 @@ let valid_cred_r = credential_check_or_fetch(Some(CRED_R), id_cred_r)?; // CRED_
 let initiator = initiator.verify_message_2(I, cred_i, valid_cred_r)?; // I is Initiator's private key
 
 let (mut initiator, message_3, i_prk_out) = initiator.prepare_message_3(CredentialTransfer::ByReference, &None)?; // no ead_3
+
+// derive a secret to use with OSCORE
+let oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
+
+// update the prk_out key (context taken from draft-ietf-lake-traces)
+let context = &[0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8, 0xbc, 0xea];
+let prk_out_new = initiator.edhoc_key_update(context);
 ```
 
 ## Installation
