@@ -36,6 +36,8 @@ version = "0.5.1"
 repository = "https://github.com/openwsn-berkeley/lakers/"
 license = "BSD-3-Clause"
 readme = "shared/README.md"
+keywords = ["iot", "security", "protocol", "crypto", "edhoc"]
+categories = [ "no-std::no-alloc", "network-programming", "embedded" ]
 
 [workspace.dependencies]
 
