@@ -1,4 +1,11 @@
-# lakers &emsp; [![CI status](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml) [![crates.io](https://img.shields.io/crates/v/lakers.svg)](https://crates.io/crates/lakers)
+# lakers &emsp; [![CI status]][actions] [![Latest Version]][crates.io] [![API Documentation]][docs.rs]
+
+[CI status]: https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg
+[actions]: https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml
+[Latest Version]: https://img.shields.io/crates/v/lakers.svg
+[crates.io]: https://crates.io/crates/lakers
+[API Documentation]: https://docs.rs/lakers/badge.svg
+[docs.rs]: https://docs.rs/lakers
 
 An implementation of [EDHOC (RFC 9528)](https://datatracker.ietf.org/doc/html/rfc9528) in Rust.
 
