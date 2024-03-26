@@ -1,15 +1,32 @@
-# lakers: EDHOC implemented in Rust
+# lakers &emsp; [![CI status](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml) [![crates.io](https://img.shields.io/crates/v/lakers.svg)](https://crates.io/crates/lakers)
 
-[![Build and test](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml)
-![crates.io](https://img.shields.io/crates/v/lakers.svg)
+An implementation of [EDHOC (RFC 9528)](https://datatracker.ietf.org/doc/html/rfc9528) in Rust.
 
-An implementation of [EDHOC (RFC9528)](https://datatracker.ietf.org/doc/html/rfc9528) in Rust:
+# What is EDHOC?
+
+Ephemeral Diffie-Hellman Over COSE (EDHOC) is a new IETF standard that provides a [very lightweight](https://hal.science/hal-04382397/document) authenticated key exchange, ideal for usage in constrained scenarios, such as in Internet of Things environments.
+
+# EDHOC Features
+- lightweight: full authenticated key exchange in as few as 101 bytes
+- secure: mutual authentication, forward secrecy, and identity protection
+- transport-agnostic: can be used on scenarios with or without IP connectivity; a common way to transport EDHOC is [over reliable CoAP](https://www.rfc-editor.org/rfc/rfc9528.html#coap)
+- code re-use: achieved due to re-using technologies common in IoT scenarios, such as COSE, CBOR, and CoAP
+- finally, a main use case of EDHOC is to establish an [OSCORE](https://datatracker.ietf.org/doc/rfc8613/) security context
+
+
+# lakers features
+
+- easy to use, typestated API for Initiator and Responder
 - microcontroller-optimized: `no_std`, no heap allocations, zero-dependencies (other than crypto backends)
 - configurable crypto backends
 - bindings for [C](https://github.com/openwsn-berkeley/lakers/releases/) and [Python](https://pypi.org/project/lakers-python/)
 - support for EDHOC extensions, including [zero-touch authorization](https://datatracker.ietf.org/doc/draft-ietf-lake-authz/)
 
 It currently supports authentication mode STAT-STAT and Cipher Suite 2 (AES-CCM-16-64-128, SHA-256, 8, P-256, ES256, AES-CCM-16-64-128, SHA-256).
+
+# Getting started
+
+To use `lakers` in your Rust project, add it to your Cargo.toml: `lakers = "0.5.1"` (check for the [latest version here](https://crates.io/crates/lakers)).
 
 Here's a quick look at the API for the Initiator role (for the Responder role, and more details, check the examples or the unit tests):
 ```rust
@@ -31,10 +48,6 @@ let oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
 let context = &[0xa0, 0x11, 0x58, 0xfd, 0xb8, 0x20, 0x89, 0x0c, 0xd6, 0xbe, 0x16, 0x96, 0x02, 0xb8, 0xbc, 0xea];
 let prk_out_new = initiator.edhoc_key_update(context);
 ```
-
-## Installation
-
-To use `lakers` in your Rust project, simply add it to your Cargo.toml: `lakers = "0.5.1"` (check for the [latest version here](https://crates.io/crates/lakers)).
 
 ### C API
 C-compatible static libraries and headers are available for download in [the releases page](https://github.com/openwsn-berkeley/lakers/releases).
