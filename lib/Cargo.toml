@@ -4,9 +4,9 @@ version.workspace = true
 edition = "2021"
 authors = ["Mališa Vučinić <malisa.vucinic@inria.fr>"]
 license.workspace = true
-description = "EDHOC implementation in Rust"
+description = "An implementation of EDHOC (RFC 9528)"
 repository.workspace = true
-readme = "../README.md"
+keywords.workspace = true
 
 [dependencies]
 lakers-shared.workspace = true

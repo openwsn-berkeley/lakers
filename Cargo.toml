@@ -36,6 +36,7 @@ version = "0.5.1"
 repository = "https://github.com/openwsn-berkeley/lakers/"
 license = "BSD-3-Clause"
 readme = "shared/README.md"
+keywords = ["iot", "security", "protocol", "crypto", "edhoc"]
 
 [workspace.dependencies]
 
