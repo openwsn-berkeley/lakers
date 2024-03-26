@@ -26,7 +26,7 @@ It currently supports authentication mode STAT-STAT and Cipher Suite 2 (AES-CCM-
 
 # Getting started
 
-To use `lakers` in your Rust project, add it to your Cargo.toml: `lakers = "0.5.1"` (check for the [latest version here](https://crates.io/crates/lakers)).
+To use `lakers` in your Rust project, add it to your Cargo.toml using `cargo add lakers`.
 
 Here's a quick look at the API for the Initiator role (for the Responder role, and more details, check the examples or the unit tests):
 ```rust
