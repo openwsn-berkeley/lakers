@@ -7,6 +7,7 @@ license.workspace = true
 description = "An implementation of EDHOC (RFC 9528)"
 repository.workspace = true
 keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 lakers-shared.workspace = true

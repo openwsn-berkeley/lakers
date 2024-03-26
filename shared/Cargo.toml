@@ -9,6 +9,7 @@ repository.workspace = true
 # It's implied, but still better for consistency to have it explicit.
 readme.workspace = true
 keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true }
