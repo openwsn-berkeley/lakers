@@ -70,10 +70,6 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
 pub const MAX_EAD_SIZE_LEN: usize = 64;
-pub const EAD_ZEROCONF_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-02 it is still TBD1
-pub const EAD_ZEROCONF_INFO_K_1_LABEL: u8 = 0x0;
-pub const EAD_ZEROCONF_INFO_IV_1_LABEL: u8 = 0x1;
-pub const EAD_ZEROCONF_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;
 
 pub type BytesSuites = [u8; SUITES_LEN];
 pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];

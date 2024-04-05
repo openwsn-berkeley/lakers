@@ -1,3 +1,4 @@
+use crate::consts::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 pub(crate) fn compute_prk<Crypto: CryptoTrait>(
@@ -42,7 +43,7 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
     let k_1_buf = edhoc_kdf_expand(
         crypto,
         prk,
-        EAD_ZEROCONF_INFO_K_1_LABEL,
+        EAD_AUTHZ_INFO_K_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         AES_CCM_KEY_LEN,
@@ -54,7 +55,7 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
     let iv_1_buf = edhoc_kdf_expand(
         crypto,
         prk,
-        EAD_ZEROCONF_INFO_IV_1_LABEL,
+        EAD_AUTHZ_INFO_IV_1_LABEL,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         AES_CCM_IV_LEN,
@@ -76,7 +77,7 @@ pub(crate) fn parse_ead_1_value(
     ))
 }
 
-pub(crate) fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] {
+pub(crate) fn encode_enc_structure(ss: u8) -> [u8; EAD_AUTHZ_ENC_STRUCTURE_LEN] {
     let mut encrypt0: Bytes8 = [0x00; 8];
     encrypt0[0] = 0x45u8; // 'E'
     encrypt0[1] = 0x6eu8; // 'n'
@@ -87,8 +88,7 @@ pub(crate) fn encode_enc_structure(ss: u8) -> [u8; EAD_ZEROCONF_ENC_STRUCTURE_LE
     encrypt0[6] = 0x74u8; // 't'
     encrypt0[7] = 0x30u8; // '0'
 
-    let mut enc_structure: [u8; EAD_ZEROCONF_ENC_STRUCTURE_LEN] =
-        [0x00; EAD_ZEROCONF_ENC_STRUCTURE_LEN];
+    let mut enc_structure: [u8; EAD_AUTHZ_ENC_STRUCTURE_LEN] = [0x00; EAD_AUTHZ_ENC_STRUCTURE_LEN];
 
     // encode Enc_structure from rfc9052 Section 5.3
     enc_structure[0] = CBOR_MAJOR_ARRAY | 3 as u8; // 3 is the fixed number of elements in the array

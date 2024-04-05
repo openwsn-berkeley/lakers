@@ -1,4 +1,5 @@
-use super::shared::*;
+use crate::consts::*;
+use crate::shared::*;
 use crate::ZeroTouchError;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
@@ -43,7 +44,7 @@ impl ZeroTouchDevice {
         let value = Some(encode_ead_1_value(&self.loc_w, &enc_id));
 
         let ead_1 = EADItem {
-            label: EAD_ZEROCONF_LABEL,
+            label: EAD_AUTHZ_LABEL,
             is_critical: true,
             value,
         };
@@ -69,7 +70,7 @@ impl ZeroTouchDeviceWaitEAD2 {
         ead_2: EADItem,
         cred_v: &[u8],
     ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
-        if ead_2.label != EAD_ZEROCONF_LABEL {
+        if ead_2.label != EAD_AUTHZ_LABEL {
             return Err(ZeroTouchError::InvalidEADLabel);
         }
         let Some(ead_2_value_buffer) = ead_2.value else {
@@ -180,7 +181,7 @@ mod test_device {
 
         let (_ead_device, ead_1) =
             ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
-        assert_eq!(ead_1.label, EAD_ZEROCONF_LABEL);
+        assert_eq!(ead_1.label, EAD_AUTHZ_LABEL);
         assert_eq!(ead_1.is_critical, true);
         assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
     }
@@ -216,7 +217,7 @@ mod test_device {
     #[test]
     fn test_process_ead_2() {
         let ead_2_tv = EADItem {
-            label: EAD_ZEROCONF_LABEL,
+            label: EAD_AUTHZ_LABEL,
             is_critical: true,
             value: Some(EAD2_VALUE_TV.try_into().unwrap()),
         };
