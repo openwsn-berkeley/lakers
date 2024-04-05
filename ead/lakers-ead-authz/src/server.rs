@@ -1,4 +1,4 @@
-use super::shared::*;
+use crate::shared::*;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 /// This server also stores an ACL

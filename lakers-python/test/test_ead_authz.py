@@ -1,5 +1,4 @@
 import lakers
-import pytest
 
 # values from traces-zeroconf.ipynb
 ID_U = bytes.fromhex("a104412b")
@@ -31,7 +30,7 @@ def test_authenticator_and_server():
     assert type(voucher_response) == bytes
 
     ead_2 = authenticator.prepare_ead_2(voucher_response)
-    assert ead_2.label() == 1
+    assert ead_2.label() == lakers.consts.EAD_AUTHZ_LABEL
     assert ead_2.is_critical() == True
     assert ead_2.value() == EAD_2_VALUE
 

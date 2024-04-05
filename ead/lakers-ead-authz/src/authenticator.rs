@@ -1,4 +1,5 @@
-use super::shared::*;
+use crate::consts::*;
+use crate::shared::*;
 use lakers_shared::*;
 
 #[derive(Debug, Default)]
@@ -21,7 +22,7 @@ impl ZeroTouchAuthenticator {
     > {
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
-        if ead_1.label != EAD_ZEROCONF_LABEL || ead_1.value.is_none() {
+        if ead_1.label != EAD_AUTHZ_LABEL || ead_1.value.is_none() {
             return Err(EDHOCError::EADUnprocessable);
         }
 
@@ -44,7 +45,7 @@ impl ZeroTouchAuthenticatorWaitVoucherResp {
         let (_message_1, voucher, _opaque_state) = parse_voucher_response(&voucher_response)?;
 
         Ok(EADItem {
-            label: EAD_ZEROCONF_LABEL,
+            label: EAD_AUTHZ_LABEL,
             is_critical: true,
             value: Some(voucher[..].try_into().unwrap()),
         })
@@ -138,7 +139,7 @@ mod test_authenticator {
     #[test]
     fn test_process_ead_1() {
         let ead_1 = EADItem {
-            label: EAD_ZEROCONF_LABEL,
+            label: EAD_AUTHZ_LABEL,
             is_critical: true,
             value: Some(EAD1_VALUE_TV.try_into().unwrap()),
         };
@@ -173,7 +174,7 @@ mod test_authenticator {
         let ead_2 = ead_authenticator
             .prepare_ead_2(&voucher_response_tv)
             .unwrap();
-        assert_eq!(ead_2.label, EAD_ZEROCONF_LABEL);
+        assert_eq!(ead_2.label, EAD_AUTHZ_LABEL);
         assert_eq!(ead_2.is_critical, true);
         assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
     }
