@@ -17,8 +17,8 @@
 
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
-#[cfg(any(feature = "ead-none", feature = "ead-authz"))]
-pub use lakers_ead::*;
+#[cfg(all(feature = "ead-authz", test))]
+pub use lakers_ead_authz::*;
 
 mod edhoc;
 pub use edhoc::*;
@@ -624,7 +624,7 @@ mod test_authz {
     use super::*;
     use hexlit::hex;
     use lakers_crypto::default_crypto;
-    use lakers_ead::*;
+    use lakers_ead_authz::*;
     use test_vectors_common::*;
 
     // U

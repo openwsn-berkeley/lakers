@@ -10,7 +10,7 @@ readme.workspace = true
 
 [dependencies]
 lakers = { package = "lakers", path = "../lib", default-features = false }
-lakers-ead = { path = "../ead/" }
+lakers-ead-authz = { path = "../ead/lakers-ead-authz", optional = true }
 lakers-crypto = { path = "../crypto", default-features = false }
 hexlit = "0.5.3"
 
@@ -27,8 +27,8 @@ crypto-rustcrypto = [ "lakers-crypto/rustcrypto", "critical-section" ]
 crypto-psa = [ "lakers-crypto/psa", "critical-section" ]
 crypto-psa-baremetal = [ "lakers-crypto/psa-baremetal" ]
 crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
-ead-none = [ "lakers-ead/ead-none" ]
-ead-authz = [ "lakers-ead/ead-authz" ]
+ead-none = [ ]
+ead-authz = [ "lakers-ead-authz" ]
 
 [lib]
 crate-type = ["staticlib"]

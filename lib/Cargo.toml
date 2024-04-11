@@ -13,15 +13,15 @@ categories.workspace = true
 lakers-shared.workspace = true
 
 [dev-dependencies]
-lakers-ead = { workspace = true, default-features = false }
+lakers-ead-authz = { workspace = true }
 lakers-crypto.workspace = true
 hexlit = "0.5.3"
 
 [features]
 # NOTE: the ead features are just needed for multiplexing tests
 default = [ "test-ead-none" ]
-test-ead-none = [ "lakers-ead/ead-none" ]
-test-ead-authz = [ "lakers-ead/ead-authz" ]
+test-ead-none = [ ]
+test-ead-authz = [ ]
 
 [lib]
 crate-type = ["rlib"]
