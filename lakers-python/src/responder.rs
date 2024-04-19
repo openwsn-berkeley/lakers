@@ -72,15 +72,19 @@ impl PyEdhocResponder {
         }
     }
 
-    pub fn parse_message_3(&mut self, message_3: Vec<u8>) -> PyResult<(Vec<u8>, Option<EADItem>)> {
+    pub fn parse_message_3<'a>(
+        &mut self,
+        py: Python<'a>,
+        message_3: Vec<u8>,
+    ) -> PyResult<(&'a PyBytes, Option<EADItem>)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
         match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
             Ok((state, id_cred_i, ead_3)) => {
                 self.processing_m3 = state;
                 let id_cred_i = if id_cred_i.reference_only() {
-                    Vec::from([id_cred_i.kid])
+                    PyBytes::new(py, &[id_cred_i.kid])
                 } else {
-                    Vec::from(id_cred_i.value.as_slice())
+                    PyBytes::new(py, id_cred_i.value.as_slice())
                 };
                 Ok((id_cred_i, ead_3))
             }
