@@ -57,19 +57,20 @@ impl PyEdhocInitiator {
         }
     }
 
-    pub fn parse_message_2(
+    pub fn parse_message_2<'a>(
         &mut self,
+        py: Python<'a>,
         message_2: Vec<u8>,
-    ) -> PyResult<(u8, Vec<u8>, Option<EADItem>)> {
+    ) -> PyResult<(u8, &'a PyBytes, Option<EADItem>)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => {
                 self.processing_m2 = state;
                 let id_cred_r = if id_cred_r.reference_only() {
-                    Vec::from([id_cred_r.kid])
+                    PyBytes::new(py, &[id_cred_r.kid])
                 } else {
-                    Vec::from(id_cred_r.value.as_slice())
+                    PyBytes::new(py, id_cred_r.value.as_slice())
                 };
                 Ok((c_r, id_cred_r, ead_2))
             }
