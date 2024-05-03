@@ -101,7 +101,7 @@ fn main() -> ! {
 
         let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
-        let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
+        let (responder, _c_i, _ead_1) = responder.process_message_1(&message_1).unwrap();
         let (responder, message_2) = responder
             .prepare_message_2(CredentialTransfer::ByReference, None, &None)
             .unwrap();

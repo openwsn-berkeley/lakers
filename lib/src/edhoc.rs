@@ -57,7 +57,7 @@ pub fn r_process_message_1(
     state: &ResponderStart,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
-) -> Result<(ProcessingM1, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM1, ConnId, Option<EADItem>), EDHOCError> {
     // Step 1: decode message_1
     // g_x will be saved to the state
     if let Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)) = parse_message_1(message_1) {
@@ -78,6 +78,7 @@ pub fn r_process_message_1(
                         g_x,
                         h_message_1,
                     },
+                    c_i,
                     ead_1,
                 ))
             } else {
