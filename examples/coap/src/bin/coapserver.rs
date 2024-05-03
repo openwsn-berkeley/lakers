@@ -83,7 +83,7 @@ fn main() {
             } else {
                 // potentially message 3
                 println!("Received message 3");
-                let c_r_rcvd = request.message.payload[0];
+                let c_r_rcvd = ConnId::from_int_raw(request.message.payload[0]);
                 // FIXME let's better not *panic here
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
@@ -141,8 +141,8 @@ fn main() {
 }
 
 fn take_state<R>(
-    c_r_rcvd: u8,
-    edhoc_protocol_states: &mut Vec<(u8, R)>,
+    c_r_rcvd: ConnId,
+    edhoc_protocol_states: &mut Vec<(ConnId, R)>,
 ) -> Result<R, &'static str> {
     for (i, element) in edhoc_protocol_states.iter().enumerate() {
         let (c_r, _responder) = element;

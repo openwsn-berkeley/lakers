@@ -96,7 +96,7 @@ pub fn r_prepare_message_2(
     crypto: &mut impl CryptoTrait,
     cred_r: CredentialRPK,
     r: &BytesP256ElemLen, // R's static private DH key
-    c_r: u8,
+    c_r: ConnId,
     cred_transfer: CredentialTransfer,
     ead_2: &Option<EADItem>,
 ) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
@@ -269,7 +269,7 @@ pub fn r_verify_message_3(
 pub fn i_prepare_message_1(
     state: &InitiatorStart,
     crypto: &mut impl CryptoTrait,
-    c_i: u8,
+    c_i: ConnId,
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
@@ -302,7 +302,7 @@ pub fn i_parse_message_2<'a>(
     state: &WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
-) -> Result<(ProcessingM2, u8, CredentialRPK, Option<EADItem>), EDHOCError> {
+) -> Result<(ProcessingM2, ConnId, CredentialRPK, Option<EADItem>), EDHOCError> {
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
@@ -497,7 +497,7 @@ fn encode_message_1(
     suites: &BytesSuites,
     suites_len: usize,
     g_x: &BytesP256ElemLen,
-    c_i: u8,
+    c_i: ConnId,
     ead_1: &Option<EADItem>,
 ) -> Result<BufferMessage1, EDHOCError> {
     let mut output = BufferMessage1::new();
@@ -535,8 +535,9 @@ fn encode_message_1(
     output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
     output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
         .copy_from_slice(&g_x[..]);
-    output.content[3 + raw_suites_len + P256_ELEM_LEN] = c_i;
-    output.len = 3 + raw_suites_len + P256_ELEM_LEN + 1;
+    let c_i = c_i.as_slice();
+    output.len = 3 + raw_suites_len + P256_ELEM_LEN + c_i.len();
+    output.content[3 + raw_suites_len + P256_ELEM_LEN..][..c_i.len()].copy_from_slice(c_i);
 
     if let Some(ead_1) = ead_1 {
         match encode_ead_item(ead_1) {
@@ -757,7 +758,7 @@ fn decrypt_message_3(
 
 // output must hold id_cred.len() + cred.len()
 fn encode_kdf_context(
-    c_r: Option<u8>, // only present for MAC_2
+    c_r: Option<ConnId>, // only present for MAC_2
     id_cred: &BytesIdCred,
     th: &BytesHashLen,
     cred: &[u8],
@@ -768,8 +769,9 @@ fn encode_kdf_context(
     let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
 
     let mut output_len = if let Some(c_r) = c_r {
-        output[0] = c_r;
-        1 // size of u8
+        let c_r = c_r.as_slice();
+        output[..c_r.len()].copy_from_slice(c_r);
+        c_r.len()
     } else {
         0 // no u8 encoded
     };
@@ -824,7 +826,7 @@ fn compute_mac_3(
 fn compute_mac_2(
     crypto: &mut impl CryptoTrait,
     prk_3e2m: &BytesHashLen,
-    c_r: u8,
+    c_r: ConnId,
     id_cred_r: &BytesIdCred,
     cred_r: &[u8],
     th_2: &BytesHashLen,
@@ -843,24 +845,25 @@ fn compute_mac_2(
 }
 
 fn encode_plaintext_2(
-    c_r: u8,
+    c_r: ConnId,
     id_cred_r: &IdCred,
     mac_2: &BytesMac2,
     ead_2: &Option<EADItem>,
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
-    plaintext_2.content[0] = c_r;
+    let c_r = c_r.as_slice();
+    plaintext_2.content[..c_r.len()].copy_from_slice(c_r);
 
     let offset_cred = match id_cred_r {
         IdCred::CompactKid(kid) => {
-            plaintext_2.content[1] = *kid;
-            2
+            plaintext_2.content[c_r.len()] = *kid;
+            c_r.len() + 1
         }
         IdCred::FullCredential(cred) => {
-            plaintext_2.content[1] = CBOR_BYTE_STRING;
-            plaintext_2.content[2] = cred.len() as u8;
-            plaintext_2.content[3..3 + cred.len()].copy_from_slice(cred);
-            3 + cred.len()
+            plaintext_2.content[c_r.len()] = CBOR_BYTE_STRING;
+            plaintext_2.content[c_r.len() + 1] = cred.len() as u8;
+            plaintext_2.content[c_r.len() + 2..][..cred.len()].copy_from_slice(cred);
+            c_r.len() + 2 + cred.len()
         }
     };
 
@@ -1006,7 +1009,7 @@ mod tests {
     const SUITES_I_TV_FIRST_TIME: BytesSuites = hex!("060000000000000000");
     const G_X_TV_FIRST_TIME: BytesP256ElemLen =
         hex!("741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9");
-    const C_I_TV_FIRST_TIME: u8 = 0x0e;
+    const C_I_TV_FIRST_TIME: ConnId = ConnId::from_int_raw(0x0e);
     const MESSAGE_1_TV_FIRST_TIME: &str =
         "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
 
@@ -1016,7 +1019,7 @@ mod tests {
     const SUITES_I_TV: BytesSuites = hex!("060200000000000000");
     const G_X_TV: BytesP256ElemLen =
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
-    const C_I_TV: u8 = 0x37;
+    const C_I_TV: ConnId = ConnId::from_int_raw(0x37);
     const MESSAGE_1_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
     // below are a few truncated messages for the purpose of testing cipher suites
@@ -1039,7 +1042,7 @@ mod tests {
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc";
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
-    const C_R_TV: u8 = 0x27;
+    const C_R_TV: ConnId = ConnId::from_int_raw(0x27);
     const MESSAGE_2_TV: &str = "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a1eef9e0e7e1886fcd";
     const CIPHERTEXT_2_TV: &str = "9862a1eef9e0e7e1886fcd";
     const H_MESSAGE_1_TV: BytesHashLen =

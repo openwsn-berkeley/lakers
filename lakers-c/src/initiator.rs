@@ -56,7 +56,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     let c_i = if c_i.is_null() {
         generate_connection_identifier_cbor(crypto)
     } else {
-        *c_i
+        ConnId::from_int_raw(*c_i)
     };
 
     let ead_1 = if ead_1_c.is_null() {
@@ -108,7 +108,9 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     let result = match i_parse_message_2(&state, crypto, &(*message_2)) {
         Ok((state, c_r, id_cred_r, ead_2)) => {
             ProcessingM2C::copy_into_c(state, &mut (*initiator_c).processing_m2);
-            *c_r_out = c_r;
+            let c_r = c_r.as_slice();
+            assert_eq!(c_r.len(), 1, "C API only supports short C_R");
+            *c_r_out = c_r[0];
             *id_cred_r_out = id_cred_r;
             if let Some(ead_2) = ead_2 {
                 EADItemC::copy_into_c(ead_2, ead_2_c_out);
