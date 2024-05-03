@@ -21,7 +21,7 @@ const W_TV: &[u8] = &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019
 
 #[derive(Debug)]
 struct EdhocHandler {
-    connections: Vec<(u8, EdhocResponderWaitM3<Crypto>)>,
+    connections: Vec<(ConnId, EdhocResponderWaitM3<Crypto>)>,
     mock_server: ZeroTouchServer,
 }
 
@@ -48,7 +48,7 @@ fn render_error(_e: EDHOCError) -> Error {
 }
 
 impl EdhocHandler {
-    fn take_connection_by_c_r(&mut self, c_r: u8) -> Option<EdhocResponderWaitM3<Crypto>> {
+    fn take_connection_by_c_r(&mut self, c_r: ConnId) -> Option<EdhocResponderWaitM3<Crypto>> {
         let index = self
             .connections
             .iter()
@@ -58,7 +58,7 @@ impl EdhocHandler {
         Some(self.connections.pop().unwrap().1)
     }
 
-    fn new_c_r(&self) -> u8 {
+    fn new_c_r(&self) -> ConnId {
         // FIXME: We'll need to do better, but a) that'll be more practical when we can do more
         // than u8, and b) that'll best be coordinated with a storage that not only stores EDHOC
         // contexts but also OSCORE ones.
@@ -66,7 +66,7 @@ impl EdhocHandler {
         if result >= 24 {
             panic!("Contexts exceeded");
         }
-        result as _
+        ConnId::from_int_raw(result as _)
     }
 }
 
@@ -74,7 +74,7 @@ enum EdhocResponse {
     // We could also store the responder in the Vec (once we're done rendering the response, we'll
     // take up a slot there anyway) if we make it an enum.
     OkSend2 {
-        c_r: u8,
+        c_r: ConnId,
         responder: EdhocResponderProcessedM1<'static, Crypto>,
         // FIXME: Is the ead_2 the most practical data to store here? An easy alternative is the
         // voucher_response; ideal would be the voucher, bu that is only internal to prepare_ead_2.
@@ -149,15 +149,19 @@ impl coap_handler::Handler for EdhocHandler {
         } else {
             // potentially message 3
             //
-            // We know our short C_R lengths
+            // FIXME: Work with longer IDs as well (https://github.com/openwsn-berkeley/lakers/issues/258)
             let (c_r_rcvd, message_3) = request
                 .payload()
                 .split_first()
                 // FIXME: Being way too short, is that an EDHOC error or a CoAP error?
                 .ok_or_else(Error::bad_request)?;
 
+            // FIXME: This panics or creates an in valid ConnId (but once we fix
+            // working with longer IDs, there will be a function that has proper error handling)
+            let c_r_rcvd = ConnId::from_int_raw(*c_r_rcvd);
+
             let responder = self
-                .take_connection_by_c_r(*c_r_rcvd)
+                .take_connection_by_c_r(c_r_rcvd)
                 // FIXME: Produce proper error
                 .ok_or_else(Error::bad_request)?;
 

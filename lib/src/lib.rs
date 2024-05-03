@@ -126,7 +126,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
     pub fn prepare_message_2(
         mut self,
         cred_transfer: CredentialTransfer,
-        c_r: Option<u8>,
+        c_r: Option<ConnId>,
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<Crypto>, BufferMessage2), EDHOCError> {
         let c_r = match c_r {
@@ -253,7 +253,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
 
     pub fn prepare_message_1(
         mut self,
-        c_i: Option<u8>,
+        c_i: Option<ConnId>,
         ead_1: &Option<EADItem>,
     ) -> Result<(EdhocInitiatorWaitM2<Crypto>, EdhocMessageBuffer), EDHOCError> {
         let c_i = match c_i {
@@ -289,7 +289,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
     ) -> Result<
         (
             EdhocInitiatorProcessingM2<Crypto>,
-            u8,
+            ConnId,
             CredentialRPK,
             Option<EADItem>,
         ),
@@ -399,16 +399,16 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
     }
 }
 
-pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Crypto) -> u8 {
+pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Crypto) -> ConnId {
     let c_i = generate_connection_identifier(crypto);
-    if c_i >= 0 && c_i <= 23 {
+    ConnId::from_int_raw(if c_i >= 0 && c_i <= 23 {
         c_i as u8 // verbatim encoding of single byte integer
     } else if c_i < 0 && c_i >= -24 {
         // negative single byte integer encoding
         CBOR_NEG_INT_1BYTE_START - 1 + c_i.unsigned_abs()
     } else {
         0
-    }
+    })
 }
 
 /// generates an identifier that can be serialized as a single CBOR integer, i.e. -24 <= x <= 23

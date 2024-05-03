@@ -40,11 +40,13 @@ impl PyEdhocInitiator {
     fn prepare_message_1<'a>(
         &mut self,
         py: Python<'a>,
-        c_i: Option<u8>,
+        c_i: Option<Vec<u8>>,
         ead_1: Option<EADItem>,
     ) -> PyResult<&'a PyBytes> {
         let c_i = match c_i {
-            Some(c_i) => c_i,
+            Some(c_i) => ConnId::from_slice(c_i.as_slice()).ok_or(
+                pyo3::exceptions::PyValueError::new_err("Connection identifier out of range"),
+            )?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
 
@@ -61,7 +63,7 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         message_2: Vec<u8>,
-    ) -> PyResult<(u8, &'a PyBytes, Option<EADItem>)> {
+    ) -> PyResult<(&'a PyBytes, &'a PyBytes, Option<EADItem>)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
@@ -72,6 +74,7 @@ impl PyEdhocInitiator {
                 } else {
                     PyBytes::new(py, id_cred_r.value.as_slice())
                 };
+                let c_r = PyBytes::new(py, c_r.as_slice());
                 Ok((c_r, id_cred_r, ead_2))
             }
             Err(error) => Err(error.into()),

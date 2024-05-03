@@ -45,11 +45,13 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
-        c_r: Option<u8>,
+        c_r: Option<Vec<u8>>,
         ead_2: Option<EADItem>,
     ) -> PyResult<&'a PyBytes> {
         let c_r = match c_r {
-            Some(c_r) => c_r,
+            Some(c_r) => ConnId::from_slice(c_r.as_slice()).ok_or(
+                pyo3::exceptions::PyValueError::new_err("Connection identifier out of range"),
+            )?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
         let mut r = BytesP256ElemLen::default();

@@ -86,7 +86,7 @@ impl ProcessingM2C {
             x: self.x,
             g_y: self.g_y,
             plaintext_2: self.plaintext_2,
-            c_r: self.c_r,
+            c_r: ConnId::from_int_raw(self.c_r),
             ead_2: if self.ead_2.is_null() {
                 None
             } else {
@@ -107,7 +107,9 @@ impl ProcessingM2C {
         (*processing_m2_c).x = processing_m2.x;
         (*processing_m2_c).g_y = processing_m2.g_y;
         (*processing_m2_c).plaintext_2 = processing_m2.plaintext_2;
-        (*processing_m2_c).c_r = processing_m2.c_r;
+        let c_r = processing_m2.c_r.as_slice();
+        assert_eq!(c_r.len(), 1, "C API only supports short C_R");
+        (*processing_m2_c).c_r = c_r[0];
     }
 }
 

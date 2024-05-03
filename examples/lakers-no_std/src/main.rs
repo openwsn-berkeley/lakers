@@ -83,8 +83,8 @@ fn main() -> ! {
     fn test_prepare_message_1() {
         let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
 
-        let c_i: u8 =
-            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).into();
+        let c_i =
+            generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).as_slice();
         let message_1 = initiator.prepare_message_1(None, &None);
         assert!(message_1.is_ok());
     }

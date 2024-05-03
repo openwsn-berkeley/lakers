@@ -102,6 +102,58 @@ pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
 pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
 
+/// Value of C_R or C_I, as chosen by ourself or the peer.
+///
+/// Semantically, this is a byte string of some length.
+///
+/// This currently only supports numeric values (see
+/// https://github.com/openwsn-berkeley/lakers/issues/258), but may support larger values in the
+/// future.
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+// TODO: This should not be needed, there is nothing special about the value 0.
+#[derive(Default)]
+pub struct ConnId(u8);
+
+impl ConnId {
+    /// Construct a ConnId from the result of [`cbor_decoder::int_raw`], which is a
+    /// byte that represents a single positive or negative CBOR integer encoded in the 5 bits minor
+    /// type.
+    ///
+    /// Evolving from u8-only values, this could later interact with the decoder directly.
+    pub const fn from_int_raw(raw: u8) -> Self {
+        debug_assert!(raw >> 5 <= 1, "Major type is not an integer");
+        debug_assert!(raw & 0x1f < 24, "Value is not immediate");
+        Self(raw)
+    }
+
+    /// The bytes that form the identifier (an arbitrary byte string)
+    pub fn as_slice(&self) -> &[u8] {
+        core::slice::from_ref(&self.0)
+    }
+
+    /// The CBOR encoding of the identifier.
+    pub fn as_cbor(&self) -> &[u8] {
+        core::slice::from_ref(&self.0)
+    }
+
+    /// Try to construct a ConnId from a slice.
+    ///
+    /// This is the inverse of [Self::as_slice], and returns None if the identifier is too long
+    /// (or, if only the compact 48 values are supported, outside of that range).
+    pub fn from_slice(input: &[u8]) -> Option<Self> {
+        if input.len() != 1 {
+            return None;
+        }
+        if input[0] >> 5 <= 1 {
+            return None;
+        }
+        if input[0] & 0x1f < 24 {
+            return None;
+        }
+        Some(Self(input[0]))
+    }
+}
+
 #[derive(PartialEq, Debug)]
 #[non_exhaustive]
 pub enum EDHOCError {
@@ -202,7 +254,7 @@ pub struct ResponderStart {
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
-    pub c_i: u8,
+    pub c_i: ConnId,
     pub g_x: BytesP256ElemLen, // ephemeral public key of the initiator
     pub h_message_1: BytesHashLen,
 }
@@ -230,7 +282,7 @@ pub struct ProcessingM2 {
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
-    pub c_r: u8,
+    pub c_r: ConnId,
     pub ead_2: Option<EADItem>,
 }
 
@@ -532,7 +584,7 @@ mod edhoc_parser {
             BytesSuites,
             usize,
             BytesP256ElemLen,
-            u8,
+            ConnId,
             Option<EADItem>,
         ),
         EDHOCError,
@@ -545,7 +597,7 @@ mod edhoc_parser {
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
             // consume c_i encoded as single-byte int (we still do not support bstr encoding)
-            let c_i = decoder.int_raw()?;
+            let c_i = ConnId::from_int_raw(decoder.int_raw()?);
 
             // if there is still more to parse, the rest will be the EAD_1
             if rcvd_message_1.len > decoder.position() {
@@ -600,12 +652,12 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
-    ) -> Result<(u8, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
+    ) -> Result<(ConnId, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
         let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
 
-        let c_r = decoder.int_raw()?;
+        let c_r = ConnId::from_int_raw(decoder.int_raw()?);
 
         // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
         let id_cred_r = if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
