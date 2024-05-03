@@ -107,8 +107,15 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn process_message_1(
         mut self,
         message_1: &BufferMessage1,
-    ) -> Result<(EdhocResponderProcessedM1<'a, Crypto>, Option<EADItem>), EDHOCError> {
-        let (state, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
+    ) -> Result<
+        (
+            EdhocResponderProcessedM1<'a, Crypto>,
+            ConnId,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
+        let (state, c_i, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
         Ok((
             EdhocResponderProcessedM1 {
@@ -117,6 +124,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
                 cred_r: self.cred_r,
                 crypto: self.crypto,
             },
+            c_i,
             ead_1,
         ))
     }
@@ -567,7 +575,7 @@ mod test {
         // ---- end initiator handling
 
         // ---- begin responder handling
-        let (responder, _ead_1) = responder.process_message_1(&message_1).unwrap();
+        let (responder, _c_i, _ead_1) = responder.process_message_1(&message_1).unwrap();
         // if ead_1: process ead_1
         // if needed: prepare ead_2
         let (responder, message_2) = responder
@@ -681,7 +689,7 @@ mod test_authz {
         let (initiator, message_1) = initiator.prepare_message_1(None, &Some(ead_1)).unwrap();
         device.set_h_message_1(initiator.state.h_message_1.clone());
 
-        let (responder, ead_1) = responder.process_message_1(&message_1).unwrap();
+        let (responder, _c_i, ead_1) = responder.process_message_1(&message_1).unwrap();
         let ead_2 = if let Some(ead_1) = ead_1 {
             let (authenticator, _loc_w, voucher_request) =
                 authenticator.process_ead_1(&ead_1, &message_1).unwrap();

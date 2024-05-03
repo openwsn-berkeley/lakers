@@ -48,7 +48,7 @@ fn main() {
                     .expect("wrong length");
                 let result = responder.process_message_1(&message_1);
 
-                if let Ok((responder, ead_1)) = result {
+                if let Ok((responder, _c_i, ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
                     let ead_2 = if let Some(ead_1) = ead_1 {

@@ -33,12 +33,18 @@ impl PyEdhocResponder {
         }
     }
 
-    fn process_message_1(&mut self, message_1: Vec<u8>) -> PyResult<Option<EADItem>> {
+    fn process_message_1<'a>(
+        &mut self,
+        py: Python<'a>,
+        message_1: Vec<u8>,
+    ) -> PyResult<(&'a PyBytes, Option<EADItem>)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
-        let (state, ead_1) = r_process_message_1(&self.start, &mut default_crypto(), &message_1)?;
+        let (state, c_i, ead_1) =
+            r_process_message_1(&self.start, &mut default_crypto(), &message_1)?;
         self.processing_m1 = state;
+        let c_i = PyBytes::new(py, c_i.as_slice());
 
-        Ok(ead_1)
+        Ok((c_i, ead_1))
     }
 
     fn prepare_message_2<'a>(

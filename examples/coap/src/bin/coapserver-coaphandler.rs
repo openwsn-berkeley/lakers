@@ -113,7 +113,7 @@ impl coap_handler::Handler for EdhocHandler {
             let message_1 =
                 &EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).map_err(too_small)?;
 
-            let (responder, ead_1) =
+            let (responder, _c_i, ead_1) =
                 EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r)
                     .process_message_1(message_1)
                     .map_err(render_error)?;

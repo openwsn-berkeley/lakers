@@ -68,7 +68,7 @@ def test_handshake_with_authz():
     device.set_h_message_1(initiator.get_h_message_1())
 
     # responder
-    ead_1 = responder.process_message_1(message_1)
+    _c_i, ead_1 = responder.process_message_1(message_1)
     loc_w, voucher_request = authenticator.process_ead_1(ead_1, message_1)
     voucher_response = enrollment_server.handle_voucher_request(voucher_request)
     ead_2 = authenticator.prepare_ead_2(voucher_response)
