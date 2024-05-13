@@ -132,6 +132,23 @@ impl ConnId {
     }
 
     /// The CBOR encoding of the identifier.
+    ///
+    /// For the 48 compact connection identifiers -24..=23, this is identical to the slice
+    /// representation:
+    ///
+    /// ```
+    /// # use lakers_shared::ConnId;
+    /// let c_i = ConnId::from_slice(&[0x04]).unwrap();
+    /// assert_eq!(c_i.as_cbor(), &[0x04]);
+    /// ```
+    ///
+    /// For other IDs, this contains an extra byte header (but those are currently unsupported):
+    ///
+    /// ```should_panic
+    /// # use lakers_shared::ConnId;
+    /// let c_i = ConnId::from_slice(&[0xff]).unwrap();
+    /// assert_eq!(c_i.as_cbor(), &[0x41, 0xff]);
+    /// ```
     pub fn as_cbor(&self) -> &[u8] {
         core::slice::from_ref(&self.0)
     }
@@ -140,14 +157,24 @@ impl ConnId {
     ///
     /// This is the inverse of [Self::as_slice], and returns None if the identifier is too long
     /// (or, if only the compact 48 values are supported, outside of that range).
+    ///
+    /// ```
+    /// # use lakers_shared::ConnId;
+    /// let c_i = &[0x04];
+    /// let c_i = ConnId::from_slice(c_i).unwrap();
+    /// assert!(c_i.as_slice() == &[0x04]);
+    ///
+    /// // So far, longer slices are unsupported
+    /// assert!(ConnId::from_slice(&[0x12, 0x34]).is_none());
+    /// ```
     pub fn from_slice(input: &[u8]) -> Option<Self> {
         if input.len() != 1 {
             return None;
         }
-        if input[0] >> 5 <= 1 {
+        if input[0] >> 5 > 1 {
             return None;
         }
-        if input[0] & 0x1f < 24 {
+        if input[0] & 0x1f >= 24 {
             return None;
         }
         Some(Self(input[0]))
