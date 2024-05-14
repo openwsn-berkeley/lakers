@@ -415,8 +415,11 @@ pub fn i_prepare_message_3(
         ead_3,
     );
 
-    assert!(matches!(cred_transfer, CredentialTransfer::ByReference)); // TODO: handle ByValue case as well
-    let plaintext_3 = encode_plaintext_3(&cred_i.get_id_cred(), &mac_3, &ead_3)?;
+    let id_cred_i = match cred_transfer {
+        CredentialTransfer::ByValue => IdCred::FullCredential(cred_i.value.as_slice()),
+        CredentialTransfer::ByReference => IdCred::CompactKid(cred_i.kid),
+    };
+    let plaintext_3 = encode_plaintext_3(&id_cred_i, &mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i.value.as_slice());
@@ -638,17 +641,28 @@ fn edhoc_kdf(
 }
 
 fn encode_plaintext_3(
-    id_cred_i: &BytesIdCred,
+    id_cred_i: &IdCred,
     mac_3: &BytesMac3,
     ead_3: &Option<EADItem>,
 ) -> Result<BufferPlaintext3, EDHOCError> {
     let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    plaintext_3.content[0] = id_cred_i[id_cred_i.len() - 1]; // hack: take the last byte of ID_CRED_I as KID
-    plaintext_3.content[1] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
-    plaintext_3.content[2..2 + mac_3.len()].copy_from_slice(&mac_3[..]);
-    plaintext_3.len = 2 + mac_3.len();
+    let offset_cred = match id_cred_i {
+        IdCred::CompactKid(kid) => {
+            plaintext_3.content[0] = *kid;
+            1
+        }
+        IdCred::FullCredential(cred) => {
+            plaintext_3.content[0] = CBOR_BYTE_STRING;
+            plaintext_3.content[1] = cred.len() as u8;
+            plaintext_3.content[2..][..cred.len()].copy_from_slice(cred);
+            2 + cred.len()
+        }
+    };
+    plaintext_3.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
+    plaintext_3.content[offset_cred + 1..][..mac_3.len()].copy_from_slice(&mac_3[..]);
+    plaintext_3.len = offset_cred + 1 + mac_3.len();
 
     if let Some(ead_3) = ead_3 {
         match encode_ead_item(ead_3) {
@@ -1462,7 +1476,9 @@ mod tests {
     #[test]
     fn test_encode_plaintext_3() {
         let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let plaintext_3 = encode_plaintext_3(&ID_CRED_I_TV, &MAC_3_TV, &None::<EADItem>).unwrap();
+        let kid_tv = ID_CRED_I_TV[ID_CRED_I_TV.len() - 1];
+        let plaintext_3 =
+            encode_plaintext_3(&IdCred::CompactKid(kid_tv), &MAC_3_TV, &None::<EADItem>).unwrap();
         assert_eq!(plaintext_3, plaintext_3_tv);
     }
 
