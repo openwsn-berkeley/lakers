@@ -193,6 +193,7 @@ pub enum EDHOCError {
     UnsupportedMethod,
     UnsupportedCipherSuite,
     ParsingError,
+    CredentialTooLongError,
     EadLabelTooLongError,
     EadTooLongError,
     /// An EAD was received that was either not known (and critical), or not understood, or
@@ -228,6 +229,7 @@ impl EDHOCError {
             UnsupportedMethod => ErrCode::UNSPECIFIED,
             UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
             ParsingError => ErrCode::UNSPECIFIED,
+            CredentialTooLongError => ErrCode::UNSPECIFIED,
             EadLabelTooLongError => ErrCode::UNSPECIFIED,
             EadTooLongError => ErrCode::UNSPECIFIED,
             EADUnprocessable => ErrCode::UNSPECIFIED,
@@ -493,6 +495,23 @@ impl EADItem {
 pub enum IdCred<'a> {
     CompactKid(u8),
     FullCredential(&'a [u8]),
+}
+
+impl<'a> IdCred<'a> {
+    pub fn write(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
+        match self {
+            IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
+            IdCred::FullCredential(cred) => {
+                let len =
+                    u8::try_from(cred.len()).map_err(|_| EDHOCError::CredentialTooLongError)?;
+                message
+                    .extend_from_slice(&[CBOR_BYTE_STRING, len])
+                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
+                message.extend_from_slice(cred)
+            }
+        }
+        .map_err(|_| EDHOCError::CredentialTooLongError)
+    }
 }
 
 mod helpers {

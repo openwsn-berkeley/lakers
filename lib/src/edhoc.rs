@@ -648,18 +648,8 @@ fn encode_plaintext_3(
     let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    let offset_cred = match id_cred_i {
-        IdCred::CompactKid(kid) => {
-            plaintext_3.content[0] = *kid;
-            1
-        }
-        IdCred::FullCredential(cred) => {
-            plaintext_3.content[0] = CBOR_BYTE_STRING;
-            plaintext_3.content[1] = cred.len() as u8;
-            plaintext_3.content[2..][..cred.len()].copy_from_slice(cred);
-            2 + cred.len()
-        }
-    };
+    id_cred_i.write(&mut plaintext_3)?;
+    let offset_cred = plaintext_3.len;
     plaintext_3.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
     plaintext_3.content[offset_cred + 1..][..mac_3.len()].copy_from_slice(&mac_3[..]);
     plaintext_3.len = offset_cred + 1 + mac_3.len();
@@ -867,20 +857,10 @@ fn encode_plaintext_2(
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     let c_r = c_r.as_slice();
-    plaintext_2.content[..c_r.len()].copy_from_slice(c_r);
 
-    let offset_cred = match id_cred_r {
-        IdCred::CompactKid(kid) => {
-            plaintext_2.content[c_r.len()] = *kid;
-            c_r.len() + 1
-        }
-        IdCred::FullCredential(cred) => {
-            plaintext_2.content[c_r.len()] = CBOR_BYTE_STRING;
-            plaintext_2.content[c_r.len() + 1] = cred.len() as u8;
-            plaintext_2.content[c_r.len() + 2..][..cred.len()].copy_from_slice(cred);
-            c_r.len() + 2 + cred.len()
-        }
-    };
+    plaintext_2.extend_from_slice(c_r).unwrap();
+    id_cred_r.write(&mut plaintext_2)?;
+    let offset_cred = plaintext_2.len;
 
     plaintext_2.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
     plaintext_2.content[1 + offset_cred..1 + offset_cred + mac_2.len()].copy_from_slice(&mac_2[..]);
