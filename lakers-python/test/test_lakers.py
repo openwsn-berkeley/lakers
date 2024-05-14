@@ -1,8 +1,8 @@
 import lakers
 import pytest
 
-# values from RFC9529
-CRED_I = bytes.fromhex("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
+# values from RFC9529, but CRED_I shortened so that passing by value is possible in a 256 byte message
+CRED_I = bytes.fromhex("A202617808A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
 I = bytes.fromhex("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b")
 R = bytes.fromhex("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac")
 CRED_R = bytes.fromhex("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072")
@@ -21,7 +21,7 @@ def test_initiator():
 def test_responder():
     responder = lakers.EdhocResponder(R, CRED_R)
 
-def test_handshake():
+def _test_handshake(cred_r_transfer, cred_i_transfer):
     initiator = lakers.EdhocInitiator()
     responder = lakers.EdhocResponder(R, CRED_R)
 
@@ -31,7 +31,7 @@ def test_handshake():
     # responder
     _c_i, ead_1 = responder.process_message_1(message_1)
     assert ead_1 == None
-    message_2 = responder.prepare_message_2(lakers.CredentialTransfer.ByReference, None, ead_1)
+    message_2 = responder.prepare_message_2(cred_r_transfer, None, ead_1)
     assert type(message_2) == bytes
 
     # initiator
@@ -39,7 +39,7 @@ def test_handshake():
     assert ead_2 == None
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
-    message_3, i_prk_out = initiator.prepare_message_3(lakers.CredentialTransfer.ByReference, None)
+    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer, None)
     assert type(message_3) == bytes
 
     # responder
@@ -73,3 +73,9 @@ def test_buffer_error():
     with pytest.raises(ValueError) as err:
         _ = initiator.parse_message_2([1] * 1000)
     assert str(err.value) == "MessageBufferError::SliceTooLong"
+
+def test_handshake_byvalue_byreference():
+    _test_handshake(lakers.CredentialTransfer.ByValue, lakers.CredentialTransfer.ByReference)
+
+def test_handshake_byreference_byvalue():
+    _test_handshake(lakers.CredentialTransfer.ByReference, lakers.CredentialTransfer.ByValue)
