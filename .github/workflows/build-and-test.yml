@@ -131,6 +131,43 @@ jobs:
         path: ./target/lakers-c-*.zip
 
 
+  build-lakers-c-example:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Checkout libcoap
+      uses: actions/checkout@v3
+      with:
+        repository: obgm/libcoap
+        path: libcoap
+
+    - name: Install libcoap
+      run: |
+        cd libcoap && ./autogen.sh
+        ./configure --disable-doxygen --disable-manpages --disable-dtls --disable-oscore
+        make && sudo make install
+
+    - name: Install arm targets for Rust
+      run: rustup target add thumbv7em-none-eabihf
+    - name: Install arm gcc
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+
+    - name: Build static library and generate headers
+      run: cd lakers-c && ./build.sh crypto-rustcrypto
+
+    - name: Build and run native C eaxmple
+      run: |
+        cd examples/lakers-c-native
+        make all LAKERS_EAD=authz
+
+
   test-lakers-python:
     needs: check-style
     runs-on: ubuntu-latest
@@ -224,7 +261,12 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-edhoc-package, run-example-on-qemu, build-example-for-cortex-m4, build-coap-example, generate-fstar, build-lakers-c]
+    needs: [
+      build-edhoc-package, build-lakers-c,
+      generate-fstar,
+      build-example-for-cortex-m4, build-coap-example, build-lakers-c-example,
+      run-example-on-qemu,
+    ]
     if: >-
       github.event_name == 'push' &&
       startsWith(github.event.ref, 'refs/tags')
