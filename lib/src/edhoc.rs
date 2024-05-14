@@ -727,8 +727,19 @@ fn encrypt_message_3(
     plaintext_3: &BufferPlaintext3,
 ) -> BufferMessage3 {
     let mut output: BufferMessage3 = BufferMessage3::new();
-    output.len = 1 + plaintext_3.len + AES_CCM_TAG_LEN;
-    output.content[0] = CBOR_MAJOR_BYTE_STRING | (plaintext_3.len + AES_CCM_TAG_LEN) as u8; // FIXME if plaintext_3.len + AES_CCM_TAG_LEN > 23, then should use CBOR_BYTE_STRING
+    let bytestring_length = plaintext_3.len + AES_CCM_TAG_LEN;
+    let prefix_length;
+    // FIXME: Reuse CBOR encoder
+    if bytestring_length < 24 {
+        output.content[0] = CBOR_MAJOR_BYTE_STRING | (bytestring_length) as u8;
+        prefix_length = 1;
+    } else {
+        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+        output.content[0] = CBOR_MAJOR_BYTE_STRING | 24;
+        output.content[1] = bytestring_length as _;
+        prefix_length = 2;
+    };
+    output.len = prefix_length + bytestring_length;
 
     let enc_structure = encode_enc_structure(th_3);
 
@@ -736,7 +747,7 @@ fn encrypt_message_3(
 
     let ciphertext_3 = crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3);
 
-    output.content[1..output.len].copy_from_slice(ciphertext_3.as_slice());
+    output.content[prefix_length..][..ciphertext_3.len].copy_from_slice(ciphertext_3.as_slice());
 
     output
 }
@@ -748,11 +759,22 @@ fn decrypt_message_3(
     message_3: &BufferMessage3,
 ) -> Result<BufferPlaintext3, EDHOCError> {
     // decode message_3
-    let len = (message_3.content[0usize] ^ CBOR_MAJOR_BYTE_STRING) as usize;
+    let bytestring_length: usize;
+    let prefix_length;
+    // FIXME: Reuse CBOR decoder
+    if (0..=23).contains(&(message_3.content[0] ^ CBOR_MAJOR_BYTE_STRING)) {
+        bytestring_length = (message_3.content[0] ^ CBOR_MAJOR_BYTE_STRING).into();
+        prefix_length = 1;
+    } else {
+        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+        bytestring_length = message_3.content[1].into();
+        prefix_length = 2;
+    }
 
     let mut ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new();
-    ciphertext_3.len = len;
-    ciphertext_3.content[..len].copy_from_slice(&message_3.content[1..1 + len]);
+    ciphertext_3.len = bytestring_length;
+    ciphertext_3.content[..bytestring_length]
+        .copy_from_slice(&message_3.content[prefix_length..][..bytestring_length]);
 
     let (k_3, iv_3) = compute_k_3_iv_3(crypto, prk_3e2m, th_3);
 
