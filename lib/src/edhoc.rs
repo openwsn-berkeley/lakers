@@ -740,6 +740,11 @@ fn encrypt_message_3(
         prefix_length = 2;
     };
     output.len = prefix_length + bytestring_length;
+    // FIXME: Make the function fallible, especially with the prospect of algorithm agility
+    assert!(
+        output.len <= MAX_MESSAGE_SIZE_LEN,
+        "Tried to encode a message that is too large."
+    );
 
     let enc_structure = encode_enc_structure(th_3);
 
