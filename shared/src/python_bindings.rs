@@ -82,6 +82,15 @@ impl CredentialRPK {
         }
     }
 
+    fn __repr__(&self) -> String {
+        format!(
+            "CredentialRpk(bytes.fromhex('{}'), public_key=bytes.fromhex('{}'), kid={})",
+            hex::encode(self.value.as_slice()),
+            hex::encode(self.public_key),
+            self.kid,
+        )
+    }
+
     fn value<'a>(&self, py: Python<'a>) -> &'a PyBytes {
         PyBytes::new(py, self.value.as_slice())
     }
