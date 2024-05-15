@@ -84,14 +84,11 @@ impl PyEdhocInitiator {
     pub fn verify_message_2(
         &mut self,
         i: Vec<u8>,
-        cred_i: Vec<u8>,
-        valid_cred_r: Vec<u8>,
+        cred_i: super::AutoCredentialRPK,
+        valid_cred_r: super::AutoCredentialRPK,
     ) -> PyResult<()> {
-        let cred_i =
-            CredentialRPK::new(EdhocMessageBuffer::new_from_slice(&cred_i.as_slice()).unwrap())?;
-        let valid_cred_r = CredentialRPK::new(
-            EdhocMessageBuffer::new_from_slice(&valid_cred_r.as_slice()).unwrap(),
-        )?;
+        let cred_i = cred_i.to_credential()?;
+        let valid_cred_r = valid_cred_r.to_credential()?;
 
         match i_verify_message_2(
             &self.processing_m2,

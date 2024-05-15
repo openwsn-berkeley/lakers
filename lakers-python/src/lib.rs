@@ -20,15 +20,10 @@ mod responder;
 pub fn py_credential_check_or_fetch<'a>(
     py: Python<'a>,
     id_cred_received: Vec<u8>,
-    cred_expected: Option<Vec<u8>>,
+    cred_expected: Option<AutoCredentialRPK>,
 ) -> PyResult<&'a PyBytes> {
-    let cred_expected = if let Some(cred_expected) = cred_expected {
-        Some(CredentialRPK::new(
-            EdhocMessageBuffer::new_from_slice(cred_expected.as_slice()).unwrap(),
-        )?)
-    } else {
-        None
-    };
+    let cred_expected = cred_expected.map(|c| c.to_credential()).transpose()?;
+
     let valid_cred = if id_cred_received.len() == 1 {
         credential_check_or_fetch(
             cred_expected,
@@ -57,6 +52,28 @@ fn p256_generate_key_pair<'a>(py: Python<'a>) -> PyResult<(&'a PyBytes, &'a PyBy
         PyBytes::new(py, x.as_slice()),
         PyBytes::new(py, g_x.as_slice()),
     ))
+}
+
+/// Helper for PyO3 converted functions that behave like passing an argument through a
+/// `CredentialRPK` constructor; use this in an argument and then call [self.to_credential()].
+/// The resulting function will accept both a bytes-ish object (and pass it through
+/// [CredentialRPK::new()] or a preexisting [CredentialRPK].
+#[derive(FromPyObject)]
+enum AutoCredentialRPK {
+    #[pyo3(transparent, annotation = "bytes")]
+    Parse(Vec<u8>),
+    #[pyo3(transparent, annotation = "CredentialRPK")]
+    Existing(lakers_shared::CredentialRPK),
+}
+
+impl AutoCredentialRPK {
+    fn to_credential(self) -> PyResult<CredentialRPK> {
+        use AutoCredentialRPK::*;
+        Ok(match self {
+            Existing(e) => e,
+            Parse(v) => CredentialRPK::new(EdhocMessageBuffer::new_from_slice(&v)?)?,
+        })
+    }
 }
 
 // this name must match `lib.name` in `Cargo.toml`
