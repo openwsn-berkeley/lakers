@@ -4,7 +4,11 @@
 /// Note that this module is not restricted by no_std.
 use super::*;
 use core::fmt;
-use pyo3::{exceptions::PyValueError, types::PyBytes, PyErr};
+use pyo3::{
+    exceptions::{PyTypeError, PyValueError},
+    types::PyBytes,
+    PyErr,
+};
 
 impl fmt::Display for EDHOCError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,5 +55,42 @@ impl EADItem {
 
     fn is_critical(&self) -> bool {
         self.is_critical
+    }
+}
+
+#[pymethods]
+impl CredentialRPK {
+    #[new]
+    #[pyo3(signature = (value, *, kid = None, public_key = None))]
+    fn new_py(value: Vec<u8>, kid: Option<u8>, public_key: Option<Vec<u8>>) -> PyResult<Self> {
+        let value = EdhocMessageBuffer::new_from_slice(&value)?;
+        match (kid, public_key) {
+            (None, None) => Ok(Self::new(value)?),
+            (Some(kid), Some(public_key)) => {
+                let public_key = public_key
+                    .try_into()
+                    .map_err(|_| PyTypeError::new_err("Public key length mismatch"))?;
+                Ok(Self {
+                    value,
+                    kid,
+                    public_key,
+                })
+            }
+            _ => Err(PyTypeError::new_err(
+                "To bypass credential parsing, all optional arguments must be given.",
+            )),
+        }
+    }
+
+    fn value<'a>(&self, py: Python<'a>) -> &'a PyBytes {
+        PyBytes::new(py, self.value.as_slice())
+    }
+
+    fn public_key<'a>(&self, py: Python<'a>) -> &'a PyBytes {
+        PyBytes::new(py, self.public_key.as_slice())
+    }
+
+    fn kid(&self) -> u8 {
+        self.kid
     }
 }
