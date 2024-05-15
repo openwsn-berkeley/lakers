@@ -498,7 +498,7 @@ pub enum IdCred<'a> {
 }
 
 impl<'a> IdCred<'a> {
-    pub fn write(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
+    pub fn write_to_message(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
         match self {
             IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
             IdCred::FullCredential(cred) => {

@@ -648,7 +648,7 @@ fn encode_plaintext_3(
     let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
 
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    id_cred_i.write(&mut plaintext_3)?;
+    id_cred_i.write_to_message(&mut plaintext_3)?;
     let offset_cred = plaintext_3.len;
     plaintext_3.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
     plaintext_3.content[offset_cred + 1..][..mac_3.len()].copy_from_slice(&mac_3[..]);
@@ -881,7 +881,7 @@ fn encode_plaintext_2(
     let c_r = c_r.as_slice();
 
     plaintext_2.extend_from_slice(c_r).unwrap();
-    id_cred_r.write(&mut plaintext_2)?;
+    id_cred_r.write_to_message(&mut plaintext_2)?;
     let offset_cred = plaintext_2.len;
 
     plaintext_2.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_2 as u8;
