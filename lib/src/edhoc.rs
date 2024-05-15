@@ -885,7 +885,9 @@ fn encode_plaintext_2(
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     let c_r = c_r.as_slice();
 
-    plaintext_2.extend_from_slice(c_r).unwrap();
+    plaintext_2
+        .extend_from_slice(c_r)
+        .or(Err(EDHOCError::EncodingError))?;
     id_cred_r.write_to_message(&mut plaintext_2)?;
     let offset_cred = plaintext_2.len;
 
