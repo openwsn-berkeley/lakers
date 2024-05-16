@@ -70,6 +70,165 @@ impl CredentialRPK {
     }
 }
 
+/// A credential along with its corresponding public key
+///
+/// It may contain information about the key ID, which enables its use by reference, and of its
+/// value type, which enables its use by value.
+///
+/// Future extensions may also add other optional identifiers (eg. an identifying URI) that might
+/// enable additional kinds of referncing the credential; some of those may also not be stored but
+/// merely generated (eg. thumbprints, although in that case the type of credential needs to be
+/// stored, so that it can be decided whether the thumbprint is an x5t or a c5t).
+#[derive(Clone, Copy, Debug)]
+pub struct Credential {
+    /// Bytes of the credential. Lakers and EDHOC make no requirement on their format.
+    value: EdhocMessageBuffer,
+    /// Public authentication key (G_I or G_R) expressed in the credential
+    // For CCSs, this could be a reference into value, but Rust does not allow self-referential structs anyway.
+    public_key: BytesP256ElemLen,
+    /// Key ID.
+    ///
+    /// If set, it enables turning the credential into an IdCred that is a key ID (the most compact
+    /// form of ID_CRED_x).
+    ///
+    /// Future versions may widen this to allow longer KIDs.
+    kid: Option<u8>,
+    /// COSE Header Parameter Label indicating the type of credential this is.
+    ///
+    /// If set, it enables using the credential by value. Setting this adds the requirement that
+    /// the value is well-formed according to the type. In particular, when set to KCCS or any
+    /// other Map-valued types, a value that is not CBOR can result in hard to debug parsing errors
+    /// on the other end, even before it reaches the credential validation at the peer.
+    ///
+    /// Future versions may allow a wider range of options; u8 suffices to excpress the currently
+    /// registered set of COSE Header Parameters Labels (the values CUPHNonce and CUPHOwnerPubKey
+    /// are outside of that range but appear to be unsuitable anyway).
+    value_type: Option<u8>,
+}
+
+// From https://www.iana.org/assignments/cose/cose.xhtml#header-parameters
+const COSE_HEADER_PARAMETER_KCCS: u8 = 14;
+
+impl Credential {
+    /// Build a Credential from the value and the public_key
+    ///
+    /// Requirements on what credentials can be used with EDHOC differ by application; Appendix D
+    /// of RFC9528 has some guidance.
+    ///
+    /// If any of the optional fields are to be set, they can be added using the builder pattern
+    /// methods [`.with_kid()`] and [`.with_value_type()`].
+    pub fn new(value: EdhocMessageBuffer, public_key: BytesP256ElemLen) -> Self {
+        Self {
+            value,
+            public_key,
+            kid: None,
+            value_type: None,
+        }
+    }
+
+    /// Builder to set the KID
+    ///
+    /// Setting this enables the use of a credential by key ID:
+    ///
+    /// ```rust
+    /// let cred_i = Credential::new(b'my very custom credential format', [42; _])
+    ///     .with_kid(b'\x04');
+    /// let id_cred_i = cred_i.by_kid().expect("We just set a short KID so it works");
+    /// ```
+    pub fn with_kid(self, kid: &[u8]) -> Self {
+        // We could also make this fallible, but these are generated locally, not network
+        // processed. If we make it fallible, we should have a dedicated error type for "programmer
+        // messed up" where unwrapping totally makes sense.
+        assert!(
+            kid.len() == 1 && todo!("Check whether it's in the CBOR range -24..23"),
+            "Chosen KID is not expressible in Lakers right now"
+        );
+        let kid = kid[0];
+        Self {
+            value: self.value,
+            public_key: self.public_key,
+            kid: Some(kid.into()),
+            value_type: self.value_type,
+        }
+    }
+
+    /// Builder to set the value type
+    ///
+    /// Setting this enables the use of a credential by value:
+    ///
+    /// ```rust
+    /// let cred_i = Credential::new(b'my very custom credential format', [42; _])
+    ///     .with_value_type(-65537);
+    /// let id_cred_i = cred_i.by_value().expect("We just set a value type so it works");
+    /// ```
+    pub fn with_value_type(self, value_type: u8) -> Self {
+        Self {
+            value: self.value,
+            public_key: self.public_key,
+            kid: self.kid,
+            value_type: Some(value_type),
+        }
+    }
+
+    /// Parse a CCS style credential
+    ///
+    /// If the given value matches the shape Lakers expects of a CCS, its public key and key ID are
+    /// extracted into a full credential.
+    pub fn parse_ccs(value: &[u8]) -> Result<Self, EDHOCError> {
+        // Implementing in terms of the old structure, to be moved in here in later versions of
+        // this change set
+        let (public_key, kid) = CredentialRPK::parse(value)?;
+        Ok(Self {
+            value: EdhocMessageBuffer::new_from_slice(value)
+                .map_err(|_| EDHOCError::ParsingError)?,
+            public_key,
+            kid: Some(kid),
+            value_type: Some(COSE_HEADER_PARAMETER_KCCS),
+        })
+    }
+
+    pub fn by_value(&self) -> Option<IdCredential> {
+        let value_type = self.value_type?;
+        todo!("Build an IdCredential from the CBOR serialization of {{value_type: self.value}}")
+    }
+
+    pub fn by_kid(&self) -> Option<IdCredential> {
+        let kid = self.kid?;
+        let mut buf = EdhocMessageBuffer::default();
+        // { /kid/ 4: 'k' }
+        buf.extend_from_slice(&[0xa1, 0x04, 0x41, 0x41, kid])
+            .expect("Slice is sort enough to always fit in the buffer");
+        Some(IdCredential { value: buf })
+    }
+}
+
+/// A value of ID_CRED_x: a credential identifier
+///
+/// Possible values include key IDs, credentials by value and others.
+pub struct IdCredential {
+    /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
+    /// while this technically wastes a byte, it has the convenient property of having the full
+    /// value available as a slice.
+    value: EdhocMessageBuffer,
+}
+
+impl IdCredential {
+    /// View the full value of the ID_CRED_x: the CBOR encoding of a 1-element CBOR map
+    pub fn as_full_value(&self) -> &[u8] {
+        self.value.as_slice()
+    }
+
+    /// View the value as encoded in the ID_CRED_x position of plaintext_2 and plaintext_3,
+    /// applying the Compact Encoding of ID_CRED Fields described in RFC9528 Section 3.5.3.2
+    pub fn as_compact_encoding(&self) -> &[u8] {
+        match self.value.as_slice() {
+            [0xa1, 0x04, 0x41, x] if (x >> 5) < 2 && (x & 0x1f) < 24 => &self.value.as_slice()[3..],
+            [0xa1, 0x04, ..] => &self.value.as_slice()[2..],
+            _ => self.value.as_slice(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
