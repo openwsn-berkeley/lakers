@@ -176,6 +176,8 @@ pub fn r_parse_message_3(
                     if let Ok(parsed_rpk) = CredentialRPK::new(buffer) {
                         parsed_rpk
                     } else {
+                        // This is incomplete, and the application will need to fill in the gaps --
+                        // just as in the CompactKid case the CredentialRPK is also incomplete.
                         CredentialRPK {
                             value: buffer,
                             public_key: Default::default(),
