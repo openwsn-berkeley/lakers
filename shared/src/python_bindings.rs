@@ -4,7 +4,11 @@
 /// Note that this module is not restricted by no_std.
 use super::*;
 use core::fmt;
-use pyo3::{exceptions::PyValueError, types::PyBytes, PyErr};
+use pyo3::{
+    exceptions::{PyTypeError, PyValueError},
+    types::PyBytes,
+    PyErr,
+};
 
 impl fmt::Display for EDHOCError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,5 +55,64 @@ impl EADItem {
 
     fn is_critical(&self) -> bool {
         self.is_critical
+    }
+}
+
+#[pymethods]
+impl CredentialRPK {
+    /// Construct a new CredentialRPK
+    ///
+    /// This has two variations:
+    /// * Pass only the value. Lakers will try to parse the value as a CCS, and populate all fields
+    ///   (value, public_key, kid) from that.
+    /// * Pass all components. Lakers will not attempt to parse the value. This is primarily
+    ///   useful when the credential is not a CCS but eg. a CBOR Web Token (CWT) which the
+    ///   application can decrypt based on its association with an ACE Authorization Server (AS),
+    ///   or of which it knows the corresponding details from when it requested that token.
+    ///
+    /// Note that other forms of a CredentialRPK can be around (eg. only carrying a kid). Those can
+    /// not directly be constructed, but may be produced by Lakers when parsing a message that
+    /// contains a credential by reference.
+    #[new]
+    #[pyo3(signature = (value, *, kid = None, public_key = None))]
+    fn new_py(value: Vec<u8>, kid: Option<u8>, public_key: Option<Vec<u8>>) -> PyResult<Self> {
+        let value = EdhocMessageBuffer::new_from_slice(&value)?;
+        match (kid, public_key) {
+            (None, None) => Ok(Self::new(value)?),
+            (Some(kid), Some(public_key)) => {
+                let public_key = public_key
+                    .try_into()
+                    .map_err(|_| PyTypeError::new_err("Public key length mismatch"))?;
+                Ok(Self {
+                    value,
+                    kid,
+                    public_key,
+                })
+            }
+            _ => Err(PyTypeError::new_err(
+                "To bypass credential parsing, all optional arguments must be given.",
+            )),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CredentialRpk(bytes.fromhex('{}'), public_key=bytes.fromhex('{}'), kid={})",
+            hex::encode(self.value.as_slice()),
+            hex::encode(self.public_key),
+            self.kid,
+        )
+    }
+
+    fn value<'a>(&self, py: Python<'a>) -> &'a PyBytes {
+        PyBytes::new(py, self.value.as_slice())
+    }
+
+    fn public_key<'a>(&self, py: Python<'a>) -> &'a PyBytes {
+        PyBytes::new(py, self.public_key.as_slice())
+    }
+
+    fn kid(&self) -> u8 {
+        self.kid
     }
 }

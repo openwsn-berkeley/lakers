@@ -35,6 +35,6 @@ The maturin executable must be available. The recommended way is to install and 
 ```
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -U pip maturin pytest
+pip install -U pip maturin pytest cbor2
 pip freeze
 ```

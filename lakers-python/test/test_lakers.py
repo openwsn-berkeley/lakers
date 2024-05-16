@@ -1,4 +1,5 @@
 import lakers
+import cbor2
 import pytest
 
 # values from RFC9529, but CRED_I shortened so that passing by value is possible in a 256 byte message
@@ -20,6 +21,23 @@ def test_initiator():
 
 def test_responder():
     responder = lakers.EdhocResponder(R, CRED_R)
+
+def test_rpk_consruction():
+    # The main crednetials we use can be parsed as they are:
+    cred_r = lakers.CredentialRPK(CRED_R)
+
+    # We can also parse them on our own and construct an equivalent credential:
+    parsed_cred_r = cbor2.loads(CRED_R)
+    public_key = parsed_cred_r[8][1][-2]
+    kid = ord(parsed_cred_r[8][1][2])
+    cred_r_manual = lakers.CredentialRPK(CRED_R, public_key=public_key, kid=kid)
+
+    # No equality is useful, but the reprs are comprehensive
+    assert repr(cred_r_manual) == repr(cred_r)
+
+    # Both forms are accepted for constructing equivalent responders
+    _ = lakers.EdhocResponder(R, CRED_R)
+    _ = lakers.EdhocResponder(R, cred_r_manual)
 
 def _test_handshake(cred_r_transfer, cred_i_transfer):
     initiator = lakers.EdhocInitiator()

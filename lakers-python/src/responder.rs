@@ -16,21 +16,20 @@ pub struct PyEdhocResponder {
 #[pymethods]
 impl PyEdhocResponder {
     #[new]
-    fn new(r: Vec<u8>, cred_r: Vec<u8>) -> Self {
+    fn new(r: Vec<u8>, cred_r: super::AutoCredentialRPK) -> PyResult<Self> {
         let (y, g_y) = default_crypto().p256_generate_key_pair();
 
-        Self {
+        let cred_r = cred_r.to_credential()?;
+
+        Ok(Self {
             r,
-            cred_r: CredentialRPK::new(
-                EdhocMessageBuffer::new_from_slice(&cred_r.as_slice()).unwrap(),
-            )
-            .unwrap(),
+            cred_r,
             start: ResponderStart { y, g_y },
             processing_m1: ProcessingM1::default(),
             wait_m3: WaitM3::default(),
             processing_m3: ProcessingM3::default(),
             completed: Completed::default(),
-        }
+        })
     }
 
     fn process_message_1<'a>(
@@ -103,11 +102,9 @@ impl PyEdhocResponder {
     pub fn verify_message_3<'a>(
         &mut self,
         py: Python<'a>,
-        valid_cred_i: Vec<u8>,
+        valid_cred_i: super::AutoCredentialRPK,
     ) -> PyResult<&'a PyBytes> {
-        let valid_cred_i = CredentialRPK::new(
-            EdhocMessageBuffer::new_from_slice(&valid_cred_i.as_slice()).unwrap(),
-        )?;
+        let valid_cred_i = valid_cred_i.to_credential()?;
         match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {
             Ok((state, prk_out)) => {
                 self.completed = state;

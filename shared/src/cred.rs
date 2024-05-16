@@ -1,6 +1,7 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python-bindings", pyclass)]
 #[repr(C)]
 pub struct CredentialRPK {
     pub value: EdhocMessageBuffer,

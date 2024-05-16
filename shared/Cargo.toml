@@ -13,10 +13,11 @@ categories.workspace = true
 
 [dependencies]
 pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true }
+hex = { version = "0.4.3", optional = true }
 
 [dev-dependencies]
 hexlit = "0.5.3"
 
 [features]
 default = [  ]
-python-bindings = ["pyo3"]
+python-bindings = ["pyo3", "hex"]
