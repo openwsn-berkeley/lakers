@@ -173,7 +173,15 @@ pub fn r_parse_message_3(
                     let Ok(buffer) = EdhocMessageBuffer::new_from_slice(cred) else {
                         return Err(EDHOCError::ParsingError);
                     };
-                    CredentialRPK::new(buffer)?
+                    if let Ok(parsed_rpk) = CredentialRPK::new(buffer) {
+                        parsed_rpk
+                    } else {
+                        CredentialRPK {
+                            value: buffer,
+                            public_key: Default::default(),
+                            kid: Default::default(),
+                        }
+                    }
                 }
             };
 
