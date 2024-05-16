@@ -60,6 +60,19 @@ impl EADItem {
 
 #[pymethods]
 impl CredentialRPK {
+    /// Construct a new CredentialRPK
+    ///
+    /// This has two variations:
+    /// * Pass only the value. Lakers will try to parse the value as a CCS, and populate all fields
+    ///   (value, public_key, kid) from that.
+    /// * Pass all components. Lakers will not attempt to parse the value. This is primarily
+    ///   useful when the credential is not a CCS but eg. a CBOR Web Token (CWT) which the
+    ///   application can decrypt based on its association with an ACE Authorization Server (AS),
+    ///   or of which it knows the corresponding details from when it requested that token.
+    ///
+    /// Note that other forms of a CredentialRPK can be around (eg. only carrying a kid). Those can
+    /// not directly be constructed, but may be produced by Lakers when parsing a message that
+    /// contains a credential by reference.
     #[new]
     #[pyo3(signature = (value, *, kid = None, public_key = None))]
     fn new_py(value: Vec<u8>, kid: Option<u8>, public_key: Option<Vec<u8>>) -> PyResult<Self> {
