@@ -44,6 +44,7 @@ jobs:
       - name: Build source distribution # do this only once
         run: |
             cd lakers-python
+            ln -s ../examples ./examples # make sure examples are available in sdist (because examples/coap is in default-members)
             maturin build --sdist --out wheelhouse
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
 
