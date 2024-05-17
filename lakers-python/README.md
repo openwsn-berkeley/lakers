@@ -28,6 +28,14 @@ maturin develop
 pytest
 ```
 
+To deploy:
+```bash
+# need to make the examples folder available for the python package,
+# because it is listed as one of the workspace's default-members
+ln -s ../examples ./examples
+MATURIN_PYPI_TOKEN=<your pypi token here> maturin publish
+```
+
 ## Requirements
 
 The maturin executable must be available. The recommended way is to install and use it in a virtual environment:
