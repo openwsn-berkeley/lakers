@@ -499,6 +499,8 @@ impl EADItem {
 #[derive(Debug, Clone, Copy)]
 pub enum IdCred<'a> {
     CompactKid(u8),
+    /// Credential by value. It is required that the credential is a valid deterministic encoding
+    /// of a CCS.
     FullCredential(&'a [u8]),
 }
 
@@ -507,16 +509,9 @@ impl<'a> IdCred<'a> {
         match self {
             IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
             IdCred::FullCredential(cred) => {
-                let len =
-                    u8::try_from(cred.len()).map_err(|_| EDHOCError::CredentialTooLongError)?;
                 let kccs_map_len = 1;
                 message
-                    .extend_from_slice(&[
-                        CBOR_MAJOR_MAP + kccs_map_len,
-                        KCSS_LABEL,
-                        CBOR_BYTE_STRING,
-                        len,
-                    ])
+                    .extend_from_slice(&[CBOR_MAJOR_MAP + kccs_map_len, KCSS_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 message.extend_from_slice(cred)
             }
@@ -719,7 +714,7 @@ mod edhoc_parser {
         // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
         let id_cred_r = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
             if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.bytes()?)
+                IdCred::FullCredential(decoder.any_as_encoded()?)
             } else {
                 return Err(EDHOCError::ParsingError);
             }
@@ -755,7 +750,7 @@ mod edhoc_parser {
         // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
         let id_cred_i = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
             if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.bytes()?)
+                IdCred::FullCredential(decoder.any_as_encoded()?)
             } else {
                 return Err(EDHOCError::ParsingError);
             }
@@ -993,12 +988,77 @@ mod cbor_decoder {
         pub fn is_i8(byte: u8) -> bool {
             byte >= CBOR_NEG_INT_1BYTE_START && byte <= CBOR_NEG_INT_1BYTE_END
         }
+
+        /// Decode any (supported) CBOR item, but ignore its internal structure and just return the
+        /// encoded data.
+        ///
+        /// To have bound memory requirements, this depends on the encoded data to be in
+        /// deterministic encoding, thus not having any indeterminate length items.
+        pub fn any_as_encoded(&mut self) -> Result<&'a [u8], CBORError> {
+            let mut remaining_items = 1;
+            let start = self.position();
+
+            // Instead of `while remaining_items > 0`, this loop helps hax to see that the loop
+            // terminates. As every loop iteration advances the cursor by at least 1, the iteration
+            // bound introduced by the for loop will never be reached, and the loop only terminates
+            // through the remaining_items condition or a failure to read.
+            //
+            // I trust (but did not verify) that the Rust compiler can make something sensible out
+            // of this (especially not keep looping needlessly) and doesn't do anything worse than
+            // keep a limited loop counter.
+            for _ in self.buf.iter() {
+                if remaining_items > 0 {
+                    remaining_items -= 1;
+                    let head = self.read()?;
+                    let major = head >> 5;
+                    let minor = head & 0x1f;
+                    let argument = match minor {
+                        0..=23 => minor,
+                        24 => self.read()?,
+                        // We do not support values outside the range -256..256.
+                        // FIXME: Sooner or later we should. There is probably an upper bound on
+                        // lengths we need to support (we don't need to support 32bit integer decoding
+                        // for map keys when our maximum buffers are 256 long); will split things up
+                        // here into major-0/1/6/7 where we can just skip 1/2/4/8 bytes vs. the other
+                        // majors where this is an out-of-bounds error anyway, or just have up to 64bit
+                        // decoding available consistently for all?
+                        25 | 26 | 27 => return Err(CBORError::DecodingError),
+                        // Reserved, not well-formed
+                        28 | 29 | 30 => return Err(CBORError::DecodingError),
+                        // Indefinite length markers are forbidden in deterministic CBOR (or it's one
+                        // of the major types where this is just not well-formed)
+                        31 => return Err(CBORError::DecodingError),
+                        _ => unreachable!("Value was masked to 5 bits"),
+                    };
+                    match major {
+                        0..=1 => (), // Argument consumed, remaining items were already decremented
+                        7 => (), // Same, but in separate line due to Hax FStar backend limitations
+                        6 => {
+                            remaining_items += 1;
+                        }
+                        2..=3 => {
+                            self.read_slice(argument.into())?;
+                        }
+                        4 => {
+                            remaining_items += argument;
+                        }
+                        5 => {
+                            remaining_items += argument * 2;
+                        }
+                        _ => unreachable!("Value is result of a right shift trimming it to 3 bits"),
+                    }
+                }
+            }
+
+            Ok(&self.buf[start..self.position()])
+        }
     }
 }
 
 #[cfg(test)]
 mod test_cbor_decoder {
     use super::cbor_decoder::*;
+    use hexlit::hex;
 
     #[test]
     fn test_cbor_decoder() {
@@ -1010,5 +1070,17 @@ mod test_cbor_decoder {
         assert_eq!(-1, decoder.i8().unwrap());
         assert_eq!([0x68, 0x69], decoder.str().unwrap()); // "hi"
         assert_eq!([0xFE, 0xFE], decoder.bytes().unwrap());
+    }
+
+    #[test]
+    fn test_cbor_decoder_any_as_decoded() {
+        // {"bytes": 'val', "n": 123, "tagged": 255(["a", -1]), "deep": [[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]], {1: {2: {3: {4: [simple(0), true, null, simple(128)]}}}}]}
+        // Note we can't have floats b/c we don't skip long arguments yet (and all floats have
+        // minor 25 or longer).
+        let input = hex!("A46562797465734376616C616E187B66746167676564D8FF82616120646465657082818181818181818181818181818181818181818180A101A102A103A10484E0F5F6F880");
+        let mut decoder = CBORDecoder::new(&input);
+
+        assert_eq!(input, decoder.any_as_encoded().unwrap());
+        assert!(decoder.finished())
     }
 }
