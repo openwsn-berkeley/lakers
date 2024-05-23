@@ -1031,11 +1031,12 @@ mod cbor_decoder {
                         _ => unreachable!("Value was masked to 5 bits"),
                     };
                     match major {
-                        0 | 1 | 7 => (), // Argument consumed, remaining items were already decremented
+                        0..=1 => (), // Argument consumed, remaining items were already decremented
+                        7 => (), // Same, but in separate line due to Hax FStar backend limitations
                         6 => {
                             remaining_items += 1;
                         }
-                        2 | 3 => {
+                        2..=3 => {
                             self.read_slice(argument.into())?;
                         }
                         4 => {
