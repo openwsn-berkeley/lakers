@@ -70,6 +70,24 @@ impl CredentialRPK {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+enum ByValueStyle {
+    /// The value of the credential is a CCS. It is encoded directly in CBOR.
+    KCCS,
+    // TBD: Add X509 and others, possibly also as ByteEncoded(key)
+}
+
+// From https://www.iana.org/assignments/cose/cose.xhtml#header-parameters
+const COSE_HEADER_PARAMETER_KCCS: u8 = 14;
+
+impl ByValueStyle {
+    fn encode(&self, value: &[u8]) {
+        todo!("and add a an encode buffer")
+    }
+
+    // and decode
+}
+
 /// A credential along with its corresponding public key
 ///
 /// It may contain information about the key ID, which enables its use by reference, and of its
@@ -99,15 +117,8 @@ pub struct Credential {
     /// the value is well-formed according to the type. In particular, when set to KCCS or any
     /// other Map-valued types, a value that is not CBOR can result in hard to debug parsing errors
     /// on the other end, even before it reaches the credential validation at the peer.
-    ///
-    /// Future versions may allow a wider range of options; u8 suffices to excpress the currently
-    /// registered set of COSE Header Parameters Labels (the values CUPHNonce and CUPHOwnerPubKey
-    /// are outside of that range but appear to be unsuitable anyway).
-    value_type: Option<u8>,
+    value_type: Option<ByValueStyle>,
 }
-
-// From https://www.iana.org/assignments/cose/cose.xhtml#header-parameters
-const COSE_HEADER_PARAMETER_KCCS: u8 = 14;
 
 impl Credential {
     /// Build a Credential from the value and the public_key
@@ -152,24 +163,6 @@ impl Credential {
         }
     }
 
-    /// Builder to set the value type
-    ///
-    /// Setting this enables the use of a credential by value:
-    ///
-    /// ```rust
-    /// let cred_i = Credential::new(b'my very custom credential format', [42; _])
-    ///     .with_value_type(-65537);
-    /// let id_cred_i = cred_i.by_value().expect("We just set a value type so it works");
-    /// ```
-    pub fn with_value_type(self, value_type: u8) -> Self {
-        Self {
-            value: self.value,
-            public_key: self.public_key,
-            kid: self.kid,
-            value_type: Some(value_type),
-        }
-    }
-
     /// Parse a CCS style credential
     ///
     /// If the given value matches the shape Lakers expects of a CCS, its public key and key ID are
@@ -183,7 +176,7 @@ impl Credential {
                 .map_err(|_| EDHOCError::ParsingError)?,
             public_key,
             kid: Some(kid),
-            value_type: Some(COSE_HEADER_PARAMETER_KCCS),
+            value_type: Some(ByValueStyle::KCCS),
         })
     }
 
