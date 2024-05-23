@@ -62,10 +62,13 @@ pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
 pub const CBOR_MAJOR_BYTE_STRING_MAX: u8 = 0x57u8;
 pub const CBOR_MAJOR_ARRAY: u8 = 0x80u8;
 pub const CBOR_MAJOR_ARRAY_MAX: u8 = 0x97u8;
+pub const CBOR_MAJOR_MAP: u8 = 0xA0;
 pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bstr
 				            1 + MAX_KDF_LABEL_LEN +     // label <24 bytes as tstr
 						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						    1; // length as u8
+
+pub const KCSS_LABEL: u8 = 14;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
@@ -506,8 +509,14 @@ impl<'a> IdCred<'a> {
             IdCred::FullCredential(cred) => {
                 let len =
                     u8::try_from(cred.len()).map_err(|_| EDHOCError::CredentialTooLongError)?;
+                let kccs_map_len = 1;
                 message
-                    .extend_from_slice(&[CBOR_BYTE_STRING, len])
+                    .extend_from_slice(&[
+                        CBOR_MAJOR_MAP + kccs_map_len,
+                        KCSS_LABEL,
+                        CBOR_BYTE_STRING,
+                        len,
+                    ])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 message.extend_from_slice(cred)
             }
@@ -708,10 +717,12 @@ mod edhoc_parser {
         let c_r = ConnId::from_int_raw(decoder.int_raw()?);
 
         // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_r = if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
-            && CBORDecoder::info_of(decoder.current()?) > 1
-        {
-            IdCred::FullCredential(decoder.bytes()?)
+        let id_cred_r = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
+            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
+                IdCred::FullCredential(decoder.bytes()?)
+            } else {
+                return Err(EDHOCError::ParsingError);
+            }
         } else {
             IdCred::CompactKid(decoder.int_raw()?)
         };
@@ -741,11 +752,13 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
-        // NOTE: if len of bstr is 1, then it is a compact kid and therefore should have been encoded as int
-        let id_cred_i = if CBOR_MAJOR_BYTE_STRING == CBORDecoder::type_of(decoder.current()?)
-            && CBORDecoder::info_of(decoder.current()?) > 1
-        {
-            IdCred::FullCredential(decoder.bytes()?)
+        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
+        let id_cred_i = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
+            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
+                IdCred::FullCredential(decoder.bytes()?)
+            } else {
+                return Err(EDHOCError::ParsingError);
+            }
         } else {
             IdCred::CompactKid(decoder.int_raw()?)
         };
@@ -933,6 +946,19 @@ mod cbor_decoder {
                 match Self::info_of(b) {
                     31 => Err(CBORError::DecodingError), // no support for unknown size arrays
                     n => Ok(self.as_usize(n)?),
+                }
+            }
+        }
+
+        /// Begin decoding a map.
+        pub fn map(&mut self) -> Result<usize, CBORError> {
+            let b = self.read()?;
+            if CBOR_MAJOR_MAP != Self::type_of(b) {
+                Err(CBORError::DecodingError)
+            } else {
+                match Self::info_of(b) {
+                    n if n < 24 => Ok(self.as_usize(n)?),
+                    _ => Err(CBORError::DecodingError), // no support for long or indeterminate size
                 }
             }
         }
