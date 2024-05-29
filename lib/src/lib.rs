@@ -15,6 +15,9 @@
 //! [EDHOC]: https://datatracker.ietf.org/doc/html/rfc9528
 #![cfg_attr(not(test), no_std)]
 
+// use defmt_or_log::*; // FIXME: still not working
+use log::trace;
+
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
 #[cfg(all(feature = "ead-authz", test))]
@@ -93,6 +96,7 @@ pub struct EdhocResponderDone<Crypto: CryptoTrait> {
 
 impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: CredentialRPK) -> Self {
+        trace!("Initializing EdhocInitiator");
         assert!(r.len() == P256_ELEM_LEN);
         let (y, g_y) = crypto.p256_generate_key_pair();
 
@@ -115,6 +119,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
         ),
         EDHOCError,
     > {
+        trace!("Enter process_message_1");
         let (state, c_i, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
         Ok((
@@ -137,6 +142,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
         c_r: Option<ConnId>,
         ead_2: &Option<EADItem>,
     ) -> Result<(EdhocResponderWaitM3<Crypto>, BufferMessage2), EDHOCError> {
+        trace!("Enter prepare_message_2");
         let c_r = match c_r {
             Some(c_r) => c_r,
             None => generate_connection_identifier_cbor(&mut self.crypto),
@@ -175,6 +181,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
         ),
         EDHOCError,
     > {
+        trace!("Enter parse_message_3");
         match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
             Ok((state, id_cred_i, ead_3)) => Ok((
                 EdhocResponderProcessingM3 {
@@ -194,6 +201,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
         mut self,
         cred_i: CredentialRPK,
     ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+        trace!("Enter verify_message_3");
         match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
                 EdhocResponderDone {
@@ -242,12 +250,12 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     pub fn new(mut crypto: Crypto) -> Self {
+        trace!("Initializing EdhocInitiator");
         // we only support a single cipher suite which is already CBOR-encoded
         let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
         let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
         suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
         let (x, g_x) = crypto.p256_generate_key_pair();
-
         EdhocInitiator {
             state: InitiatorStart {
                 x,
@@ -264,6 +272,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
         c_i: Option<ConnId>,
         ead_1: &Option<EADItem>,
     ) -> Result<(EdhocInitiatorWaitM2<Crypto>, EdhocMessageBuffer), EDHOCError> {
+        trace!("Enter prepare_message_1");
         let c_i = match c_i {
             Some(c_i) => c_i,
             None => generate_connection_identifier_cbor(&mut self.crypto),
@@ -303,6 +312,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
         ),
         EDHOCError,
     > {
+        trace!("Enter parse_message_2");
         match i_parse_message_2(&self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
                 EdhocInitiatorProcessingM2 {
@@ -325,6 +335,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
         cred_i: CredentialRPK,
         valid_cred_r: CredentialRPK,
     ) -> Result<EdhocInitiatorProcessedM2<Crypto>, EDHOCError> {
+        trace!("Enter verify_message_2");
         match i_verify_message_2(
             &self.state,
             &mut self.crypto,
@@ -354,6 +365,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
         ),
         EDHOCError,
     > {
+        trace!("Enter prepare_message_3");
         match i_prepare_message_3(
             &mut self.state,
             &mut self.crypto,
@@ -433,6 +445,7 @@ pub fn credential_check_or_fetch(
     cred_expected: Option<CredentialRPK>,
     id_cred_received: CredentialRPK,
 ) -> Result<CredentialRPK, EDHOCError> {
+    trace!("Enter credential_check_or_fetch");
     // Processing of auth credentials according to draft-tiloca-lake-implem-cons
     // Comments tagged with a number refer to steps in Section 4.3.1. of draft-tiloca-lake-implem-cons
     if let Some(cred_expected) = cred_expected {

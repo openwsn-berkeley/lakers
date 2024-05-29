@@ -16,6 +16,7 @@ pub use edhoc_parser::*;
 pub use helpers::*;
 
 use core::num::NonZeroI16;
+use log::trace;
 
 mod crypto;
 pub use crypto::Crypto;
@@ -562,6 +563,7 @@ mod edhoc_parser {
     use super::*;
 
     pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
+        trace!("Enter parse_ead");
         // assuming label is a single byte integer (negative or positive)
         if let Some((&label, tail)) = buffer.split_first() {
             let label_res = if CBORDecoder::is_u8(label) {
@@ -601,6 +603,7 @@ mod edhoc_parser {
     pub fn parse_suites_i(
         mut decoder: CBORDecoder,
     ) -> Result<(BytesSuites, usize, CBORDecoder), EDHOCError> {
+        trace!("Enter parse_suites_i");
         let mut suites_i: BytesSuites = Default::default();
         if let Ok(curr) = decoder.current() {
             if CBOR_UINT_1BYTE_START == CBORDecoder::type_of(curr) {
@@ -641,6 +644,7 @@ mod edhoc_parser {
         ),
         EDHOCError,
     > {
+        trace!("Enter parse_message_1");
         let mut decoder = CBORDecoder::new(rcvd_message_1.as_slice());
         let method = decoder.u8()?;
 
@@ -674,6 +678,7 @@ mod edhoc_parser {
     pub fn parse_message_2(
         rcvd_message_2: &BufferMessage2,
     ) -> Result<(BytesP256ElemLen, BufferCiphertext2), EDHOCError> {
+        trace!("Enter parse_message_2");
         // FIXME decode negative integers as well
         let mut ciphertext_2: BufferCiphertext2 = BufferCiphertext2::new();
 
@@ -705,6 +710,7 @@ mod edhoc_parser {
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
     ) -> Result<(ConnId, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
+        trace!("Enter decode_plaintext_2");
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
         let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
@@ -743,6 +749,7 @@ mod edhoc_parser {
     pub fn decode_plaintext_3(
         plaintext_3: &BufferPlaintext3,
     ) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
+        trace!("Enter decode_plaintext_3");
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());

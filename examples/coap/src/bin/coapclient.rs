@@ -2,6 +2,7 @@ use coap::CoAPClient;
 use coap_lite::ResponseType;
 use hexlit::hex;
 use lakers::*;
+use log::*;
 use std::time::Duration;
 
 const _ID_CRED_I: &[u8] = &hex!("a104412b");
@@ -16,6 +17,8 @@ const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32
 const _G_R: &[u8] = &hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
 
 fn main() {
+    env_logger::init();
+    info!("Starting EDHOC CoAP Client");
     match client_handshake() {
         Ok(_) => println!("Handshake completed"),
         Err(e) => panic!("Handshake failed with error: {:?}", e),

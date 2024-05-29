@@ -20,3 +20,6 @@ and some needed RUSTFLAGS, so this should pretty much just work(tm):
 
 You can exit QEMU pressing `CTRL-A`, then `X`. Or, if you're using tmux like
 me, `CTRL-A`, `A`, `X`.
+
+## Disable logs
+To globally disable logs (e.g. for release builds), add the following feature: `log/release_max_level_off`.

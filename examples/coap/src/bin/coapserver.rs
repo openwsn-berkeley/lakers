@@ -2,6 +2,7 @@ use coap_lite::{CoapRequest, Packet, ResponseType};
 use hexlit::hex;
 use lakers::*;
 use lakers_ead_authz::{ZeroTouchAuthenticator, ZeroTouchServer};
+use log::*;
 use std::net::UdpSocket;
 
 const ID_CRED_I: &[u8] = &hex!("a104412b");
@@ -14,6 +15,9 @@ const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3
 const W_TV: &[u8] = &hex!("4E5E15AB35008C15B89E91F9F329164D4AACD53D9923672CE0019F9ACD98573F");
 
 fn main() {
+    env_logger::init();
+    info!("Starting EDHOC CoAP Server");
+
     let mut buf = [0; MAX_MESSAGE_SIZE_LEN];
     let socket = UdpSocket::bind("127.0.0.1:5683").unwrap();
 

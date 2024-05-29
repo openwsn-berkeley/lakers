@@ -12,6 +12,8 @@ categories.workspace = true
 [dependencies]
 lakers-shared.workspace = true
 
+log = "0.4"
+
 [dev-dependencies]
 lakers-ead-authz = { workspace = true }
 lakers-crypto.workspace = true
