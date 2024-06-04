@@ -123,12 +123,6 @@ impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     }
 }
 
-impl<const N: usize> IndexMut<usize> for EdhocBuffer<N> {
-    fn index_mut<'a>(&mut self, i: usize) -> &mut u8 {
-        &mut self.content[i]
-    }
-}
-
 mod test {
 
     #[test]
