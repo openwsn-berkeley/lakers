@@ -8,14 +8,15 @@ use super::*;
 /// - the selected suite at the last position
 /// - an ordered list of preferred suites in the first positions
 pub fn prepare_suites_i(
-    supported_suites: &[EDHOCSuite; SUPPORTED_SUITES_LEN],
-    selected_suite: EDHOCSuite,
-) -> Result<[EDHOCSuite; SUPPORTED_SUITES_LEN], EDHOCError> {
+    supported_suites: &EdhocBuffer<MAX_SUITES_LEN>,
+    selected_suite: u8,
+) -> Result<EdhocBuffer<MAX_SUITES_LEN>, EDHOCError> {
     // TODO: implement a re-positioning algorithm, considering preferred and selected suites (see Section 5.2.2 of RFC 9528)
     //       for now, we only support a single suite so we just return it
     // NOTE: should we assume that supported_suites == preferred_suites?
-    if supported_suites.contains(&selected_suite) {
-        Ok([selected_suite])
+    if supported_suites.contains(&(selected_suite)) {
+        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[selected_suite.into()])
+            .map_err(|_| EDHOCError::UnsupportedCipherSuite)
     } else {
         Err(EDHOCError::UnsupportedCipherSuite)
     }
@@ -37,7 +38,7 @@ pub fn prepare_suites_i(
 /// cryptography implementation can be taken out and stored separately.
 pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites by backend implementation.
-    fn supported_suites(&self) -> &[EDHOCSuite; SUPPORTED_SUITES_LEN];
+    fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN>;
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
     fn hkdf_expand(
         &mut self,

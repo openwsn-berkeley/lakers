@@ -206,11 +206,23 @@ pub enum EDHOCMethod {
     // PSK2 = ?,
 }
 
+impl From<EDHOCMethod> for u8 {
+    fn from(method: EDHOCMethod) -> u8 {
+        method as u8
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub enum EDHOCSuite {
     CipherSuite2 = 2,
     // add others, such as:
     // CiherSuite3 = 3,
+}
+
+impl From<EDHOCSuite> for u8 {
+    fn from(suite: EDHOCSuite) -> u8 {
+        suite as u8
+    }
 }
 
 #[derive(PartialEq, Debug)]

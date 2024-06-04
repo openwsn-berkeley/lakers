@@ -29,7 +29,7 @@ impl<const N: usize> Default for EdhocBuffer<N> {
 }
 
 impl<const N: usize> EdhocBuffer<N> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         EdhocBuffer {
             content: [0u8; N],
             len: 0,
@@ -47,6 +47,10 @@ impl<const N: usize> EdhocBuffer<N> {
 
     pub fn get(self, index: usize) -> Option<u8> {
         self.content.get(index).copied()
+    }
+
+    pub fn contains(&self, item: &u8) -> bool {
+        self.content.contains(item)
     }
 
     pub fn push(&mut self, item: u8) -> Result<(), EdhocBufferError> {
