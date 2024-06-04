@@ -249,13 +249,16 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 }
 
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
-    pub fn new(mut crypto: Crypto) -> Self {
+    pub fn new(mut crypto: Crypto, method: EDHOCMethod, selected_suite: EDHOCSuite) -> Self {
         trace!("Initializing EdhocInitiator");
-        // we only support a single cipher suite which is already CBOR-encoded
+
+        let crypto_suites_i = prepare_suites_i(crypto.supported_suites(), selected_suite).unwrap();
         let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-        let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-        suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
+        let suites_i_len = crypto_suites_i.len();
+        suites_i[0..crypto_suites_i.len()].copy_from_slice(&crypto_suites_i.map(|s| s as u8)[..]);
+
         let (x, g_x) = crypto.p256_generate_key_pair();
+
         EdhocInitiator {
             state: InitiatorStart {
                 x,
@@ -518,7 +521,11 @@ mod test {
 
     #[test]
     fn test_new_initiator() {
-        let _initiator = EdhocInitiator::new(default_crypto());
+        let _initiator = EdhocInitiator::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
     }
 
     #[test]
@@ -532,7 +539,11 @@ mod test {
 
     #[test]
     fn test_prepare_message_1() {
-        let initiator = EdhocInitiator::new(default_crypto());
+        let initiator = EdhocInitiator::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
         let result = initiator.prepare_message_1(Some(c_i), &None);
@@ -579,7 +590,11 @@ mod test {
         let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
         let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
 
-        let initiator = EdhocInitiator::new(default_crypto()); // can choose which identity to use after learning R's identity
+        let initiator = EdhocInitiator::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        ); // can choose which identity to use after learning R's identity
         let responder = EdhocResponder::new(default_crypto(), R, cred_r.clone()); // has to select an identity before learning who is I
 
         // ---- begin initiator handling

@@ -3,7 +3,7 @@
 use lakers_shared::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
-    AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
+    EDHOCSuite, AES_CCM_TAG_LEN, MAX_BUFFER_LEN, SUPPORTED_SUITES_LEN,
 };
 
 use ccm::AeadInPlace;
@@ -20,11 +20,15 @@ type AesCcm16_64_128 = ccm::Ccm<aes::Aes128, ccm::consts::U8, ccm::consts::U13>;
 /// Its size depends on the implementation of Rng passed in at creation.
 pub struct Crypto<Rng: rand_core::RngCore + rand_core::CryptoRng> {
     rng: Rng,
+    supported_suites: [EDHOCSuite; SUPPORTED_SUITES_LEN],
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> Crypto<Rng> {
     pub const fn new(rng: Rng) -> Self {
-        Self { rng }
+        Self {
+            rng,
+            supported_suites: [EDHOCSuite::CipherSuite2],
+        }
     }
 }
 
@@ -37,6 +41,10 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng> {
+    fn supported_suites(&self) -> &[EDHOCSuite; SUPPORTED_SUITES_LEN] {
+        &self.supported_suites
+    }
+
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let mut hasher = sha2::Sha256::new();
         hasher.update(&message[..message_len]);
