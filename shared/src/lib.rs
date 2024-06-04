@@ -655,12 +655,16 @@ mod edhoc_parser {
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
                 let received_suites_i_len = decoder.array()?;
-                for _ in 0..received_suites_i_len {
-                    let Ok(_) = suites_i.push(decoder.u8()?) else {
-                        return Err(EDHOCError::ParsingError);
-                    };
+                if received_suites_i_len <= suites_i.capacity() {
+                    for i in 0..received_suites_i_len {
+                        // NOTE: could use suites_i.push, but hax complains about mutable references in loops
+                        suites_i.content[i] = decoder.u8()?;
+                    }
+                    suites_i.len = received_suites_i_len;
+                    Ok((suites_i, decoder))
+                } else {
+                    Err(EDHOCError::ParsingError)
                 }
-                Ok((suites_i, decoder))
             } else {
                 Err(EDHOCError::ParsingError)
             }
