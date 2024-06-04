@@ -19,7 +19,7 @@ use core::num::NonZeroI16;
 use log::trace;
 
 mod crypto;
-pub use crypto::Crypto;
+pub use crypto::*;
 
 mod cred;
 pub use cred::*;
@@ -193,6 +193,21 @@ impl ConnId {
         }
         Some(Self(input[0]))
     }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EDHOCMethod {
+    StatStat = 3,
+    // add others, such as:
+    // PSK1 = ?,
+    // PSK2 = ?,
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EDHOCSuite {
+    CipherSuite2 = 2,
+    // add others, such as:
+    // CiherSuite3 = 3,
 }
 
 #[derive(PartialEq, Debug)]
