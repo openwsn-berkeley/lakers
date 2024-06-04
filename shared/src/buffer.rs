@@ -1,5 +1,7 @@
-pub const MAX_EDHOC_MESSAGE_SIZE_LEN: usize = 128 + 64;
-pub const MAX_EAD_SIZE_LEN: usize = 64;
+use core::ops::{Index, IndexMut};
+
+// NOTE: This constant is only here for now because it is only ever used in instances of EdhocBuffer.
+// TODO: move to lib.rs, once EdhocMessageBuffer is replaced by EdhocBuffer.
 pub const MAX_SUITES_LEN: usize = 9;
 
 #[derive(PartialEq, Debug)]
@@ -10,8 +12,11 @@ pub enum EdhocBufferError {
 }
 
 /// A fixed-size (but parameterized) buffer for EDHOC messages.
-// TODO: replace EdhocMessageBuffer with EdhocBuffer
-// NOTE: how can this const generic thing work across the C and Python bindings?
+///
+/// Trying to have an API as similar as possible to `heapless::Vec`,
+/// so that in the future it can be hot-swappable by the application.
+// TODO: replace EdhocMessageBuffer with EdhocBuffer all over the library
+// NOTE: how would this const generic thing work across the C and Python bindings?
 #[repr(C)]
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct EdhocBuffer<const N: usize> {
@@ -34,6 +39,14 @@ impl<const N: usize> EdhocBuffer<N> {
             content: [0u8; N],
             len: 0,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn capacity(&self) -> usize {
+        N
     }
 
     pub fn new_from_slice(slice: &[u8]) -> Result<Self, EdhocBufferError> {
@@ -90,14 +103,37 @@ impl<const N: usize> EdhocBuffer<N> {
             Err(EdhocBufferError::SliceTooLong)
         }
     }
+
+    // so far only used in test contexts
+    pub fn from_hex(hex: &str) -> Self {
+        let mut buffer = EdhocBuffer::new();
+        buffer.len = hex.len() / 2;
+        for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
+            let chunk_str = core::str::from_utf8(chunk).unwrap();
+            buffer.content[i] = u8::from_str_radix(chunk_str, 16).unwrap();
+        }
+        buffer
+    }
+}
+
+impl<const N: usize> Index<usize> for EdhocBuffer<N> {
+    type Output = u8;
+    fn index(&self, item: usize) -> &Self::Output {
+        &self.content[item]
+    }
+}
+
+impl<const N: usize> IndexMut<usize> for EdhocBuffer<N> {
+    fn index_mut<'a>(&mut self, i: usize) -> &mut u8 {
+        &mut self.content[i]
+    }
 }
 
 mod test {
-    use super::*;
 
     #[test]
     fn test_edhoc_buffer() {
-        let mut buffer = EdhocBuffer::<5>::new();
+        let mut buffer = crate::EdhocBuffer::<5>::new();
         assert_eq!(buffer.len, 0);
         assert_eq!(buffer.content, [0; 5]);
 
@@ -108,7 +144,7 @@ mod test {
 
     #[test]
     fn test_new_from_slice() {
-        let buffer = EdhocBuffer::<5>::new_from_slice(&[1, 2, 3]).unwrap();
+        let buffer = crate::EdhocBuffer::<5>::new_from_slice(&[1, 2, 3]).unwrap();
         assert_eq!(buffer.len, 3);
         assert_eq!(buffer.content, [1, 2, 3, 0, 0]);
     }
