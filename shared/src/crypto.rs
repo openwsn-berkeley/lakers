@@ -37,7 +37,7 @@ pub fn prepare_suites_i(
 /// platform's mutex, or to refactor the main initiator and responder objects into a form where the
 /// cryptography implementation can be taken out and stored separately.
 pub trait Crypto: core::fmt::Debug {
-    /// Returns the list of cryptographic suites by backend implementation.
+    /// Returns the list of cryptographic suites supported by the backend implementation.
     fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN>;
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
     fn hkdf_expand(

@@ -1,4 +1,4 @@
-use core::ops::{Index, IndexMut};
+use core::ops::Index;
 
 // NOTE: This constant is only here for now because it is only ever used in instances of EdhocBuffer.
 // TODO: move to lib.rs, once EdhocMessageBuffer is replaced by EdhocBuffer.

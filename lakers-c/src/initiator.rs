@@ -21,17 +21,16 @@ pub struct EdhocInitiator {
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_new(initiator: *mut EdhocInitiator) -> i8 {
-    // we only support a single cipher suite which is already CBOR-encoded
-    let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-    let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-    suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-    let (x, g_x) = default_crypto().p256_generate_key_pair();
+    let mut crypto = default_crypto();
+    let suites_i =
+        prepare_suites_i(crypto.supported_suites(), EDHOCSuite::CipherSuite2.into()).unwrap();
+    let (x, g_x) = crypto.p256_generate_key_pair();
 
     let start = InitiatorStart {
         x,
         g_x,
         suites_i,
-        suites_i_len,
+        method: EDHOCMethod::StatStat.into(),
     };
 
     core::ptr::write(&mut (*initiator).start, start);

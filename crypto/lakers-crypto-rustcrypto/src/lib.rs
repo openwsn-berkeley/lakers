@@ -20,20 +20,11 @@ type AesCcm16_64_128 = ccm::Ccm<aes::Aes128, ccm::consts::U8, ccm::consts::U13>;
 /// Its size depends on the implementation of Rng passed in at creation.
 pub struct Crypto<Rng: rand_core::RngCore + rand_core::CryptoRng> {
     rng: Rng,
-    supported_suites: EdhocBuffer<MAX_SUITES_LEN>,
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> Crypto<Rng> {
     pub const fn new(rng: Rng) -> Self {
-        // avoid calling `new*` to keep this function constant
-        let supported_suites = EdhocBuffer::<MAX_SUITES_LEN> {
-            content: [EDHOCSuite::CipherSuite2 as u8, 0, 0, 0, 0, 0, 0, 0, 0],
-            len: 1,
-        };
-        Self {
-            rng,
-            supported_suites,
-        }
+        Self { rng }
     }
 }
 
@@ -47,7 +38,10 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng> {
     fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN> {
-        &self.supported_suites
+        &EdhocBuffer::<MAX_SUITES_LEN> {
+            content: [EDHOCSuite::CipherSuite2 as u8, 0, 0, 0, 0, 0, 0, 0, 0],
+            len: 1,
+        }
     }
 
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
