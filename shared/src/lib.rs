@@ -314,6 +314,7 @@ impl ErrCode {
 #[repr(C)]
 pub struct InitiatorStart {
     pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
+    pub method: u8,
     pub x: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_x: BytesP256ElemLen, // ephemeral public key of myself
 }

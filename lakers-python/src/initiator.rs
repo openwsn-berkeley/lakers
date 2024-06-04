@@ -16,19 +16,18 @@ pub struct PyEdhocInitiator {
 impl PyEdhocInitiator {
     #[new]
     fn new() -> Self {
-        // we only support a single cipher suite which is already CBOR-encoded
-        let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-        let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-        suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-        let (x, g_x) = default_crypto().p256_generate_key_pair();
+        let mut crypto = default_crypto();
+        let suites_i =
+            prepare_suites_i(crypto.supported_suites(), EDHOCSuite::CipherSuite2.into()).unwrap();
+        let (x, g_x) = crypto.p256_generate_key_pair();
 
         Self {
             cred_i: None,
             start: InitiatorStart {
                 x,
                 g_x,
+                method: EDHOCMethod::StatStat.into(),
                 suites_i,
-                suites_i_len,
             },
             wait_m2: WaitM2::default(),
             processing_m2: ProcessingM2::default(),
@@ -185,6 +184,6 @@ impl PyEdhocInitiator {
     }
 
     pub fn selected_cipher_suite(&self) -> PyResult<u8> {
-        Ok(self.start.suites_i[self.start.suites_i_len - 1])
+        Ok(self.start.suites_i[self.start.suites_i.len() - 1])
     }
 }
