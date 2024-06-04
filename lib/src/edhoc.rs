@@ -60,11 +60,11 @@ pub fn r_process_message_1(
 ) -> Result<(ProcessingM1, ConnId, Option<EADItem>), EDHOCError> {
     // Step 1: decode message_1
     // g_x will be saved to the state
-    if let Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1)) = parse_message_1(message_1) {
+    if let Ok((method, suites_i, g_x, c_i, ead_1)) = parse_message_1(message_1) {
         // verify that the method is supported
         if method == EDHOC_METHOD {
             // Step 2: verify that the selected cipher suite is supported
-            if suites_i[suites_i_len - 1] == EDHOC_SUPPORTED_SUITES[0] {
+            if suites_i[suites_i.len() - 1] == EDHOC_SUPPORTED_SUITES[0] {
                 // hash message_1 and save the hash to the state to avoid saving the whole message
                 let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
                 message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
@@ -284,14 +284,7 @@ pub fn i_prepare_message_1(
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(
-        EDHOC_METHOD,
-        &state.suites_i,
-        state.suites_i_len,
-        &state.g_x,
-        c_i,
-        ead_1,
-    )?;
+    let message_1 = encode_message_1(EDHOC_METHOD, &state.suites_i, &state.g_x, c_i, ead_1)?;
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
@@ -508,8 +501,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
 
 fn encode_message_1(
     method: u8,
-    suites: &BytesSuites,
-    suites_len: usize,
+    suites: &EdhocBuffer<MAX_SUITES_LEN>,
     g_x: &BytesP256ElemLen,
     c_i: ConnId,
     ead_1: &Option<EADItem>,
@@ -519,7 +511,7 @@ fn encode_message_1(
 
     output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
 
-    if suites_len == 1 {
+    if suites.len == 1 {
         // only one suite, will be encoded as a single integer
         if suites[0] <= CBOR_UINT_1BYTE {
             output.content[1] = suites[0];
@@ -531,9 +523,9 @@ fn encode_message_1(
         }
     } else {
         // several suites, will be encoded as an array
-        output.content[1] = CBOR_MAJOR_ARRAY + (suites_len as u8);
+        output.content[1] = CBOR_MAJOR_ARRAY + (suites.len as u8);
         raw_suites_len += 1;
-        for &suite in suites[0..suites_len].iter() {
+        for &suite in suites.as_slice().iter() {
             if suite <= CBOR_UINT_1BYTE {
                 output.content[1 + raw_suites_len] = suite;
                 raw_suites_len += 1;
@@ -1040,7 +1032,7 @@ mod tests {
 
     // message_1 (first_time)
     const METHOD_TV_FIRST_TIME: u8 = 0x03;
-    const SUITES_I_TV_FIRST_TIME: BytesSuites = hex!("060000000000000000");
+    const SUITES_I_TV_FIRST_TIME: &str = "06";
     const G_X_TV_FIRST_TIME: BytesP256ElemLen =
         hex!("741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9");
     const C_I_TV_FIRST_TIME: ConnId = ConnId::from_int_raw(0x0e);
@@ -1050,7 +1042,7 @@ mod tests {
     // message_1 (second time)
     const METHOD_TV: u8 = 0x03;
     // manually modified test vector to include a single supported cipher suite
-    const SUITES_I_TV: BytesSuites = hex!("060200000000000000");
+    const SUITES_I_TV: &str = "0602";
     const G_X_TV: BytesP256ElemLen =
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
     const C_I_TV: ConnId = ConnId::from_int_raw(0x37);
@@ -1148,16 +1140,9 @@ mod tests {
 
     #[test]
     fn test_encode_message_1() {
-        let suites_i_tv_len: usize = 2;
-        let message_1 = encode_message_1(
-            METHOD_TV,
-            &SUITES_I_TV,
-            suites_i_tv_len,
-            &G_X_TV,
-            C_I_TV,
-            &None::<EADItem>,
-        )
-        .unwrap();
+        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
+        let message_1 =
+            encode_message_1(METHOD_TV, &suites_i_tv, &G_X_TV, C_I_TV, &None::<EADItem>).unwrap();
 
         assert_eq!(message_1.len, 39);
         assert_eq!(message_1, BufferMessage1::from_hex(MESSAGE_1_TV));
@@ -1166,31 +1151,29 @@ mod tests {
     #[test]
     fn test_parse_suites_i() {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
+        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         // skip the fist byte (method)
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, _suites_i_len, _decoder) = res.unwrap();
-        assert_eq!(suites_i, SUITES_I_TV);
+        let (suites_i, _decoder) = res.unwrap();
+        assert_eq!(suites_i, suites_i_tv);
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
         // skip the fist byte (method)
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, _suites_i_len, _decoder) = res.unwrap();
+        let (suites_i, _decoder) = res.unwrap();
         assert_eq!(suites_i[0], 0x18);
-
-        // let (suites_i, suites_i_len, raw_suites_len) =
-        //     parse_suites_i(&BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B)).unwrap();
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
         // skip the fist byte (method)
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, _decoder) = res.unwrap();
-        assert_eq!(suites_i_len, 2);
+        let (suites_i, _decoder) = res.unwrap();
+        assert_eq!(suites_i.len(), 2);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x01);
 
@@ -1199,8 +1182,8 @@ mod tests {
         let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
-        let (suites_i, suites_i_len, _decoder) = res.unwrap();
-        assert_eq!(suites_i_len, 2);
+        let (suites_i, _decoder) = res.unwrap();
+        assert_eq!(suites_i.len(), 2);
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x19);
 
@@ -1215,14 +1198,16 @@ mod tests {
     fn test_parse_message_1() {
         let message_1_tv_first_time = BufferMessage1::from_hex(MESSAGE_1_TV_FIRST_TIME);
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
+        let suites_i_tv_first_time = EdhocBuffer::from_hex(SUITES_I_TV_FIRST_TIME);
+        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
 
         // first time message_1 parsing
         let res = parse_message_1(&message_1_tv_first_time);
         assert!(res.is_ok());
-        let (method, suites_i, _suites_i_len, g_x, c_i, ead_1) = res.unwrap();
+        let (method, suites_i, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV_FIRST_TIME);
-        assert_eq!(suites_i, SUITES_I_TV_FIRST_TIME);
+        assert_eq!(suites_i, suites_i_tv_first_time);
         assert_eq!(g_x, G_X_TV_FIRST_TIME);
         assert_eq!(c_i, C_I_TV_FIRST_TIME);
         assert!(ead_1.is_none());
@@ -1230,10 +1215,10 @@ mod tests {
         // second time message_1
         let res = parse_message_1(&message_1_tv);
         assert!(res.is_ok());
-        let (method, suites_i, _suites_i_len, g_x, c_i, ead_1) = res.unwrap();
+        let (method, suites_i, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV);
-        assert_eq!(suites_i, SUITES_I_TV);
+        assert_eq!(suites_i, suites_i_tv);
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
         assert!(ead_1.is_none());
@@ -1537,7 +1522,7 @@ mod tests {
     #[test]
     fn test_encode_message_with_ead_item() {
         let method_tv = METHOD_TV;
-        let suites_i_tv_len: usize = 2;
+        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let c_i_tv = C_I_TV;
         let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
         let ead_item = EADItem {
@@ -1546,14 +1531,7 @@ mod tests {
             value: Some(EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
-        let res = encode_message_1(
-            method_tv,
-            &SUITES_I_TV,
-            suites_i_tv_len,
-            &G_X_TV,
-            c_i_tv,
-            &Some(ead_item),
-        );
+        let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &Some(ead_item));
         assert!(res.is_ok());
         let message_1 = res.unwrap();
 
@@ -1563,7 +1541,7 @@ mod tests {
     #[test]
     fn test_encode_message_with_large_ead_item() {
         let method_tv = METHOD_TV;
-        let suites_i_tv_len: usize = 2;
+        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let c_i_tv = C_I_TV;
 
         // the actual value will be zeroed since it doesn't matter in this test
@@ -1576,14 +1554,7 @@ mod tests {
             value: Some(ead_value),
         };
 
-        let res = encode_message_1(
-            method_tv,
-            &SUITES_I_TV,
-            suites_i_tv_len,
-            &G_X_TV,
-            c_i_tv,
-            &Some(ead_item),
-        );
+        let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &Some(ead_item));
         assert_eq!(res.unwrap_err(), EDHOCError::EadTooLongError);
     }
 
@@ -1628,7 +1599,7 @@ mod tests {
 
         let res = parse_message_1(&message_1_ead_tv);
         assert!(res.is_ok());
-        let (_method, _suites_i, _suites_i_len, _g_x, _c_i, ead_1) = res.unwrap();
+        let (_method, _suites_i, _g_x, _c_i, ead_1) = res.unwrap();
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);

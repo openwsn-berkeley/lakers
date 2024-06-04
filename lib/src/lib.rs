@@ -252,21 +252,12 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     pub fn new(mut crypto: Crypto, method: EDHOCMethod, selected_suite: EDHOCSuite) -> Self {
         trace!("Initializing EdhocInitiator");
 
-        let crypto_suites_i =
-            prepare_suites_i(crypto.supported_suites(), selected_suite.into()).unwrap();
-        let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-        let suites_i_len = crypto_suites_i.len;
-        suites_i[0..crypto_suites_i.len].copy_from_slice(crypto_suites_i.as_slice());
+        let suites_i = prepare_suites_i(crypto.supported_suites(), selected_suite.into()).unwrap();
 
         let (x, g_x) = crypto.p256_generate_key_pair();
 
         EdhocInitiator {
-            state: InitiatorStart {
-                x,
-                g_x,
-                suites_i,
-                suites_i_len,
-            },
+            state: InitiatorStart { x, g_x, suites_i },
             crypto,
         }
     }
@@ -299,7 +290,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     }
 
     pub fn selected_cipher_suite(&self) -> u8 {
-        self.state.suites_i[self.state.suites_i_len - 1]
+        self.state.suites_i[self.state.suites_i.len - 1]
     }
 }
 
@@ -499,8 +490,6 @@ pub fn credential_check_or_fetch(
 mod test_vectors_common {
     use hexlit::hex;
 
-    pub const ID_CRED_I: &[u8] = &hex!("a104412b");
-    pub const ID_CRED_R: &[u8] = &hex!("a104410a");
     pub const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     pub const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     pub const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");

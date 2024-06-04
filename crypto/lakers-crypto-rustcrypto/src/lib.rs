@@ -26,9 +26,10 @@ pub struct Crypto<Rng: rand_core::RngCore + rand_core::CryptoRng> {
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> Crypto<Rng> {
     pub const fn new(rng: Rng) -> Self {
         // avoid calling `new*` to keep this function constant
-        let mut supported_suites = EdhocBuffer::<MAX_SUITES_LEN>::new();
-        supported_suites.content[0] = EDHOCSuite::CipherSuite2 as u8;
-        supported_suites.len = 1;
+        let supported_suites = EdhocBuffer::<MAX_SUITES_LEN> {
+            content: [EDHOCSuite::CipherSuite2 as u8, 0, 0, 0, 0, 0, 0, 0, 0],
+            len: 1,
+        };
         Self {
             rng,
             supported_suites,

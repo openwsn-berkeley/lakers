@@ -313,8 +313,7 @@ impl ErrCode {
 #[derive(Debug)]
 #[repr(C)]
 pub struct InitiatorStart {
-    pub suites_i: BytesSuites,
-    pub suites_i_len: usize,
+    pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
     pub x: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_x: BytesP256ElemLen, // ephemeral public key of myself
 }
@@ -642,27 +641,26 @@ mod edhoc_parser {
 
     pub fn parse_suites_i(
         mut decoder: CBORDecoder,
-    ) -> Result<(BytesSuites, usize, CBORDecoder), EDHOCError> {
+    ) -> Result<(EdhocBuffer<MAX_SUITES_LEN>, CBORDecoder), EDHOCError> {
         trace!("Enter parse_suites_i");
-        let mut suites_i: BytesSuites = Default::default();
+        let mut suites_i: EdhocBuffer<MAX_SUITES_LEN> = Default::default();
         if let Ok(curr) = decoder.current() {
             if CBOR_UINT_1BYTE_START == CBORDecoder::type_of(curr) {
-                suites_i[0] = decoder.u8()?;
-                let suites_i_len = 1;
-                Ok((suites_i, suites_i_len, decoder))
+                let Ok(_) = suites_i.push(decoder.u8()?) else {
+                    return Err(EDHOCError::ParsingError);
+                };
+                Ok((suites_i, decoder))
             } else if CBOR_MAJOR_ARRAY == CBORDecoder::type_of(curr)
                 && CBORDecoder::info_of(curr) >= 2
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
-                let suites_i_len = decoder.array()?;
-                if suites_i_len <= suites_i.len() {
-                    for i in 0..suites_i_len {
-                        suites_i[i] = decoder.u8()?;
-                    }
-                    Ok((suites_i, suites_i_len, decoder))
-                } else {
-                    Err(EDHOCError::ParsingError)
+                let received_suites_i_len = decoder.array()?;
+                for _ in 0..received_suites_i_len {
+                    let Ok(_) = suites_i.push(decoder.u8()?) else {
+                        return Err(EDHOCError::ParsingError);
+                    };
                 }
+                Ok((suites_i, decoder))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -676,8 +674,7 @@ mod edhoc_parser {
     ) -> Result<
         (
             u8,
-            BytesSuites,
-            usize,
+            EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
             Option<EADItem>,
@@ -688,7 +685,7 @@ mod edhoc_parser {
         let mut decoder = CBORDecoder::new(rcvd_message_1.as_slice());
         let method = decoder.u8()?;
 
-        if let Ok((suites_i, suites_i_len, mut decoder)) = parse_suites_i(decoder) {
+        if let Ok((suites_i, mut decoder)) = parse_suites_i(decoder) {
             let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
@@ -701,12 +698,12 @@ mod edhoc_parser {
                 // we assume only one EAD item
                 let ead_res = parse_ead(decoder.remaining_buffer()?);
                 if let Ok(ead_1) = ead_res {
-                    Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
+                    Ok((method, suites_i, g_x, c_i, ead_1))
                 } else {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+                Ok((method, suites_i, g_x, c_i, None))
             } else {
                 Err(EDHOCError::ParsingError)
             }
