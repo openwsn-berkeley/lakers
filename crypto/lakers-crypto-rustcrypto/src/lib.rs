@@ -3,7 +3,7 @@
 use lakers_shared::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
-    EDHOCSuite, AES_CCM_TAG_LEN, MAX_BUFFER_LEN, SUPPORTED_SUITES_LEN,
+    EDHOCSuite, EdhocBuffer, AES_CCM_TAG_LEN, MAX_BUFFER_LEN, MAX_SUITES_LEN,
 };
 
 use ccm::AeadInPlace;
@@ -20,14 +20,18 @@ type AesCcm16_64_128 = ccm::Ccm<aes::Aes128, ccm::consts::U8, ccm::consts::U13>;
 /// Its size depends on the implementation of Rng passed in at creation.
 pub struct Crypto<Rng: rand_core::RngCore + rand_core::CryptoRng> {
     rng: Rng,
-    supported_suites: [EDHOCSuite; SUPPORTED_SUITES_LEN],
+    supported_suites: EdhocBuffer<MAX_SUITES_LEN>,
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> Crypto<Rng> {
     pub const fn new(rng: Rng) -> Self {
+        // avoid calling `new*` to keep this function constant
+        let mut supported_suites = EdhocBuffer::<MAX_SUITES_LEN>::new();
+        supported_suites.content[0] = EDHOCSuite::CipherSuite2 as u8;
+        supported_suites.len = 1;
         Self {
             rng,
-            supported_suites: [EDHOCSuite::CipherSuite2],
+            supported_suites,
         }
     }
 }
@@ -41,7 +45,7 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng> {
-    fn supported_suites(&self) -> &[EDHOCSuite; SUPPORTED_SUITES_LEN] {
+    fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN> {
         &self.supported_suites
     }
 
