@@ -251,7 +251,7 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
 impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     pub fn new(mut crypto: Crypto, method: EDHOCMethod, selected_suite: EDHOCSuite) -> Self {
         trace!("Initializing EdhocInitiator");
-        let suites_i = prepare_suites_i(crypto.supported_suites(), selected_suite.into()).unwrap();
+        let suites_i = prepare_suites_i(&crypto.supported_suites(), selected_suite.into()).unwrap();
         let (x, g_x) = crypto.p256_generate_key_pair();
 
         EdhocInitiator {
@@ -682,7 +682,11 @@ mod test_authz {
         };
 
         // ==== initialize edhoc ====
-        let mut initiator = EdhocInitiator::new(default_crypto());
+        let mut initiator = EdhocInitiator::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
         let responder = EdhocResponder::new(default_crypto(), R, cred_r);
 
         // ==== initialize ead-authz ====
