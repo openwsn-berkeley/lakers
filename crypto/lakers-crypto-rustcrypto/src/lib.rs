@@ -3,7 +3,7 @@
 use lakers_shared::{
     BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
     BytesMaxBuffer, BytesMaxInfoBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError,
-    EDHOCSuite, EdhocBuffer, AES_CCM_TAG_LEN, MAX_BUFFER_LEN, MAX_SUITES_LEN,
+    AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
 };
 
 use ccm::AeadInPlace;
@@ -37,13 +37,6 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng> {
-    fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN> {
-        &EdhocBuffer::<MAX_SUITES_LEN> {
-            content: [EDHOCSuite::CipherSuite2 as u8, 0, 0, 0, 0, 0, 0, 0, 0],
-            len: 1,
-        }
-    }
-
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
         let mut hasher = sha2::Sha256::new();
         hasher.update(&message[..message_len]);

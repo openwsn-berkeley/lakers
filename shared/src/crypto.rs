@@ -38,7 +38,10 @@ pub fn prepare_suites_i(
 /// cryptography implementation can be taken out and stored separately.
 pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites supported by the backend implementation.
-    fn supported_suites(&self) -> &EdhocBuffer<MAX_SUITES_LEN>;
+    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN> {
+        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
+            .expect("This should never fail, as the slice is of the correct length")
+    }
     fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
     fn hkdf_expand(
         &mut self,

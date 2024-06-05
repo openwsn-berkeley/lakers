@@ -284,7 +284,7 @@ pub fn i_prepare_message_1(
     ead_1: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
-    let message_1 = encode_message_1(EDHOC_METHOD, &state.suites_i, &state.g_x, c_i, ead_1)?;
+    let message_1 = encode_message_1(state.method, &state.suites_i, &state.g_x, c_i, ead_1)?;
 
     let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
     message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
