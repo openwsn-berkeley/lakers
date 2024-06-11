@@ -233,6 +233,8 @@ pub enum EDHOCError {
     /// error: When the application sets the expected credential, that process should be informed
     /// by the known details.
     UnexpectedCredential,
+    MissingIdentity,
+    IdentityAlreadySet,
     MacVerificationFailed,
     UnsupportedMethod,
     UnsupportedCipherSuite,
@@ -270,6 +272,8 @@ impl EDHOCError {
         use EDHOCError::*;
         match self {
             UnexpectedCredential => ErrCode::UNSPECIFIED,
+            MissingIdentity => ErrCode::UNSPECIFIED,
+            IdentityAlreadySet => ErrCode::UNSPECIFIED,
             MacVerificationFailed => ErrCode::UNSPECIFIED,
             UnsupportedMethod => ErrCode::UNSPECIFIED,
             UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
