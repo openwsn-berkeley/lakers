@@ -67,17 +67,17 @@ pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
 
 /// Starting point for performing EDHOC in the role of the Responder.
 #[derive(Debug)]
-pub struct EdhocResponder<'a, Crypto: CryptoTrait> {
+pub struct EdhocResponder<Crypto: CryptoTrait> {
     state: ResponderStart, // opaque state
-    r: &'a [u8],           // private authentication key of R
+    r: BytesP256ElemLen,   // private authentication key of R
     cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
 
 #[derive(Debug)]
-pub struct EdhocResponderProcessedM1<'a, Crypto: CryptoTrait> {
+pub struct EdhocResponderProcessedM1<Crypto: CryptoTrait> {
     state: ProcessingM1,   // opaque state
-    r: &'a [u8],           // private authentication key of R
+    r: BytesP256ElemLen,   // private authentication key of R
     cred_r: CredentialRPK, // R's full credential
     crypto: Crypto,
 }
@@ -100,14 +100,22 @@ pub struct EdhocResponderDone<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
-    pub fn new(mut crypto: Crypto, r: &'a [u8], cred_r: CredentialRPK) -> Self {
+impl<Crypto: CryptoTrait> EdhocResponder<Crypto> {
+    pub fn new(
+        mut crypto: Crypto,
+        method: EDHOCMethod,
+        r: BytesP256ElemLen,
+        cred_r: CredentialRPK,
+    ) -> Self {
         trace!("Initializing EdhocResponder");
-        assert!(r.len() == P256_ELEM_LEN);
         let (y, g_y) = crypto.p256_generate_key_pair();
 
         EdhocResponder {
-            state: ResponderStart { y, g_y },
+            state: ResponderStart {
+                y,
+                g_y,
+                method: method.into(),
+            },
             r,
             cred_r,
             crypto,
@@ -117,14 +125,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     pub fn process_message_1(
         mut self,
         message_1: &BufferMessage1,
-    ) -> Result<
-        (
-            EdhocResponderProcessedM1<'a, Crypto>,
-            ConnId,
-            Option<EADItem>,
-        ),
-        EDHOCError,
-    > {
+    ) -> Result<(EdhocResponderProcessedM1<Crypto>, ConnId, Option<EADItem>), EDHOCError> {
         trace!("Enter process_message_1");
         let (state, c_i, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
@@ -141,7 +142,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponder<'a, Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
+impl<Crypto: CryptoTrait> EdhocResponderProcessedM1<Crypto> {
     pub fn prepare_message_2(
         mut self,
         cred_transfer: CredentialTransfer,
@@ -158,7 +159,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessedM1<'a, Crypto> {
             &self.state,
             &mut self.crypto,
             self.cred_r,
-            self.r.try_into().expect("Wrong length of private key"),
+            &self.r,
             c_r,
             cred_transfer,
             ead_2,
@@ -554,7 +555,8 @@ mod test {
     fn test_new_responder() {
         let _responder = EdhocResponder::new(
             default_crypto(),
-            R,
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
             CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
         );
     }
@@ -578,7 +580,8 @@ mod test {
         let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
         let responder = EdhocResponder::new(
             default_crypto(),
-            R,
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
             CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
         );
 
@@ -591,7 +594,8 @@ mod test {
         // responder or initiator
         let responder = EdhocResponder::new(
             default_crypto(),
-            R,
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
             CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap(),
         );
 
@@ -618,7 +622,12 @@ mod test {
             EDHOCSuite::CipherSuite2,
         );
 
-        let responder = EdhocResponder::new(default_crypto(), R, cred_r.clone()); // has to select an identity before learning who is I
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
+            cred_r.clone(),
+        ); // has to select an identity before learning who is I
 
         // ---- begin initiator handling
         // if needed: prepare ead_1
