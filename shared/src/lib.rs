@@ -325,6 +325,7 @@ pub struct InitiatorStart {
 
 #[derive(Debug)]
 pub struct ResponderStart {
+    pub method: u8,
     pub y: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
