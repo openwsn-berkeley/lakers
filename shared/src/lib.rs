@@ -29,10 +29,15 @@ use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
 mod python_bindings;
 
+/// Configured upscaling applied to fixed-size buffers
+///
+/// Do not rely on this: It is only pub because cbindgen needs it.
 #[cfg(not(feature = "quadruple_sizes"))]
-const SCALE_FACTOR: usize = 1;
+#[doc(hidden)]
+pub const SCALE_FACTOR: usize = 1;
 #[cfg(feature = "quadruple_sizes")]
-const SCALE_FACTOR: usize = 4;
+#[doc(hidden)]
+pub const SCALE_FACTOR: usize = 4;
 
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher

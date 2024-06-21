@@ -11,6 +11,9 @@ header = """
 include_guard = "LAKERS_SHARED_H"
 cpp_compat = true
 
+[defines]
+"feature = quadruple_sizes" = "QUADRUPLE_SIZES"
+
 [export]
 include = [
     "EdhocMessageBuffer", "BytesMac", "BytesMac2",
