@@ -11,7 +11,7 @@ license.workspace = true
 pyo3 = { version = "0.20.2", features = ["extension-module"] }
 lakers = { package = "lakers", path = "../lib", default-features = false }
 lakers-ead-authz = { path = "../ead/lakers-ead-authz" }
-lakers-shared = { path = "../shared", features = ["python-bindings"] }
+lakers-shared = { path = "../shared", features = ["python-bindings", "quadruple_sizes"] }
 lakers-crypto = { path = "../crypto", default-features = false, features = ["rustcrypto"] }
 
 [lib]

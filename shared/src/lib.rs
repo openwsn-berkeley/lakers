@@ -29,9 +29,14 @@ use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
 mod python_bindings;
 
+#[cfg(not(feature = "quadruple_sizes"))]
+const SCALE_FACTOR: usize = 1;
+#[cfg(feature = "quadruple_sizes")]
+const SCALE_FACTOR: usize = 4;
+
 // TODO: find a way to configure the buffer size
 // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
-pub const MAX_MESSAGE_SIZE_LEN: usize = 128 + 64;
+pub const MAX_MESSAGE_SIZE_LEN: usize = SCALE_FACTOR * (128 + 64);
 
 pub const ID_CRED_LEN: usize = 4;
 pub const SUITES_LEN: usize = 9;
@@ -48,9 +53,9 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = 150;
+pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 150;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = 256;
+pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_TEXT_STRING: u8 = 0x78u8;
 pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
@@ -73,7 +78,7 @@ pub const KCSS_LABEL: u8 = 14;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
-pub const MAX_EAD_SIZE_LEN: usize = 64;
+pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
 
 pub type BytesSuites = [u8; SUITES_LEN];
 pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
