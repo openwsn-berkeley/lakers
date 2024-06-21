@@ -27,6 +27,9 @@ pub use cred::*;
 mod buffer;
 pub use buffer::*;
 
+mod cred_new;
+pub use cred_new::*;
+
 #[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
@@ -83,6 +86,7 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1; // length as u8
 
 pub const KCSS_LABEL: u8 = 14;
+pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
