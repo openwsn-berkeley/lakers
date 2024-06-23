@@ -48,10 +48,26 @@ jobs:
             maturin build --sdist --out wheelhouse
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
 
-      - name: Build wheels
+      # By building from sdist once we ensure that all components needed (see
+      # the dev-dependencies of lakers-python for an example) are available not
+      # just in the environment but also inside the sdist, and Cargo can run
+      # through.
+      - name: Build wheels from sdist
+        run: |
+            mkdir unpacked-source
+            cd unpacked-source
+            tar xf ../lakers-python/wheelhouse/lakers_python-*.tar.gz
+            cd lakers_python-*
+            maturin build --release --out ../../lakers-python/wheelhouse
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+
+      # Building from tree most of the time because otherwise the sdist would
+      # need to be synchronized across all the jobs.
+      - name: Build wheels from tree
         run: |
             cd lakers-python
             maturin build --release --out wheelhouse
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.11'
 
       - uses: actions/upload-artifact@v4
         with:
