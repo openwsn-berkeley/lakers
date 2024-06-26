@@ -58,7 +58,7 @@ impl PyAuthzDevice {
         self.device_wait.set_h_message_1(h_message_1_arr);
     }
 
-    pub fn get_g_w<'a>(&self, py: Python<'a>) -> PyResult<&'a PyBytes> {
-        Ok(PyBytes::new(py, &self.device.g_w[..]))
+    pub fn get_g_w<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
+        Ok(PyBytes::new_bound(py, &self.device.g_w[..]))
     }
 }

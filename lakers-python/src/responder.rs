@@ -36,12 +36,12 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_1: Vec<u8>,
-    ) -> PyResult<(&'a PyBytes, Option<EADItem>)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
         let (state, c_i, ead_1) =
             r_process_message_1(&self.start, &mut default_crypto(), &message_1)?;
         self.processing_m1 = state;
-        let c_i = PyBytes::new(py, c_i.as_slice());
+        let c_i = PyBytes::new_bound(py, c_i.as_slice());
 
         Ok((c_i, ead_1))
     }
@@ -52,7 +52,7 @@ impl PyEdhocResponder {
         cred_transfer: CredentialTransfer,
         c_r: Option<Vec<u8>>,
         ead_2: Option<EADItem>,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let c_r = match c_r {
             Some(c_r) => ConnId::from_slice(c_r.as_slice()).ok_or(
                 pyo3::exceptions::PyValueError::new_err("Connection identifier out of range"),
@@ -73,7 +73,7 @@ impl PyEdhocResponder {
         ) {
             Ok((state, message_2)) => {
                 self.wait_m3 = state;
-                Ok(PyBytes::new(py, message_2.as_slice()))
+                Ok(PyBytes::new_bound(py, message_2.as_slice()))
             }
             Err(error) => Err(error.into()),
         }
@@ -83,15 +83,15 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_3: Vec<u8>,
-    ) -> PyResult<(&'a PyBytes, Option<EADItem>)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
         match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
             Ok((state, id_cred_i, ead_3)) => {
                 self.processing_m3 = state;
                 let id_cred_i = if id_cred_i.reference_only() {
-                    PyBytes::new(py, &[id_cred_i.kid])
+                    PyBytes::new_bound(py, &[id_cred_i.kid])
                 } else {
-                    PyBytes::new(py, id_cred_i.value.as_slice())
+                    PyBytes::new_bound(py, id_cred_i.value.as_slice())
                 };
                 Ok((id_cred_i, ead_3))
             }
@@ -103,12 +103,12 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         valid_cred_i: super::AutoCredentialRPK,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let valid_cred_i = valid_cred_i.to_credential()?;
         match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {
             Ok((state, prk_out)) => {
                 self.completed = state;
-                Ok(PyBytes::new(py, prk_out.as_slice()))
+                Ok(PyBytes::new_bound(py, prk_out.as_slice()))
             }
             Err(error) => Err(error.into()),
         }
@@ -120,7 +120,7 @@ impl PyEdhocResponder {
         label: u8,
         context: Vec<u8>,
         length: usize,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
@@ -132,14 +132,14 @@ impl PyEdhocResponder {
             context.len(),
             length,
         );
-        Ok(PyBytes::new(py, &res[..length]))
+        Ok(PyBytes::new_bound(py, &res[..length]))
     }
 
     pub fn edhoc_key_update<'a>(
         &mut self,
         py: Python<'a>,
         context: Vec<u8>,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
@@ -149,6 +149,6 @@ impl PyEdhocResponder {
             &context_buf,
             context.len(),
         );
-        Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
+        Ok(PyBytes::new_bound(py, &res[..SHA256_DIGEST_LEN]))
     }
 }

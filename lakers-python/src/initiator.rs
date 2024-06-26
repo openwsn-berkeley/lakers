@@ -42,7 +42,7 @@ impl PyEdhocInitiator {
         py: Python<'a>,
         c_i: Option<Vec<u8>>,
         ead_1: Option<EADItem>,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let c_i = match c_i {
             Some(c_i) => ConnId::from_slice(c_i.as_slice()).ok_or(
                 pyo3::exceptions::PyValueError::new_err("Connection identifier out of range"),
@@ -53,7 +53,7 @@ impl PyEdhocInitiator {
         match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1) {
             Ok((state, message_1)) => {
                 self.wait_m2 = state;
-                Ok(PyBytes::new(py, message_1.as_slice()))
+                Ok(PyBytes::new_bound(py, message_1.as_slice()))
             }
             Err(error) => Err(error.into()),
         }
@@ -63,18 +63,18 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         message_2: Vec<u8>,
-    ) -> PyResult<(&'a PyBytes, &'a PyBytes, Option<EADItem>)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => {
                 self.processing_m2 = state;
                 let id_cred_r = if id_cred_r.reference_only() {
-                    PyBytes::new(py, &[id_cred_r.kid])
+                    PyBytes::new_bound(py, &[id_cred_r.kid])
                 } else {
-                    PyBytes::new(py, id_cred_r.value.as_slice())
+                    PyBytes::new_bound(py, id_cred_r.value.as_slice())
                 };
-                let c_r = PyBytes::new(py, c_r.as_slice());
+                let c_r = PyBytes::new_bound(py, c_r.as_slice());
                 Ok((c_r, id_cred_r, ead_2))
             }
             Err(error) => Err(error.into()),
@@ -112,7 +112,7 @@ impl PyEdhocInitiator {
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
         ead_3: Option<EADItem>,
-    ) -> PyResult<(&'a PyBytes, &'a PyBytes)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
         match i_prepare_message_3(
             &mut self.processed_m2,
             &mut default_crypto(),
@@ -123,8 +123,8 @@ impl PyEdhocInitiator {
             Ok((state, message_3, prk_out)) => {
                 self.completed = state;
                 Ok((
-                    PyBytes::new(py, message_3.as_slice()),
-                    PyBytes::new(py, prk_out.as_slice()),
+                    PyBytes::new_bound(py, message_3.as_slice()),
+                    PyBytes::new_bound(py, prk_out.as_slice()),
                 ))
             }
             Err(error) => Err(error.into()),
@@ -137,7 +137,7 @@ impl PyEdhocInitiator {
         label: u8,
         context: Vec<u8>,
         length: usize,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
@@ -149,14 +149,14 @@ impl PyEdhocInitiator {
             context.len(),
             length,
         );
-        Ok(PyBytes::new(py, &res[..length]))
+        Ok(PyBytes::new_bound(py, &res[..length]))
     }
 
     pub fn edhoc_key_update<'a>(
         &mut self,
         py: Python<'a>,
         context: Vec<u8>,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
@@ -166,22 +166,22 @@ impl PyEdhocInitiator {
             &context_buf,
             context.len(),
         );
-        Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
+        Ok(PyBytes::new_bound(py, &res[..SHA256_DIGEST_LEN]))
     }
 
-    pub fn get_h_message_1<'a>(&self, py: Python<'a>) -> PyResult<&'a PyBytes> {
-        Ok(PyBytes::new(py, &self.wait_m2.h_message_1[..]))
+    pub fn get_h_message_1<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
+        Ok(PyBytes::new_bound(py, &self.wait_m2.h_message_1[..]))
     }
 
     pub fn compute_ephemeral_secret<'a>(
         &self,
         py: Python<'a>,
         g_a: Vec<u8>,
-    ) -> PyResult<&'a PyBytes> {
+    ) -> PyResult<Bound<'a, PyBytes>> {
         let mut g_a_arr = BytesP256ElemLen::default();
         g_a_arr.copy_from_slice(&g_a[..]);
         let secret = default_crypto().p256_ecdh(&self.start.x, &g_a_arr);
-        Ok(PyBytes::new(py, &secret[..]))
+        Ok(PyBytes::new_bound(py, &secret[..]))
     }
 
     pub fn selected_cipher_suite(&self) -> PyResult<u8> {

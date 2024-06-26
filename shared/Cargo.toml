@@ -12,7 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-pyo3 = { version = "0.20.2", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
 hex = { version = "0.4.3", optional = true }
 log = "0.4"
 

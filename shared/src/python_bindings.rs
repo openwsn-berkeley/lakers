@@ -45,8 +45,10 @@ impl EADItem {
         }
     }
 
-    fn value<'a>(&self, py: Python<'a>) -> Option<&'a PyBytes> {
-        self.value.as_ref().map(|v| PyBytes::new(py, v.as_slice()))
+    fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, PyBytes>> {
+        self.value
+            .as_ref()
+            .map(|v| PyBytes::new_bound(py, v.as_slice()))
     }
 
     fn label(&self) -> u8 {
@@ -104,12 +106,12 @@ impl CredentialRPK {
         )
     }
 
-    fn value<'a>(&self, py: Python<'a>) -> &'a PyBytes {
-        PyBytes::new(py, self.value.as_slice())
+    fn value<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
+        PyBytes::new_bound(py, self.value.as_slice())
     }
 
-    fn public_key<'a>(&self, py: Python<'a>) -> &'a PyBytes {
-        PyBytes::new(py, self.public_key.as_slice())
+    fn public_key<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
+        PyBytes::new_bound(py, self.public_key.as_slice())
     }
 
     fn kid(&self) -> u8 {
