@@ -21,7 +21,7 @@ pub fn py_credential_check_or_fetch<'a>(
     py: Python<'a>,
     id_cred_received: Vec<u8>,
     cred_expected: Option<AutoCredentialRPK>,
-) -> PyResult<&'a PyBytes> {
+) -> PyResult<Bound<'a, PyBytes>> {
     let cred_expected = cred_expected.map(|c| c.to_credential()).transpose()?;
 
     let valid_cred = if id_cred_received.len() == 1 {
@@ -41,16 +41,18 @@ pub fn py_credential_check_or_fetch<'a>(
             )?,
         )?
     };
-    Ok(PyBytes::new(py, valid_cred.value.as_slice()))
+    Ok(PyBytes::new_bound(py, valid_cred.value.as_slice()))
 }
 
 /// this function is useful to test the python bindings
 #[pyfunction]
-fn p256_generate_key_pair<'a>(py: Python<'a>) -> PyResult<(&'a PyBytes, &'a PyBytes)> {
+fn p256_generate_key_pair<'a>(
+    py: Python<'a>,
+) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
     let (x, g_x) = default_crypto().p256_generate_key_pair();
     Ok((
-        PyBytes::new(py, x.as_slice()),
-        PyBytes::new(py, g_x.as_slice()),
+        PyBytes::new_bound(py, x.as_slice()),
+        PyBytes::new_bound(py, g_x.as_slice()),
     ))
 }
 
@@ -79,7 +81,7 @@ impl AutoCredentialRPK {
 // this name must match `lib.name` in `Cargo.toml`
 #[pymodule]
 #[pyo3(name = "lakers")]
-fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
+fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
     m.add_function(wrap_pyfunction!(py_credential_check_or_fetch, m)?)?;
     // edhoc items
@@ -94,8 +96,8 @@ fn lakers_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
     m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
 
-    let submodule = PyModule::new(_py, "consts")?;
+    let submodule = PyModule::new_bound(_py, "consts")?;
     submodule.add("EAD_AUTHZ_LABEL", lakers_ead_authz::consts::EAD_AUTHZ_LABEL)?;
-    m.add_submodule(submodule)?;
+    m.add_submodule(&submodule)?;
     Ok(())
 }
