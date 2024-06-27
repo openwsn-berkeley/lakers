@@ -19,10 +19,13 @@ use core::num::NonZeroI16;
 use log::trace;
 
 mod crypto;
-pub use crypto::Crypto;
+pub use crypto::*;
 
 mod cred;
 pub use cred::*;
+
+mod buffer;
+pub use buffer::*;
 
 #[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
@@ -196,6 +199,33 @@ impl ConnId {
 }
 
 #[derive(PartialEq, Debug)]
+pub enum EDHOCMethod {
+    StatStat = 3,
+    // add others, such as:
+    // PSK1 = ?,
+    // PSK2 = ?,
+}
+
+impl From<EDHOCMethod> for u8 {
+    fn from(method: EDHOCMethod) -> u8 {
+        method as u8
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EDHOCSuite {
+    CipherSuite2 = 2,
+    // add others, such as:
+    // CiherSuite3 = 3,
+}
+
+impl From<EDHOCSuite> for u8 {
+    fn from(suite: EDHOCSuite) -> u8 {
+        suite as u8
+    }
+}
+
+#[derive(PartialEq, Debug)]
 #[non_exhaustive]
 pub enum EDHOCError {
     /// In an exchange, a credential was set as "expected", but the credential configured by the
@@ -203,6 +233,8 @@ pub enum EDHOCError {
     /// error: When the application sets the expected credential, that process should be informed
     /// by the known details.
     UnexpectedCredential,
+    MissingIdentity,
+    IdentityAlreadySet,
     MacVerificationFailed,
     UnsupportedMethod,
     UnsupportedCipherSuite,
@@ -240,6 +272,8 @@ impl EDHOCError {
         use EDHOCError::*;
         match self {
             UnexpectedCredential => ErrCode::UNSPECIFIED,
+            MissingIdentity => ErrCode::UNSPECIFIED,
+            IdentityAlreadySet => ErrCode::UNSPECIFIED,
             MacVerificationFailed => ErrCode::UNSPECIFIED,
             UnsupportedMethod => ErrCode::UNSPECIFIED,
             UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
@@ -283,14 +317,15 @@ impl ErrCode {
 #[derive(Debug)]
 #[repr(C)]
 pub struct InitiatorStart {
-    pub suites_i: BytesSuites,
-    pub suites_i_len: usize,
+    pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
+    pub method: u8,
     pub x: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_x: BytesP256ElemLen, // ephemeral public key of myself
 }
 
 #[derive(Debug)]
 pub struct ResponderStart {
+    pub method: u8,
     pub y: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
@@ -612,24 +647,27 @@ mod edhoc_parser {
 
     pub fn parse_suites_i(
         mut decoder: CBORDecoder,
-    ) -> Result<(BytesSuites, usize, CBORDecoder), EDHOCError> {
+    ) -> Result<(EdhocBuffer<MAX_SUITES_LEN>, CBORDecoder), EDHOCError> {
         trace!("Enter parse_suites_i");
-        let mut suites_i: BytesSuites = Default::default();
+        let mut suites_i: EdhocBuffer<MAX_SUITES_LEN> = Default::default();
         if let Ok(curr) = decoder.current() {
             if CBOR_UINT_1BYTE_START == CBORDecoder::type_of(curr) {
-                suites_i[0] = decoder.u8()?;
-                let suites_i_len = 1;
-                Ok((suites_i, suites_i_len, decoder))
+                let Ok(_) = suites_i.push(decoder.u8()?) else {
+                    return Err(EDHOCError::ParsingError);
+                };
+                Ok((suites_i, decoder))
             } else if CBOR_MAJOR_ARRAY == CBORDecoder::type_of(curr)
                 && CBORDecoder::info_of(curr) >= 2
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
-                let suites_i_len = decoder.array()?;
-                if suites_i_len <= suites_i.len() {
-                    for i in 0..suites_i_len {
-                        suites_i[i] = decoder.u8()?;
+                let received_suites_i_len = decoder.array()?;
+                if received_suites_i_len <= suites_i.capacity() {
+                    for i in 0..received_suites_i_len {
+                        // NOTE: could use suites_i.push, but hax complains about mutable references in loops
+                        suites_i.content[i] = decoder.u8()?;
                     }
-                    Ok((suites_i, suites_i_len, decoder))
+                    suites_i.len = received_suites_i_len;
+                    Ok((suites_i, decoder))
                 } else {
                     Err(EDHOCError::ParsingError)
                 }
@@ -646,8 +684,7 @@ mod edhoc_parser {
     ) -> Result<
         (
             u8,
-            BytesSuites,
-            usize,
+            EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
             Option<EADItem>,
@@ -658,7 +695,7 @@ mod edhoc_parser {
         let mut decoder = CBORDecoder::new(rcvd_message_1.as_slice());
         let method = decoder.u8()?;
 
-        if let Ok((suites_i, suites_i_len, mut decoder)) = parse_suites_i(decoder) {
+        if let Ok((suites_i, mut decoder)) = parse_suites_i(decoder) {
             let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
@@ -671,12 +708,12 @@ mod edhoc_parser {
                 // we assume only one EAD item
                 let ead_res = parse_ead(decoder.remaining_buffer()?);
                 if let Ok(ead_1) = ead_res {
-                    Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
+                    Ok((method, suites_i, g_x, c_i, ead_1))
                 } else {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+                Ok((method, suites_i, g_x, c_i, None))
             } else {
                 Err(EDHOCError::ParsingError)
             }

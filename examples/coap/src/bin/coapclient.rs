@@ -33,7 +33,11 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
     let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
 
-    let initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
+    let initiator = EdhocInitiator::new(
+        lakers_crypto::default_crypto(),
+        EDHOCMethod::StatStat,
+        EDHOCSuite::CipherSuite2,
+    );
 
     // Send Message 1 over CoAP and convert the response to byte
     let mut msg_1_buf = Vec::from([0xf5u8]); // EDHOC message_1 when transported over CoAP is prepended with CBOR true

@@ -31,7 +31,7 @@ impl ZeroTouchServer {
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
-        let (_method, _suites_i, _suites_i_len, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
+        let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
@@ -72,7 +72,7 @@ impl ZeroTouchServerUserAcl {
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         let (message_1, _opaque_state) = parse_voucher_request(vreq)?;
-        let (_method, _suites_i, _suites_i_len, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
+        let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
@@ -87,7 +87,7 @@ impl ZeroTouchServerUserAcl {
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
-        let (_method, _suites_i, _suites_i_len, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
+        let (_method, _suites_i, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
         // compute hash
