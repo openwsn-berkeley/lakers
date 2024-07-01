@@ -3,28 +3,16 @@ use super::*;
 pub type BufferCred = EdhocBuffer<128>; // arbitrary size
 pub type BufferKid = EdhocBuffer<16>; // variable size, up to 16 bytes
 pub type BufferIdCred = EdhocBuffer<128>; // variable size, can contain either the contents of a BufferCred or a BufferKid
-pub type BytesKey128 = [u8; 16];
+pub type BytesKeyAES128 = [u8; 16];
 pub type BytesKeyEC2 = [u8; 32];
 pub type BytesKeyOKP = [u8; 32];
 pub type BytesX5T = [u8; 8];
 pub type BytesC5T = [u8; 8];
 
 pub enum CredentialKey {
-    Symmetric(BytesKey128),
-    EC2 {
-        x: BytesKeyEC2,
-        y: Option<BytesKeyEC2>,
-    },
+    Symmetric(BytesKeyAES128),
+    EC2Compact(BytesKeyEC2),
     // Add other key types as needed
-}
-
-pub trait EdhocCredentialContent {
-    /// Returns the key of the credential, e.g., a public EC2 key or a PSK
-    fn get_credential_key(&self) -> CredentialKey;
-    /// Returns the CBOR-encoded ID_CRED containing the credential by value
-    fn as_id_cred_value(&self, cred_bytes: &[u8]) -> BufferIdCred;
-    /// Returns the CBOR-encoded ID_CRED containing the credential by reference
-    fn as_id_cred_ref(&self) -> BufferIdCred;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -34,122 +22,71 @@ pub enum CredentialType {
     // C509,
 }
 
-pub struct Credential<EdhocCred: EdhocCredentialContent> {
+pub struct Credential {
     /// Original bytes of the credential, CBOR-encoded
     pub bytes: BufferCred,
+    pub key: CredentialKey,
+    pub kid: Option<BufferKid>, // other types of identifiers can be added, such as `pub x5t: Option<BytesX5T>`
     pub cred_type: CredentialType,
-    pub content: EdhocCred,
 }
 
-impl<EdhocCred: EdhocCredentialContent> Credential<EdhocCred> {
-    // FIXME: should handle errors instead of panicking
-    pub fn by_value(&self) -> BufferIdCred {
-        if self.cred_type == CredentialType::CCS_PSK {
-            panic!("The PSK must never be sent by value")
-        } else {
-            self.content.as_id_cred_value(self.bytes.as_slice())
-        }
-    }
-    pub fn by_reference(&self) -> BufferIdCred {
-        self.content.as_id_cred_ref()
-    }
-}
-
-// example of how some fields of a X509 certificate could be stored
-// #[derive(Clone, Copy, Debug)]
-// pub struct X509 {
-//     pub x5t: Option<BytesX5T>,
-//     pub c5t: Option<BytesC5T>,
-//     pub public_key: BytesKeyEC2,
-// }
-
-/// A COSE_Key structure, as defined in RFC 9052
-///
-/// NOTE: ideally, this should be implemented by a CredentialCCS struct,
-/// but we use CoseKey directly for now as we don't need the extra complexity
-#[derive(Clone, Copy, Debug)]
-pub struct CoseKey {
-    pub kty: CoseKTY,
-    pub kid: BufferKid,
-    pub x: Option<BytesKeyEC2>,
-    pub y: Option<BytesKeyEC2>,
-    pub k: Option<BytesKey128>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum CoseKTY {
-    EC2 = 2,
-    Symmetric = 4,
-}
-
-impl CoseKey {
-    pub fn new(kty: CoseKTY, kid: BufferKid) -> Self {
+// FIXME: should handle errors instead of panicking
+impl Credential {
+    /// Creates a new credential with the given bytes, key and type.
+    pub fn new(bytes: BufferCred, key: CredentialKey, cred_type: CredentialType) -> Self {
         Self {
-            kty,
-            kid,
-            x: None,
-            y: None,
-            k: None,
+            bytes,
+            key,
+            kid: None,
+            cred_type,
         }
     }
 
-    pub fn with_x(self, x: BytesKeyEC2) -> Self {
-        Self { x: Some(x), ..self }
-    }
-
-    pub fn with_y(self, y: BytesKeyEC2) -> Self {
-        Self { y: Some(y), ..self }
-    }
-
-    pub fn with_k(self, k: BytesKey128) -> Self {
-        Self { k: Some(k), ..self }
-    }
-}
-
-impl EdhocCredentialContent for CoseKey {
-    fn get_credential_key(&self) -> CredentialKey {
-        match self.kty {
-            CoseKTY::Symmetric => {
-                let mut k: BytesKey128 = Default::default();
-                k.copy_from_slice(self.k.as_ref().unwrap());
-                CredentialKey::Symmetric(k)
-            }
-            CoseKTY::EC2 => {
-                let mut x: BytesKeyEC2 = Default::default();
-                x.copy_from_slice(self.x.as_ref().unwrap());
-                CredentialKey::EC2 { x, y: self.y }
-            }
-            _ => panic!("No key found"),
+    pub fn with_kid(self, kid: BufferKid) -> Self {
+        Self {
+            kid: Some(kid),
+            ..self
         }
     }
 
-    /// Returns a COSE_Header map with a single entry:
-    ///   { /kccs/ 14: cred }
-    fn as_id_cred_value(&self, cred_bytes: &[u8]) -> BufferIdCred {
-        let mut cred = BufferIdCred::new();
-        cred.extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
-            .map_err(|_| EDHOCError::CredentialTooLongError)
-            .unwrap();
-        cred.extend_from_slice(cred_bytes).unwrap();
-        cred
+    /// Returns a COSE_Header map with a single entry representing a credential by value.
+    ///
+    /// For example, if the credential is a CCS:
+    ///   { /kccs/ 14: bytes }
+    pub fn by_value(&self) -> BufferIdCred {
+        match self.cred_type {
+            CredentialType::CCS => {
+                let mut cred = BufferIdCred::new();
+                cred.extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
+                    .map_err(|_| EDHOCError::CredentialTooLongError)
+                    .unwrap();
+                cred.extend_from_slice(self.bytes.as_slice()).unwrap();
+                cred
+            }
+            CredentialType::CCS_PSK => panic!("Symmetric keys cannot be sent by value"),
+        }
     }
 
-    /// Returns a COSE_Header map with a single entry:
+    /// Returns a COSE_Header map with a single entry representing a credential by reference.
+    ///
+    /// For example, if the reference is a kid:
     ///   { /kid/ 4: kid }
-    fn as_id_cred_ref(&self) -> BufferIdCred {
+    pub fn by_reference(&self) -> BufferIdCred {
+        let Some(kid) = self.kid.as_ref() else {
+            panic!("Kid not set");
+        };
         let mut id_cred = BufferIdCred::new();
         id_cred
             .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KID_LABEL])
             .unwrap();
         id_cred
-            .push(CBOR_MAJOR_BYTE_STRING | self.kid.len() as u8)
+            .push(CBOR_MAJOR_BYTE_STRING | kid.len() as u8)
             .unwrap();
-        // if self.kid.len() == 1 {
-        //     let kid = self.kid[0];
-        //     // CBOR encoding
-        // } else {
-        //     todo!("Larger kid not supported yet");
-        // }
+        if kid.len() == 1 {
+            id_cred.extend_from_slice(kid.as_slice()).unwrap();
+        } else {
+            todo!("Larger kid not supported yet");
+        }
         id_cred
     }
 }
@@ -169,22 +106,22 @@ mod test {
     const K: &[u8] = &hex!("50930FF462A77A3540CF546325DEA214");
 
     #[test]
-    fn test_new_cose_key() {
-        let g_a_tv = BytesKeyEC2::default();
-
-        let key = CoseKey::new(
-            CoseKTY::EC2,
-            BufferKid::new_from_slice(KID_VALUE_TV).unwrap(),
-        )
-        .with_x(G_A_TV.try_into().unwrap());
+    fn test_new_cred_ccs() {
+        let cred = Credential::new(
+            CRED_TV.try_into().unwrap(),
+            CredentialKey::EC2Compact(G_A_TV.try_into().unwrap()),
+            CredentialType::CCS,
+        );
+        assert_eq!(cred.bytes.as_slice(), CRED_TV);
     }
 
     #[test]
-    fn test_new_cose_key_psk() {
-        let key = CoseKey::new(
-            CoseKTY::Symmetric,
-            BufferKid::new_from_slice(KID_VALUE_TV).unwrap(),
-        )
-        .with_k(K.try_into().unwrap());
+    fn test_new_cred_ccs_psk() {
+        let cred = Credential::new(
+            CRED_PSK.try_into().unwrap(),
+            CredentialKey::Symmetric(K.try_into().unwrap()),
+            CredentialType::CCS_PSK,
+        );
+        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
     }
 }
