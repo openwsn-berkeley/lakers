@@ -125,11 +125,6 @@ pub fn r_prepare_message_2(
         CredentialTransfer::ByReference => IdCred::CompactKid(cred_r.kid),
     };
 
-    // let id_cred_r = match cred_transfer {
-    //     CredentialTransfer::ByValue => cred_r.by_value(), // KCSS or KCWT or X509 or C509
-    //     CredentialTransfer::ByReference => cred_r.by_reference(), // kid or x5t or c5t
-    // };
-
     // compute ciphertext_2
     let plaintext_2 = encode_plaintext_2(c_r, &id_cred_r, &mac_2, &ead_2)?;
 
