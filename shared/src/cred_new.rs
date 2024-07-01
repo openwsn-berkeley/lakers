@@ -1,5 +1,3 @@
-use core::panic;
-
 use super::*;
 
 pub type BufferCred = EdhocBuffer<128>; // arbitrary size
@@ -11,30 +9,40 @@ pub type BytesKeyOKP = [u8; 32];
 pub type BytesX5T = [u8; 8];
 pub type BytesC5T = [u8; 8];
 
-pub trait EdhocCredentialAccessor {
+pub enum CredentialKey {
+    Symmetric(BytesKey128),
+    EC2 {
+        x: BytesKeyEC2,
+        y: Option<BytesKeyEC2>,
+    },
+    // Add other key types as needed
+}
+
+pub trait EdhocCredentialContent {
     /// Returns the key of the credential, e.g., a public EC2 key or a PSK
-    fn get_credential_key(&self) -> &[u8];
+    fn get_credential_key(&self) -> CredentialKey;
     /// Returns the CBOR-encoded ID_CRED containing the credential by value
-    fn as_id_cred_value(&self, cred_bytes: &[u8]) -> BufferCred;
+    fn as_id_cred_value(&self, cred_bytes: &[u8]) -> BufferIdCred;
     /// Returns the CBOR-encoded ID_CRED containing the credential by reference
     fn as_id_cred_ref(&self) -> BufferIdCred;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum CredentialType {
+pub enum CredentialType {
     CCS,
     CCS_PSK,
     // C509,
 }
 
-pub struct Credential<EdhocCred: EdhocCredentialAccessor> {
+pub struct Credential<EdhocCred: EdhocCredentialContent> {
     /// Original bytes of the credential, CBOR-encoded
     pub bytes: BufferCred,
     pub cred_type: CredentialType,
     pub content: EdhocCred,
 }
 
-impl<EdhocCred: EdhocCredentialAccessor> Credential<EdhocCred> {
+impl<EdhocCred: EdhocCredentialContent> Credential<EdhocCred> {
+    // FIXME: should handle errors instead of panicking
     pub fn by_value(&self) -> BufferIdCred {
         if self.cred_type == CredentialType::CCS_PSK {
             panic!("The PSK must never be sent by value")
@@ -47,24 +55,35 @@ impl<EdhocCred: EdhocCredentialAccessor> Credential<EdhocCred> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct X509 {
-    pub x5t: Option<BytesX5T>,
-    pub c5t: Option<BytesC5T>,
-    pub public_key: BytesKeyEC2,
-}
+// example of how some fields of a X509 certificate could be stored
+// #[derive(Clone, Copy, Debug)]
+// pub struct X509 {
+//     pub x5t: Option<BytesX5T>,
+//     pub c5t: Option<BytesC5T>,
+//     pub public_key: BytesKeyEC2,
+// }
 
+/// A COSE_Key structure, as defined in RFC 9052
+///
+/// NOTE: ideally, this should be implemented by a CredentialCCS struct,
+/// but we use CoseKey directly for now as we don't need the extra complexity
 #[derive(Clone, Copy, Debug)]
 pub struct CoseKey {
-    pub kty: i8,
+    pub kty: CoseKTY,
     pub kid: BufferKid,
     pub x: Option<BytesKeyEC2>,
     pub y: Option<BytesKeyEC2>,
     pub k: Option<BytesKey128>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum CoseKTY {
+    EC2 = 2,
+    Symmetric = 4,
+}
+
 impl CoseKey {
-    pub fn new(kty: i8, kid: BufferKid) -> Self {
+    pub fn new(kty: CoseKTY, kid: BufferKid) -> Self {
         Self {
             kty,
             kid,
@@ -78,22 +97,28 @@ impl CoseKey {
         Self { x: Some(x), ..self }
     }
 
-    pub fn set_y(self, y: BytesKeyEC2) -> Self {
+    pub fn with_y(self, y: BytesKeyEC2) -> Self {
         Self { y: Some(y), ..self }
     }
 
-    pub fn set_k(self, k: BytesKey128) -> Self {
+    pub fn with_k(self, k: BytesKey128) -> Self {
         Self { k: Some(k), ..self }
     }
 }
 
-// NOTE: ideally, this should be implemented by a CredentialCCS struct,
-// but we use CoseKey directly for now as we don't need the extra complexity
-impl EdhocCredentialAccessor for CoseKey {
-    fn get_credential_key(&self) -> &[u8] {
+impl EdhocCredentialContent for CoseKey {
+    fn get_credential_key(&self) -> CredentialKey {
         match self.kty {
-            4 => self.k.as_ref().unwrap(),
-            2 => self.x.as_ref().unwrap(),
+            CoseKTY::Symmetric => {
+                let mut k: BytesKey128 = Default::default();
+                k.copy_from_slice(self.k.as_ref().unwrap());
+                CredentialKey::Symmetric(k)
+            }
+            CoseKTY::EC2 => {
+                let mut x: BytesKeyEC2 = Default::default();
+                x.copy_from_slice(self.x.as_ref().unwrap());
+                CredentialKey::EC2 { x, y: self.y }
+            }
             _ => panic!("No key found"),
         }
     }
@@ -145,17 +170,21 @@ mod test {
 
     #[test]
     fn test_new_cose_key() {
-        let key = CoseKey::new(2, BufferKid::new_from_slice(KID_VALUE_TV).unwrap())
-            .with_x(G_A_TV.try_into().unwrap());
+        let g_a_tv = BytesKeyEC2::default();
 
-        assert!(key.get_credential_key() == G_A_TV);
+        let key = CoseKey::new(
+            CoseKTY::EC2,
+            BufferKid::new_from_slice(KID_VALUE_TV).unwrap(),
+        )
+        .with_x(G_A_TV.try_into().unwrap());
     }
 
     #[test]
     fn test_new_cose_key_psk() {
-        let key = CoseKey::new(4, BufferKid::new_from_slice(KID_VALUE_TV).unwrap())
-            .set_k(K.try_into().unwrap());
-
-        assert!(key.get_credential_key() == K);
+        let key = CoseKey::new(
+            CoseKTY::Symmetric,
+            BufferKid::new_from_slice(KID_VALUE_TV).unwrap(),
+        )
+        .with_k(K.try_into().unwrap());
     }
 }
