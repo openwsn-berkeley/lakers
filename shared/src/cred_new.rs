@@ -9,6 +9,7 @@ pub type BytesKeyOKP = [u8; 32];
 pub type BytesX5T = [u8; 8];
 pub type BytesC5T = [u8; 8];
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CredentialKey {
     Symmetric(BytesKeyAES128),
     EC2Compact(BytesKeyEC2),
@@ -49,6 +50,38 @@ impl Credential {
         }
     }
 
+    /// Parse a CCS style credential
+    ///
+    /// If the given value matches the shape Lakers expects of a CCS, its public key and key ID are
+    /// extracted into a full credential.
+    pub fn parse_ccs(value: &[u8]) -> Result<Self, EDHOCError> {
+        // Implementing in terms of the old structure, to be moved in here in later versions of
+        // this change set
+        let (public_key, kid) = CredentialRPK::parse(value)?;
+        Ok(Self {
+            bytes: BufferCred::new_from_slice(value).map_err(|_| EDHOCError::ParsingError)?,
+            key: CredentialKey::EC2Compact(public_key),
+            kid: Some(BufferKid::new_from_slice(&[kid]).unwrap()),
+            cred_type: CredentialType::CCS,
+        })
+    }
+
+    /// Parse a CCS style credential, but the key is a symmetric key
+    ///
+    /// If the given value matches the shape Lakers expects of a CCS, its public key and key ID are
+    /// extracted into a full credential.
+    pub fn parse_ccs_psk(value: &[u8]) -> Result<Self, EDHOCError> {
+        // TODO: actually implement this
+
+        // example return:
+        Ok(Self {
+            bytes: BufferCred::new_from_slice(value).map_err(|_| EDHOCError::ParsingError)?,
+            key: CredentialKey::Symmetric(/* FIXME */ Default::default()),
+            kid: Some(BufferKid::new_from_slice(/* FIXME */ Default::default()).unwrap()),
+            cred_type: CredentialType::CCS_PSK,
+        })
+    }
+
     /// Returns a COSE_Header map with a single entry representing a credential by value.
     ///
     /// For example, if the credential is a CCS:
@@ -71,6 +104,8 @@ impl Credential {
     ///
     /// For example, if the reference is a kid:
     ///   { /kid/ 4: kid }
+    ///
+    /// TODO: accept a parameter to specify the type of reference, e.g. kid, x5t, etc.
     pub fn by_reference(&self) -> BufferIdCred {
         let Some(kid) = self.kid.as_ref() else {
             panic!("Kid not set");
@@ -123,5 +158,22 @@ mod test {
             CredentialType::CCS_PSK,
         );
         assert_eq!(cred.bytes.as_slice(), CRED_PSK);
+    }
+
+    #[test]
+    fn test_parse_ccs() {
+        let cred = Credential::parse_ccs(CRED_TV).unwrap();
+        assert_eq!(cred.bytes.as_slice(), CRED_TV);
+        assert_eq!(
+            cred.key,
+            CredentialKey::EC2Compact(G_A_TV.try_into().unwrap())
+        );
+        assert_eq!(cred.kid.unwrap().as_slice(), KID_VALUE_TV);
+        assert_eq!(cred.cred_type, CredentialType::CCS);
+    }
+
+    #[test]
+    fn test_parse_ccs_psk() {
+        // TODO
     }
 }

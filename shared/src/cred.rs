@@ -27,7 +27,7 @@ impl CredentialRPK {
         [0xa1, 0x04, 0x41, self.kid] // cbor map = {4: kid}
     }
 
-    fn parse(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
+    pub fn parse(cred: &[u8]) -> Result<(BytesP256ElemLen, u8), EDHOCError> {
         // NOTE: this routine is only guaranteed to work with credentials from RFC9529
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
