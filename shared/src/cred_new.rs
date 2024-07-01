@@ -72,16 +72,48 @@ impl Credential {
     /// extracted into a full credential.
     pub fn parse_ccs_psk(value: &[u8]) -> Result<Self, EDHOCError> {
         // TODO: actually implement this
-
-        // example return:
-        Ok(Self {
-            bytes: BufferCred::new_from_slice(value).map_err(|_| EDHOCError::ParsingError)?,
-            key: CredentialKey::Symmetric(/* FIXME */ Default::default()),
-            kid: Some(BufferKid::new_from_slice(/* FIXME */ Default::default()).unwrap()),
-            cred_type: CredentialType::CCS_PSK,
-        })
+        const CCS_PREFIX_LEN: usize = 3;
+        const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
+        const COSE_KEY_FIRST_ITEMS_LEN: usize = 4; //COSE for symmetric key
+        const SYMMETRIC_KEY_LEN: usize = 16;  // Assuming a 128-bit symmetric key
+               
+        // Why do they add +3 and +1 in CredentialPRK::parse
+        if value.len() < CCS_PREFIX_LEN + CNF_AND_COSE_KEY_PREFIX_LEN + COSE_KEY_FIRST_ITEMS_LEN + SYMMETRIC_KEY_LEN {
+            return Err(EDHOCError::ParsingError);
+        }
+        
+        // Extracts len from 3rd byte (CBOR encoding)
+        let subject_len = CBORDecoder::info_of(value[2]) as usize;
+    
+        let id_cred_offset: usize = CCS_PREFIX_LEN
+            .checked_add(subject_len)
+            .and_then(|x| x.checked_add(CNF_AND_COSE_KEY_PREFIX_LEN))
+            .ok_or(EDHOCError::ParsingError)?;
+    
+        let symmetric_key_offset: usize = id_cred_offset
+            .checked_add(COSE_KEY_FIRST_ITEMS_LEN)
+            .ok_or(EDHOCError::ParsingError)?;
+    
+        if symmetric_key_offset
+            .checked_add(SYMMETRIC_KEY_LEN)
+            .map_or(false, |end| end <= value.len())
+        {
+            let symmetric_key: [u8; SYMMETRIC_KEY_LEN] = value[symmetric_key_offset..symmetric_key_offset + SYMMETRIC_KEY_LEN]
+                .try_into()
+                .map_err(|_| EDHOCError::ParsingError)?;
+    
+            let kid = value[id_cred_offset];
+    
+            Ok(Self {
+                bytes: BufferCred::new_from_slice(value).map_err(|_| EDHOCError::ParsingError)?,
+                key: CredentialKey::Symmetric(symmetric_key),
+                kid: Some(BufferKid::new_from_slice(&[kid]).unwrap()),
+                cred_type: CredentialType::CCS_PSK,
+            })
+        } else {
+            Err(EDHOCError::ParsingError)
+        }
     }
-
     /// Returns a COSE_Header map with a single entry representing a credential by value.
     ///
     /// For example, if the credential is a CCS:
@@ -174,6 +206,12 @@ mod test {
 
     #[test]
     fn test_parse_ccs_psk() {
-        // TODO
+        let cred = Credential::parse_ccs_psk(CRED_PSK).unwrap();
+        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
+        assert_eq!(
+            cred.key,
+            CredentialKey::Symmetric(K.try_into().unwrap())
+        );
+        assert_eq!(cred.cred_type, CredentialType::CCS_PSK);
     }
 }
