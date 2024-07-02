@@ -19,6 +19,7 @@ pub enum CredentialKey {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CredentialType {
     CCS,
+    #[allow(non_camel_case_types)]
     CCS_PSK,
     // C509,
 }
@@ -33,13 +34,25 @@ pub struct Credential {
 
 // FIXME: should handle errors instead of panicking
 impl Credential {
-    /// Creates a new credential with the given bytes, key and type.
-    pub fn new(bytes: BufferCred, key: CredentialKey, cred_type: CredentialType) -> Self {
+    /// Creates a new CCS credential with the given bytes and public key
+    pub fn new_ccs(bytes: BufferCred, public_key: BytesKeyEC2) -> Self {
         Self {
             bytes,
-            key,
+            key: CredentialKey::EC2Compact(public_key),
             kid: None,
-            cred_type,
+            cred_type: CredentialType::CCS,
+        }
+    }
+
+    /// Creates a new CCS credential with the given bytes and a pre-shared key
+    ///
+    /// This type of credential is to be used with the under-development EDHOC method PSK.
+    pub fn new_ccs_psk(bytes: BufferCred, symmetric_key: BytesKeyAES128) -> Self {
+        Self {
+            bytes,
+            key: CredentialKey::Symmetric(symmetric_key),
+            kid: None,
+            cred_type: CredentialType::CCS_PSK,
         }
     }
 
@@ -124,17 +137,18 @@ impl Credential {
     ///
     /// For example, if the credential is a CCS:
     ///   { /kccs/ 14: bytes }
-    pub fn by_value(&self) -> BufferIdCred {
+    pub fn by_value(&self) -> Result<BufferIdCred, EDHOCError> {
         match self.cred_type {
             CredentialType::CCS => {
                 let mut cred = BufferIdCred::new();
                 cred.extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)
-                    .unwrap();
+                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 cred.extend_from_slice(self.bytes.as_slice()).unwrap();
-                cred
+                Ok(cred)
             }
-            CredentialType::CCS_PSK => panic!("Symmetric keys cannot be sent by value"),
+            // if we could encode a message along the error below,
+            // it would be this: "Symmetric keys cannot be sent by value"
+            CredentialType::CCS_PSK => Err(EDHOCError::UnexpectedCredential),
         }
     }
 
@@ -144,23 +158,24 @@ impl Credential {
     ///   { /kid/ 4: kid }
     ///
     /// TODO: accept a parameter to specify the type of reference, e.g. kid, x5t, etc.
-    pub fn by_reference(&self) -> BufferIdCred {
+    pub fn by_reference(&self) -> Result<BufferIdCred, EDHOCError> {
         let Some(kid) = self.kid.as_ref() else {
-            panic!("Kid not set");
+            return Err(EDHOCError::MissingIdentity);
         };
         let mut id_cred = BufferIdCred::new();
         id_cred
-            .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KID_LABEL])
-            .unwrap();
-        id_cred
-            .push(CBOR_MAJOR_BYTE_STRING | kid.len() as u8)
-            .unwrap();
+            .extend_from_slice(&[
+                CBOR_MAJOR_MAP + 1,
+                KID_LABEL,
+                CBOR_MAJOR_BYTE_STRING | kid.len() as u8,
+            ])
+            .map_err(|_| EDHOCError::CredentialTooLongError)?;
         if kid.len() == 1 {
             id_cred.extend_from_slice(kid.as_slice()).unwrap();
         } else {
             todo!("Larger kid not supported yet");
         }
-        id_cred
+        Ok(id_cred)
     }
 }
 
@@ -171,7 +186,8 @@ mod test {
 
     const CRED_TV: &[u8] = &hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
     const G_A_TV: &[u8] = &hex!("BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F0");
-    const ID_CRED_TV: &[u8] = &hex!("a1044132");
+    const ID_CRED_BY_REF_TV: &[u8] = &hex!("a1044132");
+    const ID_CRED_BY_VALUE_TV: &[u8] = &hex!("A10EA2026B6578616D706C652E65647508A101A501020241322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
     const KID_VALUE_TV: &[u8] = &hex!("32");
 
     const CRED_PSK: &[u8] =
@@ -180,21 +196,28 @@ mod test {
 
     #[test]
     fn test_new_cred_ccs() {
-        let cred = Credential::new(
-            CRED_TV.try_into().unwrap(),
-            CredentialKey::EC2Compact(G_A_TV.try_into().unwrap()),
-            CredentialType::CCS,
-        );
+        let cred = Credential::new_ccs(CRED_TV.try_into().unwrap(), G_A_TV.try_into().unwrap());
         assert_eq!(cred.bytes.as_slice(), CRED_TV);
     }
 
     #[test]
+    fn test_cred_ccs_by_value_or_reference() {
+        let cred = Credential::new_ccs(CRED_TV.try_into().unwrap(), G_A_TV.try_into().unwrap())
+            .with_kid(KID_VALUE_TV.try_into().unwrap());
+        let id_cred = cred.by_value().unwrap();
+        assert_eq!(id_cred.as_slice(), ID_CRED_BY_VALUE_TV);
+        let id_cred = cred.by_reference().unwrap();
+        assert_eq!(id_cred.as_slice(), ID_CRED_BY_REF_TV);
+    }
+
+    #[test]
+    fn test_cred_ccs_psk_by_value_or_reference() {
+        // TODO
+    }
+
+    #[test]
     fn test_new_cred_ccs_psk() {
-        let cred = Credential::new(
-            CRED_PSK.try_into().unwrap(),
-            CredentialKey::Symmetric(K.try_into().unwrap()),
-            CredentialType::CCS_PSK,
-        );
+        let cred = Credential::new_ccs_psk(CRED_PSK.try_into().unwrap(), K.try_into().unwrap());
         assert_eq!(cred.bytes.as_slice(), CRED_PSK);
     }
 
