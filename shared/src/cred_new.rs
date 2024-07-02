@@ -33,13 +33,25 @@ pub struct Credential {
 
 // FIXME: should handle errors instead of panicking
 impl Credential {
-    /// Creates a new credential with the given bytes, key and type.
-    pub fn new(bytes: BufferCred, key: CredentialKey, cred_type: CredentialType) -> Self {
+    /// Creates a new CCS credential with the given bytes and public key
+    pub fn new_ccs(bytes: BufferCred, public_key: BytesKeyEC2) -> Self {
         Self {
             bytes,
-            key,
+            key: CredentialKey::EC2Compact(public_key),
             kid: None,
-            cred_type,
+            cred_type: CredentialType::CCS,
+        }
+    }
+
+    /// Creates a new CCS credential with the given bytes and a pre-shared key
+    ///
+    /// This type of credential is to be used with the under-development EDHOC method PSK.
+    pub fn new_ccs_psk(bytes: BufferCred, symmetric_key: BytesKeyAES128) -> Self {
+        Self {
+            bytes,
+            key: CredentialKey::Symmetric(symmetric_key),
+            kid: None,
+            cred_type: CredentialType::CCS_PSK,
         }
     }
 
@@ -180,21 +192,13 @@ mod test {
 
     #[test]
     fn test_new_cred_ccs() {
-        let cred = Credential::new(
-            CRED_TV.try_into().unwrap(),
-            CredentialKey::EC2Compact(G_A_TV.try_into().unwrap()),
-            CredentialType::CCS,
-        );
+        let cred = Credential::new_ccs(CRED_TV.try_into().unwrap(), G_A_TV.try_into().unwrap());
         assert_eq!(cred.bytes.as_slice(), CRED_TV);
     }
 
     #[test]
     fn test_new_cred_ccs_psk() {
-        let cred = Credential::new(
-            CRED_PSK.try_into().unwrap(),
-            CredentialKey::Symmetric(K.try_into().unwrap()),
-            CredentialType::CCS_PSK,
-        );
+        let cred = Credential::new_ccs_psk(CRED_PSK.try_into().unwrap(), K.try_into().unwrap());
         assert_eq!(cred.bytes.as_slice(), CRED_PSK);
     }
 
