@@ -24,8 +24,46 @@ pub enum CredentialType {
     // C509,
 }
 
+/// A value of ID_CRED_x: a credential identifier
+///
+/// Possible values include key IDs, credentials by value and others.
+// TODO: rename to just IdCred
+pub struct StructIdCredNew {
+    /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
+    /// while this technically wastes two bytes, it has the convenient property of having the full
+    /// value available as a slice.
+    pub bytes: BufferIdCred, // variable size, can contain either the contents of a BufferCred or a BufferKid
+}
+
+impl StructIdCredNew {
+    pub fn new() -> Self {
+        Self {
+            bytes: BufferIdCred::new(),
+        }
+    }
+
+    /// View the full value of the ID_CRED_x: the CBOR encoding of a 1-element CBOR map
+    pub fn as_full_value(&self) -> &[u8] {
+        self.bytes.as_slice()
+    }
+
+    /// View the value as encoded in the ID_CRED_x position of plaintext_2 and plaintext_3,
+    /// applying the Compact Encoding of ID_CRED Fields described in RFC9528 Section 3.5.3.2
+    pub fn as_compact_encoding(&self) -> &[u8] {
+        match self.bytes.as_slice() {
+            [0xa1, 0x04, 0x41, x] if (x >> 5) < 2 && (x & 0x1f) < 24 => &self.bytes.as_slice()[3..],
+            [0xa1, 0x04, ..] => &self.bytes.as_slice()[2..],
+            _ => self.bytes.as_slice(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Credential {
     /// Original bytes of the credential, CBOR-encoded
+    ///
+    /// If the credential is a CCS, it contains an encoded CBOR map containnig
+    /// a COSE_Key in a cnf claim, see RFC 9528 Section 3.5.2.
     pub bytes: BufferCred,
     pub key: CredentialKey,
     pub kid: Option<BufferKid>, // other types of identifiers can be added, such as `pub x5t: Option<BytesX5T>`
@@ -137,14 +175,19 @@ impl Credential {
     ///
     /// For example, if the credential is a CCS:
     ///   { /kccs/ 14: bytes }
-    pub fn by_value(&self) -> Result<BufferIdCred, EDHOCError> {
+    pub fn by_value(&self) -> Result<StructIdCredNew, EDHOCError> {
         match self.cred_type {
             CredentialType::CCS => {
-                let mut cred = BufferIdCred::new();
-                cred.extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
+                let mut id_cred = StructIdCredNew::new();
+                id_cred
+                    .bytes
+                    .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                cred.extend_from_slice(self.bytes.as_slice()).unwrap();
-                Ok(cred)
+                id_cred
+                    .bytes
+                    .extend_from_slice(self.bytes.as_slice())
+                    .unwrap();
+                Ok(id_cred)
             }
             // if we could encode a message along the error below,
             // it would be this: "Symmetric keys cannot be sent by value"
@@ -158,12 +201,13 @@ impl Credential {
     ///   { /kid/ 4: kid }
     ///
     /// TODO: accept a parameter to specify the type of reference, e.g. kid, x5t, etc.
-    pub fn by_reference(&self) -> Result<BufferIdCred, EDHOCError> {
+    pub fn by_kid(&self) -> Result<StructIdCredNew, EDHOCError> {
         let Some(kid) = self.kid.as_ref() else {
             return Err(EDHOCError::MissingIdentity);
         };
-        let mut id_cred = BufferIdCred::new();
+        let mut id_cred = StructIdCredNew::new();
         id_cred
+            .bytes
             .extend_from_slice(&[
                 CBOR_MAJOR_MAP + 1,
                 KID_LABEL,
@@ -171,8 +215,9 @@ impl Credential {
             ])
             .map_err(|_| EDHOCError::CredentialTooLongError)?;
         if kid.len() == 1 {
-            id_cred.extend_from_slice(kid.as_slice()).unwrap();
+            id_cred.bytes.extend_from_slice(kid.as_slice()).unwrap();
         } else {
+            // TODO: this should actually just work, but let's leave it as is for testing later
             todo!("Larger kid not supported yet");
         }
         Ok(id_cred)
@@ -206,9 +251,9 @@ mod test {
         let cred = Credential::new_ccs(CRED_TV.try_into().unwrap(), G_A_TV.try_into().unwrap())
             .with_kid(KID_VALUE_TV.try_into().unwrap());
         let id_cred = cred.by_value().unwrap();
-        assert_eq!(id_cred.as_slice(), ID_CRED_BY_VALUE_TV);
-        let id_cred = cred.by_reference().unwrap();
-        assert_eq!(id_cred.as_slice(), ID_CRED_BY_REF_TV);
+        assert_eq!(id_cred.bytes.as_slice(), ID_CRED_BY_VALUE_TV);
+        let id_cred = cred.by_kid().unwrap();
+        assert_eq!(id_cred.bytes.as_slice(), ID_CRED_BY_REF_TV);
     }
 
     #[test]
