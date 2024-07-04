@@ -1,8 +1,8 @@
 use super::*;
 
-pub type BufferCred = EdhocBuffer<128>; // arbitrary size
+pub type BufferCred = EdhocBuffer<192>; // arbitrary size
 pub type BufferKid = EdhocBuffer<16>; // variable size, up to 16 bytes
-pub type BufferIdCred = EdhocBuffer<128>; // variable size, can contain either the contents of a BufferCred or a BufferKid
+pub type BufferIdCred = EdhocBuffer<192>; // variable size, can contain either the contents of a BufferCred or a BufferKid
 pub type BytesKeyAES128 = [u8; 16];
 pub type BytesKeyEC2 = [u8; 32];
 pub type BytesKeyOKP = [u8; 32];
@@ -44,7 +44,7 @@ impl From<u8> for IdCredType {
 ///
 /// Possible values include key IDs, credentials by value and others.
 // TODO: rename to just IdCred
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct IdCred {
     /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
     /// while this technically wastes two bytes, it has the convenient property of having the full
@@ -116,6 +116,14 @@ impl IdCred {
 
     pub fn item_type(&self) -> IdCredType {
         self.bytes.as_slice()[1].into()
+    }
+
+    pub fn get_ccs(&self) -> Option<Credential> {
+        if self.item_type() == IdCredType::KCCS {
+            Credential::parse_ccs(&self.bytes.as_slice()[2..]).ok()
+        } else {
+            None
+        }
     }
 
     fn bstr_representable_as_int(value: u8) -> bool {
@@ -296,12 +304,7 @@ impl Credential {
                 CBOR_MAJOR_BYTE_STRING | kid.len() as u8,
             ])
             .map_err(|_| EDHOCError::CredentialTooLongError)?;
-        if kid.len() == 1 {
-            id_cred.bytes.extend_from_slice(kid.as_slice()).unwrap();
-        } else {
-            // TODO: this should actually just work, but let's leave it as is for testing later
-            todo!("Larger kid not supported yet");
-        }
+        id_cred.bytes.extend_from_slice(kid.as_slice()).unwrap();
         Ok(id_cred)
     }
 }

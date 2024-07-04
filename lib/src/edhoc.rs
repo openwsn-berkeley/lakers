@@ -95,7 +95,7 @@ pub fn r_process_message_1(
 pub fn r_prepare_message_2(
     state: &ProcessingM1,
     crypto: &mut impl CryptoTrait,
-    cred_r: CredentialRPK,
+    cred_r: Credential,
     r: &BytesP256ElemLen, // R's static private DH key
     c_r: ConnId,
     cred_transfer: CredentialTransfer,
@@ -110,12 +110,8 @@ pub fn r_prepare_message_2(
     let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &state.g_x);
 
     let id_cred_r = match cred_transfer {
-        CredentialTransfer::ByValue => {
-            IdCred::tmp_from_ccs_or_kid(cred_r.value.as_slice(), IdCredType::KCCS as u8)?
-        }
-        CredentialTransfer::ByReference => {
-            IdCred::tmp_from_ccs_or_kid(&[cred_r.kid], IdCredType::KID as u8)?
-        }
+        CredentialTransfer::ByValue => cred_r.by_value()?,
+        CredentialTransfer::ByReference => cred_r.by_kid()?,
     };
 
     // compute MAC_2
@@ -124,7 +120,7 @@ pub fn r_prepare_message_2(
         &prk_3e2m,
         c_r,
         id_cred_r.as_full_value(),
-        cred_r.value.as_slice(),
+        cred_r.bytes.as_slice(),
         &th_2,
         ead_2,
     );
@@ -134,7 +130,7 @@ pub fn r_prepare_message_2(
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
-    let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r.value.as_slice());
+    let th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r.bytes.as_slice());
 
     let mut ct: BufferCiphertext2 = BufferCiphertext2::new();
     ct.fill_with_slice(plaintext_2.as_slice()).unwrap(); // TODO(hax): can we prove with hax that this won't panic since they use the same underlying buffer length?
@@ -173,6 +169,7 @@ pub fn r_parse_message_3(
                     y: state.y,
                     prk_3e2m: state.prk_3e2m,
                     th_3: state.th_3,
+                    id_cred_i: id_cred_i.clone(), // needed for compute_mac_3
                     plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at the 'verify' step
                     ead_3: ead_3.clone(), // NOTE: this clone could be avoided by using a reference or an index to the ead_3 item in plaintext_3
                 },
@@ -191,20 +188,25 @@ pub fn r_parse_message_3(
 pub fn r_verify_message_3(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
-    valid_cred_i: CredentialRPK,
+    valid_cred_i: Credential,
 ) -> Result<(Completed, BytesHashLen), EDHOCError> {
     // compute salt_4e3m
     let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
-    // TODO compute prk_4e3m
-    let prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &state.y, &valid_cred_i.public_key);
+
+    let prk_4e3m = match valid_cred_i.key {
+        CredentialKey::EC2Compact(public_key) => {
+            compute_prk_4e3m(crypto, &salt_4e3m, &state.y, &public_key)
+        }
+        CredentialKey::Symmetric(_psk) => todo!("PSK not implemented"),
+    };
 
     // compute mac_3
     let expected_mac_3 = compute_mac_3(
         crypto,
         &prk_4e3m,
         &state.th_3,
-        &valid_cred_i.get_id_cred(),
-        valid_cred_i.value.as_slice(),
+        state.id_cred_i.as_full_value(),
+        valid_cred_i.bytes.as_slice(),
         &state.ead_3,
     );
 
@@ -214,7 +216,7 @@ pub fn r_verify_message_3(
             crypto,
             &state.th_3,
             &state.plaintext_3,
-            valid_cred_i.value.as_slice(),
+            valid_cred_i.bytes.as_slice(),
         );
 
         let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
@@ -308,7 +310,8 @@ pub fn i_parse_message_2<'a>(
                 g_y,
                 plaintext_2: plaintext_2,
                 c_r: c_r_2,
-                ead_2: ead_2.clone(), // needed for compute_mac_2
+                id_cred_r: id_cred_r.clone(), // needed for compute_mac_2
+                ead_2: ead_2.clone(),         // needed for compute_mac_2
             };
 
             Ok((state, c_r_2, id_cred_r, ead_2))
@@ -323,20 +326,25 @@ pub fn i_parse_message_2<'a>(
 pub fn i_verify_message_2(
     state: &ProcessingM2,
     crypto: &mut impl CryptoTrait,
-    valid_cred_r: CredentialRPK, // TODO: have a struct to hold credentials to avoid re-computing
-    i: &BytesP256ElemLen,        // I's static private DH key
+    valid_cred_r: Credential,
+    i: &BytesP256ElemLen, // I's static private DH key
 ) -> Result<ProcessedM2, EDHOCError> {
     // verify mac_2
     let salt_3e2m = compute_salt_3e2m(crypto, &state.prk_2e, &state.th_2);
 
-    let prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &state.x, &valid_cred_r.public_key);
+    let prk_3e2m = match valid_cred_r.key {
+        CredentialKey::EC2Compact(public_key) => {
+            compute_prk_3e2m(crypto, &salt_3e2m, &state.x, &public_key)
+        }
+        CredentialKey::Symmetric(_psk) => todo!("PSK not implemented"),
+    };
 
     let expected_mac_2 = compute_mac_2(
         crypto,
         &prk_3e2m,
         state.c_r,
-        &valid_cred_r.get_id_cred(),
-        valid_cred_r.value.as_slice(),
+        state.id_cred_r.as_full_value(),
+        valid_cred_r.bytes.as_slice(),
         &state.th_2,
         &state.ead_2,
     );
@@ -348,7 +356,7 @@ pub fn i_verify_message_2(
             crypto,
             &state.th_2,
             &state.plaintext_2,
-            valid_cred_r.value.as_slice(),
+            valid_cred_r.bytes.as_slice(),
         );
         // message 3 processing
 
@@ -371,17 +379,13 @@ pub fn i_verify_message_2(
 pub fn i_prepare_message_3(
     state: &ProcessedM2,
     crypto: &mut impl CryptoTrait,
-    cred_i: CredentialRPK,
+    cred_i: Credential,
     cred_transfer: CredentialTransfer,
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
 ) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
     let id_cred_i = match cred_transfer {
-        CredentialTransfer::ByValue => {
-            IdCred::tmp_from_ccs_or_kid(cred_i.value.as_slice(), IdCredType::KCCS as u8)?
-        }
-        CredentialTransfer::ByReference => {
-            IdCred::tmp_from_ccs_or_kid(&[cred_i.kid], IdCredType::KID as u8)?
-        }
+        CredentialTransfer::ByValue => cred_i.by_value()?,
+        CredentialTransfer::ByReference => cred_i.by_kid()?,
     };
 
     let mac_3 = compute_mac_3(
@@ -389,14 +393,14 @@ pub fn i_prepare_message_3(
         &state.prk_4e3m,
         &state.th_3,
         id_cred_i.as_full_value(),
-        cred_i.value.as_slice(),
+        cred_i.bytes.as_slice(),
         ead_3,
     );
 
     let plaintext_3 = encode_plaintext_3(id_cred_i.as_encoded_value(), &mac_3, &ead_3)?;
     let message_3 = encrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, &plaintext_3);
 
-    let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i.value.as_slice());
+    let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i.bytes.as_slice());
 
     let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
     th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
