@@ -24,10 +24,6 @@ pub fn edhoc_key_update(
     context: &BytesMaxContextBuffer,
     context_len: usize,
 ) -> BytesHashLen {
-    // FIXME: Normally we would decompose `state` here, but hax disallows aliasing a `mut` item.
-    // The best fix for this is to change state from a tuple-struct to a regular struct.
-    // In the code below, `state.6` means `mut prk_out` and `state.7` means `mut prk_exporter`
-
     // new PRK_out
     let prk_new_buf = edhoc_kdf(
         crypto,
@@ -151,7 +147,6 @@ pub fn r_prepare_message_2(
     ))
 }
 
-// FIXME fetch ID_CRED_I and CRED_I based on kid
 pub fn r_parse_message_3(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
