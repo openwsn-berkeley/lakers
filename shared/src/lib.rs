@@ -545,31 +545,6 @@ impl EADItem {
     }
 }
 
-// FIXME: homogenize the two structs below (likey keep only the owned version)
-#[derive(Debug, Clone, Copy)]
-pub enum IdCred<'a> {
-    CompactKid(u8),
-    /// Credential by value. It is required that the credential is a valid deterministic encoding
-    /// of a CCS.
-    FullCredential(&'a [u8]),
-}
-
-impl<'a> IdCred<'a> {
-    pub fn write_to_message(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
-        match self {
-            IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
-            IdCred::FullCredential(cred) => {
-                let kccs_map_len = 1;
-                message
-                    .extend_from_slice(&[CBOR_MAJOR_MAP + kccs_map_len, KCSS_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                message.extend_from_slice(cred)
-            }
-        }
-        .map_err(|_| EDHOCError::CredentialTooLongError)
-    }
-}
-
 mod helpers {
     use super::*;
 
@@ -768,16 +743,8 @@ mod edhoc_parser {
 
         let c_r = ConnId::from_int_raw(decoder.int_raw()?);
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_r = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_r = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
@@ -805,16 +772,8 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_i = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_i = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 

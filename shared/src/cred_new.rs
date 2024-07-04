@@ -44,30 +44,38 @@ impl From<u8> for IdCredType {
 ///
 /// Possible values include key IDs, credentials by value and others.
 // TODO: rename to just IdCred
-pub struct IdCredNew {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IdCred {
     /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
     /// while this technically wastes two bytes, it has the convenient property of having the full
     /// value available as a slice.
     pub bytes: BufferIdCred, // variable size, can contain either the contents of a BufferCred or a BufferKid
 }
 
-impl IdCredNew {
+impl IdCred {
     pub fn new() -> Self {
         Self {
             bytes: BufferIdCred::new(),
         }
     }
 
-    /// Instantiate an IdCredNew from an encoded value.
-    pub fn from_encoded_plaintext(value: &[u8]) -> Result<Self, EDHOCError> {
+    pub fn from_full_value(value: &[u8]) -> Result<Self, EDHOCError> {
+        Ok(Self {
+            bytes: BufferIdCred::new_from_slice(value)
+                .map_err(|_| EDHOCError::CredentialTooLongError)?,
+        })
+    }
+
+    /// Instantiate an IdCred from an encoded value.
+    pub fn from_encoded_value(value: &[u8]) -> Result<Self, EDHOCError> {
         let bytes = match value {
             // kid that has been encoded as CBOR integer
-            &[x] if x < 24 => {
+            &[x] if Self::bstr_representable_as_int(x) => {
                 BufferIdCred::new_from_slice(&[0xa1, KID_LABEL, 0x41, x])
                     .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: make this error handling less verbose?
             }
             // kid that has been encoded as CBOR byte string
-            &[0x41, ..] => {
+            &[0x41, x, ..] if !Self::bstr_representable_as_int(x) => {
                 let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 bytes
@@ -75,15 +83,10 @@ impl IdCredNew {
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 bytes
             }
-            // credential by value
-            value => {
-                let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KCSS_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                bytes
-                    .extend_from_slice(value)
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                bytes
-            }
+            // CCS by value
+            &[0xa1, KCSS_LABEL, ..] => BufferIdCred::new_from_slice(value)
+                .map_err(|_| EDHOCError::CredentialTooLongError)?,
+            _ => return Err(EDHOCError::ParsingError),
         };
 
         Ok(Self { bytes })
@@ -97,7 +100,7 @@ impl IdCredNew {
     /// View the value as encoded in the ID_CRED_x position of plaintext_2 and plaintext_3,
     /// applying the Compact Encoding of ID_CRED Fields described in RFC9528 Section 3.5.3.2
     /// Note that this does NOT encode the value as CBOR, it rather just applies the EDHOC Compact Encoding when applicable.
-    pub fn encode_for_plaintext(&self) -> &[u8] {
+    pub fn as_encoded_value(&self) -> &[u8] {
         match self.bytes.as_slice() {
             [0xa1, KID_LABEL, 0x41, x] if (x >> 5) < 2 && (x & 0x1f) < 24 => {
                 &self.bytes.as_slice()[3..]
@@ -107,8 +110,32 @@ impl IdCredNew {
         }
     }
 
+    pub fn reference_only(&self) -> bool {
+        [IdCredType::KID].contains(&self.item_type())
+    }
+
     pub fn item_type(&self) -> IdCredType {
         self.bytes.as_slice()[1].into()
+    }
+
+    fn bstr_representable_as_int(value: u8) -> bool {
+        (0x0..=0x17).contains(&value) || (0x20..=0x37).contains(&value)
+    }
+
+    // FIXME: function only used while CredentialRPK is still around
+    pub fn tmp_from_ccs_or_kid(value: &[u8], label: u8) -> Result<Self, EDHOCError> {
+        let mut bytes = BufferIdCred::new_from_slice(&[0xa1, label])
+            .map_err(|_| EDHOCError::CredentialTooLongError)?;
+        if label == IdCredType::KID as u8 {
+            // the actual value of the kid is always a byte string
+            bytes
+                .extend_from_slice(&[0x40 | value.len() as u8])
+                .map_err(|_| EDHOCError::CredentialTooLongError)?;
+        }
+        bytes
+            .extend_from_slice(value)
+            .map_err(|_| EDHOCError::CredentialTooLongError)?;
+        Ok(Self { bytes })
     }
 }
 
@@ -230,10 +257,10 @@ impl Credential {
     ///
     /// For example, if the credential is a CCS:
     ///   { /kccs/ 14: bytes }
-    pub fn by_value(&self) -> Result<IdCredNew, EDHOCError> {
+    pub fn by_value(&self) -> Result<IdCred, EDHOCError> {
         match self.cred_type {
             CredentialType::CCS => {
-                let mut id_cred = IdCredNew::new();
+                let mut id_cred = IdCred::new();
                 id_cred
                     .bytes
                     .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
@@ -256,11 +283,11 @@ impl Credential {
     ///   { /kid/ 4: kid }
     ///
     /// TODO: accept a parameter to specify the type of reference, e.g. kid, x5t, etc.
-    pub fn by_kid(&self) -> Result<IdCredNew, EDHOCError> {
+    pub fn by_kid(&self) -> Result<IdCred, EDHOCError> {
         let Some(kid) = self.kid.as_ref() else {
             return Err(EDHOCError::MissingIdentity);
         };
-        let mut id_cred = IdCredNew::new();
+        let mut id_cred = IdCred::new();
         id_cred
             .bytes
             .extend_from_slice(&[
@@ -351,12 +378,10 @@ mod test {
     #[rstest]
     #[case(&[0x0D], &[0xa1, 0x04, 0x41, 0x0D])] // two optimizations: omit kid label and encode as CBOR integer
     #[case(&[0x41, 0x18], &[0xa1, 0x04, 0x41, 0x18])] // one optimization: omit kid label
-    #[case(CRED_TV, ID_CRED_BY_VALUE_TV)] // regular credential by value
+    #[case(ID_CRED_BY_VALUE_TV, ID_CRED_BY_VALUE_TV)] // regular credential by value
     fn test_id_cred_from_encoded_plaintext(#[case] input: &[u8], #[case] expected: &[u8]) {
         assert_eq!(
-            IdCredNew::from_encoded_plaintext(input)
-                .unwrap()
-                .as_full_value(),
+            IdCred::from_encoded_value(input).unwrap().as_full_value(),
             expected
         );
     }

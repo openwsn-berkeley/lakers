@@ -180,14 +180,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     pub fn parse_message_3(
         mut self,
         message_3: &'a BufferMessage3,
-    ) -> Result<
-        (
-            EdhocResponderProcessingM3<Crypto>,
-            CredentialRPK,
-            Option<EADItem>,
-        ),
-        EDHOCError,
-    > {
+    ) -> Result<(EdhocResponderProcessingM3<Crypto>, IdCred, Option<EADItem>), EDHOCError> {
         trace!("Enter parse_message_3");
         match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
             Ok((state, id_cred_i, ead_3)) => Ok((
@@ -321,7 +314,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
         (
             EdhocInitiatorProcessingM2<Crypto>,
             ConnId,
-            CredentialRPK,
+            IdCred,
             Option<EADItem>,
         ),
         EDHOCError,
@@ -471,7 +464,7 @@ pub fn generate_connection_identifier<Crypto: CryptoTrait>(crypto: &mut Crypto) 
 // Implements auth credential checking according to draft-tiloca-lake-implem-cons
 pub fn credential_check_or_fetch(
     cred_expected: Option<CredentialRPK>,
-    id_cred_received: CredentialRPK,
+    id_cred_received: IdCred,
 ) -> Result<CredentialRPK, EDHOCError> {
     trace!("Enter credential_check_or_fetch");
     // Processing of auth credentials according to draft-tiloca-lake-implem-cons
@@ -481,9 +474,10 @@ pub fn credential_check_or_fetch(
         // IMPL: compare cred_i_expected with id_cred
         //   IMPL: assume cred_i_expected is well formed
         let credentials_match = if id_cred_received.reference_only() {
-            id_cred_received.kid == cred_expected.kid
+            // FIXME: will be fixed when we update CredentialRPK to Credential
+            id_cred_received.as_full_value()[3] == cred_expected.kid
         } else {
-            id_cred_received.value == cred_expected.value
+            &id_cred_received.as_full_value()[2..] == cred_expected.value.as_slice()
         };
 
         // 2. Is this authentication credential still valid?
@@ -512,7 +506,9 @@ pub fn credential_check_or_fetch(
         //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
 
         assert!(!id_cred_received.reference_only());
-        Ok(id_cred_received)
+        // FIXME: will be fixed when we update CredentialRPK to Credential
+        CredentialRPK::new(id_cred_received.as_full_value()[2..].try_into().unwrap())
+            .map_err(|_| EDHOCError::ParsingError)
     }
 
     // 8. Is this authentication credential good to use in the context of this EDHOC session?
@@ -733,7 +729,12 @@ mod test_authz {
             EDHOCMethod::StatStat,
             EDHOCSuite::CipherSuite2,
         );
-        let responder = EdhocResponder::new(default_crypto(), R, cred_r);
+        let responder = EdhocResponder::new(
+            default_crypto(),
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
+            cred_r.clone(),
+        );
 
         // ==== initialize ead-authz ====
         let device = ZeroTouchDevice::new(
