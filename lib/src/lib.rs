@@ -15,7 +15,6 @@
 //! [EDHOC]: https://datatracker.ietf.org/doc/html/rfc9528
 #![cfg_attr(not(test), no_std)]
 
-// use defmt_or_log::*; // FIXME: still not working
 use log::trace;
 
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
@@ -26,7 +25,6 @@ pub use lakers_ead_authz::*;
 mod edhoc;
 pub use edhoc::*;
 
-// TODO: clean these structs and remove the cred_x whre they are not needed anymore
 /// Starting point for performing EDHOC in the role of the Initiator.
 #[derive(Debug)]
 pub struct EdhocInitiator<Crypto: CryptoTrait> {
@@ -498,16 +496,16 @@ pub fn credential_check_or_fetch(
         // 4. Is the trust model Pre-knowledge + TOFU? YES (hardcoded to YES for now)
         // 6. Validate CRED_X. Generally a CCS has to be validated only syntactically and semantically, unlike a certificate or a CWT.
         //    Is the validation successful?
-        // IMPL,NOTE: the credential has already been parsed with CredentialRPK::new in the *_parse_message_* function
         // 5. Is the authentication credential authorized for use in the context of this EDHOC session?
         // IMPL,TODO: we just skip this step for now
         // 7. Store CRED_X as valid and trusted.
         //   Pair it with consistent credential identifiers, for each supported type of credential identifier.
 
-        assert!(!id_cred_received.reference_only());
-        // FIXME: this is not elegant, should be solved at IdCred level
-        Credential::parse_ccs(id_cred_received.as_full_value()[2..].try_into().unwrap())
-            .map_err(|_| EDHOCError::ParsingError)
+        if let Some(cred) = id_cred_received.get_ccs() {
+            Ok(cred)
+        } else {
+            Err(EDHOCError::ParsingError)
+        }
     }
 
     // 8. Is this authentication credential good to use in the context of this EDHOC session?
