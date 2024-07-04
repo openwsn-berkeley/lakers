@@ -64,7 +64,7 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 150;
+pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 256;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
 pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
@@ -367,6 +367,7 @@ pub struct ProcessingM2 {
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: ConnId,
+    pub id_cred_r: IdCred,
     pub ead_2: Option<EADItem>,
 }
 
@@ -384,6 +385,7 @@ pub struct ProcessingM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
+    pub id_cred_i: IdCred,
     pub plaintext_3: EdhocMessageBuffer,
     pub ead_3: Option<EADItem>,
 }
