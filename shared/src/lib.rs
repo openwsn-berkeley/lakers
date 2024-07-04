@@ -27,9 +27,6 @@ pub use cred::*;
 mod buffer;
 pub use buffer::*;
 
-mod cred_new;
-pub use cred_new::*;
-
 #[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
