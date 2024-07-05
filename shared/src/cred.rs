@@ -89,13 +89,17 @@ impl IdCred {
     }
 
     /// View the full value of the ID_CRED_x: the CBOR encoding of a 1-element CBOR map
+    ///
+    /// This is the value that is used when ID_CRED_x has no impact on message size, see RFC 9528 Section 3.5.3.2.
     pub fn as_full_value(&self) -> &[u8] {
         self.bytes.as_slice()
     }
 
-    /// View the value as encoded in the ID_CRED_x position of plaintext_2 and plaintext_3,
-    /// applying the Compact Encoding of ID_CRED Fields described in RFC9528 Section 3.5.3.2
-    /// Note that this does NOT encode the value as CBOR, it rather just applies the EDHOC Compact Encoding when applicable.
+    /// View the value as encoded in the ID_CRED_x position of plaintext_2 and plaintext_3.
+    ///
+    /// Note that this is NOT doing CBOR encoding, it is rather performing (when applicable)
+    /// the compact encoding of ID_CRED fields.
+    /// This style of encoding is used when ID_CRED_x has an impact on message size.
     pub fn as_encoded_value(&self) -> &[u8] {
         match self.bytes.as_slice() {
             [0xa1, KID_LABEL, 0x41, x] if (x >> 5) < 2 && (x & 0x1f) < 24 => {
