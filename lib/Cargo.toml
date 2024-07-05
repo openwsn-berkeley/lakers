@@ -23,7 +23,7 @@ hexlit = "0.5.3"
 
 [features]
 # NOTE: the ead features are just needed for multiplexing tests
-default = [ "test-ead-none", "log" ]
+default = [ "test-ead-none" ]
 test-ead-none = [ ]
 test-ead-authz = [ ]
 defmt = ["dep:defmt"]
