@@ -61,7 +61,7 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 150;
+pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 256;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
 pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
@@ -83,6 +83,7 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1; // length as u8
 
 pub const KCSS_LABEL: u8 = 14;
+pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
@@ -363,6 +364,7 @@ pub struct ProcessingM2 {
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: ConnId,
+    pub id_cred_r: IdCred,
     pub ead_2: Option<EADItem>,
 }
 
@@ -380,6 +382,7 @@ pub struct ProcessingM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
+    pub id_cred_i: IdCred,
     pub plaintext_3: EdhocMessageBuffer,
     pub ead_3: Option<EADItem>,
 }
@@ -538,31 +541,6 @@ impl EADItem {
             is_critical: false,
             value: None,
         }
-    }
-}
-
-// FIXME: homogenize the two structs below (likey keep only the owned version)
-#[derive(Debug, Clone, Copy)]
-pub enum IdCred<'a> {
-    CompactKid(u8),
-    /// Credential by value. It is required that the credential is a valid deterministic encoding
-    /// of a CCS.
-    FullCredential(&'a [u8]),
-}
-
-impl<'a> IdCred<'a> {
-    pub fn write_to_message(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
-        match self {
-            IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
-            IdCred::FullCredential(cred) => {
-                let kccs_map_len = 1;
-                message
-                    .extend_from_slice(&[CBOR_MAJOR_MAP + kccs_map_len, KCSS_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                message.extend_from_slice(cred)
-            }
-        }
-        .map_err(|_| EDHOCError::CredentialTooLongError)
     }
 }
 
@@ -764,16 +742,8 @@ mod edhoc_parser {
 
         let c_r = ConnId::from_int_raw(decoder.int_raw()?);
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_r = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_r = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
@@ -801,16 +771,8 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_i = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_i = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 

@@ -123,6 +123,24 @@ impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     }
 }
 
+impl<const N: usize> TryInto<EdhocBuffer<N>> for &[u8] {
+    type Error = ();
+
+    fn try_into(self) -> Result<EdhocBuffer<N>, Self::Error> {
+        let mut buffer = [0u8; N];
+        if self.len() <= buffer.len() {
+            buffer[..self.len()].copy_from_slice(self);
+
+            Ok(EdhocBuffer {
+                content: buffer,
+                len: self.len(),
+            })
+        } else {
+            Err(())
+        }
+    }
+}
+
 mod test {
 
     #[test]

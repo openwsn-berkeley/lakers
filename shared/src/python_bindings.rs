@@ -58,6 +58,7 @@ impl EADItem {
     }
 }
 
+// FIXME: adjust for new Credential struct
 #[pymethods]
 impl CredentialRPK {
     /// Construct a new CredentialRPK
