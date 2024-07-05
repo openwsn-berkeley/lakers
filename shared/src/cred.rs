@@ -18,7 +18,7 @@ pub enum CredentialType {
     CCS,
     #[allow(non_camel_case_types)]
     CCS_PSK,
-    // C509,
+    // Add other credential types as needed
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -131,6 +131,10 @@ impl IdCred {
     }
 }
 
+/// A credential for use in EDHOC
+///
+/// For now supports CCS credentials only.
+/// Experimental support for CCS_PSK credentials is also available.
 // TODO: add back support for C and Python bindings
 // #[cfg_attr(feature = "python-bindings", pyclass)]
 // #[repr(C)]
@@ -159,8 +163,8 @@ impl Credential {
 
     /// Creates a new CCS credential with the given bytes and a pre-shared key
     ///
-    /// This type of credential is to be used with the under-development EDHOC method PSK.
-    pub fn new_ccs_psk(bytes: BufferCred, symmetric_key: BytesKeyAES128) -> Self {
+    /// NOTE: For now this is only useful for the experimental PSK method.
+    pub fn new_ccs_symmetric(bytes: BufferCred, symmetric_key: BytesKeyAES128) -> Self {
         Self {
             bytes,
             key: CredentialKey::Symmetric(symmetric_key),
@@ -176,7 +180,7 @@ impl Credential {
         }
     }
 
-    /// Parse a CCS style credential
+    /// Parse a CCS style credential.
     ///
     /// If the given value matches the shape lakers expects of a CCS, i.e. credentials from RFC9529,
     /// its public key and key ID are extracted into a full credential.
@@ -227,11 +231,10 @@ impl Credential {
         }
     }
 
-    /// Parse a CCS style credential, but the key is a symmetric key
+    /// Parse a CCS style credential, but the key is a symmetric key.
     ///
-    /// If the given value matches the shape Lakers expects of a CCS, its public key and key ID are
-    /// extracted into a full credential.
-    pub fn parse_ccs_psk(value: &[u8]) -> Result<Self, EDHOCError> {
+    /// NOTE: For now this is only useful for the experimental PSK method.
+    pub fn parse_ccs_symmetric(value: &[u8]) -> Result<Self, EDHOCError> {
         const CCS_PREFIX_LEN: usize = 3;
         const CNF_AND_COSE_KEY_PREFIX_LEN: usize = 8;
         const COSE_KEY_FIRST_ITEMS_LEN: usize = 3; //COSE for symmetric key
@@ -365,17 +368,6 @@ mod test {
     }
 
     #[test]
-    fn test_cred_ccs_psk_by_value_or_reference() {
-        // TODO
-    }
-
-    #[test]
-    fn test_new_cred_ccs_psk() {
-        let cred = Credential::new_ccs_psk(CRED_PSK.try_into().unwrap(), K.try_into().unwrap());
-        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
-    }
-
-    #[test]
     fn test_parse_ccs() {
         let cred = Credential::parse_ccs(CRED_TV).unwrap();
         assert_eq!(cred.bytes.as_slice(), CRED_TV);
@@ -387,15 +379,6 @@ mod test {
         assert_eq!(cred.cred_type, CredentialType::CCS);
     }
 
-    #[test]
-    fn test_parse_ccs_psk() {
-        let cred = Credential::parse_ccs_psk(CRED_PSK).unwrap();
-        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
-        assert_eq!(cred.key, CredentialKey::Symmetric(K.try_into().unwrap()));
-        assert_eq!(cred.kid.unwrap().as_slice(), KID_VALUE_PSK);
-        assert_eq!(cred.cred_type, CredentialType::CCS_PSK);
-    }
-
     #[rstest]
     #[case(&[0x0D], &[0xa1, 0x04, 0x41, 0x0D])] // two optimizations: omit kid label and encode as CBOR integer
     #[case(&[0x41, 0x18], &[0xa1, 0x04, 0x41, 0x18])] // one optimization: omit kid label
@@ -405,5 +388,37 @@ mod test {
             IdCred::from_encoded_value(input).unwrap().as_full_value(),
             expected
         );
+    }
+}
+
+#[cfg(test)]
+mod test_experimental {
+    use super::*;
+    use hexlit::hex;
+
+    const CRED_PSK: &[u8] =
+        &hex!("A202686D79646F74626F7408A101A30104024132205050930FF462A77A3540CF546325DEA214");
+    const K: &[u8] = &hex!("50930FF462A77A3540CF546325DEA214");
+    const KID_VALUE_PSK: &[u8] = &hex!("32");
+
+    #[test]
+    fn test_cred_ccs_symmetric_by_value_or_reference() {
+        // TODO
+    }
+
+    #[test]
+    fn test_new_cred_ccs_symmetric() {
+        let cred =
+            Credential::new_ccs_symmetric(CRED_PSK.try_into().unwrap(), K.try_into().unwrap());
+        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
+    }
+
+    #[test]
+    fn test_parse_ccs_symmetric() {
+        let cred = Credential::parse_ccs_symmetric(CRED_PSK).unwrap();
+        assert_eq!(cred.bytes.as_slice(), CRED_PSK);
+        assert_eq!(cred.key, CredentialKey::Symmetric(K.try_into().unwrap()));
+        assert_eq!(cred.kid.unwrap().as_slice(), KID_VALUE_PSK);
+        assert_eq!(cred.cred_type, CredentialType::CCS_PSK);
     }
 }
