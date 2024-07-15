@@ -9,8 +9,8 @@ use embassy_nrf::radio::ble::Mode;
 use embassy_nrf::radio::ble::Radio;
 use embassy_nrf::radio::TxPower;
 use embassy_nrf::{bind_interrupts, peripherals, radio};
+use embassy_time::WithTimeout;
 use embassy_time::{Duration, Timer};
-use radio_common::{Packet, ADV_ADDRESS, ADV_CRC_INIT, CRC_POLY, FREQ, MAX_PDU};
 use {defmt_rtt as _, panic_probe as _};
 
 mod radio_common;
@@ -34,12 +34,12 @@ async fn main(spawner: Spawner) {
 
     radio.set_mode(Mode::BLE_1MBIT);
     radio.set_tx_power(TxPower::_0D_BM);
-    radio.set_frequency(FREQ);
+    radio.set_frequency(radio_common::FREQ);
 
-    radio.set_access_address(ADV_ADDRESS);
+    radio.set_access_address(radio_common::ADV_ADDRESS);
     radio.set_header_expansion(false);
-    radio.set_crc_init(ADV_CRC_INIT);
-    radio.set_crc_poly(CRC_POLY);
+    radio.set_crc_init(radio_common::ADV_CRC_INIT);
+    radio.set_crc_poly(radio_common::CRC_POLY);
 
     unwrap!(spawner.spawn(transmit_and_blink(radio, led, Duration::from_millis(100))));
 }
@@ -51,14 +51,21 @@ async fn transmit_and_blink(
     period: Duration,
 ) {
     loop {
-        let mut packet: radio_common::Packet = Default::default();
-        packet.fill_with_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
-        radio.transmit(packet.as_bytes()).await.unwrap();
+        let mut packet_to_transmit =
+            radio_common::Packet::new_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]).unwrap();
 
-        // blink the LED
-        led.set_low();
-        Timer::after(Duration::from_millis(50)).await;
-        led.set_high();
+        let rcvd = radio_common::transmit_and_wait_response(
+            &mut radio,
+            packet_to_transmit,
+            Duration::from_secs(1),
+        )
+        .await;
+
+        match rcvd {
+            Ok(packet) => info!("Packet received: {:X}", packet.pdu[..packet.len]),
+            Err(radio_common::PacketError::TimeoutError) => info!("Timeout!"),
+            _ => info!("Unhandled error!"),
+        }
 
         // wait for period before continuing
         Timer::after(period).await;

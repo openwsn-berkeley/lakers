@@ -1,3 +1,10 @@
+use embassy_nrf::radio::ble::Radio;
+use embassy_nrf::saadc::Time;
+use embassy_nrf::{peripherals, radio};
+use embassy_time::Duration;
+use embassy_time::TimeoutError;
+use embassy_time::WithTimeout;
+
 pub const MAX_PDU: usize = 258;
 pub const FREQ: u32 = 2408;
 pub const ADV_ADDRESS: u32 = 0x12345678;
@@ -9,6 +16,8 @@ pub enum PacketError {
     SliceTooLong,
     SliceTooShort,
     ParsingError,
+    TimeoutError,
+    RadioError,
 }
 pub struct Packet {
     pub len: usize,
@@ -74,4 +83,40 @@ impl TryInto<Packet> for &[u8] {
             Err(())
         }
     }
+}
+
+impl From<TimeoutError> for PacketError {
+    fn from(error: TimeoutError) -> Self {
+        PacketError::TimeoutError
+    }
+}
+
+impl From<embassy_nrf::radio::Error> for PacketError {
+    fn from(error: embassy_nrf::radio::Error) -> Self {
+        match error {
+            _ => PacketError::RadioError,
+        }
+    }
+}
+
+pub async fn transmit_and_wait_response(
+    radio: &mut Radio<'static, embassy_nrf::peripherals::RADIO>,
+    mut packet: Packet,
+    timeout: Duration,
+) -> Result<Packet, PacketError> {
+    let mut rcvd_packet: Packet = Default::default();
+    let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
+
+    radio.transmit(packet.as_bytes()).await?;
+    radio.receive(&mut buffer).with_timeout(timeout).await?;
+
+    Ok(buffer[..].try_into().unwrap())
+}
+
+pub async fn transmit_without_response(
+    radio: &mut Radio<'static, embassy_nrf::peripherals::RADIO>,
+    mut packet: Packet,
+) -> Result<(), PacketError> {
+    radio.transmit(packet.as_bytes()).await?;
+    Ok(())
 }

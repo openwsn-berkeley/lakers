@@ -55,11 +55,17 @@ async fn receive_and_blink(
         let res = radio.receive(&mut buffer).await.unwrap();
         let packet: Packet = buffer[..].try_into().unwrap();
 
-        info!("Packet received: {:X}", packet.pdu[..packet.len]);
+        if packet.pdu[..packet.len] == [0xDEu8, 0xAD, 0xBE, 0xEF] {
+            info!("Received a ping. Pong'ing...");
+            let pong = Packet::new_from_slice(&[0xCA, 0xFE, 0xCA, 0xFE]).unwrap();
+            radio_common::transmit_without_response(&mut radio, pong)
+                .await
+                .unwrap();
 
-        // blink the LED
-        led.set_low();
-        Timer::after(Duration::from_millis(50)).await;
-        led.set_high();
+            // blink the LED
+            led.set_low();
+            Timer::after(Duration::from_millis(50)).await;
+            led.set_high();
+        }
     }
 }
