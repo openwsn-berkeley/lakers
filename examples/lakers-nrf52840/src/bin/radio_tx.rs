@@ -52,7 +52,7 @@ async fn transmit_and_blink(
 ) {
     loop {
         let mut packet_to_transmit =
-            radio_common::Packet::new_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]).unwrap();
+            radio_common::Packet::new_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF], Some(0xf5)).unwrap();
 
         let rcvd = radio_common::transmit_and_wait_response(
             &mut radio,

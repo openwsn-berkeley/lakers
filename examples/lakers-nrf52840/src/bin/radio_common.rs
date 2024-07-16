@@ -21,6 +21,7 @@ pub enum PacketError {
 }
 pub struct Packet {
     pub len: usize,
+    pub pdu_header: Option<u8>,
     pub pdu: [u8; MAX_PDU],
 }
 
@@ -28,6 +29,7 @@ impl Default for Packet {
     fn default() -> Self {
         Packet {
             len: 0,
+            pdu_header: None,
             pdu: [0u8; MAX_PDU],
         }
     }
@@ -37,22 +39,24 @@ impl Packet {
     pub fn new() -> Self {
         Packet {
             len: 0,
+            pdu_header: None,
             pdu: [0u8; MAX_PDU],
         }
     }
 
-    pub fn new_from_slice(slice: &[u8]) -> Result<Self, PacketError> {
+    pub fn new_from_slice(slice: &[u8], header: Option<u8>) -> Result<Self, PacketError> {
         let mut buffer = Self::new();
-        if buffer.fill_with_slice(slice).is_ok() {
+        if buffer.fill_with_slice(slice, header).is_ok() {
             Ok(buffer)
         } else {
             Err(PacketError::SliceTooLong)
         }
     }
 
-    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), PacketError> {
+    pub fn fill_with_slice(&mut self, slice: &[u8], header: Option<u8>) -> Result<(), PacketError> {
         if slice.len() <= self.pdu.len() {
             self.len = slice.len();
+            self.pdu_header = header;
             self.pdu[..self.len].copy_from_slice(slice);
             Ok(())
         } else {
@@ -61,11 +65,24 @@ impl Packet {
     }
 
     pub fn as_bytes(&mut self) -> &[u8] {
-        self.pdu.copy_within(..self.len, 2);
-        self.pdu[0] = 0x00;
-        self.pdu[1] = self.len as u8;
+        let mut offset = 0;
+        let mut len: usize = 0;
 
-        &self.pdu[..self.len]
+        if let Some(header) = self.pdu_header {
+            offset = 3;
+            len = self.len + 1;
+        } else {
+            offset = 2;
+            len = self.len;
+        }
+        self.pdu.copy_within(..self.len, offset);
+        self.pdu[0] = 0x00;
+        self.pdu[1] = len as u8;
+
+        if let Some(header) = self.pdu_header {
+            self.pdu[2] = header;
+        }
+        &self.pdu[..len]
     }
 }
 
