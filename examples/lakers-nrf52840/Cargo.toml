@@ -4,7 +4,6 @@ edition = "2021"
 version.workspace = true
 repository.workspace = true
 license.workspace = true
-readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
@@ -15,7 +14,7 @@ embassy-executor = { git =  "https://github.com/embassy-rs/embassy", branch = "m
 embassy-time = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "defmt-timestamp-uptime"] }
 embassy-nrf = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "nrf52840", "time-driver-rtc1", "gpiote", "unstable-pac", "time"] }
 
-# lakers 
+# lakers
 lakers = { package = "lakers", path = "../../lib", default-features = false }
 lakers-crypto = { path = "../../crypto", default-features = false }
 
