@@ -133,9 +133,17 @@ pub async fn receive_and_filter(
     let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
     loop {
         radio.receive(&mut buffer).await?;
-        let pckt: Packet = buffer[..].try_into().unwrap();
-        if header == None || pckt.pdu[0] == header.unwrap() {
-            return Ok(pckt);
+        if let Ok(pckt) = <&[u8] as TryInto<Packet>>::try_into(&(buffer[..])) {
+            if let Some(header) = header {
+                if pckt.pdu[0] == header {
+                    return Ok(pckt);
+                } else {
+                    continue;
+                }
+            } else {
+                // header is None
+                return Ok(pckt);
+            }
         } else {
             continue;
         }
