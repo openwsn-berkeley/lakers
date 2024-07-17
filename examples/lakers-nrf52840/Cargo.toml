@@ -1,0 +1,43 @@
+[package]
+name = "lakers-nrf52840"
+edition = "2021"
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+
+# embassy deps
+embassy-executor = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["task-arena-size-32768", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
+embassy-time = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-nrf = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "nrf52840", "time-driver-rtc1", "gpiote", "unstable-pac", "time"] }
+
+# lakers
+lakers = { package = "lakers", path = "../../lib", default-features = false }
+lakers-crypto = { path = "../../crypto", default-features = false }
+
+# misc
+hexlit = "0.5.3"
+
+# defmt
+defmt = "0.3"
+defmt-rtt = "0.4"
+
+# depend on an allocator
+embedded-alloc = "0.5.0"
+
+# arm cortex m3 deps
+cortex-m = { version = "0.7.6", features = ["inline-asm", "critical-section-single-core"] }
+cortex-m-rt = "0.7.0"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+[features]
+default = [ "crypto-psa", "ead-none" ]
+crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
+crypto-psa = [ "lakers-crypto/psa-baremetal" ]
+ead-none = [ ]
+
+[profile.release]
+debug = 2

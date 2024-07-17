@@ -9,6 +9,7 @@ members = [
   "crypto/lakers-crypto-cryptocell310-sys",
   "examples/coap",
   "examples/lakers-no_std",
+  "examples/lakers-nrf52840",
   "lakers-c",
   "lakers-python",
 ]
