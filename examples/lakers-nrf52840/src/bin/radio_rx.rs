@@ -13,6 +13,21 @@ use embassy_time::{Duration, Timer};
 use radio_common::{Packet, PacketError, ADV_ADDRESS, ADV_CRC_INIT, CRC_POLY, FREQ, MAX_PDU};
 use {defmt_rtt as _, panic_probe as _};
 
+use lakers::*;
+
+use core::ffi::c_char;
+
+extern crate alloc;
+
+use embedded_alloc::Heap;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
+
+extern "C" {
+    pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
+}
+
 mod radio_common;
 
 bind_interrupts!(struct Irqs {
@@ -40,32 +55,98 @@ async fn main(spawner: Spawner) {
     radio.set_crc_init(ADV_CRC_INIT);
     radio.set_crc_poly(CRC_POLY);
 
-    unwrap!(spawner.spawn(receive_and_blink(radio, led)));
-}
-
-#[embassy_executor::task]
-async fn receive_and_blink(
-    mut radio: Radio<'static, embassy_nrf::peripherals::RADIO>,
-    mut led: Output<'static>,
-) {
-    info!("Hello from receive_and_blink");
+    // Memory buffer for mbedtls
+    #[cfg(feature = "crypto-psa")]
+    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    #[cfg(feature = "crypto-psa")]
+    unsafe {
+        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    }
 
     loop {
         let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
-        let res = radio.receive(&mut buffer).await.unwrap();
-        let packet: Packet = buffer[..].try_into().unwrap();
+        let mut c_r: Option<ConnId> = None;
+        let pckt = radio_common::receive_and_filter(&mut radio, Some(0xf5)) // filter all incoming packets waiting for CBOR TRUE (0xf5)
+            .await
+            .unwrap();
 
-        if packet.pdu[..packet.len] == [0xf5u8, 0xDEu8, 0xAD, 0xBE, 0xEF] {
-            info!("Received a ping. Pong'ing...");
-            let pong = Packet::new_from_slice(&[0xCA, 0xFE, 0xCA, 0xFE], None).unwrap();
-            radio_common::transmit_without_response(&mut radio, pong)
-                .await
+        info!("Received message_1");
+
+        let cred_r = CredentialRPK::new(radio_common::CRED_R.try_into().unwrap()).unwrap();
+        let responder =
+            EdhocResponder::new(lakers_crypto::default_crypto(), &radio_common::R, cred_r);
+
+        let message_1: EdhocMessageBuffer = pckt.pdu[1..pckt.len].try_into().expect("wrong length"); // get rid of the TRUE byte
+
+        let result = responder.process_message_1(&message_1);
+
+        if let Ok((responder, _c_i, ead_1)) = result {
+            c_r = Some(generate_connection_identifier_cbor(
+                &mut lakers_crypto::default_crypto(),
+            ));
+            let ead_2 = None;
+
+            let (responder, message_2) = responder
+                .prepare_message_2(CredentialTransfer::ByReference, c_r, &ead_2)
                 .unwrap();
 
-            // blink the LED
-            led.set_low();
-            Timer::after(Duration::from_millis(50)).await;
-            led.set_high();
+            // prepend 0xf5 also to message_2 in order to allow the Initiator filter out from other BLE packets
+            let message_3 = radio_common::transmit_and_wait_response(
+                &mut radio,
+                Packet::new_from_slice(message_2.as_slice(), Some(0xf5u8)).expect("wrong length"),
+                Some(c_r.unwrap().as_slice()[0]),
+            )
+            .await;
+
+            match message_3 {
+                Ok(message_3) => {
+                    info!("Received message_3");
+
+                    let rcvd_c_r: ConnId = ConnId::from_int_raw(message_3.pdu[0] as u8);
+
+                    if rcvd_c_r == c_r.unwrap() {
+                        let message_3: EdhocMessageBuffer = message_3.pdu[1..message_3.len]
+                            .try_into()
+                            .expect("wrong length");
+                        let Ok((responder, id_cred_i, _ead_3)) =
+                            responder.parse_message_3(&message_3)
+                        else {
+                            info!("EDHOC error at parse_message_3");
+                            // We don't get another chance, it's popped and can't be used any further
+                            // anyway legally
+                            continue;
+                        };
+
+                        let cred_i =
+                            CredentialRPK::new(radio_common::CRED_I.try_into().unwrap()).unwrap();
+                        let valid_cred_i =
+                            credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
+
+                        let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i)
+                        else {
+                            info!("EDHOC error at verify_message_3");
+                            continue;
+                        };
+
+                        info!("Handshake completed. prk_out: {:X}", prk_out);
+
+                        unwrap!(spawner.spawn(application_task_1(prk_out)));
+                    } else {
+                        info!("Another packet interrupted the handshake.");
+                        continue;
+                    }
+                }
+                Err(PacketError::TimeoutError) => info!("Timeout while waiting for message_3!"),
+                Err(_) => panic!("Unexpected error"),
+            }
         }
     }
+}
+
+#[embassy_executor::task]
+async fn application_task_1(secret: BytesHashLen) {
+    info!(
+        "Successfully spawned an application task. EDHOC prk_out: {:X}",
+        secret
+    );
 }

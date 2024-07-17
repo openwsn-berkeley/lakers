@@ -4,12 +4,22 @@ use embassy_nrf::{peripherals, radio};
 use embassy_time::Duration;
 use embassy_time::TimeoutError;
 use embassy_time::WithTimeout;
+use hexlit::hex;
+
+use defmt::info;
 
 pub const MAX_PDU: usize = 258;
 pub const FREQ: u32 = 2408;
 pub const ADV_ADDRESS: u32 = 0x12345678;
 pub const ADV_CRC_INIT: u32 = 0xffff;
 pub const CRC_POLY: u32 = 0x00065b;
+
+pub const _ID_CRED_I: &[u8] = &hex!("a104412b");
+pub const _ID_CRED_R: &[u8] = &hex!("a104410a");
+pub const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
+pub const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
+pub const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
+pub const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 
 #[derive(Debug)]
 pub enum PacketError {
@@ -116,18 +126,34 @@ impl From<embassy_nrf::radio::Error> for PacketError {
     }
 }
 
+pub async fn receive_and_filter(
+    radio: &mut Radio<'static, embassy_nrf::peripherals::RADIO>,
+    header: Option<u8>,
+) -> Result<Packet, PacketError> {
+    let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
+    loop {
+        radio.receive(&mut buffer).await?;
+        let pckt: Packet = buffer[..].try_into().unwrap();
+        if header == None || pckt.pdu[0] == header.unwrap() {
+            return Ok(pckt);
+        } else {
+            continue;
+        }
+    }
+}
+
 pub async fn transmit_and_wait_response(
     radio: &mut Radio<'static, embassy_nrf::peripherals::RADIO>,
     mut packet: Packet,
-    timeout: Duration,
+    filter: Option<u8>,
 ) -> Result<Packet, PacketError> {
     let mut rcvd_packet: Packet = Default::default();
     let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
 
     radio.transmit(packet.as_bytes()).await?;
-    radio.receive(&mut buffer).with_timeout(timeout).await?;
+    let resp = receive_and_filter(radio, filter).await?;
 
-    Ok(buffer[..].try_into().unwrap())
+    Ok(resp)
 }
 
 pub async fn transmit_without_response(
@@ -136,4 +162,11 @@ pub async fn transmit_without_response(
 ) -> Result<(), PacketError> {
     radio.transmit(packet.as_bytes()).await?;
     Ok(())
+}
+
+use core::ffi::{c_char, c_void};
+#[no_mangle]
+pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
+    panic!("strstr handler!");
+    core::ptr::null_mut()
 }
