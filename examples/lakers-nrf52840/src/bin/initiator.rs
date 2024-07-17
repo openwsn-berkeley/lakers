@@ -81,7 +81,8 @@ async fn main(spawner: Spawner) {
 
     match rcvd {
         Ok(pckt_2) => {
-            let message_2 = EdhocMessageBuffer::new_from_slice(&pckt_2.pdu[1..pckt_2.len]).unwrap();
+            let message_2: EdhocMessageBuffer =
+                pckt_2.pdu[1..pckt_2.len].try_into().expect("wrong length");
             let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
             let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
             let initiator = initiator

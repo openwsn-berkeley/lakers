@@ -118,7 +118,7 @@ async fn main(spawner: Spawner) {
                         let valid_cred_i =
                             credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
 
-                        let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i)
+                        let Ok((responder, prk_out)) = responder.verify_message_3(valid_cred_i)
                         else {
                             info!("EDHOC error at verify_message_3");
                             continue;

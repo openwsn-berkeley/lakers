@@ -28,9 +28,9 @@ pub enum PacketError {
     RadioError,
 }
 pub struct Packet {
-    pub len: usize,
-    pub pdu_header: Option<u8>,
-    pub pdu: [u8; MAX_PDU],
+    pub len: usize, // total length that gets transmitted over the air, equals length of pdu + 1, for pdu_header
+    pub pdu_header: Option<u8>, // 1-byte application-level header, used for filtering the packets
+    pub pdu: [u8; MAX_PDU], // application-level payload
 }
 
 impl Default for Packet {
