@@ -29,7 +29,7 @@ extern "C" {
     pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
 }
 
-mod radio_common;
+mod common;
 
 bind_interrupts!(struct Irqs {
     RADIO => radio::InterruptHandler<peripherals::RADIO>;
@@ -50,23 +50,19 @@ async fn main(spawner: Spawner) {
 
     radio.set_mode(Mode::BLE_1MBIT);
     radio.set_tx_power(TxPower::_0D_BM);
-    radio.set_frequency(radio_common::FREQ);
+    radio.set_frequency(common::FREQ);
 
-    radio.set_access_address(radio_common::ADV_ADDRESS);
+    radio.set_access_address(common::ADV_ADDRESS);
     radio.set_header_expansion(false);
-    radio.set_crc_init(radio_common::ADV_CRC_INIT);
-    radio.set_crc_poly(radio_common::CRC_POLY);
+    radio.set_crc_init(common::ADV_CRC_INIT);
+    radio.set_crc_poly(common::CRC_POLY);
 
-    unwrap!(spawner.spawn(transmit_and_blink(radio, led, Duration::from_millis(100))));
+    unwrap!(spawner.spawn(init_handshake(radio)));
 }
 
 #[embassy_executor::task]
-async fn transmit_and_blink(
-    mut radio: Radio<'static, embassy_nrf::peripherals::RADIO>,
-    mut led: Output<'static>,
-    period: Duration,
-) {
-    info!("transmit_and_blink");
+async fn init_handshake(mut radio: Radio<'static, embassy_nrf::peripherals::RADIO>) {
+    info!("init_handshake");
 
     // Memory buffer for mbedtls
     #[cfg(feature = "crypto-psa")]
@@ -76,18 +72,18 @@ async fn transmit_and_blink(
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
 
-    let cred_i = CredentialRPK::new(radio_common::CRED_I.try_into().unwrap()).unwrap();
-    let cred_r = CredentialRPK::new(radio_common::CRED_R.try_into().unwrap()).unwrap();
+    let cred_i = CredentialRPK::new(common::CRED_I.try_into().unwrap()).unwrap();
+    let cred_r = CredentialRPK::new(common::CRED_R.try_into().unwrap()).unwrap();
 
     let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
 
     // Send Message 1 over CoAP and convert the response to byte
     let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
     let (initiator, message_1) = initiator.prepare_message_1(Some(c_i), &None).unwrap();
-    let pckt_1 = radio_common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5u8))
+    let pckt_1 = common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5u8))
         .expect("Buffer not long enough");
 
-    let rcvd = radio_common::transmit_and_wait_response(&mut radio, pckt_1, Some(0xf5u8)).await;
+    let rcvd = common::transmit_and_wait_response(&mut radio, pckt_1, Some(0xf5u8)).await;
 
     match rcvd {
         Ok(pckt_2) => {
@@ -95,16 +91,16 @@ async fn transmit_and_blink(
             let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
             let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
             let initiator = initiator
-                .verify_message_2(radio_common::I, cred_i, valid_cred_r)
+                .verify_message_2(common::I, cred_i, valid_cred_r)
                 .unwrap();
 
             let (mut initiator, message_3, i_prk_out) = initiator
                 .prepare_message_3(CredentialTransfer::ByReference, &None)
                 .unwrap();
 
-            radio_common::transmit_without_response(
+            common::transmit_without_response(
                 &mut radio,
-                radio_common::Packet::new_from_slice(message_3.as_slice(), Some(c_r.as_slice()[0]))
+                common::Packet::new_from_slice(message_3.as_slice(), Some(c_r.as_slice()[0]))
                     .unwrap(),
             )
             .await;

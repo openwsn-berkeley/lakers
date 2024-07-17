@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use common::{Packet, PacketError, ADV_ADDRESS, ADV_CRC_INIT, CRC_POLY, FREQ, MAX_PDU};
 use defmt::info;
 use defmt::unwrap;
 use embassy_executor::Spawner;
@@ -10,7 +11,6 @@ use embassy_nrf::radio::ble::Radio;
 use embassy_nrf::radio::TxPower;
 use embassy_nrf::{bind_interrupts, peripherals, radio};
 use embassy_time::{Duration, Timer};
-use radio_common::{Packet, PacketError, ADV_ADDRESS, ADV_CRC_INIT, CRC_POLY, FREQ, MAX_PDU};
 use {defmt_rtt as _, panic_probe as _};
 
 use lakers::*;
@@ -28,7 +28,7 @@ extern "C" {
     pub fn mbedtls_memory_buffer_alloc_init(buf: *mut c_char, len: usize);
 }
 
-mod radio_common;
+mod common;
 
 bind_interrupts!(struct Irqs {
     RADIO => radio::InterruptHandler<peripherals::RADIO>;
@@ -66,15 +66,14 @@ async fn main(spawner: Spawner) {
     loop {
         let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
         let mut c_r: Option<ConnId> = None;
-        let pckt = radio_common::receive_and_filter(&mut radio, Some(0xf5)) // filter all incoming packets waiting for CBOR TRUE (0xf5)
+        let pckt = common::receive_and_filter(&mut radio, Some(0xf5)) // filter all incoming packets waiting for CBOR TRUE (0xf5)
             .await
             .unwrap();
 
         info!("Received message_1");
 
-        let cred_r = CredentialRPK::new(radio_common::CRED_R.try_into().unwrap()).unwrap();
-        let responder =
-            EdhocResponder::new(lakers_crypto::default_crypto(), &radio_common::R, cred_r);
+        let cred_r = CredentialRPK::new(common::CRED_R.try_into().unwrap()).unwrap();
+        let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &common::R, cred_r);
 
         let message_1: EdhocMessageBuffer = pckt.pdu[1..pckt.len].try_into().expect("wrong length"); // get rid of the TRUE byte
 
@@ -91,7 +90,7 @@ async fn main(spawner: Spawner) {
                 .unwrap();
 
             // prepend 0xf5 also to message_2 in order to allow the Initiator filter out from other BLE packets
-            let message_3 = radio_common::transmit_and_wait_response(
+            let message_3 = common::transmit_and_wait_response(
                 &mut radio,
                 Packet::new_from_slice(message_2.as_slice(), Some(0xf5u8)).expect("wrong length"),
                 Some(c_r.unwrap().as_slice()[0]),
@@ -118,7 +117,7 @@ async fn main(spawner: Spawner) {
                         };
 
                         let cred_i =
-                            CredentialRPK::new(radio_common::CRED_I.try_into().unwrap()).unwrap();
+                            CredentialRPK::new(common::CRED_I.try_into().unwrap()).unwrap();
                         let valid_cred_i =
                             credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
 
