@@ -37,15 +37,14 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    info!("Hello world!");
     let mut config = embassy_nrf::config::Config::default();
     config.hfclk_source = embassy_nrf::config::HfclkSource::ExternalXtal;
-    let p = embassy_nrf::init(config);
+    let peripherals = embassy_nrf::init(config);
 
     info!("Starting BLE radio");
-    let mut radio: Radio<'_, _> = Radio::new(p.RADIO, Irqs).into();
+    let mut radio: Radio<'_, _> = Radio::new(peripherals.RADIO, Irqs).into();
 
-    let mut led = Output::new(p.P0_13, Level::Low, OutputDrive::Standard);
+    let mut led = Output::new(peripherals.P0_13, Level::Low, OutputDrive::Standard);
     led.set_high();
 
     radio.set_mode(Mode::BLE_1MBIT);
@@ -57,11 +56,6 @@ async fn main(spawner: Spawner) {
     radio.set_crc_init(common::ADV_CRC_INIT);
     radio.set_crc_poly(common::CRC_POLY);
 
-    unwrap!(spawner.spawn(init_handshake(radio)));
-}
-
-#[embassy_executor::task]
-async fn init_handshake(mut radio: Radio<'static, embassy_nrf::peripherals::RADIO>) {
     info!("init_handshake");
 
     // Memory buffer for mbedtls
@@ -77,13 +71,13 @@ async fn init_handshake(mut radio: Radio<'static, embassy_nrf::peripherals::RADI
 
     let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
 
-    // Send Message 1 over CoAP and convert the response to byte
+    // Send Message 1 over raw BLE and convert the response to byte
     let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
     let (initiator, message_1) = initiator.prepare_message_1(Some(c_i), &None).unwrap();
-    let pckt_1 = common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5u8))
+    let pckt_1 = common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5))
         .expect("Buffer not long enough");
 
-    let rcvd = common::transmit_and_wait_response(&mut radio, pckt_1, Some(0xf5u8)).await;
+    let rcvd = common::transmit_and_wait_response(&mut radio, pckt_1, Some(0xf5)).await;
 
     match rcvd {
         Ok(pckt_2) => {

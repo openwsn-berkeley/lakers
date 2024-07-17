@@ -38,13 +38,10 @@ bind_interrupts!(struct Irqs {
 async fn main(spawner: Spawner) {
     let mut config = embassy_nrf::config::Config::default();
     config.hfclk_source = embassy_nrf::config::HfclkSource::ExternalXtal;
-    let p = embassy_nrf::init(config);
+    let peripherals: embassy_nrf::Peripherals = embassy_nrf::init(config);
 
     info!("Starting BLE radio");
-    let mut radio = Radio::new(p.RADIO, Irqs);
-
-    let mut led = Output::new(p.P0_13, Level::Low, OutputDrive::Standard);
-    led.set_high();
+    let mut radio = Radio::new(peripherals.RADIO, Irqs);
 
     radio.set_mode(Mode::BLE_1MBIT);
     radio.set_tx_power(TxPower::_0D_BM);
@@ -92,7 +89,7 @@ async fn main(spawner: Spawner) {
             // prepend 0xf5 also to message_2 in order to allow the Initiator filter out from other BLE packets
             let message_3 = common::transmit_and_wait_response(
                 &mut radio,
-                Packet::new_from_slice(message_2.as_slice(), Some(0xf5u8)).expect("wrong length"),
+                Packet::new_from_slice(message_2.as_slice(), Some(0xf5)).expect("wrong length"),
                 Some(c_r.unwrap().as_slice()[0]),
             )
             .await;
@@ -129,7 +126,7 @@ async fn main(spawner: Spawner) {
 
                         info!("Handshake completed. prk_out: {:X}", prk_out);
 
-                        unwrap!(spawner.spawn(application_task_1(prk_out)));
+                        unwrap!(spawner.spawn(example_application_task(prk_out)));
                     } else {
                         info!("Another packet interrupted the handshake.");
                         continue;
@@ -143,7 +140,7 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
-async fn application_task_1(secret: BytesHashLen) {
+async fn example_application_task(secret: BytesHashLen) {
     info!(
         "Successfully spawned an application task. EDHOC prk_out: {:X}",
         secret
