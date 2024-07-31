@@ -56,7 +56,7 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let message_2 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
     let (mut initiator, c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2)?;
     let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
-    initiator.set_identity(I.try_into().unwrap(), cred_i);
+    initiator.set_identity(I.try_into().unwrap(), cred_i)?;
     let initiator = initiator.verify_message_2(valid_cred_r)?;
 
     let mut msg_3 = Vec::from(c_r.as_cbor());

@@ -63,7 +63,7 @@ pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length 
 // maximum supported length of connection identifier for R
 pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 256;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256;
+pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256 + 64;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_TEXT_STRING: u8 = 0x78u8;
 pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
