@@ -34,6 +34,18 @@ impl From<MessageBufferError> for PyErr {
     }
 }
 
+impl fmt::Display for EdhocBufferError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "EdhocBufferError::{:?}", self)
+    }
+}
+
+impl From<EdhocBufferError> for PyErr {
+    fn from(error: EdhocBufferError) -> Self {
+        PyValueError::new_err(error.to_string())
+    }
+}
+
 #[pymethods]
 impl EADItem {
     #[new]
@@ -62,8 +74,8 @@ impl EADItem {
 
 // FIXME: adjust for new Credential struct
 #[pymethods]
-impl CredentialRPK {
-    /// Construct a new CredentialRPK
+impl Credential {
+    /// Construct a new Credential
     ///
     /// This has two variations:
     /// * Pass only the value. Lakers will try to parse the value as a CCS, and populate all fields
@@ -73,24 +85,22 @@ impl CredentialRPK {
     ///   application can decrypt based on its association with an ACE Authorization Server (AS),
     ///   or of which it knows the corresponding details from when it requested that token.
     ///
-    /// Note that other forms of a CredentialRPK can be around (eg. only carrying a kid). Those can
+    /// Note that other forms of a Credential can be around (eg. only carrying a kid). Those can
     /// not directly be constructed, but may be produced by Lakers when parsing a message that
     /// contains a credential by reference.
     #[new]
     #[pyo3(signature = (value, *, kid = None, public_key = None))]
-    fn new_py(value: Vec<u8>, kid: Option<u8>, public_key: Option<Vec<u8>>) -> PyResult<Self> {
-        let value = EdhocMessageBuffer::new_from_slice(&value)?;
+    fn new_py(value: Vec<u8>, kid: Option<Vec<u8>>, public_key: Option<Vec<u8>>) -> PyResult<Self> {
         match (kid, public_key) {
-            (None, None) => Ok(Self::new(value)?),
+            (None, None) => Ok(Self::parse_ccs(&value)?),
             (Some(kid), Some(public_key)) => {
                 let public_key = public_key
                     .try_into()
                     .map_err(|_| PyTypeError::new_err("Public key length mismatch"))?;
-                Ok(Self {
-                    value,
-                    kid,
-                    public_key,
-                })
+                Ok(
+                    Self::new_ccs(BufferCred::new_from_slice(&value)?, public_key)
+                        .with_kid(BufferKid::new_from_slice(&kid)?),
+                )
             }
             _ => Err(PyTypeError::new_err(
                 "To bypass credential parsing, all optional arguments must be given.",
@@ -100,22 +110,23 @@ impl CredentialRPK {
 
     fn __repr__(&self) -> String {
         format!(
-            "CredentialRpk(bytes.fromhex('{}'), public_key=bytes.fromhex('{}'), kid={})",
-            hex::encode(self.value.as_slice()),
-            hex::encode(self.public_key),
-            self.kid,
+            "Credential(bytes.fromhex('{}'), public_key=bytes.fromhex('{}'), kid={:?})",
+            hex::encode(self.bytes.as_slice()),
+            hex::encode(self.public_key().unwrap().as_slice()),
+            self.kid.as_ref().unwrap(),
         )
     }
 
     fn value<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.value.as_slice())
+        PyBytes::new_bound(py, self.bytes.as_slice())
     }
 
-    fn public_key<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.public_key.as_slice())
+    #[pyo3(name = "public_key")]
+    fn py_public_key<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
+        PyBytes::new_bound(py, &self.public_key().unwrap())
     }
 
-    fn kid(&self) -> u8 {
-        self.kid
+    fn kid<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
+        PyBytes::new_bound(py, self.kid.as_ref().unwrap().as_slice())
     }
 }

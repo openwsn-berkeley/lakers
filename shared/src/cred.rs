@@ -136,7 +136,7 @@ impl IdCred {
 /// For now supports CCS credentials only.
 /// Experimental support for CCS_PSK credentials is also available.
 // TODO: add back support for C and Python bindings
-// #[cfg_attr(feature = "python-bindings", pyclass)]
+#[cfg_attr(feature = "python-bindings", pyclass)]
 // #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Credential {
@@ -177,6 +177,13 @@ impl Credential {
         Self {
             kid: Some(kid),
             ..self
+        }
+    }
+
+    pub fn public_key(&self) -> Option<BytesKeyEC2> {
+        match self.key {
+            CredentialKey::EC2Compact(key) => Some(key),
+            _ => None,
         }
     }
 

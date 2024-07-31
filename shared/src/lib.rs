@@ -402,8 +402,8 @@ pub struct Completed {
     pub prk_exporter: BytesHashLen,
 }
 
-#[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "python-bindings", pyclass(eq, eq_int))]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(C)]
 pub enum CredentialTransfer {
     ByReference,
