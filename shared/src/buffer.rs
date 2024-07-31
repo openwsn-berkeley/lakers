@@ -17,8 +17,8 @@ pub enum EdhocBufferError {
 /// so that in the future it can be hot-swappable by the application.
 // TODO: replace EdhocMessageBuffer with EdhocBuffer all over the library
 // NOTE: how would this const generic thing work across the C and Python bindings?
-#[repr(C)]
 #[derive(PartialEq, Debug, Copy, Clone)]
+#[repr(C)]
 pub struct EdhocBuffer<const N: usize> {
     pub content: [u8; N],
     pub len: usize,

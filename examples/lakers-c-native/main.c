@@ -112,9 +112,9 @@ int main(void)
 
     // lakers init
     puts("loading credentials.");
-    CredentialRPK cred_i = {0}, cred_r = {0};
-    credential_rpk_new(&cred_i, CRED_I, 107);
-    credential_rpk_new(&cred_r, CRED_R, 84);
+    CredentialC cred_i = {0}, cred_r = {0};
+    credential_new(&cred_i, CRED_I, 107);
+    credential_new(&cred_r, CRED_R, 84);
     puts("creating edhoc initiator.");
     EdhocInitiator initiator = {0};
     initiator_new(&initiator);
@@ -153,7 +153,7 @@ int main(void)
     memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
     EADItemC ead_2 = {0};
     uint8_t c_r;
-    CredentialRPK id_cred_r = {0};
+    CredentialC id_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
     // res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &id_cred_r, &ead_2);
     res = initiator_parse_message_2(&initiator, &message_2, &c_r, &id_cred_r, &ead_2);
@@ -166,14 +166,15 @@ int main(void)
         return 1;
     }
     // FIXME: failing on native when cred_expected is NULL (memory allocation of 48 bytes failed)
-    res = credential_check_or_fetch(&cred_r, &id_cred_r);
+    CredentialC fetched_cred_r = {0};
+    res = credential_check_or_fetch(&cred_r, &id_cred_r, &fetched_cred_r);
     if (res != 0) {
         printf("Error handling credential: %d\n", res);
         return 1;
     }
 #ifdef LAKERS_EAD_AUTHZ
     puts("processing ead2");
-    res = authz_device_process_ead_2(&device, &ead_2, &id_cred_r);
+    res = authz_device_process_ead_2(&device, &ead_2, &fetched_cred_r);
     if (res != 0) {
         printf("Error process ead2 (authz): %d\n", res);
         return 1;
@@ -181,7 +182,7 @@ int main(void)
         puts("ead-authz voucher received and validated");
     }
 #endif
-    res = initiator_verify_message_2(&initiator, &I, &cred_i, &id_cred_r);
+    res = initiator_verify_message_2(&initiator, &I, &cred_i, &fetched_cred_r);
     if (res != 0) {
         printf("Error verify msg2: %d\n", res);
         return 1;
