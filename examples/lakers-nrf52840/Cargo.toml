@@ -15,7 +15,7 @@ embassy-time = { git =  "https://github.com/embassy-rs/embassy", branch = "main"
 embassy-nrf = { git =  "https://github.com/embassy-rs/embassy", branch = "main", features = ["defmt", "nrf52840", "time-driver-rtc1", "gpiote", "unstable-pac", "time"] }
 
 # lakers
-lakers = { package = "lakers", path = "../../lib", default-features = false }
+lakers = { package = "lakers", path = "../../lib", features = [ "defmt" ] }
 lakers-crypto = { path = "../../crypto", default-features = false }
 
 # misc
