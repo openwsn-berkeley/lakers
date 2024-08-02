@@ -5,14 +5,11 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
-#[cfg(not(feature = "rtt"))]
-use cortex_m_semihosting::hprintln as println;
+use defmt::info;
+use defmt_rtt as _;
+
 
 use panic_semihosting as _;
-
-#[cfg(feature = "rtt")]
-use rtt_target::{rprintln as println, rtt_init_print};
-
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
 
@@ -29,9 +26,6 @@ extern "C" {
 
 #[entry]
 fn main() -> ! {
-    #[cfg(feature = "rtt")]
-    rtt_init_print!();
-
     // Memory buffer for mbedtls
     #[cfg(feature = "crypto-psa")]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
@@ -41,7 +35,7 @@ fn main() -> ! {
     }
 
     // testing output
-    println!("Hello, lakers!");
+    info!("Hello, lakers!");
 
     // testing asserts
     assert!(1 == 1);
@@ -70,7 +64,7 @@ fn main() -> ! {
     }
 
     test_new_initiator();
-    println!("Test test_new_initiator passed.");
+    info!("Test test_new_initiator passed.");
 
     fn test_p256_keys() {
         let (x, g_x) = default_crypto().p256_generate_key_pair();
@@ -82,7 +76,7 @@ fn main() -> ! {
         assert_eq!(g_xy, g_yx);
     }
     test_p256_keys();
-    println!("Test test_p256_keys passed.");
+    info!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
         let mut initiator = EdhocInitiator::new(
@@ -98,7 +92,7 @@ fn main() -> ! {
     }
 
     test_prepare_message_1();
-    println!("Test test_prepare_message_1 passed.");
+    info!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
         let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
@@ -157,8 +151,8 @@ fn main() -> ! {
     }
 
     test_handshake();
-    println!("Test test_handshake passed.");
-    println!("All tests passed.");
+    info!("Test test_handshake passed.");
+    info!("All tests passed.");
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);

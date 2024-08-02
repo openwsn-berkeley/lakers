@@ -28,4 +28,7 @@ fn main() {
     // here, we ensure the build script is only re-run when
     // `memory.x` is changed.
     println!("cargo:rerun-if-changed=memory.x");
+
+    // `--nmagic` is required if memory section addresses are not aligned to 0x10000,
+    println!("cargo:rustc-link-arg=--nmagic");
 }
