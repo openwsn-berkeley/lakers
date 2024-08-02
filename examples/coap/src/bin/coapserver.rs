@@ -44,8 +44,13 @@ fn main() {
             println!("Received message from {}", src);
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
-                let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
-                let responder = EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r);
+                let cred_r: Credential = Credential::parse_ccs(CRED_R.try_into().unwrap()).unwrap();
+                let responder = EdhocResponder::new(
+                    lakers_crypto::default_crypto(),
+                    EDHOCMethod::StatStat,
+                    R.try_into().unwrap(),
+                    cred_r,
+                );
 
                 let message_1: EdhocMessageBuffer = request.message.payload[1..]
                     .try_into()
@@ -101,7 +106,7 @@ fn main() {
                     // anyway legally
                     continue;
                 };
-                let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
+                let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
                 let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);

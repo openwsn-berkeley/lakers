@@ -5,7 +5,7 @@ use pyo3::{prelude::*, types::PyBytes};
 #[pyclass(name = "EdhocResponder")]
 pub struct PyEdhocResponder {
     r: Vec<u8>,
-    cred_r: CredentialRPK,
+    cred_r: Credential,
     start: ResponderStart,
     processing_m1: ProcessingM1,
     wait_m3: WaitM3,
@@ -16,7 +16,7 @@ pub struct PyEdhocResponder {
 #[pymethods]
 impl PyEdhocResponder {
     #[new]
-    fn new(r: Vec<u8>, cred_r: super::AutoCredentialRPK) -> PyResult<Self> {
+    fn new(r: Vec<u8>, cred_r: super::AutoCredential) -> PyResult<Self> {
         let (y, g_y) = default_crypto().p256_generate_key_pair();
 
         let cred_r = cred_r.to_credential()?;
@@ -24,7 +24,11 @@ impl PyEdhocResponder {
         Ok(Self {
             r,
             cred_r,
-            start: ResponderStart { y, g_y },
+            start: ResponderStart {
+                method: EDHOCMethod::StatStat.into(),
+                y,
+                g_y,
+            },
             processing_m1: ProcessingM1::default(),
             wait_m3: WaitM3::default(),
             processing_m3: ProcessingM3::default(),
@@ -46,6 +50,7 @@ impl PyEdhocResponder {
         Ok((c_i, ead_1))
     }
 
+    #[pyo3(signature = (cred_transfer, c_r=None, ead_2=None))]
     fn prepare_message_2<'a>(
         &mut self,
         py: Python<'a>,
@@ -88,12 +93,7 @@ impl PyEdhocResponder {
         match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
             Ok((state, id_cred_i, ead_3)) => {
                 self.processing_m3 = state;
-                let id_cred_i = if id_cred_i.reference_only() {
-                    PyBytes::new_bound(py, &[id_cred_i.kid])
-                } else {
-                    PyBytes::new_bound(py, id_cred_i.value.as_slice())
-                };
-                Ok((id_cred_i, ead_3))
+                Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
             }
             Err(error) => Err(error.into()),
         }
@@ -102,7 +102,7 @@ impl PyEdhocResponder {
     pub fn verify_message_3<'a>(
         &mut self,
         py: Python<'a>,
-        valid_cred_i: super::AutoCredentialRPK,
+        valid_cred_i: super::AutoCredential,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let valid_cred_i = valid_cred_i.to_credential()?;
         match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {

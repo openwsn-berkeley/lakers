@@ -11,6 +11,7 @@ pub struct PyAuthzEnrollmentServer {
 #[pymethods]
 impl PyAuthzEnrollmentServer {
     #[new]
+    #[pyo3(signature = (w, cred_v, acl=None))]
     pub fn new(w: Vec<u8>, cred_v: Vec<u8>, acl: Option<Vec<u8>>) -> Self {
         let mut w_arr = BytesP256ElemLen::default();
         w_arr.copy_from_slice(&w.as_slice());

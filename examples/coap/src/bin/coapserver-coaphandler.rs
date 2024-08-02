@@ -75,7 +75,7 @@ enum EdhocResponse {
     // take up a slot there anyway) if we make it an enum.
     OkSend2 {
         c_r: ConnId,
-        responder: EdhocResponderProcessedM1<'static, Crypto>,
+        responder: EdhocResponderProcessedM1<Crypto>,
         // FIXME: Is the ead_2 the most practical data to store here? An easy alternative is the
         // voucher_response; ideal would be the voucher, bu that is only internal to prepare_ead_2.
         //
@@ -107,16 +107,20 @@ impl coap_handler::Handler for EdhocHandler {
 
         if starts_with_true {
             let cred_r =
-                CredentialRPK::new(CRED_R.try_into().expect("Static credential is too large"))
+                Credential::parse_ccs(CRED_R.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
 
             let message_1 =
                 &EdhocMessageBuffer::new_from_slice(&request.payload()[1..]).map_err(too_small)?;
 
-            let (responder, _c_i, ead_1) =
-                EdhocResponder::new(lakers_crypto::default_crypto(), &R, cred_r)
-                    .process_message_1(message_1)
-                    .map_err(render_error)?;
+            let (responder, _c_i, ead_1) = EdhocResponder::new(
+                lakers_crypto::default_crypto(),
+                EDHOCMethod::StatStat,
+                R.try_into().expect("Wrong length of responder private key"),
+                cred_r,
+            )
+            .process_message_1(message_1)
+            .map_err(render_error)?;
 
             let ead_2 = if let Some(ead_1) = ead_1 {
                 let authenticator = ZeroTouchAuthenticator::default();
@@ -174,7 +178,7 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
             let cred_i =
-                CredentialRPK::new(CRED_I.try_into().expect("Static credential is too large"))
+                Credential::parse_ccs(CRED_I.try_into().expect("Static credential is too large"))
                     .expect("Static credential is not processable");
             let valid_cred_i =
                 credential_check_or_fetch(Some(cred_i), id_cred_i).map_err(render_error)?;

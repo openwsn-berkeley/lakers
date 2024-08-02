@@ -62,7 +62,11 @@ fn main() -> ! {
     const _C_R_TV: [u8; 1] = hex!("27");
 
     fn test_new_initiator() {
-        let _initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
+        let _initiator = EdhocInitiator::new(
+            lakers_crypto::default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
     }
 
     test_new_initiator();
@@ -81,7 +85,11 @@ fn main() -> ! {
     println!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
+        let mut initiator = EdhocInitiator::new(
+            lakers_crypto::default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
 
         let c_i =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).as_slice();
@@ -93,11 +101,20 @@ fn main() -> ! {
     println!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
-        let cred_i = CredentialRPK::new(CRED_I.try_into().unwrap()).unwrap();
-        let cred_r = CredentialRPK::new(CRED_R.try_into().unwrap()).unwrap();
+        let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
+        let cred_r = Credential::parse_ccs(CRED_R.try_into().unwrap()).unwrap();
 
-        let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
-        let responder = EdhocResponder::new(lakers_crypto::default_crypto(), R, cred_r.clone());
+        let initiator = EdhocInitiator::new(
+            lakers_crypto::default_crypto(),
+            EDHOCMethod::StatStat,
+            EDHOCSuite::CipherSuite2,
+        );
+        let responder = EdhocResponder::new(
+            lakers_crypto::default_crypto(),
+            EDHOCMethod::StatStat,
+            R.try_into().expect("Wrong length of responder private key"),
+            cred_r.clone(),
+        );
 
         let (initiator, message_1) = initiator.prepare_message_1(None, &None).unwrap();
 
@@ -106,9 +123,16 @@ fn main() -> ! {
             .prepare_message_2(CredentialTransfer::ByReference, None, &None)
             .unwrap();
 
-        let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
+        let (mut initiator, _c_r, id_cred_r, _ead_2) =
+            initiator.parse_message_2(&message_2).unwrap();
         let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
-        let initiator = initiator.verify_message_2(I, cred_i, valid_cred_r).unwrap();
+        initiator
+            .set_identity(
+                I.try_into().expect("Wrong length of initiator private key"),
+                cred_i.clone(),
+            )
+            .unwrap(); // exposing own identity only after validating cred_r
+        let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
         let (mut initiator, message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)

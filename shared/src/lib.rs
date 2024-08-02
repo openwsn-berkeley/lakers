@@ -19,10 +19,13 @@ use core::num::NonZeroI16;
 use defmt_or_log::trace;
 
 mod crypto;
-pub use crypto::Crypto;
+pub use crypto::*;
 
 mod cred;
 pub use cred::*;
+
+mod buffer;
+pub use buffer::*;
 
 #[cfg(feature = "python-bindings")]
 use pyo3::prelude::*;
@@ -58,9 +61,9 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 150;
+pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 256;
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256;
+pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256 + 64;
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_TEXT_STRING: u8 = 0x78u8;
 pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
@@ -80,6 +83,7 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1; // length as u8
 
 pub const KCSS_LABEL: u8 = 14;
+pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
@@ -196,6 +200,33 @@ impl ConnId {
 }
 
 #[derive(PartialEq, Debug)]
+pub enum EDHOCMethod {
+    StatStat = 3,
+    // add others, such as:
+    // PSK1 = ?,
+    // PSK2 = ?,
+}
+
+impl From<EDHOCMethod> for u8 {
+    fn from(method: EDHOCMethod) -> u8 {
+        method as u8
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum EDHOCSuite {
+    CipherSuite2 = 2,
+    // add others, such as:
+    // CiherSuite3 = 3,
+}
+
+impl From<EDHOCSuite> for u8 {
+    fn from(suite: EDHOCSuite) -> u8 {
+        suite as u8
+    }
+}
+
+#[derive(PartialEq, Debug)]
 #[non_exhaustive]
 pub enum EDHOCError {
     /// In an exchange, a credential was set as "expected", but the credential configured by the
@@ -203,6 +234,8 @@ pub enum EDHOCError {
     /// error: When the application sets the expected credential, that process should be informed
     /// by the known details.
     UnexpectedCredential,
+    MissingIdentity,
+    IdentityAlreadySet,
     MacVerificationFailed,
     UnsupportedMethod,
     UnsupportedCipherSuite,
@@ -240,6 +273,8 @@ impl EDHOCError {
         use EDHOCError::*;
         match self {
             UnexpectedCredential => ErrCode::UNSPECIFIED,
+            MissingIdentity => ErrCode::UNSPECIFIED,
+            IdentityAlreadySet => ErrCode::UNSPECIFIED,
             MacVerificationFailed => ErrCode::UNSPECIFIED,
             UnsupportedMethod => ErrCode::UNSPECIFIED,
             UnsupportedCipherSuite => ErrCode::WRONG_SELECTED_CIPHER_SUITE,
@@ -283,14 +318,15 @@ impl ErrCode {
 #[derive(Debug)]
 #[repr(C)]
 pub struct InitiatorStart {
-    pub suites_i: BytesSuites,
-    pub suites_i_len: usize,
+    pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
+    pub method: u8,
     pub x: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_x: BytesP256ElemLen, // ephemeral public key of myself
 }
 
 #[derive(Debug)]
 pub struct ResponderStart {
+    pub method: u8,
     pub y: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
@@ -328,6 +364,7 @@ pub struct ProcessingM2 {
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: ConnId,
+    pub id_cred_r: IdCred,
     pub ead_2: Option<EADItem>,
 }
 
@@ -345,6 +382,7 @@ pub struct ProcessingM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
+    pub id_cred_i: IdCred,
     pub plaintext_3: EdhocMessageBuffer,
     pub ead_3: Option<EADItem>,
 }
@@ -364,8 +402,8 @@ pub struct Completed {
     pub prk_exporter: BytesHashLen,
 }
 
-#[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "python-bindings", pyclass(eq, eq_int))]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(C)]
 pub enum CredentialTransfer {
     ByReference,
@@ -506,31 +544,6 @@ impl EADItem {
     }
 }
 
-// FIXME: homogenize the two structs below (likey keep only the owned version)
-#[derive(Debug, Clone, Copy)]
-pub enum IdCred<'a> {
-    CompactKid(u8),
-    /// Credential by value. It is required that the credential is a valid deterministic encoding
-    /// of a CCS.
-    FullCredential(&'a [u8]),
-}
-
-impl<'a> IdCred<'a> {
-    pub fn write_to_message(&self, message: &mut EdhocMessageBuffer) -> Result<(), EDHOCError> {
-        match self {
-            IdCred::CompactKid(kid) => message.extend_from_slice(&[*kid]),
-            IdCred::FullCredential(cred) => {
-                let kccs_map_len = 1;
-                message
-                    .extend_from_slice(&[CBOR_MAJOR_MAP + kccs_map_len, KCSS_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                message.extend_from_slice(cred)
-            }
-        }
-        .map_err(|_| EDHOCError::CredentialTooLongError)
-    }
-}
-
 mod helpers {
     use super::*;
 
@@ -612,24 +625,27 @@ mod edhoc_parser {
 
     pub fn parse_suites_i(
         mut decoder: CBORDecoder,
-    ) -> Result<(BytesSuites, usize, CBORDecoder), EDHOCError> {
+    ) -> Result<(EdhocBuffer<MAX_SUITES_LEN>, CBORDecoder), EDHOCError> {
         trace!("Enter parse_suites_i");
-        let mut suites_i: BytesSuites = Default::default();
+        let mut suites_i: EdhocBuffer<MAX_SUITES_LEN> = Default::default();
         if let Ok(curr) = decoder.current() {
             if CBOR_UINT_1BYTE_START == CBORDecoder::type_of(curr) {
-                suites_i[0] = decoder.u8()?;
-                let suites_i_len = 1;
-                Ok((suites_i, suites_i_len, decoder))
+                let Ok(_) = suites_i.push(decoder.u8()?) else {
+                    return Err(EDHOCError::ParsingError);
+                };
+                Ok((suites_i, decoder))
             } else if CBOR_MAJOR_ARRAY == CBORDecoder::type_of(curr)
                 && CBORDecoder::info_of(curr) >= 2
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
-                let suites_i_len = decoder.array()?;
-                if suites_i_len <= suites_i.len() {
-                    for i in 0..suites_i_len {
-                        suites_i[i] = decoder.u8()?;
+                let received_suites_i_len = decoder.array()?;
+                if received_suites_i_len <= suites_i.capacity() {
+                    for i in 0..received_suites_i_len {
+                        // NOTE: could use suites_i.push, but hax complains about mutable references in loops
+                        suites_i.content[i] = decoder.u8()?;
                     }
-                    Ok((suites_i, suites_i_len, decoder))
+                    suites_i.len = received_suites_i_len;
+                    Ok((suites_i, decoder))
                 } else {
                     Err(EDHOCError::ParsingError)
                 }
@@ -646,8 +662,7 @@ mod edhoc_parser {
     ) -> Result<
         (
             u8,
-            BytesSuites,
-            usize,
+            EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
             Option<EADItem>,
@@ -658,7 +673,7 @@ mod edhoc_parser {
         let mut decoder = CBORDecoder::new(rcvd_message_1.as_slice());
         let method = decoder.u8()?;
 
-        if let Ok((suites_i, suites_i_len, mut decoder)) = parse_suites_i(decoder) {
+        if let Ok((suites_i, mut decoder)) = parse_suites_i(decoder) {
             let mut g_x: BytesP256ElemLen = [0x00; P256_ELEM_LEN];
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
@@ -671,12 +686,12 @@ mod edhoc_parser {
                 // we assume only one EAD item
                 let ead_res = parse_ead(decoder.remaining_buffer()?);
                 if let Ok(ead_1) = ead_res {
-                    Ok((method, suites_i, suites_i_len, g_x, c_i, ead_1))
+                    Ok((method, suites_i, g_x, c_i, ead_1))
                 } else {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, suites_i_len, g_x, c_i, None))
+                Ok((method, suites_i, g_x, c_i, None))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -727,16 +742,8 @@ mod edhoc_parser {
 
         let c_r = ConnId::from_int_raw(decoder.int_raw()?);
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_r = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_r = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
@@ -764,16 +771,8 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_3.as_slice());
 
-        // NOTE: if len of bstr is 1, it is a compact kid and therefore should have been encoded as int
-        let id_cred_i = if CBOR_MAJOR_MAP == CBORDecoder::type_of(decoder.current()?) {
-            if decoder.map()? == 1 && decoder.u8()? == KCSS_LABEL {
-                IdCred::FullCredential(decoder.any_as_encoded()?)
-            } else {
-                return Err(EDHOCError::ParsingError);
-            }
-        } else {
-            IdCred::CompactKid(decoder.int_raw()?)
-        };
+        // the id_cred may have been encoded as a single int, a byte string, or a map
+        let id_cred_i = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
 
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 

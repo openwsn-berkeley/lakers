@@ -4,7 +4,7 @@ use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "EdhocInitiator")]
 pub struct PyEdhocInitiator {
-    cred_i: Option<CredentialRPK>,
+    cred_i: Option<Credential>,
     start: InitiatorStart,
     wait_m2: WaitM2,
     processing_m2: ProcessingM2,
@@ -16,19 +16,18 @@ pub struct PyEdhocInitiator {
 impl PyEdhocInitiator {
     #[new]
     fn new() -> Self {
-        // we only support a single cipher suite which is already CBOR-encoded
-        let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-        let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-        suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-        let (x, g_x) = default_crypto().p256_generate_key_pair();
+        let mut crypto = default_crypto();
+        let suites_i =
+            prepare_suites_i(&crypto.supported_suites(), EDHOCSuite::CipherSuite2.into()).unwrap();
+        let (x, g_x) = crypto.p256_generate_key_pair();
 
         Self {
             cred_i: None,
             start: InitiatorStart {
                 x,
                 g_x,
+                method: EDHOCMethod::StatStat.into(),
                 suites_i,
-                suites_i_len,
             },
             wait_m2: WaitM2::default(),
             processing_m2: ProcessingM2::default(),
@@ -37,6 +36,7 @@ impl PyEdhocInitiator {
         }
     }
 
+    #[pyo3(signature = (c_i=None, ead_1=None))]
     fn prepare_message_1<'a>(
         &mut self,
         py: Python<'a>,
@@ -69,13 +69,11 @@ impl PyEdhocInitiator {
         match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => {
                 self.processing_m2 = state;
-                let id_cred_r = if id_cred_r.reference_only() {
-                    PyBytes::new_bound(py, &[id_cred_r.kid])
-                } else {
-                    PyBytes::new_bound(py, id_cred_r.value.as_slice())
-                };
-                let c_r = PyBytes::new_bound(py, c_r.as_slice());
-                Ok((c_r, id_cred_r, ead_2))
+                Ok((
+                    PyBytes::new_bound(py, c_r.as_slice()),
+                    PyBytes::new_bound(py, id_cred_r.bytes.as_slice()),
+                    ead_2,
+                ))
             }
             Err(error) => Err(error.into()),
         }
@@ -84,8 +82,8 @@ impl PyEdhocInitiator {
     pub fn verify_message_2(
         &mut self,
         i: Vec<u8>,
-        cred_i: super::AutoCredentialRPK,
-        valid_cred_r: super::AutoCredentialRPK,
+        cred_i: super::AutoCredential,
+        valid_cred_r: super::AutoCredential,
     ) -> PyResult<()> {
         let cred_i = cred_i.to_credential()?;
         let valid_cred_r = valid_cred_r.to_credential()?;
@@ -107,6 +105,7 @@ impl PyEdhocInitiator {
         }
     }
 
+    #[pyo3(signature = (cred_transfer, ead_3=None))]
     pub fn prepare_message_3<'a>(
         &mut self,
         py: Python<'a>,
@@ -185,6 +184,6 @@ impl PyEdhocInitiator {
     }
 
     pub fn selected_cipher_suite(&self) -> PyResult<u8> {
-        Ok(self.start.suites_i[self.start.suites_i_len - 1])
+        Ok(self.start.suites_i[self.start.suites_i.len() - 1])
     }
 }

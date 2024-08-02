@@ -1,5 +1,5 @@
 use lakers::{
-    EdhocInitiator as EdhocInitiatorRust, // alias to conflict with the C-compatible struct
+    // EdhocInitiator as EdhocInitiatorRust, // alias to conflict with the C-compatible struct
     *,
 };
 use lakers_crypto::{default_crypto, CryptoTrait};
@@ -15,23 +15,22 @@ pub struct EdhocInitiator {
     pub wait_m2: WaitM2,
     pub processing_m2: ProcessingM2C,
     pub processed_m2: ProcessedM2,
-    pub cred_i: *mut CredentialRPK,
+    pub cred_i: *mut CredentialC,
     pub completed: Completed,
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn initiator_new(initiator: *mut EdhocInitiator) -> i8 {
-    // we only support a single cipher suite which is already CBOR-encoded
-    let mut suites_i: BytesSuites = [0x0; SUITES_LEN];
-    let suites_i_len = EDHOC_SUPPORTED_SUITES.len();
-    suites_i[0..suites_i_len].copy_from_slice(&EDHOC_SUPPORTED_SUITES[..]);
-    let (x, g_x) = default_crypto().p256_generate_key_pair();
+    let mut crypto = default_crypto();
+    let suites_i =
+        prepare_suites_i(&crypto.supported_suites(), EDHOCSuite::CipherSuite2.into()).unwrap();
+    let (x, g_x) = crypto.p256_generate_key_pair();
 
     let start = InitiatorStart {
         x,
         g_x,
         suites_i,
-        suites_i_len,
+        method: EDHOCMethod::StatStat.into(),
     };
 
     core::ptr::write(&mut (*initiator).start, start);
@@ -87,7 +86,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     message_2: *const EdhocMessageBuffer,
     // output params
     c_r_out: *mut u8,
-    id_cred_r_out: *mut CredentialRPK,
+    id_cred_r_out: *mut IdCred,
     ead_2_c_out: *mut EADItemC,
 ) -> i8 {
     // this is a parsing function, so all output parameters are mandatory
@@ -130,8 +129,8 @@ pub unsafe extern "C" fn initiator_verify_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
     i: *const BytesP256ElemLen,
-    mut cred_i: *mut CredentialRPK,
-    valid_cred_r: *mut CredentialRPK,
+    cred_i: *mut CredentialC,
+    valid_cred_r: *mut CredentialC,
 ) -> i8 {
     if initiator_c.is_null() || i.is_null() {
         return -1;
@@ -140,7 +139,7 @@ pub unsafe extern "C" fn initiator_verify_message_2(
 
     let state = core::ptr::read(&(*initiator_c).processing_m2).to_rust();
 
-    match i_verify_message_2(&state, crypto, *valid_cred_r, &(*i)) {
+    match i_verify_message_2(&state, crypto, (*valid_cred_r).to_rust(), &(*i)) {
         Ok(state) => {
             (*initiator_c).processed_m2 = state;
             (*initiator_c).cred_i = cred_i;
@@ -177,7 +176,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     match i_prepare_message_3(
         &state,
         crypto,
-        *(*initiator_c).cred_i,
+        (*(*initiator_c).cred_i).to_rust(),
         cred_transfer,
         &ead_3,
     ) {

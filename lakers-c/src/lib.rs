@@ -59,6 +59,7 @@ pub struct ProcessingM2C {
     pub g_y: BytesP256ElemLen,
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
+    pub id_cred_r: IdCred,
     pub ead_2: *mut EADItemC,
 }
 
@@ -72,6 +73,7 @@ impl Default for ProcessingM2C {
             g_y: Default::default(),
             plaintext_2: Default::default(),
             c_r: Default::default(),
+            id_cred_r: Default::default(),
             ead_2: core::ptr::null_mut(),
         }
     }
@@ -87,6 +89,7 @@ impl ProcessingM2C {
             g_y: self.g_y,
             plaintext_2: self.plaintext_2,
             c_r: ConnId::from_int_raw(self.c_r),
+            id_cred_r: self.id_cred_r.clone(),
             ead_2: if self.ead_2.is_null() {
                 None
             } else {
@@ -110,19 +113,50 @@ impl ProcessingM2C {
         let c_r = processing_m2.c_r.as_slice();
         assert_eq!(c_r.len(), 1, "C API only supports short C_R");
         (*processing_m2_c).c_r = c_r[0];
+        (*processing_m2_c).id_cred_r = processing_m2.id_cred_r;
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
+pub struct CredentialC {
+    pub bytes: BufferCred,
+    pub key: CredentialKey,
+    /// differs from Rust: here we assume the kid is always present
+    /// this is to simplify the C API, since C doesn't support Option<T>
+    /// the alternative would be to use a pointer, but then we need to care about memory management
+    pub kid: BufferKid,
+    pub cred_type: CredentialType,
+}
+
+impl CredentialC {
+    pub fn to_rust(&self) -> Credential {
+        Credential {
+            bytes: self.bytes,
+            key: self.key,
+            kid: Some(self.kid),
+            cred_type: self.cred_type,
+        }
+    }
+
+    pub unsafe fn copy_into_c(cred: Credential, cred_c: *mut CredentialC) {
+        (*cred_c).bytes = cred.bytes;
+        (*cred_c).key = cred.key;
+        (*cred_c).kid = cred.kid.unwrap();
+        (*cred_c).cred_type = cred.cred_type;
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn credential_rpk_new(
-    cred: *mut CredentialRPK,
+pub unsafe extern "C" fn credential_new(
+    cred: *mut CredentialC,
     value: *const u8,
     value_len: usize,
 ) -> i8 {
     let value = core::slice::from_raw_parts(value, value_len);
-    match CredentialRPK::new(EdhocMessageBuffer::new_from_slice(value).unwrap()) {
-        Ok(cred_rpk) => {
-            *cred = cred_rpk;
+    match Credential::parse_ccs(value) {
+        Ok(cred_parsed) => {
+            CredentialC::copy_into_c(cred_parsed, cred);
             0
         }
         Err(_) => -1,
@@ -131,19 +165,20 @@ pub unsafe extern "C" fn credential_rpk_new(
 
 #[no_mangle]
 pub unsafe extern "C" fn credential_check_or_fetch(
-    cred_expected: *mut CredentialRPK,
-    id_cred_received: *mut CredentialRPK,
+    cred_expected: *mut CredentialC,
+    id_cred_received: *mut IdCred,
+    cred_out: *mut CredentialC,
 ) -> i8 {
     let cred_expected = if cred_expected.is_null() {
         None
     } else {
-        Some(*cred_expected)
+        Some((*cred_expected).to_rust())
     };
 
     let id_cred_received_value = *id_cred_received;
     match credential_check_or_fetch_rust(cred_expected, id_cred_received_value) {
         Ok(valid_cred) => {
-            *id_cred_received = valid_cred;
+            CredentialC::copy_into_c(valid_cred, cred_out);
             0
         }
         Err(err) => err as i8,

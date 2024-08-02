@@ -14,34 +14,21 @@ mod responder;
 // This is because the incoming lists of bytes are automatically converted to `Vec<u8>` by pyo3,
 // but the outgoing ones must be explicitly converted to `PyBytes`.
 
+// NOTE: using inverted parameters from rust version (credential_check_or_fetch)
+// since, in Python, parameters that can be None come later
 #[pyfunction(name = "credential_check_or_fetch")]
-// FIXME: using inverted parameters from rust version (credential_check_or_fetch)
-// since, in Python, by convention, parameters that can be None come later
+#[pyo3(signature = (id_cred_received, cred_expected=None))]
 pub fn py_credential_check_or_fetch<'a>(
     py: Python<'a>,
     id_cred_received: Vec<u8>,
-    cred_expected: Option<AutoCredentialRPK>,
+    cred_expected: Option<AutoCredential>,
 ) -> PyResult<Bound<'a, PyBytes>> {
-    let cred_expected = cred_expected.map(|c| c.to_credential()).transpose()?;
+    let valid_cred = credential_check_or_fetch(
+        cred_expected.map(|c| c.to_credential()).transpose()?,
+        IdCred::from_full_value(id_cred_received.as_slice())?,
+    )?;
 
-    let valid_cred = if id_cred_received.len() == 1 {
-        credential_check_or_fetch(
-            cred_expected,
-            CredentialRPK {
-                kid: id_cred_received[0],
-                value: Default::default(),
-                public_key: Default::default(),
-            },
-        )?
-    } else {
-        credential_check_or_fetch(
-            cred_expected,
-            CredentialRPK::new(
-                EdhocMessageBuffer::new_from_slice(id_cred_received.as_slice()).unwrap(),
-            )?,
-        )?
-    };
-    Ok(PyBytes::new_bound(py, valid_cred.value.as_slice()))
+    Ok(PyBytes::new_bound(py, valid_cred.bytes.as_slice()))
 }
 
 /// this function is useful to test the python bindings
@@ -57,23 +44,23 @@ fn p256_generate_key_pair<'a>(
 }
 
 /// Helper for PyO3 converted functions that behave like passing an argument through a
-/// `CredentialRPK` constructor; use this in an argument and then call [self.to_credential()].
+/// `Credential` constructor; use this in an argument and then call [self.to_credential()].
 /// The resulting function will accept both a bytes-ish object (and pass it through
-/// [CredentialRPK::new()] or a preexisting [CredentialRPK].
+/// [Credential::new()] or a preexisting [Credential].
 #[derive(FromPyObject)]
-enum AutoCredentialRPK {
+pub enum AutoCredential {
     #[pyo3(transparent, annotation = "bytes")]
     Parse(Vec<u8>),
-    #[pyo3(transparent, annotation = "CredentialRPK")]
-    Existing(lakers_shared::CredentialRPK),
+    #[pyo3(transparent, annotation = "Credential")]
+    Existing(lakers_shared::Credential),
 }
 
-impl AutoCredentialRPK {
-    fn to_credential(self) -> PyResult<CredentialRPK> {
-        use AutoCredentialRPK::*;
+impl AutoCredential {
+    pub fn to_credential(self) -> PyResult<Credential> {
+        use AutoCredential::*;
         Ok(match self {
             Existing(e) => e,
-            Parse(v) => CredentialRPK::new(EdhocMessageBuffer::new_from_slice(&v)?)?,
+            Parse(v) => Credential::parse_ccs(v.as_slice())?,
         })
     }
 }
@@ -89,7 +76,7 @@ fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<responder::PyEdhocResponder>()?;
     m.add_class::<lakers::CredentialTransfer>()?;
     m.add_class::<lakers::EADItem>()?;
-    m.add_class::<lakers::CredentialRPK>()?;
+    m.add_class::<lakers::Credential>()?;
     // ead-authz items
     m.add_class::<ead_authz::PyAuthzDevice>()?;
     m.add_class::<ead_authz::PyAuthzAutenticator>()?;
