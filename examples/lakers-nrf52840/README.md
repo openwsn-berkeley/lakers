@@ -21,3 +21,5 @@ You may want to prefix the commands above with e.g. PROBE_RS_PROBE=1366:1051:001
 You can get the name of your probes by running:
 
     probe-rs list
+
+You can enhance debugging by passing environment variables such as `DEFMT_LOG=trace`."

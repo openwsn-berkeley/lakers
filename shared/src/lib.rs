@@ -16,7 +16,7 @@ pub use edhoc_parser::*;
 pub use helpers::*;
 
 use core::num::NonZeroI16;
-use log::trace;
+use defmt_or_log::trace;
 
 mod crypto;
 pub use crypto::*;

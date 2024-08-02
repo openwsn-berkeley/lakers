@@ -15,8 +15,7 @@
 //! [EDHOC]: https://datatracker.ietf.org/doc/html/rfc9528
 #![cfg_attr(not(test), no_std)]
 
-use log::trace;
-
+use defmt_or_log::trace;
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
 #[cfg(all(feature = "ead-authz", test))]

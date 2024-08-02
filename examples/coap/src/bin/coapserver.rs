@@ -1,8 +1,8 @@
 use coap_lite::{CoapRequest, Packet, ResponseType};
+use defmt_or_log::info;
 use hexlit::hex;
 use lakers::*;
 use lakers_ead_authz::{ZeroTouchAuthenticator, ZeroTouchServer};
-use log::*;
 use std::net::UdpSocket;
 
 const ID_CRED_I: &[u8] = &hex!("a104412b");

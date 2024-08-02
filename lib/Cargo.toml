@@ -12,7 +12,9 @@ categories.workspace = true
 [dependencies]
 lakers-shared.workspace = true
 
-log = "0.4"
+defmt-or-log = { version = "0.2.1", default-features = false }
+log = { version = "0.4", optional = true }
+defmt = { version = "0.3", optional = true }
 
 [dev-dependencies]
 lakers-ead-authz = { workspace = true }
@@ -24,6 +26,8 @@ hexlit = "0.5.3"
 default = [ "test-ead-none" ]
 test-ead-none = [ ]
 test-ead-authz = [ ]
+defmt = ["dep:defmt"]
+log = ["dep:log"]
 
 [lib]
 crate-type = ["rlib"]

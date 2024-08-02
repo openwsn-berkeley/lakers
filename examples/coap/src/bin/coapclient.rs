@@ -1,8 +1,8 @@
 use coap::CoAPClient;
 use coap_lite::ResponseType;
+use defmt_or_log::info;
 use hexlit::hex;
 use lakers::*;
-use log::*;
 use std::time::Duration;
 
 const _ID_CRED_I: &[u8] = &hex!("a104412b");

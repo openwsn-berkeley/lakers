@@ -123,3 +123,22 @@ Its main members are:
 - `lakers-c`: Provides a foreign function interface that enables using `lakers` from C code.
 - `lakers-python`: API for using `lakers` in Python.
 - `examples`: Example applications that demonstrate how to use the library.
+
+## Example: using logs
+Logs can be used in both native and embedded applications. Once configured in an application, both can be controlled via environment variables:
+
+- on native, set `RUST_LOG` to control Rust's built-in `log` facility
+- on embedded, set `DEFMT_LOG` to control the [defmt](https://github.com/knurling-rs/defmt) crate
+
+The selection of `log` or `defmt` is handled internally by the [defmt-or-log](https://github.com/t-moe/defmt-or-log) crate.
+
+For example, `examples/lakers-nrf52840` is configured to use `defmt`. To globally enable logs at level `trace`:
+```bash
+DEFMT_LOG=trace cargo run --bin initiator
+```
+
+Different log levels can also be set per crate or module.
+Here's how to globally set logs to level `trace`, while restricting `lakers` to level `info`:
+```bash
+DEFMT_LOG=trace,lakers=info cargo run --bin initiator
+```
