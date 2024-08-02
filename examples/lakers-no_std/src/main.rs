@@ -8,10 +8,9 @@ use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 use defmt::info;
 use defmt_rtt as _;
 
-
-use panic_semihosting as _;
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
+use panic_semihosting as _;
 
 extern crate alloc;
 
