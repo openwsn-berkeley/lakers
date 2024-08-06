@@ -166,3 +166,8 @@ fn main() -> ! {
 }
 
 use core::ffi::c_char;
+
+#[no_mangle]
+pub extern "C" fn strstr(_cs: *const c_char, _ct: *const c_char) -> *mut c_char {
+    panic!("strstr handler!");
+}
