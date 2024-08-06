@@ -5,8 +5,13 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
+#[cfg(not(feature = "rtt"))]
+use cortex_m_semihosting::hprintln as info;
+
+#[cfg(feature = "rtt")]
 use defmt::info;
-use defmt_rtt as _;
+
+use defmt_rtt as _; // global logger
 
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
