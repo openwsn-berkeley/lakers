@@ -21,7 +21,7 @@ and some needed RUSTFLAGS, so this should pretty much just work(tm):
 You can exit QEMU pressing `CTRL-A`, then `X`. Or, if you're using tmux like
 me, `CTRL-A`, `A`, `X`.
 
-If you wanna try it on a embedded device, you can update the chip on `.cargo/config.toml` and run
+If you wanna try it on a embedded device, you can modify the selected chip on `.cargo/config.toml` and run
 
     cargo run --target="thumbv7em-none-eabihf" --release
 
