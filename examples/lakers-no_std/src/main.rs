@@ -5,10 +5,10 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
-#[cfg(not(feature = "rtt"))]
+#[cfg(not(target_abi = "eabihf"))]
 use cortex_m_semihosting::hprintln as info;
 
-#[cfg(feature = "rtt")]
+#[cfg(target_abi = "eabihf")]
 use defmt::info;
 
 use defmt_rtt as _; // global logger
