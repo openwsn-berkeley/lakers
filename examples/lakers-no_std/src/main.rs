@@ -5,16 +5,17 @@
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};
 
-#[cfg(not(feature = "rtt"))]
-use cortex_m_semihosting::hprintln as println;
+#[cfg(not(target_abi = "eabihf"))]
+use cortex_m_semihosting::hprintln as info;
 
-use panic_semihosting as _;
+#[cfg(target_abi = "eabihf")]
+use defmt::info;
 
-#[cfg(feature = "rtt")]
-use rtt_target::{rprintln as println, rtt_init_print};
+use defmt_rtt as _; // global logger
 
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
+use panic_semihosting as _;
 
 extern crate alloc;
 
@@ -29,9 +30,6 @@ extern "C" {
 
 #[entry]
 fn main() -> ! {
-    #[cfg(feature = "rtt")]
-    rtt_init_print!();
-
     // Memory buffer for mbedtls
     #[cfg(feature = "crypto-psa")]
     let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
@@ -41,7 +39,7 @@ fn main() -> ! {
     }
 
     // testing output
-    println!("Hello, lakers!");
+    info!("Hello, lakers!");
 
     // testing asserts
     assert!(1 == 1);
@@ -50,7 +48,7 @@ fn main() -> ! {
     use hexlit::hex;
 
     const _ID_CRED_I: &[u8] = &hex!("a104412b");
-    const ID_CRED_R: &[u8] = &hex!("a104410a");
+    const _ID_CRED_R: &[u8] = &hex!("a104410a");
     const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
@@ -70,7 +68,7 @@ fn main() -> ! {
     }
 
     test_new_initiator();
-    println!("Test test_new_initiator passed.");
+    info!("Test test_new_initiator passed.");
 
     fn test_p256_keys() {
         let (x, g_x) = default_crypto().p256_generate_key_pair();
@@ -82,23 +80,23 @@ fn main() -> ! {
         assert_eq!(g_xy, g_yx);
     }
     test_p256_keys();
-    println!("Test test_p256_keys passed.");
+    info!("Test test_p256_keys passed.");
 
     fn test_prepare_message_1() {
-        let mut initiator = EdhocInitiator::new(
+        let initiator = EdhocInitiator::new(
             lakers_crypto::default_crypto(),
             EDHOCMethod::StatStat,
             EDHOCSuite::CipherSuite2,
         );
 
-        let c_i =
+        let _c_i =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).as_slice();
         let message_1 = initiator.prepare_message_1(None, &None);
         assert!(message_1.is_ok());
     }
 
     test_prepare_message_1();
-    println!("Test test_prepare_message_1 passed.");
+    info!("Test test_prepare_message_1 passed.");
 
     fn test_handshake() {
         let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
@@ -157,8 +155,8 @@ fn main() -> ! {
     }
 
     test_handshake();
-    println!("Test test_handshake passed.");
-    println!("All tests passed.");
+    info!("Test test_handshake passed.");
+    info!("All tests passed.");
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);
@@ -167,10 +165,9 @@ fn main() -> ! {
     loop {}
 }
 
-use core::ffi::{c_char, c_void};
+use core::ffi::c_char;
 
 #[no_mangle]
-pub extern "C" fn strstr(cs: *const c_char, ct: *const c_char) -> *mut c_char {
+pub extern "C" fn strstr(_cs: *const c_char, _ct: *const c_char) -> *mut c_char {
     panic!("strstr handler!");
-    core::ptr::null_mut()
 }
