@@ -21,7 +21,8 @@ and some needed RUSTFLAGS, so this should pretty much just work(tm):
 You can exit QEMU pressing `CTRL-A`, then `X`. Or, if you're using tmux like
 me, `CTRL-A`, `A`, `X`.
 
-If you wanna try it on a embedded device, you can modify the selected chip on `.cargo/config.toml` and run
+To run on an embedded device, add a target architecture and selected chip in `.cargo/config.toml`, then set the `--target` parameter when invoking `cargo run`.
+For example, the following will work for devices based on the nRF52840 chip:
 
     cargo run --target="thumbv7em-none-eabihf" --release
 
