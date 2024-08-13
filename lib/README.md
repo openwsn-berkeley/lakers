@@ -74,7 +74,7 @@ cargo build
 cargo test
 ```
 
-`lakers` can be compiled with different configurations depending on the enabled features. To learn what are the available features and how to select them for several configurations of build and test, check the [Github Actions file](./.github/workflows/rust.yml).
+`lakers` can be compiled with different configurations depending on the enabled features. To learn what are the available features and how to select them for several configurations of build and test, check [the Github Actions file](./.github/workflows/rust.yml).
 
 ## Example: EDHOC over CoAP on native host
 
@@ -100,31 +100,17 @@ To build an example application that works on the [nrf52840dk](https://www.nordi
 # head to the example `no_std` example
 cd ./examples/lakers-no_std
 
-# build using the cryptocell310 crypto backend (hardware-accelerated)
-cargo build --target="thumbv7em-none-eabihf" --release
+# build, flash, and run with the cryptocell310 crypto backend (hardware-accelerated)
+cargo run --target="thumbv7em-none-eabihf" --release
 
-# build using the psa crypto backend (software-based)
-cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-psa, ead-none, rtt" --release
+# build, flash, and run with the psa crypto backend (software-based)
+cargo run --target="thumbv7em-none-eabihf" --no-default-features --features="crypto-psa, ead-none, rtt" --release
 
 ```
 
-To build **and** flash to the board:
-1. install [cargo-embed](https://crates.io/crates/cargo-embed)
-1. run one of the commands above, but use the command `embed` in place of `build`. For example: `cargo embed --target="thumbv7em-none-eabihf"`
+Note that this requires [probe-rs](https://probe.rs/) to be installed in your system.
 
-## Directory structure
-This library is structured as a [cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
-Its main members are:
-
-- `lib`: The main library providing the EDHOC implementation.
-- `crypto`: Diferent cryptographic backends (e.g. psa, cryptocell310, rustcrypto).
-- `ead`: Implementation of extensions to EDHOC via the External Authorization Data (EAD) field.
-- `shared`: Defines shared structs and modules used throughout the workspace members.
-- `lakers-c`: Provides a foreign function interface that enables using `lakers` from C code.
-- `lakers-python`: API for using `lakers` in Python.
-- `examples`: Example applications that demonstrate how to use the library.
-
-## Example: using logs
+## Using logs
 Logs can be used in both native and embedded applications. Once configured in an application, both can be controlled via environment variables:
 
 - on native, set `RUST_LOG` to control Rust's built-in `log` facility
@@ -142,3 +128,28 @@ Here's how to globally set logs to level `trace`, while restricting `lakers` to 
 ```bash
 DEFMT_LOG=trace,lakers=info cargo run --bin initiator
 ```
+
+## Directory structure
+This library is structured as a [cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
+Its main members are:
+
+- `lib`: The main library providing the EDHOC implementation.
+- `crypto`: Diferent cryptographic backends (e.g. psa, cryptocell310, rustcrypto).
+- `ead`: Implementation of extensions to EDHOC via the External Authorization Data (EAD) field.
+- `shared`: Defines shared structs and modules used throughout the workspace members.
+- `lakers-c`: Provides a foreign function interface that enables using `lakers` from C code.
+- `lakers-python`: API for using `lakers` in Python.
+- `examples`: Example applications that demonstrate how to use the library.
+
+# Why the name?
+
+The EDHOC protocol was created by the IETF [LAKE](https://datatracker.ietf.org/wg/lake/about/) (Lightweight Authenticated Key Exchange) Working Group, and one of the maintainers is a basketball fan :)
+
+# License
+
+This software is licensed under the BSD 3-Clause License.
+
+# Contributing
+
+Contributors are very welcome!
+Please take a look at the open issues, and pay attention to conventions used in the code-base, such as conventional commit messages and well-formatted Rust code.
