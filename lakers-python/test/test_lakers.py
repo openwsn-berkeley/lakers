@@ -1,6 +1,7 @@
 import lakers
 import cbor2
 import pytest
+from lakers import CredentialTransfer, EdhocInitiator, EdhocResponder
 
 # values from RFC9529, but CRED_I shortened so that passing by value is possible in a 256 byte message
 CRED_I = bytes.fromhex("A202617808A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
@@ -15,12 +16,12 @@ def test_gen_keys():
     assert len(pub) == 32
 
 def test_initiator():
-    initiator = lakers.EdhocInitiator()
+    initiator = EdhocInitiator()
     message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
     assert type(message_1) == bytes
 
 def test_responder():
-    responder = lakers.EdhocResponder(R, CRED_R)
+    responder = EdhocResponder(R, CRED_R)
 
 def test_ccs_consruction():
     # The main crednetials we use can be parsed as they are:
@@ -36,12 +37,12 @@ def test_ccs_consruction():
     assert repr(cred_r_manual) == repr(cred_r)
 
     # Both forms are accepted for constructing equivalent responders
-    _ = lakers.EdhocResponder(R, CRED_R)
-    _ = lakers.EdhocResponder(R, cred_r_manual)
+    _ = EdhocResponder(R, CRED_R)
+    _ = EdhocResponder(R, cred_r_manual)
 
 def _test_handshake(cred_r_transfer, cred_i_transfer):
-    initiator = lakers.EdhocInitiator()
-    responder = lakers.EdhocResponder(R, CRED_R)
+    initiator = EdhocInitiator()
+    responder = EdhocResponder(R, CRED_R)
 
     # initiator
     message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
@@ -81,19 +82,18 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     assert i_prk_out_new == r_prk_out_new
 
 def test_edhoc_error():
-    responder = lakers.EdhocResponder(R, CRED_R)
+    responder = EdhocResponder(R, CRED_R)
     with pytest.raises(ValueError) as err:
         _ = responder.process_message_1([1, 2, 3])
     assert str(err.value) == "EDHOCError::ParsingError"
 
 def test_buffer_error():
-    initiator = lakers.EdhocInitiator()
+    initiator = EdhocInitiator()
     with pytest.raises(ValueError) as err:
         _ = initiator.parse_message_2([1] * 1000)
     assert str(err.value) == "MessageBufferError::SliceTooLong"
 
-def test_handshake_byvalue_byreference():
-    _test_handshake(lakers.CredentialTransfer.ByValue, lakers.CredentialTransfer.ByReference)
-
-def test_handshake_byreference_byvalue():
-    _test_handshake(lakers.CredentialTransfer.ByReference, lakers.CredentialTransfer.ByValue)
+@pytest.mark.parametrize("cred_r_transfer", [CredentialTransfer.ByReference, CredentialTransfer.ByValue])
+@pytest.mark.parametrize("cred_i_transfer", [CredentialTransfer.ByReference, CredentialTransfer.ByValue])
+def test_handshake_credential_transfer_by(cred_r_transfer, cred_i_transfer):
+    _test_handshake(cred_r_transfer, cred_i_transfer)
