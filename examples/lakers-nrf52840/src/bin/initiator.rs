@@ -66,10 +66,15 @@ async fn main(spawner: Spawner) {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
 
-    let cred_i = CredentialRPK::new(common::CRED_I.try_into().unwrap()).unwrap();
-    let cred_r = CredentialRPK::new(common::CRED_R.try_into().unwrap()).unwrap();
+    let cred_i = Credential::parse_ccs(common::CRED_I.try_into().unwrap()).unwrap();
+    let cred_r = Credential::parse_ccs(common::CRED_R.try_into().unwrap()).unwrap();
 
-    let mut initiator = EdhocInitiator::new(lakers_crypto::default_crypto());
+    let mut initiator = EdhocInitiator::new(
+        lakers_crypto::default_crypto(),
+        EDHOCMethod::StatStat,
+        EDHOCSuite::CipherSuite2,
+    );
+    initiator.set_identity(common::I.try_into().unwrap(), cred_i);
 
     // Send Message 1 over raw BLE and convert the response to byte
     let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
@@ -85,9 +90,7 @@ async fn main(spawner: Spawner) {
                 pckt_2.pdu[1..pckt_2.len].try_into().expect("wrong length");
             let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
             let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
-            let initiator = initiator
-                .verify_message_2(common::I, cred_i, valid_cred_r)
-                .unwrap();
+            let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
             let (mut initiator, message_3, i_prk_out) = initiator
                 .prepare_message_3(CredentialTransfer::ByReference, &None)

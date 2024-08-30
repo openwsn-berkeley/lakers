@@ -153,7 +153,7 @@ int main(void)
     memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
     EADItemC ead_2 = {0};
     uint8_t c_r;
-    CredentialC id_cred_r = {0};
+    IdCred id_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
     // res = initiator_parse_message_2(&initiator, &message_2, &cred_r, &c_r, &id_cred_r, &ead_2);
     res = initiator_parse_message_2(&initiator, &message_2, &c_r, &id_cred_r, &ead_2);
