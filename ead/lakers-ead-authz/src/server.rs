@@ -1,4 +1,5 @@
 use crate::shared::*;
+use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 /// This server also stores an ACL
@@ -12,6 +13,7 @@ pub struct ZeroTouchServer {
 
 impl ZeroTouchServer {
     pub fn new(w: BytesP256ElemLen, cred_v: &[u8], acl: Option<EdhocMessageBuffer>) -> Self {
+        trace!("Initializing ZeroTouchServer");
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
         ZeroTouchServer { w, cred_v, acl }
     }
@@ -30,6 +32,7 @@ impl ZeroTouchServer {
         crypto: &mut Crypto,
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
+        trace!("Enter handle_voucher_request");
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
@@ -62,6 +65,7 @@ pub struct ZeroTouchServerUserAcl {
 
 impl ZeroTouchServerUserAcl {
     pub fn new(w: BytesP256ElemLen, cred_v: &[u8]) -> Self {
+        trace!("Initializing ZeroTouchServerUserAcl");
         let cred_v: EdhocMessageBuffer = cred_v.try_into().unwrap();
         Self { w, cred_v }
     }
@@ -71,6 +75,7 @@ impl ZeroTouchServerUserAcl {
         crypto: &mut Crypto,
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
+        trace!("Enter decode_voucher_request");
         let (message_1, _opaque_state) = parse_voucher_request(vreq)?;
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
@@ -86,6 +91,7 @@ impl ZeroTouchServerUserAcl {
         crypto: &mut Crypto,
         vreq: &EdhocMessageBuffer,
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
+        trace!("Enter prepare_voucher");
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
         let (_method, _suites_i, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);

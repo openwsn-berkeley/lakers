@@ -1,5 +1,6 @@
 use crate::consts::*;
 use crate::shared::*;
+use defmt_or_log::trace;
 use lakers_shared::*;
 
 #[derive(Debug, Default)]
@@ -20,6 +21,7 @@ impl ZeroTouchAuthenticator {
         ),
         EDHOCError,
     > {
+        trace!("Enter process_ead_1");
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
         if ead_1.label != EAD_AUTHZ_LABEL || ead_1.value.is_none() {
@@ -42,6 +44,7 @@ impl ZeroTouchAuthenticatorWaitVoucherResp {
         &self,
         voucher_response: &EdhocMessageBuffer,
     ) -> Result<EADItem, EDHOCError> {
+        trace!("Enter prepare_ead_2");
         let (_message_1, voucher, _opaque_state) = parse_voucher_response(&voucher_response)?;
 
         Ok(EADItem {

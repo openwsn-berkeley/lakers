@@ -1,6 +1,7 @@
 use crate::consts::*;
 use crate::shared::*;
 use crate::ZeroTouchError;
+use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(Default, Debug)]
@@ -26,6 +27,7 @@ pub struct ZeroTouchDeviceDone {
 
 impl ZeroTouchDevice {
     pub fn new(id_u: EdhocMessageBuffer, g_w: BytesP256ElemLen, loc_w: EdhocMessageBuffer) -> Self {
+        trace!("Initializing ZeroTouchDevice");
         ZeroTouchDevice { id_u, g_w, loc_w }
     }
 
@@ -35,6 +37,7 @@ impl ZeroTouchDevice {
         secret: BytesP256ElemLen,
         ss: u8,
     ) -> (ZeroTouchDeviceWaitEAD2, EADItem) {
+        trace!("Enter prepare_ead_1");
         // PRK = EDHOC-Extract(salt, IKM)
         let prk = compute_prk_from_secret(crypto, &secret);
 
@@ -61,6 +64,7 @@ impl ZeroTouchDevice {
 
 impl ZeroTouchDeviceWaitEAD2 {
     pub fn set_h_message_1(&mut self, h_message_1: BytesHashLen) {
+        trace!("Enter set_h_message_1");
         self.h_message_1 = h_message_1;
     }
 
@@ -70,6 +74,7 @@ impl ZeroTouchDeviceWaitEAD2 {
         ead_2: EADItem,
         cred_v: &[u8],
     ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
+        trace!("Enter process_ead_2");
         if ead_2.label != EAD_AUTHZ_LABEL {
             return Err(ZeroTouchError::InvalidEADLabel);
         }

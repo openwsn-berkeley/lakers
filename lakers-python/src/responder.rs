@@ -1,5 +1,6 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
+use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "EdhocResponder")]
@@ -17,6 +18,7 @@ pub struct PyEdhocResponder {
 impl PyEdhocResponder {
     #[new]
     fn new(r: Vec<u8>, cred_r: super::AutoCredential) -> PyResult<Self> {
+        trace!("Initializing EdhocResponder");
         let (y, g_y) = default_crypto().p256_generate_key_pair();
 
         let cred_r = cred_r.to_credential()?;

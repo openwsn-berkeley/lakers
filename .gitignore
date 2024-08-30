@@ -4,6 +4,7 @@ bin
 .pytest_cache
 __pycache__
 .venv*
+wheelhouse
 
 # hax
 *.fst

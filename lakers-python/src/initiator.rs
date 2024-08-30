@@ -1,5 +1,6 @@
 use lakers::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
+use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "EdhocInitiator")]
@@ -16,6 +17,7 @@ pub struct PyEdhocInitiator {
 impl PyEdhocInitiator {
     #[new]
     fn new() -> Self {
+        trace!("Initializing EdhocInitiator");
         let mut crypto = default_crypto();
         let suites_i =
             prepare_suites_i(&crypto.supported_suites(), EDHOCSuite::CipherSuite2.into()).unwrap();
