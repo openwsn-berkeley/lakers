@@ -1,6 +1,7 @@
 use lakers::*;
 use lakers_crypto::default_crypto;
 use lakers_ead_authz::*;
+use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(name = "AuthzEnrollmentServer")]
@@ -13,6 +14,7 @@ impl PyAuthzEnrollmentServer {
     #[new]
     #[pyo3(signature = (w, cred_v, acl=None))]
     pub fn new(w: Vec<u8>, cred_v: Vec<u8>, acl: Option<Vec<u8>>) -> Self {
+        trace!("Initializing AuthzEnrollmentServer");
         let mut w_arr = BytesP256ElemLen::default();
         w_arr.copy_from_slice(&w.as_slice());
         let acl = if let Some(acl) = acl {
@@ -51,6 +53,7 @@ pub struct PyAuthzServerUserAcl {
 impl PyAuthzServerUserAcl {
     #[new]
     pub fn new(w: Vec<u8>, cred_v: Vec<u8>) -> Self {
+        trace!("Initializing AuthzServerUserAcl");
         let mut w_arr = BytesP256ElemLen::default();
         w_arr.copy_from_slice(&w.as_slice());
 

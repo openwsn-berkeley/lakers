@@ -20,6 +20,13 @@ message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
 # for more examples, see the tests in the repository
 ```
 
+## Logs
+To show logs emitted by the wrapped Rust implementation, set the `RUST_LOG` variable, e.g.:
+
+```bash
+RUST_LOG=trace python -c "import lakers"
+```
+
 # Development
 
 To build and test:

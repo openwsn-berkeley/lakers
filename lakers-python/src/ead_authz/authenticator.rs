@@ -1,5 +1,6 @@
 use lakers::*;
 use lakers_ead_authz::*;
+use log::trace;
 use pyo3::{
     prelude::*,
     types::{PyBytes, PyString},
@@ -15,6 +16,7 @@ pub struct PyAuthzAutenticator {
 impl PyAuthzAutenticator {
     #[new]
     fn new() -> Self {
+        trace!("Initializing AuthzAutenticator");
         Self {
             authenticator: ZeroTouchAuthenticator::default(),
             authenticator_wait: ZeroTouchAuthenticatorWaitVoucherResp::default(),
