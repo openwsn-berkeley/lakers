@@ -275,12 +275,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: fstar-code
           path: ./release-artifacts
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: lakers-c
           path: ./release-artifacts
