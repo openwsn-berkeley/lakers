@@ -69,6 +69,6 @@ pub unsafe extern "C" fn authz_device_process_ead_2(
             (*device_c).done = device;
             0
         }
-        Err(_) => -1,
+        Err(err) => err as i8,
     }
 }
