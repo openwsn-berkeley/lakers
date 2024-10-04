@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install Rust formatter
       run: rustup component add rustfmt
     - name: Check if code is well formatted
@@ -30,7 +30,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Run unit tests with default features
       run: RUST_BACKTRACE=1 cargo test
@@ -48,7 +48,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-authz` when testing with that config
       run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, test-${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
@@ -65,7 +65,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
@@ -81,7 +81,7 @@ jobs:
 
     steps:
     - name: Checkout lakers
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Generate fstar code over lakers and lakers-shared
       run: |
@@ -98,7 +98,7 @@ jobs:
         zip -j -r lakers-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: fstar-code
         path: ./lakers-fstar.zip
@@ -114,7 +114,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7em-none-eabihf
@@ -125,9 +125,9 @@ jobs:
       run: cd lakers-c && ./build.sh "${{ matrix.crypto_backend }}"
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: lakers-c
+        name: lakers-c-${{ matrix.crypto_backend }}
         path: ./target/lakers-c-*.zip
 
 
@@ -140,10 +140,10 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Checkout libcoap
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: obgm/libcoap
         path: libcoap
@@ -177,7 +177,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: set up python
       uses: actions/setup-python@v5
@@ -206,7 +206,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7m-none-eabi
@@ -230,7 +230,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7em-none-eabihf
@@ -247,7 +247,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Build server
       run: cargo build --bin coapserver
@@ -273,7 +273,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Download artifacts
         uses: actions/download-artifact@v4.1.7
         with:
@@ -282,7 +282,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4.1.7
         with:
-          name: lakers-c
+          pattern: lakers-c*
           path: ./release-artifacts
       - name: Release
         uses: ncipollo/release-action@v1
