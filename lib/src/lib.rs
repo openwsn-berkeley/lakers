@@ -209,7 +209,14 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
     pub fn verify_message_3(
         mut self,
         cred_i: Credential,
-    ) -> Result<(EdhocResponderProcessedM3<Crypto>, [u8; SHA256_DIGEST_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+    ) -> Result<
+        (
+            EdhocResponderProcessedM3<Crypto>,
+            [u8; SHA256_DIGEST_LEN],
+            [u8; SHA256_DIGEST_LEN],
+        ),
+        EDHOCError,
+    > {
         trace!("Enter verify_message_3");
         match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out, prk_exporter)) => Ok((
@@ -229,16 +236,9 @@ impl<Crypto: CryptoTrait> EdhocResponderProcessedM3<Crypto> {
     pub fn prepare_message_4(
         mut self,
         ead_4: &Option<EADItem>,
-    ) -> Result<(
-        EdhocResponderDone<Crypto>, 
-        BufferMessage4
-    ), EDHOCError> {
+    ) -> Result<(EdhocResponderDone<Crypto>, BufferMessage4), EDHOCError> {
         trace!("Enter prepare_message_4");
-        match r_prepare_message_4(
-            &self.state,
-            &mut self.crypto,
-            ead_4,
-        ) {
+        match r_prepare_message_4(&self.state, &mut self.crypto, ead_4) {
             Ok((state, message_4)) => Ok((
                 EdhocResponderDone {
                     state,
@@ -478,16 +478,10 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
     pub fn process_message_4(
         mut self,
         message_4: &'a BufferMessage4,
-    ) -> Result<
-        (
-            EdhocInitiatorDone<Crypto>,
-            Option<EADItem>,
-        ),
-        EDHOCError,
-    > {
+    ) -> Result<(EdhocInitiatorDone<Crypto>, Option<EADItem>), EDHOCError> {
         trace!("Enter parse_message_4");
         match i_process_message_4(&mut self.state, &mut self.crypto, message_4) {
-            Ok((state, ead_4)) => Ok ((
+            Ok((state, ead_4)) => Ok((
                 EdhocInitiatorDone {
                     state: state,
                     crypto: self.crypto,
@@ -781,7 +775,8 @@ mod test {
         // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-        let (mut responder, r_prk_out, r_prk_exporter) = responder.verify_message_3(valid_cred_i).unwrap();
+        let (mut responder, r_prk_out, r_prk_exporter) =
+            responder.verify_message_3(valid_cred_i).unwrap();
 
         // Send message_4
         let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();

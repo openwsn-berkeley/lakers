@@ -816,7 +816,7 @@ mod edhoc_parser {
     ) -> Result<Option<EADItem>, EDHOCError> {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
-    
+
         if plaintext_4.len > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);

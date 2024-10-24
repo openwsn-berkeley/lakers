@@ -53,12 +53,12 @@ async fn main(spawner: Spawner) {
     radio.set_crc_poly(CRC_POLY);
 
     // Memory buffer for mbedtls
-    #[cfg(feature = "crypto-psa")]
-    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    #[cfg(feature = "crypto-psa")]
-    unsafe {
-        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
-    }
+    // #[cfg(feature = "crypto-psa")]
+    // let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    // #[cfg(feature = "crypto-psa")]
+    // unsafe {
+    //     mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    // }
 
     loop {
         let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
@@ -117,11 +117,12 @@ async fn main(spawner: Spawner) {
                             // anyway legally
                             continue;
                         };
-                        let cred_i: Credential = 
-                        Credential::parse_ccs(common::CRED_I.try_into().unwrap()).unwrap();
+                        let cred_i: Credential =
+                            Credential::parse_ccs(common::CRED_I.try_into().unwrap()).unwrap();
                         let valid_cred_i =
                             credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-                        let Ok((responder, r_prk_out, r_prk_exporter)) = responder.verify_message_3(valid_cred_i)
+                        let Ok((responder, r_prk_out, r_prk_exporter)) =
+                            responder.verify_message_3(valid_cred_i)
                         else {
                             info!("EDHOC error at parse_message_3");
                             continue;
@@ -134,9 +135,13 @@ async fn main(spawner: Spawner) {
                         info!("Send message_4");
                         common::transmit_without_response(
                             &mut radio,
-                            common::Packet::new_from_slice(message_4.as_slice(),Some(c_r.unwrap().as_slice()[0]))
-                                .unwrap(),
-                        ).await;
+                            common::Packet::new_from_slice(
+                                message_4.as_slice(),
+                                Some(c_r.unwrap().as_slice()[0]),
+                            )
+                            .unwrap(),
+                        )
+                        .await;
 
                         info!("Handshake completed. prk_out = {:X}", r_prk_out);
                     } else {
@@ -149,8 +154,6 @@ async fn main(spawner: Spawner) {
         }
     }
 }
-
-
 
 #[embassy_executor::task]
 async fn example_application_task(secret: BytesHashLen) {

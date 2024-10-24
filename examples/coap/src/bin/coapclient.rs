@@ -60,22 +60,22 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let initiator = initiator.verify_message_2(valid_cred_r)?;
 
     let mut msg_3 = Vec::from(c_r.as_cbor());
-    let (mut initiator, message_3, i_prk_out, i_prk_out_exporter) =
+    let (mut initiator, message_3, prk_out, prk_out_exporter) =
         initiator.prepare_message_3(CredentialTransfer::ByReference, &None)?;
     msg_3.extend_from_slice(message_3.as_slice());
     println!("message_3 len = {}", msg_3.len());
 
-    let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
-    // if response.get_status() != &ResponseType::Changed {
-    //     panic!("Message 3 response error: {:?}", response.get_status());
-    // }
-    // println!("response_vec = {:02x?}", response.message.payload);
-    // println!("message_3 len = {}", response.message.payload.len());
-    // let message_4 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
-    // let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+    let response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
+    if response.get_status() != &ResponseType::Changed {
+        panic!("Message 3 response error: {:?}", response.get_status());
+    }
+    println!("response_vec = {:02x?}", response.message.payload);
+    println!("message_3 len = {}", response.message.payload.len());
+    let message_4 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
+    let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
 
     println!("EDHOC exchange successfully completed");
-    println!("PRK_out: {:02x?}", i_prk_out);
+    println!("PRK_out: {:02x?}", prk_out);
 
     let mut oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
     let mut oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1

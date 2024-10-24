@@ -1,13 +1,13 @@
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 // Implementation of edhoc_exporter for 3 or 4 messages
-pub trait StateDone {
+pub trait Done {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN];
     fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN];
     fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN];
 }
 // Implement for different states
-impl StateDone for WaitM4 {
+impl Done for WaitM4 {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
@@ -20,7 +20,7 @@ impl StateDone for WaitM4 {
 }
 
 // Implement for both state types
-impl StateDone for Completed {
+impl Done for Completed {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
@@ -32,7 +32,7 @@ impl StateDone for Completed {
     }
 }
 
-impl StateDone for ProcessedM3 {
+impl Done for ProcessedM3 {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
@@ -45,7 +45,7 @@ impl StateDone for ProcessedM3 {
 }
 
 pub fn edhoc_exporter(
-    state: &impl StateDone,
+    state: &impl Done,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -63,7 +63,7 @@ pub fn edhoc_exporter(
 }
 
 pub fn edhoc_key_update(
-    state: &mut impl StateDone,
+    state: &mut impl Done,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -79,7 +79,6 @@ pub fn edhoc_key_update(
         context_len,
         SHA256_DIGEST_LEN,
     );
-    // state.get_prk_out_mut()[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
     prk_out.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
@@ -91,12 +90,13 @@ pub fn edhoc_key_update(
         0,
         SHA256_DIGEST_LEN,
     );
-    // state.get_prk_exporter()[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
     prk_exporter.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // Update state
     state.get_prk_out_mut().copy_from_slice(&prk_out);
-    state.get_prk_out_mut().copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state
+        .get_prk_out_mut()
+        .copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     prk_out
 }
@@ -299,7 +299,7 @@ pub fn r_verify_message_3(
                 prk_4e3m: prk_4e3m,
                 th_4: th_4,
                 prk_out: prk_out,
-                prk_exporter: prk_exporter
+                prk_exporter: prk_exporter,
             },
             prk_out,
             prk_exporter,
@@ -517,7 +517,6 @@ pub fn i_process_message_4(
     crypto: &mut impl CryptoTrait,
     message_4: &BufferMessage4,
 ) -> Result<(Completed, Option<EADItem>), EDHOCError> {
-
     let plaintext_4 = decrypt_message_4(crypto, &state.prk_4e3m, &state.th_4, &message_4)?;
     let decoded_p4_res = decode_plaintext_4(&plaintext_4);
 
@@ -740,9 +739,7 @@ fn encode_plaintext_3(
     }
 }
 
-fn encode_plaintext_4(
-    ead_4: &Option<EADItem>,
-) -> Result<BufferPlaintext4, EDHOCError> {
+fn encode_plaintext_4(ead_4: &Option<EADItem>) -> Result<BufferPlaintext4, EDHOCError> {
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
     if let Some(ead_4) = ead_4 {
@@ -1280,7 +1277,7 @@ mod tests {
     const MESSAGE_3_TV: &str = "52e562097bc417dd5919485ac7891ffd90a9fc";
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("81cc8a298e357044e3c466bb5c0a1e507e01d49238aeba138df94635407c0ff7");
-        const MESSAGE_4_TV: &str = "4828c966b7ca304f83";
+    const MESSAGE_4_TV: &str = "4828c966b7ca304f83";
     const CIPHERTEXT_4_TV: &str = "28c966b7ca304f83";
     const PLAINTEXT_4_TV: &str = "";
     const K_4_TV: BytesCcmKeyLen = hex!("d3c77872b6eeb508911bdbd308b2e6a0");
@@ -1690,7 +1687,7 @@ mod tests {
         assert_eq!(k_4, K_4_TV);
         assert_eq!(iv_4, IV_4_TV);
     }
-    
+
     #[test]
     fn test_compute_prk_4e3m() {
         let prk_4e3m = compute_prk_4e3m(&mut default_crypto(), &SALT_4E3M_TV, &SK_I_TV, &G_Y_TV);
