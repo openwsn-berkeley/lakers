@@ -108,16 +108,20 @@ fn main() {
                 };
                 let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-                let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
+                let Ok((mut responder, r_prk_out, r_prk_exporter)) = responder.verify_message_3(valid_cred_i) else {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };
+                // let ead_4 = None;
+                // let (mut responder, message_4) = responder.prepare_message_4(&ead_4).unwrap();
+                // send empty ack back
+                response.message.payload = b"".to_vec();
 
                 // send empty ack back
                 response.message.payload = b"".to_vec();
 
                 println!("EDHOC exchange successfully completed");
-                println!("PRK_out: {:02x?}", prk_out);
+                println!("PRK_out: {:02x?}", r_prk_out);
 
                 let mut _oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
                 println!("OSCORE secret: {:02x?}", _oscore_secret);

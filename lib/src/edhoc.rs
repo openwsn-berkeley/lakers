@@ -1,7 +1,51 @@
 use lakers_shared::{Crypto as CryptoTrait, *};
 
+// Implementation of edhoc_exporter for 3 or 4 messages
+pub trait StateDone {
+    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN];
+    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN];
+    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN];
+}
+// Implement for different states
+impl StateDone for WaitM4 {
+    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_exporter
+    }
+    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
+        &mut self.prk_out
+    }
+    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_out
+    }
+}
+
+// Implement for both state types
+impl StateDone for Completed {
+    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_exporter
+    }
+    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
+        &mut self.prk_out
+    }
+    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_out
+    }
+}
+
+impl StateDone for ProcessedM3 {
+    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_exporter
+    }
+    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
+        &mut self.prk_out
+    }
+    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
+        &self.prk_out
+    }
+}
+
 pub fn edhoc_exporter(
-    state: &Completed,
+    state: &impl StateDone,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -10,7 +54,7 @@ pub fn edhoc_exporter(
 ) -> BytesMaxBuffer {
     edhoc_kdf(
         crypto,
-        &state.prk_exporter,
+        state.get_prk_exporter(),
         label,
         context,
         context_len,
@@ -19,34 +63,42 @@ pub fn edhoc_exporter(
 }
 
 pub fn edhoc_key_update(
-    state: &mut Completed,
+    state: &mut impl StateDone,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
 ) -> BytesHashLen {
     // new PRK_out
+    let mut prk_out = *state.get_prk_out();
+    let mut prk_exporter = *state.get_prk_exporter();
     let prk_new_buf = edhoc_kdf(
         crypto,
-        &state.prk_out,
+        &prk_out,
         11u8,
         context,
         context_len,
         SHA256_DIGEST_LEN,
     );
-    state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    // state.get_prk_out_mut()[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    prk_out.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
     let prk_new_buf = edhoc_kdf(
         crypto,
-        &state.prk_out,
+        &prk_out,
         10u8,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         SHA256_DIGEST_LEN,
     );
-    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    // state.get_prk_exporter()[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    prk_exporter.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    state.prk_out
+    // Update state
+    state.get_prk_out_mut().copy_from_slice(&prk_out);
+    state.get_prk_out_mut().copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+
+    prk_out
 }
 
 pub fn r_process_message_1(
@@ -184,7 +236,7 @@ pub fn r_verify_message_3(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
     valid_cred_i: Credential,
-) -> Result<(Completed, BytesHashLen), EDHOCError> {
+) -> Result<(ProcessedM3, BytesHashLen, BytesHashLen), EDHOCError> {
     // compute salt_4e3m
     let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
 
@@ -243,15 +295,36 @@ pub fn r_verify_message_3(
         prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
         Ok((
-            Completed {
-                prk_out,
-                prk_exporter,
+            ProcessedM3 {
+                prk_4e3m: prk_4e3m,
+                th_4: th_4,
+                prk_out: prk_out,
+                prk_exporter: prk_exporter
             },
             prk_out,
+            prk_exporter,
         ))
     } else {
         Err(EDHOCError::MacVerificationFailed)
     }
+}
+
+pub fn r_prepare_message_4(
+    state: &ProcessedM3,
+    crypto: &mut impl CryptoTrait,
+    ead_4: &Option<EADItem>, // FIXME: make it a list of EADItem
+) -> Result<(Completed, BufferMessage4), EDHOCError> {
+    // compute ciphertext_4
+    let plaintext_4 = encode_plaintext_4(&ead_4)?;
+    let message_4 = encrypt_message_4(crypto, &state.prk_4e3m, &state.th_4, &plaintext_4);
+
+    Ok((
+        Completed {
+            prk_out: state.prk_out,
+            prk_exporter: state.prk_exporter,
+        },
+        message_4,
+    ))
 }
 
 pub fn i_prepare_message_1(
@@ -377,7 +450,7 @@ pub fn i_prepare_message_3(
     cred_i: Credential,
     cred_transfer: CredentialTransfer,
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(Completed, BufferMessage3, BytesHashLen), EDHOCError> {
+) -> Result<(WaitM4, BufferMessage3, BytesHashLen, BytesHashLen), EDHOCError> {
     let id_cred_i = match cred_transfer {
         CredentialTransfer::ByValue => cred_i.by_value()?,
         CredentialTransfer::ByReference => cred_i.by_kid()?,
@@ -427,13 +500,38 @@ pub fn i_prepare_message_3(
     prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
     Ok((
-        Completed {
-            prk_out,
-            prk_exporter,
+        WaitM4 {
+            prk_4e3m: state.prk_4e3m,
+            th_4: th_4,
+            prk_out: prk_out,
+            prk_exporter: prk_exporter,
         },
         message_3,
         prk_out,
+        prk_exporter,
     ))
+}
+
+pub fn i_process_message_4(
+    state: &mut WaitM4,
+    crypto: &mut impl CryptoTrait,
+    message_4: &BufferMessage4,
+) -> Result<(Completed, Option<EADItem>), EDHOCError> {
+
+    let plaintext_4 = decrypt_message_4(crypto, &state.prk_4e3m, &state.th_4, &message_4)?;
+    let decoded_p4_res = decode_plaintext_4(&plaintext_4);
+
+    if let Ok(ead_4) = decoded_p4_res {
+        Ok((
+            Completed {
+                prk_out: state.prk_out,
+                prk_exporter: state.prk_exporter,
+            },
+            ead_4,
+        ))
+    } else {
+        Err(decoded_p4_res.unwrap_err())
+    }
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
@@ -642,6 +740,24 @@ fn encode_plaintext_3(
     }
 }
 
+fn encode_plaintext_4(
+    ead_4: &Option<EADItem>,
+) -> Result<BufferPlaintext4, EDHOCError> {
+    let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
+
+    if let Some(ead_4) = ead_4 {
+        match encode_ead_item(ead_4) {
+            Ok(ead_4) => plaintext_4
+                .extend_from_slice(ead_4.as_slice())
+                .and(Ok(plaintext_4))
+                .or(Err(EDHOCError::EadTooLongError)),
+            Err(e) => Err(e),
+        }
+    } else {
+        Ok(plaintext_4)
+    }
+}
+
 fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
     let mut encrypt0: Bytes8 = [0x00; 8];
     encrypt0[0] = 0x45u8; // 'E'
@@ -692,6 +808,33 @@ fn compute_k_3_iv_3(
     iv_3[..].copy_from_slice(&iv_3_buf[..AES_CCM_IV_LEN]);
 
     (k_3, iv_3)
+}
+
+fn compute_k_4_iv_4(
+    crypto: &mut impl CryptoTrait,
+    prk_4e3m: &BytesHashLen,
+    th_4: &BytesHashLen,
+) -> (BytesCcmKeyLen, BytesCcmIvLen) {
+    // K_4 = EDHOC-KDF( PRK_4e3m, ?? , TH_4,      key_length )
+    let mut k_4: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
+    let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+    th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
+    let k_4_buf = edhoc_kdf(
+        crypto,
+        prk_4e3m,
+        8u8, // FIXME
+        &th_4_buf,
+        th_4.len(),
+        AES_CCM_KEY_LEN,
+    );
+    k_4[..].copy_from_slice(&k_4_buf[..AES_CCM_KEY_LEN]);
+
+    // IV_3 = EDHOC-KDF( PRK_4e3m, ?? , TH_4,      iv_length )
+    let mut iv_4: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
+    let iv_4_buf = edhoc_kdf(crypto, prk_4e3m, 9u8, &th_4_buf, th_4.len(), AES_CCM_IV_LEN);
+    iv_4[..].copy_from_slice(&iv_4_buf[..AES_CCM_IV_LEN]);
+
+    (k_4, iv_4)
 }
 
 // calculates ciphertext_3 wrapped in a cbor byte string
@@ -761,6 +904,74 @@ fn decrypt_message_3(
     let enc_structure = encode_enc_structure(th_3);
 
     crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3)
+}
+
+fn encrypt_message_4(
+    crypto: &mut impl CryptoTrait,
+    prk_4e3m: &BytesHashLen,
+    th_4: &BytesHashLen,
+    plaintext_4: &BufferPlaintext4,
+) -> BufferMessage4 {
+    let mut output: BufferMessage4 = BufferMessage4::new();
+    let bytestring_length = plaintext_4.len + AES_CCM_TAG_LEN;
+    let prefix_length;
+    // FIXME: Reuse CBOR encoder
+    if bytestring_length < 24 {
+        output.content[0] = CBOR_MAJOR_BYTE_STRING | (bytestring_length) as u8;
+        prefix_length = 1;
+    } else {
+        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+        output.content[0] = CBOR_MAJOR_BYTE_STRING | 24;
+        output.content[1] = bytestring_length as _;
+        prefix_length = 2;
+    };
+    output.len = prefix_length + bytestring_length;
+    // FIXME: Make the function fallible, especially with the prospect of algorithm agility
+    assert!(
+        output.len <= MAX_MESSAGE_SIZE_LEN,
+        "Tried to encode a message that is too large."
+    );
+
+    let enc_structure = encode_enc_structure(th_4);
+
+    let (k_4, iv_4) = compute_k_4_iv_4(crypto, prk_4e3m, th_4);
+
+    let ciphertext_4 = crypto.aes_ccm_encrypt_tag_8(&k_4, &iv_4, &enc_structure[..], plaintext_4);
+
+    output.content[prefix_length..][..ciphertext_4.len].copy_from_slice(ciphertext_4.as_slice());
+
+    output
+}
+
+fn decrypt_message_4(
+    crypto: &mut impl CryptoTrait,
+    prk_4e3m: &BytesHashLen,
+    th_4: &BytesHashLen,
+    message_4: &BufferMessage4,
+) -> Result<BufferPlaintext4, EDHOCError> {
+    // decode message_3
+    let bytestring_length: usize;
+    let prefix_length;
+    // FIXME: Reuse CBOR decoder
+    if (0..=23).contains(&(message_4.content[0] ^ CBOR_MAJOR_BYTE_STRING)) {
+        bytestring_length = (message_4.content[0] ^ CBOR_MAJOR_BYTE_STRING).into();
+        prefix_length = 1;
+    } else {
+        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+        bytestring_length = message_4.content[1].into();
+        prefix_length = 2;
+    }
+
+    let mut ciphertext_4: BufferCiphertext4 = BufferCiphertext4::new();
+    ciphertext_4.len = bytestring_length;
+    ciphertext_4.content[..bytestring_length]
+        .copy_from_slice(&message_4.content[prefix_length..][..bytestring_length]);
+
+    let (k_4, iv_4) = compute_k_4_iv_4(crypto, prk_4e3m, th_4);
+
+    let enc_structure = encode_enc_structure(th_4);
+
+    crypto.aes_ccm_decrypt_tag_8(&k_4, &iv_4, &enc_structure, &ciphertext_4)
 }
 
 // output must hold id_cred.len() + cred.len()
@@ -1069,6 +1280,11 @@ mod tests {
     const MESSAGE_3_TV: &str = "52e562097bc417dd5919485ac7891ffd90a9fc";
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("81cc8a298e357044e3c466bb5c0a1e507e01d49238aeba138df94635407c0ff7");
+        const MESSAGE_4_TV: &str = "4828c966b7ca304f83";
+    const CIPHERTEXT_4_TV: &str = "28c966b7ca304f83";
+    const PLAINTEXT_4_TV: &str = "";
+    const K_4_TV: BytesCcmKeyLen = hex!("d3c77872b6eeb508911bdbd308b2e6a0");
+    const IV_4_TV: BytesCcmIvLen = hex!("04ff0f44456e96e217853c3601");
     const CRED_I_TV : [u8; 107] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a5010202412b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const ID_CRED_R_TV: BytesIdCred = hex!("a1044132");
     const CRED_R_TV : [u8; 95] = hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
@@ -1433,6 +1649,48 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_decode_plaintext_4() {
+        let plaintext_4_tv = BufferPlaintext2::from_hex(PLAINTEXT_4_TV);
+
+        let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
+        assert!(plaintext_4.is_ok());
+        let (ead_4) = plaintext_4.unwrap();
+        assert!(ead_4.is_none());
+    }
+
+    #[test]
+    fn test_encrypt_message_4() {
+        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
+        let message_4_tv = BufferMessage4::from_hex(MESSAGE_4_TV);
+
+        let message_4 = encrypt_message_4(
+            &mut default_crypto(),
+            &PRK_4E3M_TV,
+            &TH_4_TV,
+            &plaintext_4_tv,
+        );
+        assert_eq!(message_4, message_4_tv);
+    }
+
+    #[test]
+    fn test_decrypt_message_4() {
+        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
+        let message_4_tv = BufferMessage3::from_hex(MESSAGE_4_TV);
+
+        let plaintext_4 =
+            decrypt_message_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV, &message_4_tv);
+        assert!(plaintext_4.is_ok());
+        assert_eq!(plaintext_4.unwrap(), plaintext_4_tv);
+    }
+
+    #[test]
+    fn test_compute_k_4_iv_4() {
+        let (k_4, iv_4) = compute_k_4_iv_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV);
+        assert_eq!(k_4, K_4_TV);
+        assert_eq!(iv_4, IV_4_TV);
+    }
+    
     #[test]
     fn test_compute_prk_4e3m() {
         let prk_4e3m = compute_prk_4e3m(&mut default_crypto(), &SALT_4E3M_TV, &SK_I_TV, &G_Y_TV);

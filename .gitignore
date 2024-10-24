@@ -21,3 +21,8 @@ cscope*
 .vscode
 
 *.log
+
+color-map-gpi
+memory/
+old_results/
+plots/

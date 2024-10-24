@@ -57,6 +57,12 @@ pub struct EdhocInitiatorProcessedM2<Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
+pub struct EdhocInitiatorWaitM4<Crypto: CryptoTrait> {
+    state: WaitM4, // opaque state
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
     state: Completed,
     crypto: Crypto,
@@ -88,6 +94,12 @@ pub struct EdhocResponderWaitM3<Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocResponderProcessingM3<Crypto: CryptoTrait> {
     state: ProcessingM3, // opaque state
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
+pub struct EdhocResponderProcessedM3<Crypto: CryptoTrait> {
+    state: ProcessedM3, // opaque state
     crypto: Crypto,
 }
 
@@ -197,18 +209,74 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
     pub fn verify_message_3(
         mut self,
         cred_i: Credential,
-    ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+    ) -> Result<(EdhocResponderProcessedM3<Crypto>, [u8; SHA256_DIGEST_LEN], [u8; SHA256_DIGEST_LEN]), EDHOCError> {
         trace!("Enter verify_message_3");
         match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
-            Ok((state, prk_out)) => Ok((
-                EdhocResponderDone {
+            Ok((state, prk_out, prk_exporter)) => Ok((
+                EdhocResponderProcessedM3 {
                     state,
                     crypto: self.crypto,
                 },
                 prk_out,
+                prk_exporter,
             )),
             Err(error) => Err(error),
         }
+    }
+}
+
+impl<Crypto: CryptoTrait> EdhocResponderProcessedM3<Crypto> {
+    pub fn prepare_message_4(
+        mut self,
+        ead_4: &Option<EADItem>,
+    ) -> Result<(
+        EdhocResponderDone<Crypto>, 
+        BufferMessage4
+    ), EDHOCError> {
+        trace!("Enter prepare_message_4");
+        match r_prepare_message_4(
+            &self.state,
+            &mut self.crypto,
+            ead_4,
+        ) {
+            Ok((state, message_4)) => Ok((
+                EdhocResponderDone {
+                    state,
+                    crypto: self.crypto,
+                },
+                message_4,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+    pub fn edhoc_exporter(
+        &mut self,
+        label: u8,
+        context: &[u8],
+        length: usize,
+    ) -> [u8; MAX_BUFFER_LEN] {
+        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        edhoc_exporter(
+            &self.state,
+            &mut self.crypto,
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        )
+    }
+    pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
+        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        edhoc_key_update(
+            &mut self.state,
+            &mut self.crypto,
+            &context_buf,
+            context.len(),
+        )
     }
 }
 
@@ -374,8 +442,9 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
         ead_3: &Option<EADItem>,
     ) -> Result<
         (
-            EdhocInitiatorDone<Crypto>,
+            EdhocInitiatorWaitM4<Crypto>,
             BufferMessage3,
+            [u8; SHA256_DIGEST_LEN],
             [u8; SHA256_DIGEST_LEN],
         ),
         EDHOCError,
@@ -391,16 +460,72 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
             cred_transfer,
             ead_3,
         ) {
-            Ok((state, message_3, prk_out)) => Ok((
-                EdhocInitiatorDone {
+            Ok((state, message_3, prk_out, prk_exporter)) => Ok((
+                EdhocInitiatorWaitM4 {
                     state,
                     crypto: self.crypto,
                 },
                 message_3,
                 prk_out,
+                prk_exporter,
             )),
             Err(error) => Err(error),
         }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
+    pub fn process_message_4(
+        mut self,
+        message_4: &'a BufferMessage4,
+    ) -> Result<
+        (
+            EdhocInitiatorDone<Crypto>,
+            Option<EADItem>,
+        ),
+        EDHOCError,
+    > {
+        trace!("Enter parse_message_4");
+        match i_process_message_4(&mut self.state, &mut self.crypto, message_4) {
+            Ok((state, ead_4)) => Ok ((
+                EdhocInitiatorDone {
+                    state: state,
+                    crypto: self.crypto,
+                },
+                ead_4,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+    pub fn edhoc_exporter(
+        &mut self,
+        label: u8,
+        context: &[u8],
+        length: usize,
+    ) -> [u8; MAX_BUFFER_LEN] {
+        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        edhoc_exporter(
+            &self.state,
+            &mut self.crypto,
+            label,
+            &context_buf,
+            context.len(),
+            length,
+        )
+    }
+
+    pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
+        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
+        context_buf[..context.len()].copy_from_slice(context);
+
+        edhoc_key_update(
+            &mut self.state,
+            &mut self.crypto,
+            &context_buf,
+            context.len(),
+        )
     }
 }
 
@@ -648,7 +773,7 @@ mod test {
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
         // if needed: prepare ead_3
-        let (mut initiator, message_3, i_prk_out) = initiator
+        let (mut initiator, message_3, i_prk_out, i_prk_exporter) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
         // ---- end initiator handling
@@ -656,9 +781,14 @@ mod test {
         // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-        // if ead_3: process ead_3
-        let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
+        let (mut responder, r_prk_out, r_prk_exporter) = responder.verify_message_3(valid_cred_i).unwrap();
+
+        // Send message_4
+        let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
         // ---- end responder handling
+
+        let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+        // ---- end initiator handling
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
