@@ -60,6 +60,8 @@ async fn main(spawner: Spawner) {
         mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
     }
 
+    info!("Responder started, will wait for messages");
+
     loop {
         let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];
         let mut c_r: Option<ConnId> = None;
