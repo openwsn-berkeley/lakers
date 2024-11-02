@@ -53,12 +53,12 @@ async fn main(spawner: Spawner) {
     radio.set_crc_poly(CRC_POLY);
 
     // Memory buffer for mbedtls
-    // #[cfg(feature = "crypto-psa")]
-    // let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    // #[cfg(feature = "crypto-psa")]
-    // unsafe {
-    //     mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
-    // }
+    #[cfg(feature = "crypto-psa")]
+    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    #[cfg(feature = "crypto-psa")]
+    unsafe {
+        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    }
 
     loop {
         let mut buffer: [u8; MAX_PDU] = [0x00u8; MAX_PDU];

@@ -59,12 +59,12 @@ async fn main(spawner: Spawner) {
     info!("init_handshake");
 
     // Memory buffer for mbedtls
-    // #[cfg(feature = "crypto-psa")]
-    // let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
-    // #[cfg(feature = "crypto-psa")]
-    // unsafe {
-    //     mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
-    // }
+    #[cfg(feature = "crypto-psa")]
+    let mut buffer: [c_char; 4096 * 2] = [0; 4096 * 2];
+    #[cfg(feature = "crypto-psa")]
+    unsafe {
+        mbedtls_memory_buffer_alloc_init(buffer.as_mut_ptr(), buffer.len());
+    }
 
     let cred_i = Credential::parse_ccs(common::CRED_I.try_into().unwrap()).unwrap();
     let cred_r = Credential::parse_ccs(common::CRED_R.try_into().unwrap()).unwrap();
