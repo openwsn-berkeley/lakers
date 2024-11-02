@@ -1,68 +1,7 @@
 use lakers_shared::{Crypto as CryptoTrait, *};
 
-pub trait Done {
-    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN];
-    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN];
-    fn update_keys(
-        &mut self,
-        new_prk_out: &[u8; SHA256_DIGEST_LEN],
-        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
-    );
-}
-
-impl Done for WaitM4 {
-    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_exporter
-    }
-    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_out
-    }
-    fn update_keys(
-        &mut self,
-        new_prk_out: &[u8; SHA256_DIGEST_LEN],
-        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
-    ) {
-        self.prk_out.copy_from_slice(new_prk_out);
-        self.prk_exporter.copy_from_slice(new_prk_exporter);
-    }
-}
-
-impl Done for Completed {
-    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_exporter
-    }
-    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_out
-    }
-    fn update_keys(
-        &mut self,
-        new_prk_out: &[u8; SHA256_DIGEST_LEN],
-        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
-    ) {
-        self.prk_out.copy_from_slice(new_prk_out);
-        self.prk_exporter.copy_from_slice(new_prk_exporter);
-    }
-}
-
-impl Done for ProcessedM3 {
-    fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_exporter
-    }
-    fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
-        &self.prk_out
-    }
-    fn update_keys(
-        &mut self,
-        new_prk_out: &[u8; SHA256_DIGEST_LEN],
-        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
-    ) {
-        self.prk_out.copy_from_slice(new_prk_out);
-        self.prk_exporter.copy_from_slice(new_prk_exporter);
-    }
-}
-
 pub fn edhoc_exporter(
-    state: &impl Done,
+    state: &Completed,
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &BytesMaxContextBuffer,
@@ -71,7 +10,7 @@ pub fn edhoc_exporter(
 ) -> BytesMaxBuffer {
     edhoc_kdf(
         crypto,
-        state.get_prk_exporter(),
+        &state.prk_exporter,
         label,
         context,
         context_len,
@@ -80,39 +19,34 @@ pub fn edhoc_exporter(
 }
 
 pub fn edhoc_key_update(
-    state: &mut impl Done,
+    state: &mut Completed,
     crypto: &mut impl CryptoTrait,
     context: &BytesMaxContextBuffer,
     context_len: usize,
 ) -> BytesHashLen {
-    // Calculate new PRK_out
+    // new PRK_out
     let prk_new_buf = edhoc_kdf(
         crypto,
-        state.get_prk_out(),
+        &state.prk_out,
         11u8,
         context,
         context_len,
         SHA256_DIGEST_LEN,
     );
-    let mut new_prk_out = [0u8; SHA256_DIGEST_LEN];
-    new_prk_out.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    // Calculate new PRK_exporter
-    let prk_exporter_buf = edhoc_kdf(
+    // new PRK_exporter
+    let prk_new_buf = edhoc_kdf(
         crypto,
-        &new_prk_out,
+        &state.prk_out,
         10u8,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         SHA256_DIGEST_LEN,
     );
-    let mut new_prk_exporter = [0u8; SHA256_DIGEST_LEN];
-    new_prk_exporter.copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
+    state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    // Update state with new keys
-    state.update_keys(&new_prk_out, &new_prk_exporter);
-
-    new_prk_out
+    state.prk_out
 }
 
 pub fn r_process_message_1(
@@ -250,7 +184,7 @@ pub fn r_verify_message_3(
     state: &mut ProcessingM3,
     crypto: &mut impl CryptoTrait,
     valid_cred_i: Credential,
-) -> Result<(ProcessedM3, BytesHashLen, BytesHashLen), EDHOCError> {
+) -> Result<(ProcessedM3, BytesHashLen), EDHOCError> {
     // compute salt_4e3m
     let salt_4e3m = compute_salt_4e3m(crypto, &state.prk_3e2m, &state.th_3);
 
@@ -316,7 +250,6 @@ pub fn r_verify_message_3(
                 prk_exporter: prk_exporter,
             },
             prk_out,
-            prk_exporter,
         ))
     } else {
         Err(EDHOCError::MacVerificationFailed)
@@ -339,6 +272,13 @@ pub fn r_prepare_message_4(
         },
         message_4,
     ))
+}
+
+pub fn r_complete_without_message_4(state: &ProcessedM3) -> Result<Completed, EDHOCError> {
+    Ok(Completed {
+        prk_out: state.prk_out,
+        prk_exporter: state.prk_exporter,
+    })
 }
 
 pub fn i_prepare_message_1(
@@ -464,7 +404,7 @@ pub fn i_prepare_message_3(
     cred_i: Credential,
     cred_transfer: CredentialTransfer,
     ead_3: &Option<EADItem>, // FIXME: make it a list of EADItem
-) -> Result<(WaitM4, BufferMessage3, BytesHashLen, BytesHashLen), EDHOCError> {
+) -> Result<(WaitM4, BufferMessage3, BytesHashLen), EDHOCError> {
     let id_cred_i = match cred_transfer {
         CredentialTransfer::ByValue => cred_i.by_value()?,
         CredentialTransfer::ByReference => cred_i.by_kid()?,
@@ -522,7 +462,6 @@ pub fn i_prepare_message_3(
         },
         message_3,
         prk_out,
-        prk_exporter,
     ))
 }
 
@@ -545,6 +484,13 @@ pub fn i_process_message_4(
     } else {
         Err(decoded_p4_res.unwrap_err())
     }
+}
+
+pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCError> {
+    Ok(Completed {
+        prk_out: state.prk_out,
+        prk_exporter: state.prk_exporter,
+    })
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
@@ -960,7 +906,7 @@ fn decrypt_message_4(
     th_4: &BytesHashLen,
     message_4: &BufferMessage4,
 ) -> Result<BufferPlaintext4, EDHOCError> {
-    // decode message_3
+    // decode message_4
     let bytestring_length: usize;
     let prefix_length;
     // FIXME: Reuse CBOR decoder

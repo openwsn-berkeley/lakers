@@ -108,14 +108,11 @@ fn main() {
                 };
                 let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-                let Ok((mut responder, prk_out, prk_exporter)) =
-                    responder.verify_message_3(valid_cred_i)
-                else {
+                let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };
-                let ead_4 = None;
-                let (mut responder, message_4) = responder.prepare_message_4(&ead_4).unwrap();
+                let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
                 // send empty ack back
                 response.message.payload = b"".to_vec();
 

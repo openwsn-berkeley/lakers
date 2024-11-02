@@ -94,7 +94,7 @@ async fn main(spawner: Spawner) {
             let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
             let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
-            let (mut initiator, message_3, i_prk_out, i_prk_out_exporter) = initiator
+            let (mut initiator, message_3, i_prk_out) = initiator
                 .prepare_message_3(CredentialTransfer::ByReference, &None)
                 .unwrap();
             let pckt_3 =
