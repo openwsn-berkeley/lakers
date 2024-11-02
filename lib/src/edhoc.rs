@@ -1,34 +1,46 @@
 use lakers_shared::{Crypto as CryptoTrait, *};
 
-// Implementation of edhoc_exporter for 3 or 4 messages
 pub trait Done {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN];
-    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN];
     fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN];
+    fn update_keys(
+        &mut self,
+        new_prk_out: &[u8; SHA256_DIGEST_LEN],
+        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
+    );
 }
-// Implement for different states
+
 impl Done for WaitM4 {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
-    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
-        &mut self.prk_out
-    }
     fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_out
     }
+    fn update_keys(
+        &mut self,
+        new_prk_out: &[u8; SHA256_DIGEST_LEN],
+        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
+    ) {
+        self.prk_out.copy_from_slice(new_prk_out);
+        self.prk_exporter.copy_from_slice(new_prk_exporter);
+    }
 }
 
-// Implement for both state types
 impl Done for Completed {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
-    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
-        &mut self.prk_out
-    }
     fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_out
+    }
+    fn update_keys(
+        &mut self,
+        new_prk_out: &[u8; SHA256_DIGEST_LEN],
+        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
+    ) {
+        self.prk_out.copy_from_slice(new_prk_out);
+        self.prk_exporter.copy_from_slice(new_prk_exporter);
     }
 }
 
@@ -36,11 +48,16 @@ impl Done for ProcessedM3 {
     fn get_prk_exporter(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_exporter
     }
-    fn get_prk_out_mut(&mut self) -> &mut [u8; SHA256_DIGEST_LEN] {
-        &mut self.prk_out
-    }
     fn get_prk_out(&self) -> &[u8; SHA256_DIGEST_LEN] {
         &self.prk_out
+    }
+    fn update_keys(
+        &mut self,
+        new_prk_out: &[u8; SHA256_DIGEST_LEN],
+        new_prk_exporter: &[u8; SHA256_DIGEST_LEN],
+    ) {
+        self.prk_out.copy_from_slice(new_prk_out);
+        self.prk_exporter.copy_from_slice(new_prk_exporter);
     }
 }
 
@@ -68,37 +85,34 @@ pub fn edhoc_key_update(
     context: &BytesMaxContextBuffer,
     context_len: usize,
 ) -> BytesHashLen {
-    // new PRK_out
-    let mut prk_out = *state.get_prk_out();
-    let mut prk_exporter = *state.get_prk_exporter();
+    // Calculate new PRK_out
     let prk_new_buf = edhoc_kdf(
         crypto,
-        &prk_out,
+        state.get_prk_out(),
         11u8,
         context,
         context_len,
         SHA256_DIGEST_LEN,
     );
-    prk_out.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    let mut new_prk_out = [0u8; SHA256_DIGEST_LEN];
+    new_prk_out.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
-    // new PRK_exporter
-    let prk_new_buf = edhoc_kdf(
+    // Calculate new PRK_exporter
+    let prk_exporter_buf = edhoc_kdf(
         crypto,
-        &prk_out,
+        &new_prk_out,
         10u8,
         &[0x00; MAX_KDF_CONTEXT_LEN],
         0,
         SHA256_DIGEST_LEN,
     );
-    prk_exporter.copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    let mut new_prk_exporter = [0u8; SHA256_DIGEST_LEN];
+    new_prk_exporter.copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
-    // Update state
-    state.get_prk_out_mut().copy_from_slice(&prk_out);
-    state
-        .get_prk_out_mut()
-        .copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
+    // Update state with new keys
+    state.update_keys(&new_prk_out, &new_prk_exporter);
 
-    prk_out
+    new_prk_out
 }
 
 pub fn r_process_message_1(
