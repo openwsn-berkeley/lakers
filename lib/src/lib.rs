@@ -918,7 +918,7 @@ mod test_authz {
             .unwrap();
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
-        let (mut _initiator, message_3, i_prk_out) = initiator
+        let (mut _initiator, message_3, i_prk_out, i_prk_exporter) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
 
@@ -928,7 +928,8 @@ mod test_authz {
         } else {
             id_cred_i.get_ccs().unwrap()
         };
-        let (mut _responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
+        let (mut _responder, r_prk_out, r_prk_exporter) =
+            responder.verify_message_3(valid_cred_i).unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
