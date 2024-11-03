@@ -140,6 +140,9 @@ fn main() -> ! {
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
         let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
+        let initiator = initiator.completed_without_message_4().unwrap();
+        let responder = responder.completed_without_message_4().unwrap();
+
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
 
