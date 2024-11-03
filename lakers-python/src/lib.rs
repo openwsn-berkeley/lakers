@@ -2,7 +2,6 @@
 /// Note that this module is not restricted by no_std.
 use lakers::*;
 // use lakers_ead_authz::consts::*;
-use env_logger;
 use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::wrap_pyfunction;
@@ -72,8 +71,10 @@ impl AutoCredential {
 #[pyo3(name = "lakers")]
 fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // initialize the logger once when the module is imported
-    if env_logger::try_init().is_ok() {
-        trace!("lakers-python initialized from Rust side.");
+    if !pyo3_log::try_init().is_ok() {
+        // Not logging anything in the successful case as per pyo3_log recommendations: That would
+        // cache the current logging configuration, which likely changes soon after the imports.
+        log::error!("lakers-python failed to set up (different logger configured?)");
     }
 
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
