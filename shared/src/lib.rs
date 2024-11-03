@@ -390,7 +390,7 @@ pub struct ProcessingM3 {
     pub ead_3: Option<EADItem>,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct PreparingM3 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -398,7 +398,7 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProcessedM3 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,
@@ -406,7 +406,7 @@ pub struct ProcessedM3 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,

@@ -11,6 +11,7 @@ pub struct PyEdhocResponder {
     processing_m1: ProcessingM1,
     wait_m3: WaitM3,
     processing_m3: ProcessingM3,
+    processed_m3: ProcessedM3,
     completed: Completed,
 }
 
@@ -34,6 +35,7 @@ impl PyEdhocResponder {
             processing_m1: ProcessingM1::default(),
             wait_m3: WaitM3::default(),
             processing_m3: ProcessingM3::default(),
+            processed_m3: ProcessedM3::default(),
             completed: Completed::default(),
         })
     }
@@ -112,8 +114,33 @@ impl PyEdhocResponder {
         let valid_cred_i = valid_cred_i.to_credential()?;
         match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {
             Ok((state, prk_out)) => {
-                self.completed = state;
+                self.processed_m3 = state;
                 Ok(PyBytes::new_bound(py, prk_out.as_slice()))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    #[pyo3(signature = (ead_4=None))]
+    fn prepare_message_4<'a>(
+        &mut self,
+        py: Python<'a>,
+        ead_4: Option<EADItem>,
+    ) -> PyResult<Bound<'a, PyBytes>> {
+        match r_prepare_message_4(&self.processed_m3, &mut default_crypto(), &ead_4) {
+            Ok((state, message_4)) => {
+                self.completed = state;
+                Ok(PyBytes::new_bound(py, message_4.as_slice()))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
+        match r_complete_without_message_4(&self.processed_m3) {
+            Ok(state) => {
+                self.completed = state;
+                Ok(())
             }
             Err(error) => Err(error.into()),
         }
