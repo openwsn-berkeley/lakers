@@ -15,6 +15,7 @@ pub struct EdhocInitiator {
     pub wait_m2: WaitM2,
     pub processing_m2: ProcessingM2C,
     pub processed_m2: ProcessedM2,
+    pub wait_m4: WaitM4,
     pub cred_i: *mut CredentialC,
     pub completed: Completed,
 }
@@ -181,9 +182,59 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
         &ead_3,
     ) {
         Ok((state, msg_3, prk_out)) => {
-            (*initiator_c).completed = state;
+            (*initiator_c).wait_m4 = state;
             *message_3 = msg_3;
             *prk_out_c = prk_out;
+            0
+        }
+        Err(err) => err as i8,
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn initiator_process_message_4(
+    // input params
+    initiator_c: *mut EdhocInitiator,
+    message_4: *const EdhocMessageBuffer,
+    // output params
+    ead_4_c_out: *mut EADItemC,
+) -> i8 {
+    // this is a parsing function, so all output parameters are mandatory
+    if initiator_c.is_null() || message_4.is_null() || ead_4_c_out.is_null() {
+        return -1;
+    }
+    let crypto = &mut default_crypto();
+
+    let mut state = core::ptr::read(&(*initiator_c).wait_m4);
+
+    let result = match i_process_message_4(&mut state, crypto, &(*message_4)) {
+        Ok((state, ead_4)) => {
+            (*initiator_c).completed = state;
+            if let Some(ead_4) = ead_4 {
+                EADItemC::copy_into_c(ead_4, ead_4_c_out);
+            }
+
+            0
+        }
+        Err(err) => err as i8,
+    };
+
+    result
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn completed_without_message_4(
+    // input params
+    initiator_c: *mut EdhocInitiator,
+) -> i8 {
+    if initiator_c.is_null() {
+        return -1;
+    }
+    let state = core::ptr::read(&(*initiator_c).wait_m4);
+
+    match i_complete_without_message_4(&state) {
+        Ok(state) => {
+            (*initiator_c).completed = state;
             0
         }
         Err(err) => err as i8,
