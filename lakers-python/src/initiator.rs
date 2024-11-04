@@ -3,14 +3,19 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
+use super::StateMismatch;
+
 #[pyclass(name = "EdhocInitiator")]
 pub struct PyEdhocInitiator {
     cred_i: Option<Credential>,
+    // FIXME: This does *not* get taken out, so some data stays available for longer than it needs
+    // to be -- but that is apparently needed in selected_cipher_suite and
+    // compute_ephemeral_secret.
     start: InitiatorStart,
-    wait_m2: WaitM2,
-    processing_m2: ProcessingM2,
-    processed_m2: ProcessedM2,
-    completed: Completed,
+    wait_m2: Option<WaitM2>,
+    processing_m2: Option<ProcessingM2>,
+    processed_m2: Option<ProcessedM2>,
+    completed: Option<Completed>,
 }
 
 #[pymethods]
@@ -31,10 +36,10 @@ impl PyEdhocInitiator {
                 method: EDHOCMethod::StatStat.into(),
                 suites_i,
             },
-            wait_m2: WaitM2::default(),
-            processing_m2: ProcessingM2::default(),
-            processed_m2: ProcessedM2::default(),
-            completed: Completed::default(),
+            wait_m2: None,
+            processing_m2: None,
+            processed_m2: None,
+            completed: None,
         }
     }
 
@@ -54,7 +59,7 @@ impl PyEdhocInitiator {
 
         match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1) {
             Ok((state, message_1)) => {
-                self.wait_m2 = state;
+                self.wait_m2 = Some(state);
                 Ok(PyBytes::new_bound(py, message_1.as_slice()))
             }
             Err(error) => Err(error.into()),
@@ -68,9 +73,13 @@ impl PyEdhocInitiator {
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
-        match i_parse_message_2(&self.wait_m2, &mut default_crypto(), &message_2) {
+        match i_parse_message_2(
+            &self.wait_m2.take().ok_or(StateMismatch)?,
+            &mut default_crypto(),
+            &message_2,
+        ) {
             Ok((state, c_r, id_cred_r, ead_2)) => {
-                self.processing_m2 = state;
+                self.processing_m2 = Some(state);
                 Ok((
                     PyBytes::new_bound(py, c_r.as_slice()),
                     PyBytes::new_bound(py, id_cred_r.bytes.as_slice()),
@@ -91,7 +100,7 @@ impl PyEdhocInitiator {
         let valid_cred_r = valid_cred_r.to_credential()?;
 
         match i_verify_message_2(
-            &self.processing_m2,
+            &self.processing_m2.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             valid_cred_r,
             i.as_slice()
@@ -99,7 +108,7 @@ impl PyEdhocInitiator {
                 .expect("Wrong length of initiator private key"),
         ) {
             Ok(state) => {
-                self.processed_m2 = state;
+                self.processed_m2 = Some(state);
                 self.cred_i = Some(cred_i);
                 Ok(())
             }
@@ -115,14 +124,14 @@ impl PyEdhocInitiator {
         ead_3: Option<EADItem>,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
         match i_prepare_message_3(
-            &mut self.processed_m2,
+            &mut self.processed_m2.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             self.cred_i.unwrap(),
             cred_transfer,
             &ead_3,
         ) {
             Ok((state, message_3, prk_out)) => {
-                self.completed = state;
+                self.completed = Some(state);
                 Ok((
                     PyBytes::new_bound(py, message_3.as_slice()),
                     PyBytes::new_bound(py, prk_out.as_slice()),
@@ -143,7 +152,7 @@ impl PyEdhocInitiator {
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
         let res = edhoc_exporter(
-            &self.completed,
+            self.completed.as_ref().ok_or(StateMismatch)?,
             &mut default_crypto(),
             label,
             &context_buf,
@@ -162,7 +171,7 @@ impl PyEdhocInitiator {
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
         let res = edhoc_key_update(
-            &mut self.completed,
+            self.completed.as_mut().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &context_buf,
             context.len(),
@@ -171,7 +180,10 @@ impl PyEdhocInitiator {
     }
 
     pub fn get_h_message_1<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
-        Ok(PyBytes::new_bound(py, &self.wait_m2.h_message_1[..]))
+        Ok(PyBytes::new_bound(
+            py,
+            &self.wait_m2.as_ref().ok_or(StateMismatch)?.h_message_1[..],
+        ))
     }
 
     pub fn compute_ephemeral_secret<'a>(
