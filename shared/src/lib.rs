@@ -91,11 +91,7 @@ pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
 
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
-/// This length includes the leading CBOR encoding byte.
-///
-/// This needs to be <= 24; allowing longer connection identifiers requires extending [`ConnId`]'s
-/// invariants to also allow more than one leading byte, and [`ConnIdType`] to extend its
-/// processing.
+/// This length includes the leading CBOR encoding byte(s).
 const MAX_CONNID_ENCODED_LEN: usize = 8;
 
 pub type BytesSuites = [u8; SUITES_LEN];
@@ -140,25 +136,40 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 #[derive(Default)]
 pub struct ConnId([u8; MAX_CONNID_ENCODED_LEN]);
 
+/// Classifier for the content of [`ConnId`]; used internally in its implementation.
 enum ConnIdType {
+    /// The ID contains a single positive or negative number, expressed in its first byte.
     SingleByte,
-    ByteString(usize),
+    /// The ID contains a byte string, and the first byte of the ID indicates its length.
+    ///
+    /// It is expected that if longer connection IDs than 1+0+n are ever supported, this will be
+    /// renamed to ByteString10n, and longer variants get their own class.
+    ByteString(u8),
 }
 
 impl ConnIdType {
+    const _IMPL_CONSTRAINTS: () = assert!(
+        MAX_CONNID_ENCODED_LEN <= 1 + 23,
+        "Longer connection IDs require more elaborate decoding here"
+    );
+
+    /// Returns a classifier based on an initial byte.
+    ///
+    /// Its signature will need to change if ever connection IDs longer than 1+0+n are supported.
     fn classify(byte: u8) -> Option<Self> {
         if byte >> 5 <= 1 && byte & 0x1f < 24 {
             return Some(ConnIdType::SingleByte);
         } else if byte >> 5 == 2 && byte & 0x1f < 24 {
-            return Some(ConnIdType::ByteString((byte & 0x1f).into()));
+            return Some(ConnIdType::ByteString(byte & 0x1f));
         }
         None
     }
 
+    /// Returns the number of bytes in the [`ConnId`]'s buffer.
     fn length(&self) -> usize {
         match self {
             ConnIdType::SingleByte => 1,
-            ConnIdType::ByteString(n) => 1 + n,
+            ConnIdType::ByteString(n) => (1 + n).into(),
         }
     }
 }
@@ -169,14 +180,22 @@ impl ConnId {
     /// type.
     ///
     /// Evolving from u8-only values, this could later interact with the decoder directly.
+    #[deprecated(
+        note = "This API is only capable of generating a limited sub-set of the supported identifiers."
+    )]
     pub const fn from_int_raw(raw: u8) -> Self {
         debug_assert!(raw >> 5 <= 1, "Major type is not an integer");
         debug_assert!(raw & 0x1f < 24, "Value is not immediate");
+        // We might allow '' (the empty bytes tring, byte 40) as well, but the again, this API is
+        // already deprecated.
         let mut s = [0; MAX_CONNID_ENCODED_LEN];
         s[0] = raw;
         Self(s)
     }
 
+    /// The connection ID classification of this connection ID
+    ///
+    /// Due to the invariants of this type, this classification infallible.
     fn classify(&self) -> ConnIdType {
         let Some(t) = ConnIdType::classify(self.0[0]) else {
             unreachable!("Type invariant requires valid classification")
@@ -202,7 +221,7 @@ impl ConnId {
     pub fn as_slice(&self) -> &[u8] {
         match self.classify() {
             ConnIdType::SingleByte => &self.0[..1],
-            ConnIdType::ByteString(n) => &self.0[1..1 + n],
+            ConnIdType::ByteString(n) => &self.0[1..1 + usize::from(n)],
         }
     }
 
@@ -217,7 +236,7 @@ impl ConnId {
     /// assert_eq!(c_i.as_cbor(), &[0x04]);
     /// ```
     ///
-    /// For other IDs, this contains an extra byte header (but those are currently unsupported):
+    /// For other IDs, this contains an extra byte header:
     ///
     /// ```
     /// # use lakers_shared::ConnId;
@@ -228,7 +247,7 @@ impl ConnId {
         &self.0[..self.classify().length()]
     }
 
-    /// Try to construct a ConnId from a slice.
+    /// Try to construct a [`ConnId`] from a slice that represents its string value.
     ///
     /// This is the inverse of [Self::as_slice], and returns None if the identifier is too long
     /// (or, if only the compact 48 values are supported, outside of that range).
@@ -239,8 +258,8 @@ impl ConnId {
     /// let c_i = ConnId::from_slice(c_i).unwrap();
     /// assert!(c_i.as_slice() == &[0x04]);
     ///
-    /// let long = ConnId::from_slice(&[0x12, 0x34]).unwrap();
-    /// assert!(long.as_slice() == &[0x12, 0x34]);
+    /// let c_i = ConnId::from_slice(&[0x12, 0x34]).unwrap();
+    /// assert!(c_i.as_slice() == &[0x12, 0x34]);
     /// ```
     pub fn from_slice(input: &[u8]) -> Option<Self> {
         if input.len() > MAX_CONNID_ENCODED_LEN - 1 {
