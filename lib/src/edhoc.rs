@@ -1096,8 +1096,9 @@ mod tests {
     // invalid test vectors, should result in a parsing error
     const MESSAGE_1_INVALID_ARRAY_TV: &str =
         "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    // This is invalid because the h'0e' byte string is a text string instead
     const MESSAGE_1_INVALID_C_I_TV: &str =
-        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9610e";
     const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
         "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
     const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
