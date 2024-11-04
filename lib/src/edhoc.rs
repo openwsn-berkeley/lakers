@@ -776,7 +776,7 @@ fn encode_kdf_context(
     let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
 
     let mut output_len = if let Some(c_r) = c_r {
-        let c_r = c_r.as_slice();
+        let c_r = c_r.as_cbor();
         output[..c_r.len()].copy_from_slice(c_r);
         c_r.len()
     } else {
