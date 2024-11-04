@@ -144,6 +144,15 @@ impl ConnId {
         Self(raw)
     }
 
+    /// Read a connection identifier from a given decoder.
+    ///
+    /// It is an error for the decoder to read anything but a small integer or a byte string, to
+    /// exceed the maximum allowed ConnId length, or to contain a byte string that should have been
+    /// encoded as a small integer.
+    pub fn from_decoder(decoder: &mut CBORDecoder<'_>) -> Result<Self, CBORError> {
+        Ok(Self(decoder.int_raw()?))
+    }
+
     /// The bytes that form the identifier (an arbitrary byte string)
     pub fn as_slice(&self) -> &[u8] {
         core::slice::from_ref(&self.0)
@@ -678,7 +687,7 @@ mod edhoc_parser {
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
             // consume c_i encoded as single-byte int (we still do not support bstr encoding)
-            let c_i = ConnId::from_int_raw(decoder.int_raw()?);
+            let c_i = ConnId::from_decoder(&mut decoder)?;
 
             // if there is still more to parse, the rest will be the EAD_1
             if rcvd_message_1.len > decoder.position() {
@@ -740,7 +749,7 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
 
-        let c_r = ConnId::from_int_raw(decoder.int_raw()?);
+        let c_r = ConnId::from_decoder(&mut decoder)?;
 
         // the id_cred may have been encoded as a single int, a byte string, or a map
         let id_cred_r = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
