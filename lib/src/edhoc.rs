@@ -511,7 +511,7 @@ fn encode_message_1(
     output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
     output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
         .copy_from_slice(&g_x[..]);
-    let c_i = c_i.as_slice();
+    let c_i = c_i.as_cbor();
     output.len = 3 + raw_suites_len + P256_ELEM_LEN + c_i.len();
     output.content[3 + raw_suites_len + P256_ELEM_LEN..][..c_i.len()].copy_from_slice(c_i);
 
@@ -858,7 +858,7 @@ fn encode_plaintext_2(
     ead_2: &Option<EADItem>,
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
-    let c_r = c_r.as_slice();
+    let c_r = c_r.as_cbor();
 
     plaintext_2
         .extend_from_slice(c_r)
