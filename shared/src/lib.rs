@@ -243,19 +243,20 @@ impl ConnId {
     /// assert!(long.as_slice() == &[0x12, 0x34]);
     /// ```
     pub fn from_slice(input: &[u8]) -> Option<Self> {
-        let mut s = [0; MAX_CONNID_ENCODED_LEN];
-        if let &[single_byte] = input {
-            if matches!(
-                ConnIdType::classify(single_byte),
-                Some(ConnIdType::SingleByte)
-            ) {
-                s[0] = single_byte;
-                return Some(Self(s));
+        if input.len() > MAX_CONNID_ENCODED_LEN - 1 {
+            None
+        } else {
+            let mut s = [0; MAX_CONNID_ENCODED_LEN];
+            if input.len() == 1
+                && matches!(ConnIdType::classify(input[0]), Some(ConnIdType::SingleByte))
+            {
+                s[0] = input[0];
+            } else {
+                s[0] = input.len() as u8 | 0x40;
+                s[1..1 + input.len()].copy_from_slice(input);
             }
+            Some(Self(s))
         }
-        s[0] = input.len() as u8 | 0x40;
-        s.get_mut(1..1 + input.len())?.copy_from_slice(input);
-        Some(Self(s))
     }
 }
 
