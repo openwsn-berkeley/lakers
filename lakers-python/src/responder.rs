@@ -3,16 +3,17 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
+use super::StateMismatch;
+
 #[pyclass(name = "EdhocResponder")]
 pub struct PyEdhocResponder {
     r: Vec<u8>,
     cred_r: Credential,
-    start: ResponderStart,
-    processing_m1: ProcessingM1,
-    wait_m3: WaitM3,
-    processing_m3: ProcessingM3,
-    processed_m3: ProcessedM3,
-    completed: Completed,
+    start: Option<ResponderStart>,
+    processing_m1: Option<ProcessingM1>,
+    wait_m3: Option<WaitM3>,
+    processing_m3: Option<ProcessingM3>,
+    completed: Option<Completed>,
 }
 
 #[pymethods]
@@ -27,16 +28,15 @@ impl PyEdhocResponder {
         Ok(Self {
             r,
             cred_r,
-            start: ResponderStart {
+            start: Some(ResponderStart {
                 method: EDHOCMethod::StatStat.into(),
                 y,
                 g_y,
-            },
-            processing_m1: ProcessingM1::default(),
-            wait_m3: WaitM3::default(),
-            processing_m3: ProcessingM3::default(),
-            processed_m3: ProcessedM3::default(),
-            completed: Completed::default(),
+            }),
+            processing_m1: None,
+            wait_m3: None,
+            processing_m3: None,
+            completed: None,
         })
     }
 
@@ -46,9 +46,12 @@ impl PyEdhocResponder {
         message_1: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
-        let (state, c_i, ead_1) =
-            r_process_message_1(&self.start, &mut default_crypto(), &message_1)?;
-        self.processing_m1 = state;
+        let (state, c_i, ead_1) = r_process_message_1(
+            &self.start.take().ok_or(StateMismatch)?,
+            &mut default_crypto(),
+            &message_1,
+        )?;
+        self.processing_m1 = Some(state);
         let c_i = PyBytes::new_bound(py, c_i.as_slice());
 
         Ok((c_i, ead_1))
@@ -75,7 +78,7 @@ impl PyEdhocResponder {
         r.copy_from_slice(self.r.as_slice());
 
         match r_prepare_message_2(
-            &self.processing_m1,
+            self.processing_m1.as_ref().ok_or(StateMismatch)?,
             &mut default_crypto(),
             self.cred_r,
             &r,
@@ -84,7 +87,7 @@ impl PyEdhocResponder {
             &ead_2,
         ) {
             Ok((state, message_2)) => {
-                self.wait_m3 = state;
+                self.wait_m3 = Some(state);
                 Ok(PyBytes::new_bound(py, message_2.as_slice()))
             }
             Err(error) => Err(error.into()),
@@ -97,9 +100,13 @@ impl PyEdhocResponder {
         message_3: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
-        match r_parse_message_3(&mut self.wait_m3, &mut default_crypto(), &message_3) {
+        match r_parse_message_3(
+            &mut self.wait_m3.take().ok_or(StateMismatch)?,
+            &mut default_crypto(),
+            &message_3,
+        ) {
             Ok((state, id_cred_i, ead_3)) => {
-                self.processing_m3 = state;
+                self.processing_m3 = Some(state);
                 Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
             }
             Err(error) => Err(error.into()),
@@ -112,9 +119,13 @@ impl PyEdhocResponder {
         valid_cred_i: super::AutoCredential,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let valid_cred_i = valid_cred_i.to_credential()?;
-        match r_verify_message_3(&mut self.processing_m3, &mut default_crypto(), valid_cred_i) {
+        match r_verify_message_3(
+            &mut self.processing_m3.take().ok_or(StateMismatch)?,
+            &mut default_crypto(),
+            valid_cred_i,
+        ) {
             Ok((state, prk_out)) => {
-                self.processed_m3 = state;
+                self.completed = Some(state);
                 Ok(PyBytes::new_bound(py, prk_out.as_slice()))
             }
             Err(error) => Err(error.into()),
@@ -157,7 +168,7 @@ impl PyEdhocResponder {
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
         let res = edhoc_exporter(
-            &self.completed,
+            self.completed.as_ref().ok_or(StateMismatch)?,
             &mut default_crypto(),
             label,
             &context_buf,
@@ -176,7 +187,7 @@ impl PyEdhocResponder {
         context_buf[..context.len()].copy_from_slice(context.as_slice());
 
         let res = edhoc_key_update(
-            &mut self.completed,
+            self.completed.as_mut().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &context_buf,
             context.len(),
