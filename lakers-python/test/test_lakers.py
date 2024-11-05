@@ -69,6 +69,10 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
 
     assert i_prk_out == r_prk_out
 
+    # advanced state
+    responder.completed_without_message_4()
+    initiator.completed_without_message_4()
+
     i_oscore_secret = initiator.edhoc_exporter(0, [], 16)
     i_oscore_salt = initiator.edhoc_exporter(1, [], 8)
     r_oscore_secret = responder.edhoc_exporter(0, [], 16)

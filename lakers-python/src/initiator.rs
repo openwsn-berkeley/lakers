@@ -144,7 +144,7 @@ impl PyEdhocInitiator {
     }
 
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
-        match i_complete_without_message_4(&self.wait_m4) {
+        match i_complete_without_message_4(&self.wait_m4.take().ok_or(StateMismatch)?) {
             Ok(state) => {
                 self.completed = Some(state);
                 Ok(())
@@ -160,7 +160,7 @@ impl PyEdhocInitiator {
     ) -> PyResult<Option<EADItem>> {
         let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())?;
 
-        match i_process_message_4(&mut self.wait_m4, &mut default_crypto(), &message_4) {
+        match i_process_message_4(&mut self.wait_m4.take().ok_or(StateMismatch)?, &mut default_crypto(), &message_4) {
             Ok((state, ead_4)) => {
                 self.completed = Some(state);
                 Ok(ead_4)
