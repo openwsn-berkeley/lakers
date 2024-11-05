@@ -12,6 +12,28 @@ mod ead_authz;
 mod initiator;
 mod responder;
 
+/// Error raised when operations on a Python object did not happen in the sequence in which they
+/// were intended.
+///
+/// This currently has no more detailed response because for every situation this can occur in,
+/// there are different possible explainations that we can't get across easily in a single message.
+/// For example, if `responder.processing_m1` is absent, that can be either because no message 1
+/// was processed into it yet, or because message 2 was already generated.
+#[derive(Debug)]
+pub(crate) struct StateMismatch;
+
+impl std::error::Error for StateMismatch {}
+impl std::fmt::Display for StateMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Type state mismatch")
+    }
+}
+impl From<StateMismatch> for PyErr {
+    fn from(err: StateMismatch) -> PyErr {
+        pyo3::exceptions::PyRuntimeError::new_err(err.to_string())
+    }
+}
+
 // NOTE: throughout this implementation, we use Vec<u8> for incoming byte lists and PyBytes for outgoing byte lists.
 // This is because the incoming lists of bytes are automatically converted to `Vec<u8>` by pyo3,
 // but the outgoing ones must be explicitly converted to `PyBytes`.
