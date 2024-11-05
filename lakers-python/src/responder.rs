@@ -140,7 +140,11 @@ impl PyEdhocResponder {
         py: Python<'a>,
         ead_4: Option<EADItem>,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        match r_prepare_message_4(&self.processed_m3.take().ok_or(StateMismatch)?, &mut default_crypto(), &ead_4) {
+        match r_prepare_message_4(
+            &self.processed_m3.take().ok_or(StateMismatch)?,
+            &mut default_crypto(),
+            &ead_4,
+        ) {
             Ok((state, message_4)) => {
                 self.completed = Some(state);
                 Ok(PyBytes::new_bound(py, message_4.as_slice()))
