@@ -13,6 +13,7 @@ pub struct PyEdhocResponder {
     processing_m1: Option<ProcessingM1>,
     wait_m3: Option<WaitM3>,
     processing_m3: Option<ProcessingM3>,
+    processed_m3: Option<ProcessedM3>,
     completed: Option<Completed>,
 }
 
@@ -36,6 +37,7 @@ impl PyEdhocResponder {
             processing_m1: None,
             wait_m3: None,
             processing_m3: None,
+            processed_m3: None,
             completed: None,
         })
     }
@@ -125,7 +127,7 @@ impl PyEdhocResponder {
             valid_cred_i,
         ) {
             Ok((state, prk_out)) => {
-                self.completed = Some(state);
+                self.processed_m3 = Some(state);
                 Ok(PyBytes::new_bound(py, prk_out.as_slice()))
             }
             Err(error) => Err(error.into()),
@@ -140,7 +142,7 @@ impl PyEdhocResponder {
     ) -> PyResult<Bound<'a, PyBytes>> {
         match r_prepare_message_4(&self.processed_m3, &mut default_crypto(), &ead_4) {
             Ok((state, message_4)) => {
-                self.completed = state;
+                self.completed = Some(state);
                 Ok(PyBytes::new_bound(py, message_4.as_slice()))
             }
             Err(error) => Err(error.into()),
@@ -150,7 +152,7 @@ impl PyEdhocResponder {
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
         match r_complete_without_message_4(&self.processed_m3) {
             Ok(state) => {
-                self.completed = state;
+                self.completed = Some(state);
                 Ok(())
             }
             Err(error) => Err(error.into()),

@@ -15,6 +15,7 @@ pub struct PyEdhocInitiator {
     wait_m2: Option<WaitM2>,
     processing_m2: Option<ProcessingM2>,
     processed_m2: Option<ProcessedM2>,
+    wait_m4: Option<WaitM4>,
     completed: Option<Completed>,
 }
 
@@ -39,6 +40,7 @@ impl PyEdhocInitiator {
             wait_m2: None,
             processing_m2: None,
             processed_m2: None,
+            wait_m4: None,
             completed: None,
         }
     }
@@ -131,7 +133,7 @@ impl PyEdhocInitiator {
             &ead_3,
         ) {
             Ok((state, message_3, prk_out)) => {
-                self.completed = Some(state);
+                self.wait_m4 = Some(state);
                 Ok((
                     PyBytes::new_bound(py, message_3.as_slice()),
                     PyBytes::new_bound(py, prk_out.as_slice()),
@@ -144,7 +146,7 @@ impl PyEdhocInitiator {
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
         match i_complete_without_message_4(&self.wait_m4) {
             Ok(state) => {
-                self.completed = state;
+                self.completed = Some(state);
                 Ok(())
             }
             Err(error) => Err(error.into()),
@@ -160,7 +162,7 @@ impl PyEdhocInitiator {
 
         match i_process_message_4(&mut self.wait_m4, &mut default_crypto(), &message_4) {
             Ok((state, ead_4)) => {
-                self.completed = state;
+                self.completed = Some(state);
                 Ok(ead_4)
             }
             Err(error) => Err(error.into()),
