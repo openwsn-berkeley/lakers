@@ -66,8 +66,17 @@ impl AutoCredential {
     }
 }
 
-// this name must match `lib.name` in `Cargo.toml`
+/// Lakers implementation of EDHOC.
+///
+/// The `EdhocInitiator` and `EdhocResponder` are entry points to this module.
+///
+/// Operations in this module produce logging entries on the `lakers.initiator` and
+/// `lakers.responder` logger names. Due to implementation details of `pyo3_log`, Python's log
+/// levels are cached in the Rust implementation. It is recommended that the full logging
+/// is configured before creating Lakers objects. A setup with `logging.basicConfig(loglevel=5)`
+/// will also show Lakers' trace level log messages, which have no equivalent Python level.
 #[pymodule]
+// this name must match `lib.name` in `Cargo.toml`
 #[pyo3(name = "lakers")]
 fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // initialize the logger once when the module is imported
@@ -75,8 +84,7 @@ fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         .filter(log::LevelFilter::Trace)
         .install()
     {
-        // Not logging anything in the successful case as per pyo3_log recommendations: That would
-        // cache the current logging configuration, which likely changes soon after the imports.
+        // Not logging anything in the successful case (see module level docs)
         log::error!("lakers-python failed to set up: {e}");
     }
 
