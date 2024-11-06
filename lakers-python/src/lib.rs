@@ -69,12 +69,15 @@ impl AutoCredential {
 // this name must match `lib.name` in `Cargo.toml`
 #[pymodule]
 #[pyo3(name = "lakers")]
-fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // initialize the logger once when the module is imported
-    if !pyo3_log::try_init().is_ok() {
+    if let Err(e) = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?
+        .filter(log::LevelFilter::Trace)
+        .install()
+    {
         // Not logging anything in the successful case as per pyo3_log recommendations: That would
         // cache the current logging configuration, which likely changes soon after the imports.
-        log::error!("lakers-python failed to set up (different logger configured?)");
+        log::error!("lakers-python failed to set up: {e}");
     }
 
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
@@ -91,7 +94,7 @@ fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
     m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
 
-    let submodule = PyModule::new_bound(_py, "consts")?;
+    let submodule = PyModule::new_bound(py, "consts")?;
     submodule.add("EAD_AUTHZ_LABEL", lakers_ead_authz::consts::EAD_AUTHZ_LABEL)?;
     m.add_submodule(&submodule)?;
     Ok(())
