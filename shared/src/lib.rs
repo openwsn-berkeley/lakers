@@ -89,6 +89,16 @@ pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT
 
 pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
 
+/// Maximum length of a [`ConnId`] (`C_x`).
+///
+/// This length includes the leading CBOR encoding byte(s).
+// If ints had a const `.clamp()` feature, this could be (8 * SCALE_FACTOR).clamp(1, 23).
+const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "quadruple_sizes") {
+    24
+} else {
+    8
+};
+
 pub type BytesSuites = [u8; SUITES_LEN];
 pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
 pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
@@ -124,13 +134,50 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 ///
 /// Semantically, this is a byte string of some length.
 ///
-/// This currently only supports numeric values (see
-/// https://github.com/openwsn-berkeley/lakers/issues/258), but may support larger values in the
-/// future.
+/// Its legal values are constrained to only contain a single CBOR item that is either a byte
+/// string or a number in -24..=23, all in preferred encoding.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 // TODO: This should not be needed, there is nothing special about the value 0.
 #[derive(Default)]
-pub struct ConnId(u8);
+pub struct ConnId([u8; MAX_CONNID_ENCODED_LEN]);
+
+/// Classifier for the content of [`ConnId`]; used internally in its implementation.
+enum ConnIdType {
+    /// The ID contains a single positive or negative number, expressed in its first byte.
+    SingleByte,
+    /// The ID contains a byte string, and the first byte of the ID indicates its length.
+    ///
+    /// It is expected that if longer connection IDs than 1+0+n are ever supported, this will be
+    /// renamed to ByteString10n, and longer variants get their own class.
+    ByteString(u8),
+}
+
+impl ConnIdType {
+    const _IMPL_CONSTRAINTS: () = assert!(
+        MAX_CONNID_ENCODED_LEN <= 1 + 23,
+        "Longer connection IDs require more elaborate decoding here"
+    );
+
+    /// Returns a classifier based on an initial byte.
+    ///
+    /// Its signature will need to change if ever connection IDs longer than 1+0+n are supported.
+    fn classify(byte: u8) -> Option<Self> {
+        if byte >> 5 <= 1 && byte & 0x1f < 24 {
+            return Some(ConnIdType::SingleByte);
+        } else if byte >> 5 == 2 && byte & 0x1f < 24 {
+            return Some(ConnIdType::ByteString(byte & 0x1f));
+        }
+        None
+    }
+
+    /// Returns the number of bytes in the [`ConnId`]'s buffer.
+    fn length(&self) -> usize {
+        match self {
+            ConnIdType::SingleByte => 1,
+            ConnIdType::ByteString(n) => (1 + n).into(),
+        }
+    }
+}
 
 impl ConnId {
     /// Construct a ConnId from the result of [`cbor_decoder::int_raw`], which is a
@@ -138,15 +185,49 @@ impl ConnId {
     /// type.
     ///
     /// Evolving from u8-only values, this could later interact with the decoder directly.
+    #[deprecated(
+        note = "This API is only capable of generating a limited sub-set of the supported identifiers."
+    )]
     pub const fn from_int_raw(raw: u8) -> Self {
         debug_assert!(raw >> 5 <= 1, "Major type is not an integer");
         debug_assert!(raw & 0x1f < 24, "Value is not immediate");
-        Self(raw)
+        // We might allow '' (the empty bytes tring, byte 40) as well, but the again, this API is
+        // already deprecated.
+        let mut s = [0; MAX_CONNID_ENCODED_LEN];
+        s[0] = raw;
+        Self(s)
+    }
+
+    /// The connection ID classification of this connection ID
+    ///
+    /// Due to the invariants of this type, this classification infallible.
+    fn classify(&self) -> ConnIdType {
+        let Some(t) = ConnIdType::classify(self.0[0]) else {
+            unreachable!("Type invariant requires valid classification")
+        };
+        t
+    }
+
+    /// Read a connection identifier from a given decoder.
+    ///
+    /// It is an error for the decoder to read anything but a small integer or a byte string, to
+    /// exceed the maximum allowed ConnId length, or to contain a byte string that should have been
+    /// encoded as a small integer.
+    pub fn from_decoder(decoder: &mut CBORDecoder<'_>) -> Result<Self, CBORError> {
+        let mut s = [0; MAX_CONNID_ENCODED_LEN];
+        let len = ConnIdType::classify(decoder.current()?)
+            .ok_or(CBORError::DecodingError)?
+            .length();
+        s[..len].copy_from_slice(decoder.read_slice(len)?);
+        Ok(Self(s))
     }
 
     /// The bytes that form the identifier (an arbitrary byte string)
     pub fn as_slice(&self) -> &[u8] {
-        core::slice::from_ref(&self.0)
+        match self.classify() {
+            ConnIdType::SingleByte => &self.0[..1],
+            ConnIdType::ByteString(n) => &self.0[1..1 + usize::from(n)],
+        }
     }
 
     /// The CBOR encoding of the identifier.
@@ -160,18 +241,18 @@ impl ConnId {
     /// assert_eq!(c_i.as_cbor(), &[0x04]);
     /// ```
     ///
-    /// For other IDs, this contains an extra byte header (but those are currently unsupported):
+    /// For other IDs, this contains an extra byte header:
     ///
-    /// ```should_panic
+    /// ```
     /// # use lakers_shared::ConnId;
     /// let c_i = ConnId::from_slice(&[0xff]).unwrap();
     /// assert_eq!(c_i.as_cbor(), &[0x41, 0xff]);
     /// ```
     pub fn as_cbor(&self) -> &[u8] {
-        core::slice::from_ref(&self.0)
+        &self.0[..self.classify().length()]
     }
 
-    /// Try to construct a ConnId from a slice.
+    /// Try to construct a [`ConnId`] from a slice that represents its string value.
     ///
     /// This is the inverse of [Self::as_slice], and returns None if the identifier is too long
     /// (or, if only the compact 48 values are supported, outside of that range).
@@ -182,20 +263,24 @@ impl ConnId {
     /// let c_i = ConnId::from_slice(c_i).unwrap();
     /// assert!(c_i.as_slice() == &[0x04]);
     ///
-    /// // So far, longer slices are unsupported
-    /// assert!(ConnId::from_slice(&[0x12, 0x34]).is_none());
+    /// let c_i = ConnId::from_slice(&[0x12, 0x34]).unwrap();
+    /// assert!(c_i.as_slice() == &[0x12, 0x34]);
     /// ```
     pub fn from_slice(input: &[u8]) -> Option<Self> {
-        if input.len() != 1 {
-            return None;
+        if input.len() > MAX_CONNID_ENCODED_LEN - 1 {
+            None
+        } else {
+            let mut s = [0; MAX_CONNID_ENCODED_LEN];
+            if input.len() == 1
+                && matches!(ConnIdType::classify(input[0]), Some(ConnIdType::SingleByte))
+            {
+                s[0] = input[0];
+            } else {
+                s[0] = input.len() as u8 | 0x40;
+                s[1..1 + input.len()].copy_from_slice(input);
+            }
+            Some(Self(s))
         }
-        if input[0] >> 5 > 1 {
-            return None;
-        }
-        if input[0] & 0x1f >= 24 {
-            return None;
-        }
-        Some(Self(input[0]))
     }
 }
 
@@ -678,7 +763,7 @@ mod edhoc_parser {
             g_x.copy_from_slice(decoder.bytes_sized(P256_ELEM_LEN)?);
 
             // consume c_i encoded as single-byte int (we still do not support bstr encoding)
-            let c_i = ConnId::from_int_raw(decoder.int_raw()?);
+            let c_i = ConnId::from_decoder(&mut decoder)?;
 
             // if there is still more to parse, the rest will be the EAD_1
             if rcvd_message_1.len > decoder.position() {
@@ -740,7 +825,7 @@ mod edhoc_parser {
 
         let mut decoder = CBORDecoder::new(plaintext_2.as_slice());
 
-        let c_r = ConnId::from_int_raw(decoder.int_raw()?);
+        let c_r = ConnId::from_decoder(&mut decoder)?;
 
         // the id_cred may have been encoded as a single int, a byte string, or a map
         let id_cred_r = IdCred::from_encoded_value(decoder.any_as_encoded()?)?;
@@ -831,7 +916,7 @@ mod cbor_decoder {
         }
 
         /// Consume and return *n* bytes starting at the current position.
-        fn read_slice(&mut self, n: usize) -> Result<&'a [u8], CBORError> {
+        pub fn read_slice(&mut self, n: usize) -> Result<&'a [u8], CBORError> {
             if let Some(b) = self
                 .pos
                 .checked_add(n)

@@ -511,7 +511,7 @@ fn encode_message_1(
     output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
     output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
         .copy_from_slice(&g_x[..]);
-    let c_i = c_i.as_slice();
+    let c_i = c_i.as_cbor();
     output.len = 3 + raw_suites_len + P256_ELEM_LEN + c_i.len();
     output.content[3 + raw_suites_len + P256_ELEM_LEN..][..c_i.len()].copy_from_slice(c_i);
 
@@ -776,7 +776,7 @@ fn encode_kdf_context(
     let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
 
     let mut output_len = if let Some(c_r) = c_r {
-        let c_r = c_r.as_slice();
+        let c_r = c_r.as_cbor();
         output[..c_r.len()].copy_from_slice(c_r);
         c_r.len()
     } else {
@@ -858,7 +858,7 @@ fn encode_plaintext_2(
     ead_2: &Option<EADItem>,
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
-    let c_r = c_r.as_slice();
+    let c_r = c_r.as_cbor();
 
     plaintext_2
         .extend_from_slice(c_r)
@@ -1096,8 +1096,9 @@ mod tests {
     // invalid test vectors, should result in a parsing error
     const MESSAGE_1_INVALID_ARRAY_TV: &str =
         "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    // This is invalid because the h'0e' byte string is a text string instead
     const MESSAGE_1_INVALID_C_I_TV: &str =
-        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9410e";
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9610e";
     const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
         "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
     const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
