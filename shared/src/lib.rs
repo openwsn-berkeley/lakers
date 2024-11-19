@@ -407,6 +407,7 @@ pub struct ProcessedM3 {
 }
 
 #[derive(Default, Debug)]
+#[repr(C)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,

@@ -187,8 +187,7 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let ead_4 = None;
-            let (mut responder, message_4) = responder.prepare_message_4(&ead_4).unwrap();
+            let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 
