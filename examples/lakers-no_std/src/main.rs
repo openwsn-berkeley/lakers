@@ -132,16 +132,16 @@ fn main() -> ! {
             .unwrap(); // exposing own identity only after validating cred_r
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
-        let (mut initiator, message_3, i_prk_out) = initiator
+        let (initiator, message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-        let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
+        let (responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
-        let initiator = initiator.completed_without_message_4().unwrap();
-        let responder = responder.completed_without_message_4().unwrap();
+        let mut initiator = initiator.completed_without_message_4().unwrap();
+        let mut responder = responder.completed_without_message_4().unwrap();
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
