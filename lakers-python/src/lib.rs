@@ -2,7 +2,6 @@
 /// Note that this module is not restricted by no_std.
 use lakers::*;
 // use lakers_ead_authz::consts::*;
-use env_logger;
 use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::wrap_pyfunction;
@@ -89,13 +88,26 @@ impl AutoCredential {
     }
 }
 
-// this name must match `lib.name` in `Cargo.toml`
+/// Lakers implementation of EDHOC.
+///
+/// The `EdhocInitiator` and `EdhocResponder` are entry points to this module.
+///
+/// Operations in this module produce logging entries on the `lakers.initiator` and
+/// `lakers.responder` logger names. Due to implementation details of `pyo3_log`, Python's log
+/// levels are cached in the Rust implementation. It is recommended that the full logging
+/// is configured before creating Lakers objects. A setup with `logging.basicConfig(loglevel=5)`
+/// will also show Lakers' trace level log messages, which have no equivalent Python level.
 #[pymodule]
+// this name must match `lib.name` in `Cargo.toml`
 #[pyo3(name = "lakers")]
-fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // initialize the logger once when the module is imported
-    if env_logger::try_init().is_ok() {
-        trace!("lakers-python initialized from Rust side.");
+    if let Err(e) = pyo3_log::Logger::new(py, pyo3_log::Caching::LoggersAndLevels)?
+        .filter(log::LevelFilter::Trace)
+        .install()
+    {
+        // Not logging anything in the successful case (see module level docs)
+        log::error!("lakers-python failed to set up: {e}");
     }
 
     m.add_function(wrap_pyfunction!(p256_generate_key_pair, m)?)?;
@@ -112,7 +124,7 @@ fn lakers_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
     m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
 
-    let submodule = PyModule::new_bound(_py, "consts")?;
+    let submodule = PyModule::new_bound(py, "consts")?;
     submodule.add("EAD_AUTHZ_LABEL", lakers_ead_authz::consts::EAD_AUTHZ_LABEL)?;
     m.add_submodule(&submodule)?;
     Ok(())
