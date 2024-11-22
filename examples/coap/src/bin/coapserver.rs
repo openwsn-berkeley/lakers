@@ -114,7 +114,7 @@ fn main() {
                 };
                 let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
                 // send empty ack back
-                response.message.payload = b"".to_vec();
+                response.message.payload = Vec::from(message_4.as_slice());
 
                 println!("EDHOC exchange successfully completed");
                 println!("PRK_out: {:02x?}", prk_out);

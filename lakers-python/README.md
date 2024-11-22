@@ -44,7 +44,6 @@ MATURIN_PYPI_TOKEN=<your pypi token here> maturin publish
 ```
 .take().ok_or(StateMismatch)?,
 ## Requirements
-
 The maturin executable must be available. The recommended way is to install and use it in a virtual environment:
 
 ```
