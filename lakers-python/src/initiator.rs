@@ -153,7 +153,7 @@ impl PyEdhocInitiator {
         }
     }
 
-    pub fn propcess_message_4<'a>(
+    pub fn process_message_4<'a>(
         &mut self,
         py: Python<'a>,
         message_4: Vec<u8>,
