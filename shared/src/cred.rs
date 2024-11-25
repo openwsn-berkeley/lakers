@@ -83,7 +83,7 @@ impl IdCred {
                     .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: how to avoid map_err overuse?
             }
             // kid that has been encoded as CBOR byte string
-            &[0x41, x, ..] if !Self::bstr_representable_as_int(x) => {
+            &[0x41, x] if !Self::bstr_representable_as_int(x) => {
                 let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 bytes
