@@ -92,7 +92,7 @@ impl IdCred {
                 bytes
             }
             // CCS by value
-            &[0xa1, KCSS_LABEL, ..] => BufferIdCred::new_from_slice(value)
+            &[0xa1, KCCS_LABEL, ..] => BufferIdCred::new_from_slice(value)
                 .map_err(|_| EDHOCError::CredentialTooLongError)?,
             _ => return Err(EDHOCError::ParsingError),
         };
@@ -313,7 +313,7 @@ impl Credential {
                 let mut id_cred = IdCred::new();
                 id_cred
                     .bytes
-                    .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
+                    .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCCS_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 id_cred
                     .bytes
