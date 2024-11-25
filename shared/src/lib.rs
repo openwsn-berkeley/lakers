@@ -82,7 +82,9 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						    1; // length as u8
 
-pub const KCSS_LABEL: u8 = 14;
+pub const KCCS_LABEL: u8 = 14;
+#[deprecated(note = "Typo for KCCS_LABEL")]
+pub const KCSS_LABEL: u8 = KCCS_LABEL;
 pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0

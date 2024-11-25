@@ -39,9 +39,18 @@ impl From<u8> for IdCredType {
     }
 }
 
-/// A value of ID_CRED_x: a credential identifier
+/// A value of ID_CRED_x: a credential identifier.
 ///
 /// Possible values include key IDs, credentials by value and others.
+///
+/// ```rust
+/// # use hexlit::hex;
+/// # use lakers_shared::IdCred;
+/// let short_kid = IdCred::from_encoded_value(&hex!("17")).unwrap(); // 23
+/// assert_eq!(short_kid.as_full_value(), &hex!("a1044117")); // {4: h'17'}
+/// let long_kid = IdCred::from_encoded_value(&hex!("4161")).unwrap(); // 'a'
+/// assert_eq!(long_kid.as_full_value(), &hex!("a1044161")); // {4: 'a'}
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct IdCred {
@@ -74,7 +83,7 @@ impl IdCred {
                     .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: how to avoid map_err overuse?
             }
             // kid that has been encoded as CBOR byte string
-            &[0x41, x, ..] if !Self::bstr_representable_as_int(x) => {
+            &[0x41, x] if !Self::bstr_representable_as_int(x) => {
                 let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 bytes
@@ -83,7 +92,7 @@ impl IdCred {
                 bytes
             }
             // CCS by value
-            &[0xa1, KCSS_LABEL, ..] => BufferIdCred::new_from_slice(value)
+            &[0xa1, KCCS_LABEL, ..] => BufferIdCred::new_from_slice(value)
                 .map_err(|_| EDHOCError::CredentialTooLongError)?,
             _ => return Err(EDHOCError::ParsingError),
         };
@@ -304,7 +313,7 @@ impl Credential {
                 let mut id_cred = IdCred::new();
                 id_cred
                     .bytes
-                    .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCSS_LABEL])
+                    .extend_from_slice(&[CBOR_MAJOR_MAP + 1, KCCS_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 id_cred
                     .bytes
