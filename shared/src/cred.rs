@@ -48,8 +48,8 @@ impl From<u8> for IdCredType {
 /// # use lakers_shared::IdCred;
 /// let short_kid = IdCred::from_encoded_value(&hex!("17")).unwrap(); // 23
 /// assert_eq!(short_kid.as_full_value(), &hex!("a1044117")); // {4: h'17'}
-/// let long_kid = IdCred::from_encoded_value(&hex!("4161")).unwrap(); // 'a'
-/// assert_eq!(long_kid.as_full_value(), &hex!("a1044161")); // {4: 'a'}
+/// let long_kid = IdCred::from_encoded_value(&hex!("43616263")).unwrap(); // 'abc'
+/// assert_eq!(long_kid.as_full_value(), &hex!("a10443616263")); // {4: 'abc'}
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
@@ -82,8 +82,21 @@ impl IdCred {
                 BufferIdCred::new_from_slice(&[0xa1, KID_LABEL, 0x41, x])
                     .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: how to avoid map_err overuse?
             }
-            // kid that has been encoded as CBOR byte string
-            &[0x41, x] if !Self::bstr_representable_as_int(x) => {
+            // kid that has been encoded as CBOR byte string; supporting up to 23 long because
+            // those are easy
+            &[0x40..=0x57, ..] => {
+                let tail = &value[1..];
+                if let &[single_byte] = tail {
+                    if Self::bstr_representable_as_int(single_byte) {
+                        // We require precise encoding
+                        return Err(EDHOCError::ParsingError);
+                    }
+                }
+                if usize::from(value[0] - 0x40) != tail.len() {
+                    // Missing or trailing bytes. This is impossible when called from within Lakers
+                    // where the value is a `.any_as_encoded()`.
+                    return Err(EDHOCError::ParsingError);
+                }
                 let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
                     .map_err(|_| EDHOCError::CredentialTooLongError)?;
                 bytes
