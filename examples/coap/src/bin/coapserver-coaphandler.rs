@@ -182,12 +182,12 @@ impl coap_handler::Handler for EdhocHandler {
                     .expect("Static credential is not processable");
             let valid_cred_i =
                 credential_check_or_fetch(Some(cred_i), id_cred_i).map_err(render_error)?;
-            let (mut responder, prk_out) =
-                responder.verify_message_3(valid_cred_i).map_err(|e| {
-                    println!("EDHOC processing error: {:?}", e);
-                    render_error(e)
-                })?;
+            let (responder, prk_out) = responder.verify_message_3(valid_cred_i).map_err(|e| {
+                println!("EDHOC processing error: {:?}", e);
+                render_error(e)
+            })?;
 
+            let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 

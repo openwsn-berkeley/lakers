@@ -21,3 +21,5 @@ cscope*
 .vscode
 
 *.log
+
+results/

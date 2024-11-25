@@ -65,8 +65,14 @@ fn client_handshake() -> Result<(), EDHOCError> {
     msg_3.extend_from_slice(message_3.as_slice());
     println!("message_3 len = {}", msg_3.len());
 
-    let _response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
-    // we don't care about the response to message_3 for now
+    let response = CoAPClient::post_with_timeout(url, msg_3, timeout).unwrap();
+    if response.get_status() != &ResponseType::Changed {
+        panic!("Message 3 response error: {:?}", response.get_status());
+    }
+    println!("response_vec = {:02x?}", response.message.payload);
+    println!("message_3 len = {}", response.message.payload.len());
+    let message_4 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
+    let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
 
     println!("EDHOC exchange successfully completed");
     println!("PRK_out: {:02x?}", prk_out);

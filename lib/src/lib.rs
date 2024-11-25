@@ -57,6 +57,12 @@ pub struct EdhocInitiatorProcessedM2<Crypto: CryptoTrait> {
 }
 
 #[derive(Debug)]
+pub struct EdhocInitiatorWaitM4<Crypto: CryptoTrait> {
+    state: WaitM4, // opaque state
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
     state: Completed,
     crypto: Crypto,
@@ -88,6 +94,12 @@ pub struct EdhocResponderWaitM3<Crypto: CryptoTrait> {
 #[derive(Debug)]
 pub struct EdhocResponderProcessingM3<Crypto: CryptoTrait> {
     state: ProcessingM3, // opaque state
+    crypto: Crypto,
+}
+
+#[derive(Debug)]
+pub struct EdhocResponderProcessedM3<Crypto: CryptoTrait> {
+    state: ProcessedM3, // opaque state
     crypto: Crypto,
 }
 
@@ -197,16 +209,46 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
     pub fn verify_message_3(
         mut self,
         cred_i: Credential,
-    ) -> Result<(EdhocResponderDone<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
+    ) -> Result<(EdhocResponderProcessedM3<Crypto>, [u8; SHA256_DIGEST_LEN]), EDHOCError> {
         trace!("Enter verify_message_3");
         match r_verify_message_3(&mut self.state, &mut self.crypto, cred_i) {
             Ok((state, prk_out)) => Ok((
-                EdhocResponderDone {
+                EdhocResponderProcessedM3 {
                     state,
                     crypto: self.crypto,
                 },
                 prk_out,
             )),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<Crypto: CryptoTrait> EdhocResponderProcessedM3<Crypto> {
+    pub fn prepare_message_4(
+        mut self,
+        ead_4: &Option<EADItem>,
+    ) -> Result<(EdhocResponderDone<Crypto>, BufferMessage4), EDHOCError> {
+        trace!("Enter prepare_message_4");
+        match r_prepare_message_4(&self.state, &mut self.crypto, ead_4) {
+            Ok((state, message_4)) => Ok((
+                EdhocResponderDone {
+                    state,
+                    crypto: self.crypto,
+                },
+                message_4,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn completed_without_message_4(self) -> Result<EdhocResponderDone<Crypto>, EDHOCError> {
+        trace!("Enter completed");
+        match r_complete_without_message_4(&self.state) {
+            Ok(state) => Ok(EdhocResponderDone {
+                state,
+                crypto: self.crypto,
+            }),
             Err(error) => Err(error),
         }
     }
@@ -374,7 +416,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
         ead_3: &Option<EADItem>,
     ) -> Result<
         (
-            EdhocInitiatorDone<Crypto>,
+            EdhocInitiatorWaitM4<Crypto>,
             BufferMessage3,
             [u8; SHA256_DIGEST_LEN],
         ),
@@ -392,13 +434,43 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
             ead_3,
         ) {
             Ok((state, message_3, prk_out)) => Ok((
-                EdhocInitiatorDone {
+                EdhocInitiatorWaitM4 {
                     state,
                     crypto: self.crypto,
                 },
                 message_3,
                 prk_out,
             )),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
+    pub fn process_message_4(
+        mut self,
+        message_4: &'a BufferMessage4,
+    ) -> Result<(EdhocInitiatorDone<Crypto>, Option<EADItem>), EDHOCError> {
+        trace!("Enter parse_message_4");
+        match i_process_message_4(&mut self.state, &mut self.crypto, message_4) {
+            Ok((state, ead_4)) => Ok((
+                EdhocInitiatorDone {
+                    state: state,
+                    crypto: self.crypto,
+                },
+                ead_4,
+            )),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn completed_without_message_4(self) -> Result<EdhocResponderDone<Crypto>, EDHOCError> {
+        trace!("Enter completed");
+        match i_complete_without_message_4(&self.state) {
+            Ok(state) => Ok(EdhocResponderDone {
+                state,
+                crypto: self.crypto,
+            }),
             Err(error) => Err(error),
         }
     }
@@ -656,9 +728,14 @@ mod test {
         // ---- begin responder handling
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-        // if ead_3: process ead_3
         let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
+
+        // Send message_4
+        let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
         // ---- end responder handling
+
+        let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+        // ---- end initiator handling
 
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
@@ -793,18 +870,19 @@ mod test_authz {
             .unwrap();
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
-        let (mut _initiator, message_3, i_prk_out) = initiator
+        let (mut initiator, message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &None)
             .unwrap();
-
+        let _initiator = initiator.completed_without_message_4();
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
         let valid_cred_i = if id_cred_i.reference_only() {
             mock_fetch_cred_i(id_cred_i).unwrap()
         } else {
             id_cred_i.get_ccs().unwrap()
         };
-        let (mut _responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
+        let (mut responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
+        let mut _responder = responder.completed_without_message_4();
         // check that prk_out is equal at initiator and responder side
         assert_eq!(i_prk_out, r_prk_out);
     }
