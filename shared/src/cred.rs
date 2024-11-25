@@ -46,10 +46,10 @@ impl From<u8> for IdCredType {
 /// ```rust
 /// # use hexlit::hex;
 /// # use lakers_shared::IdCred;
-/// let short_kid = IdCred::from_encoded_value(&hex!("17" /* 23 */)).unwrap();
-/// assert_eq!(short_kid.as_full_value(), &hex!("a1044117" /* { 4: h'17' } */));
-/// let long_kid = IdCred::from_encoded_value(&hex!("4161" /* 'a' */)).unwrap();
-/// assert_eq!(long_kid.as_full_value(), &hex!("a1044161" /* { 4: 'a' } */));
+/// let short_kid = IdCred::from_encoded_value(&hex!("17")).unwrap(); // 23
+/// assert_eq!(short_kid.as_full_value(), &hex!("a1044117")); // {4: h'17'}
+/// let long_kid = IdCred::from_encoded_value(&hex!("4161")).unwrap(); // 'a'
+/// assert_eq!(long_kid.as_full_value(), &hex!("a1044161")); // {4: 'a'}
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[repr(C)]
