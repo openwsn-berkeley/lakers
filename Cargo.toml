@@ -31,7 +31,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.7.1"
+version = "0.7.2"
 repository = "https://github.com/openwsn-berkeley/lakers/"
 license = "BSD-3-Clause"
 readme = "shared/README.md"
@@ -40,16 +40,16 @@ categories = [ "no-std::no-alloc", "network-programming", "embedded" ]
 
 [workspace.dependencies]
 
-lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.7.1" }
+lakers-shared = { package = "lakers-shared", path = "shared/", version = "^0.7.2" }
 
-lakers-ead-authz = { package = "lakers-ead-authz", path = "ead/lakers-ead-authz/", version = "^0.7.1" }
+lakers-ead-authz = { package = "lakers-ead-authz", path = "ead/lakers-ead-authz/", version = "^0.7.2" }
 
 lakers-crypto = { path = "crypto/" }
 lakers-crypto-cryptocell310 = { path = "crypto/lakers-crypto-cryptocell310-sys/" }
 lakers-crypto-psa = { path = "crypto/lakers-crypto-psa/" }
-lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/lakers-crypto-rustcrypto/", version = "^0.7.1" }
+lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypto/lakers-crypto-rustcrypto/", version = "^0.7.2" }
 
-lakers = { package = "lakers", path = "lib/", version = "^0.7.1", default-features = false }
+lakers = { package = "lakers", path = "lib/", version = "^0.7.2", default-features = false }
 
 [patch.crates-io]
 psa-crypto = { git = "https://github.com/malishav/rust-psa-crypto", branch = "baremetal" }
