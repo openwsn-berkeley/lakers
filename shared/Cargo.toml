@@ -34,3 +34,14 @@ python-bindings = ["pyo3", "hex"]
 ## larger sizes (especially for experimentation) without making sizes explode
 ## on embedded.
 quadruple_sizes = []
+
+## Precise control of `MAX_MESSAGE_SIZE_LEN`.
+##
+## If any of those is set, they override the default of 192 (as well as
+## `quadruple_sizes`). If multiple are set, the highest wins.
+
+max_message_size_len_256 = []
+max_message_size_len_320 = []
+max_message_size_len_384 = []
+max_message_size_len_448 = []
+max_message_size_len_512 = []

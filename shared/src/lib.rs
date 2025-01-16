@@ -42,9 +42,20 @@ pub const SCALE_FACTOR: usize = 1;
 #[doc(hidden)]
 pub const SCALE_FACTOR: usize = 4;
 
-// TODO: find a way to configure the buffer size
-// need 128 to handle EAD fields, and 192 for the EAD_1 voucher
-pub const MAX_MESSAGE_SIZE_LEN: usize = SCALE_FACTOR * (128 + 64);
+pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_512") {
+    512
+} else if cfg!(feature = "max_message_size_len_448") {
+    448
+} else if cfg!(feature = "max_message_size_len_384") {
+    384
+} else if cfg!(feature = "max_message_size_len_320") {
+    320
+} else if cfg!(feature = "max_message_size_len_256") {
+    256
+} else {
+    // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
+    SCALE_FACTOR * (128 + 64)
+};
 
 pub const ID_CRED_LEN: usize = 4;
 pub const SUITES_LEN: usize = 9;
