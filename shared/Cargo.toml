@@ -45,3 +45,22 @@ max_message_size_len_320 = []
 max_message_size_len_384 = []
 max_message_size_len_448 = []
 max_message_size_len_512 = []
+
+## Precise control of `MAX_KDF_CONTENT_LEN`.
+##
+## If any of those is set, they override the default of 256 (as well as
+## `quadruple_sizes`). If multiple are set, the highest wins.
+
+max_kdf_content_len_320 = []
+max_kdf_content_len_384 = []
+max_kdf_content_len_448 = []
+max_kdf_content_len_512 = []
+
+## Precise control of `MAX_BUFFER_LEN`.
+##
+## If any of those is set, they override the default of 320 (as well as
+## `quadruple_sizes`). If multiple are set, the highest wins.
+
+max_buffer_len_384 = []
+max_buffer_len_448 = []
+max_buffer_len_512 = []
