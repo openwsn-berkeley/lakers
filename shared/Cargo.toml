@@ -26,19 +26,21 @@ rstest = "0.21.0"
 default = [  ]
 python-bindings = ["pyo3", "hex"]
 
-## For all arbitrarily limited buffers, pick 4x the current default.
+## For all arbitrarily limited buffers, pick the maximum.
 ##
-## On the long run, this might be replaced with a more fine-grained feature set
-## picking the minimum size of all the items, or even an option to generalize,
-## but this provides an easy way to allow unconstrained systems to stomach
-## larger sizes (especially for experimentation) without making sizes explode
-## on embedded.
-quadruple_sizes = []
+## This provides an easy way to allow unconstrained systems to stomach larger
+## sizes (especially for experimentation).
+large_buffers = [
+    "max_message_size_len_1024",
+    "max_kdf_content_len_1024",
+    "max_buffer_len_1024",
+    "max_connid_encoded_len_24",
+]
 
 ## Precise control of `MAX_MESSAGE_SIZE_LEN`.
 ##
-## If any of those is set, they override the default of 192 (as well as
-## `quadruple_sizes`). If multiple are set, the highest wins.
+## If any of those is set, they override the default of 192. If multiple are
+## set, the highest wins.
 
 max_message_size_len_256 = []
 max_message_size_len_320 = []
@@ -49,8 +51,8 @@ max_message_size_len_1024 = []
 
 ## Precise control of `MAX_KDF_CONTENT_LEN`.
 ##
-## If any of those is set, they override the default of 256 (as well as
-## `quadruple_sizes`). If multiple are set, the highest wins.
+## If any of those is set, they override the default of 256. If multiple are
+## set, the highest wins.
 
 max_kdf_content_len_320 = []
 max_kdf_content_len_384 = []
@@ -60,8 +62,8 @@ max_kdf_content_len_1024 = []
 
 ## Precise control of `MAX_BUFFER_LEN`.
 ##
-## If any of those is set, they override the default of 320 (as well as
-## `quadruple_sizes`). If multiple are set, the highest wins.
+## If any of those is set, they override the default of 320. If multiple are
+## set, the highest wins.
 
 max_buffer_len_384 = []
 max_buffer_len_448 = []

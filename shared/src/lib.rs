@@ -32,16 +32,6 @@ use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
 mod python_bindings;
 
-/// Configured upscaling applied to fixed-size buffers
-///
-/// Do not rely on this: It is only pub because cbindgen needs it.
-#[cfg(not(feature = "quadruple_sizes"))]
-#[doc(hidden)]
-pub const SCALE_FACTOR: usize = 1;
-#[cfg(feature = "quadruple_sizes")]
-#[doc(hidden)]
-pub const SCALE_FACTOR: usize = 4;
-
 pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_1024") {
     1024
 } else if cfg!(feature = "max_message_size_len_512") {
@@ -56,7 +46,7 @@ pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_
     256
 } else {
     // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
-    SCALE_FACTOR * (128 + 64)
+    128 + 64
 };
 
 pub const ID_CRED_LEN: usize = 4;
@@ -85,7 +75,7 @@ pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_10
 } else if cfg!(feature = "max_kdf_content_len_320") {
     320
 } else {
-    SCALE_FACTOR * 256
+    256
 };
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
 pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_1024") {
@@ -97,7 +87,7 @@ pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_1024") {
 } else if cfg!(feature = "max_buffer_len_384") {
     384
 } else {
-    SCALE_FACTOR * 256 + 64
+    256 + 64
 };
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_TEXT_STRING: u8 = 0x78u8;

@@ -12,7 +12,7 @@ include_guard = "LAKERS_SHARED_H"
 cpp_compat = true
 
 [defines]
-"feature = quadruple_sizes" = "QUADRUPLE_SIZES"
+"feature = large_buffers" = "LARGE_BUFFERS"
 
 [export]
 include = [
