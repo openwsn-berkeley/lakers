@@ -122,7 +122,7 @@ pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
-pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
+pub const MAX_EAD_SIZE_LEN: usize = 64;
 
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
