@@ -67,3 +67,9 @@ max_buffer_len_384 = []
 max_buffer_len_448 = []
 max_buffer_len_512 = []
 max_buffer_len_1024 = []
+
+## Control of `MAX_CONNID_ENCODED_LEN`.
+##
+## If this is not set, the minimum sensible default (8 bytes) is used.
+
+max_connid_encoded_len_24 = []

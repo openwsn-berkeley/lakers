@@ -127,8 +127,9 @@ pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
 /// This length includes the leading CBOR encoding byte(s).
-// If ints had a const `.clamp()` feature, this could be (8 * SCALE_FACTOR).clamp(1, 23).
-const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "quadruple_sizes") {
+// Note that when implementing larger sizes than 24, the encoding will need to use actual CBOR
+// rather than masking a known short length into a byte.
+const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "max_connid_encoded_len_24") {
     24
 } else {
     8
