@@ -42,7 +42,9 @@ pub const SCALE_FACTOR: usize = 1;
 #[doc(hidden)]
 pub const SCALE_FACTOR: usize = 4;
 
-pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_512") {
+pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_1024") {
+    1024
+} else if cfg!(feature = "max_message_size_len_512") {
     512
 } else if cfg!(feature = "max_message_size_len_448") {
     448
@@ -72,7 +74,9 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_512") {
+pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_1024") {
+    1024
+} else if cfg!(feature = "max_kdf_content_len_512") {
     512
 } else if cfg!(feature = "max_kdf_content_len_448") {
     448
@@ -84,7 +88,9 @@ pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_51
     SCALE_FACTOR * 256
 };
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_512") {
+pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_1024") {
+    1024
+} else if cfg!(feature = "max_buffer_len_512") {
     512
 } else if cfg!(feature = "max_buffer_len_448") {
     448

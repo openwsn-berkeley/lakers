@@ -45,6 +45,7 @@ max_message_size_len_320 = []
 max_message_size_len_384 = []
 max_message_size_len_448 = []
 max_message_size_len_512 = []
+max_message_size_len_1024 = []
 
 ## Precise control of `MAX_KDF_CONTENT_LEN`.
 ##
@@ -55,6 +56,7 @@ max_kdf_content_len_320 = []
 max_kdf_content_len_384 = []
 max_kdf_content_len_448 = []
 max_kdf_content_len_512 = []
+max_kdf_content_len_1024 = []
 
 ## Precise control of `MAX_BUFFER_LEN`.
 ##
@@ -64,3 +66,4 @@ max_kdf_content_len_512 = []
 max_buffer_len_384 = []
 max_buffer_len_448 = []
 max_buffer_len_512 = []
+max_buffer_len_1024 = []
