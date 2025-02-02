@@ -52,4 +52,4 @@ lakers-crypto-rustcrypto = { package = "lakers-crypto-rustcrypto", path = "crypt
 lakers = { package = "lakers", path = "lib/", version = "^0.7.2", default-features = false }
 
 [patch.crates-io]
-psa-crypto = { git = "https://github.com/malishav/rust-psa-crypto", branch = "baremetal" }
+psa-crypto = { git = "https://github.com/chrysn-pull-requests/rust-psa-crypto", branch = "update-bindgen" } # malishav's branch baremetal plus https://github.com/malishav/rust-psa-crypto/pull/1
