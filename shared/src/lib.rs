@@ -668,7 +668,12 @@ impl TryInto<EdhocMessageBuffer> for &[u8] {
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EADItem {
-    pub label: u8,
+    /// EAD label of the item
+    ///
+    /// # Caveats
+    ///
+    /// Currently, only values up to 23 are supported.
+    pub label: u16,
     pub is_critical: bool,
     // TODO[ead]: have adjustable (smaller) length for this buffer
     pub value: Option<EdhocMessageBuffer>,
@@ -750,7 +755,7 @@ mod edhoc_parser {
                     None
                 };
                 let ead_item = Some(EADItem {
-                    label,
+                    label: label.into(),
                     is_critical,
                     value: ead_value,
                 });

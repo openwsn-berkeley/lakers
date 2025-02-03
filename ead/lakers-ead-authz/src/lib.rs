@@ -12,7 +12,7 @@ pub use device::{ZeroTouchDevice, ZeroTouchDeviceDone, ZeroTouchDeviceWaitEAD2};
 pub use server::{ZeroTouchServer, ZeroTouchServerUserAcl};
 
 pub mod consts {
-    pub const EAD_AUTHZ_LABEL: u8 = 0x1; // NOTE: in lake-authz-draft-01 it is still TBD1
+    pub const EAD_AUTHZ_LABEL: u16 = 0x1; // NOTE: in lake-authz-draft-01 it is still TBD1
     pub const EAD_AUTHZ_INFO_K_1_LABEL: u8 = 0x0;
     pub const EAD_AUTHZ_INFO_IV_1_LABEL: u8 = 0x1;
     pub const EAD_AUTHZ_ENC_STRUCTURE_LEN: usize = 2 + 8 + 3;

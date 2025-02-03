@@ -497,14 +497,15 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
     let mut output = EdhocMessageBuffer::new();
 
     // encode label
+    // FIXME: This only works for values up to 23
     let res = if ead_1.is_critical {
         // ensure it won't overflow
-        ead_1
-            .label
-            .checked_add(CBOR_NEG_INT_1BYTE_START)
+        u8::try_from(ead_1.label)
+            .ok()
+            .and_then(|x| x.checked_add(CBOR_NEG_INT_1BYTE_START))
             .and_then(|x| x.checked_sub(1))
     } else {
-        Some(ead_1.label)
+        ead_1.label.try_into().ok()
     };
 
     if let Some(label) = res {
@@ -1201,7 +1202,7 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_C: &str = "0382021819";
     // message with an array having too many cipher suites (more than 9)
     const MESSAGE_1_TV_SUITE_ONLY_ERR: &str = "038A02020202020202020202";
-    const EAD_DUMMY_LABEL_TV: u8 = 0x01;
+    const EAD_DUMMY_LABEL_TV: u16 = 0x01;
     const EAD_DUMMY_VALUE_TV: &str = "cccccc";
     const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
     const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
