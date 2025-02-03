@@ -49,7 +49,7 @@ impl From<EdhocBufferError> for PyErr {
 #[pymethods]
 impl EADItem {
     #[new]
-    fn new_py(label: u8, is_critical: bool, value: Vec<u8>) -> Self {
+    fn new_py(label: u16, is_critical: bool, value: Vec<u8>) -> Self {
         Self {
             label,
             is_critical,
@@ -63,7 +63,7 @@ impl EADItem {
             .map(|v| PyBytes::new_bound(py, v.as_slice()))
     }
 
-    fn label(&self) -> u8 {
+    fn label(&self) -> u16 {
         self.label
     }
 
