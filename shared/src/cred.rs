@@ -245,54 +245,7 @@ impl Credential {
             return Err(EDHOCError::ParsingError);
         }
 
-        if decoder.map()? != 5 {
-            // Right now we're *very* strict and expect exactly 1/kty=/ec2, 2/kid, -1/crv, -2/x, -3/y.
-            return Err(EDHOCError::ParsingError);
-        }
-
-        // kty: EC2
-        if decoder.u8()? != 1 {
-            return Err(EDHOCError::ParsingError);
-        }
-        if decoder.u8()? != 2 {
-            return Err(EDHOCError::ParsingError);
-        }
-
-        // kid: bytes. Note that this is always a byte string, even if in other places it's used
-        // with integer compression.
-        if decoder.u8()? != 2 {
-            return Err(EDHOCError::ParsingError);
-        }
-        let kid = decoder.bytes()?;
-        let kid = BufferKid::new_from_slice(kid)
-            // Could be too long
-            .map_err(|_| EDHOCError::ParsingError)?;
-
-        // crv: p-256
-        if decoder.i8()? != -1 {
-            return Err(EDHOCError::ParsingError);
-        }
-        if decoder.u8()? != 1 {
-            return Err(EDHOCError::ParsingError);
-        }
-
-        // x
-        if decoder.i8()? != -2 {
-            return Err(EDHOCError::ParsingError);
-        }
-        let x = decoder.bytes()?;
-        let x = CredentialKey::EC2Compact(
-            x
-                // Wrong length
-                .try_into()
-                .map_err(|_| EDHOCError::ParsingError)?,
-        );
-
-        // y
-        if decoder.i8()? != -3 {
-            return Err(EDHOCError::ParsingError);
-        }
-        let y = decoder.bytes()?;
+        let (x, kid) = Self::parse_cosekey(&mut decoder)?;
 
         if !decoder.finished() {
             return Err(EDHOCError::ParsingError);
@@ -301,7 +254,7 @@ impl Credential {
         Ok(Self {
             bytes: BufferCred::new_from_slice(value).map_err(|_| EDHOCError::ParsingError)?,
             key: x,
-            kid: Some(kid),
+            kid,
             cred_type: CredentialType::CCS,
         })
     }
@@ -555,11 +508,16 @@ mod test {
         // an Ok value with a different public key).
         let cred_no_sub = hex!("a108a101a401022001215820f5aeba08b599754ba16f5db80feafdf91e90a5a7ccb2e83178adb51b8c68ea9522582097e7a3fdd70a3a7c0a5f9578c6e4e96d8bc55f6edd0ff64f1caeaac19d37b67d");
         Credential::parse_ccs(&cred_no_sub).unwrap_err();
-        // A CCS without a KID. It's OK if this starts working in future, but then its
-        // public key needs to start with F5AEBA08B599754 (it'd be clearly wrong if this produced
-        // an Ok value with a different public key).
+        // A CCS without a KID.
         let cred_no_kid = hex!("a20263666f6f08a101a401022001215820f5aeba08b599754ba16f5db80feafdf91e90a5a7ccb2e83178adb51b8c68ea9522582097e7a3fdd70a3a7c0a5f9578c6e4e96d8bc55f6edd0ff64f1caeaac19d37b67d");
-        Credential::parse_ccs(&cred_no_kid).unwrap_err();
+        let CredentialKey::EC2Compact(key_of_cred_no_kid) =
+            Credential::parse_ccs(&cred_no_kid).unwrap().key
+        else {
+            panic!("CCS contains unexpected key type.");
+        };
+        assert!(key_of_cred_no_kid
+            .as_slice()
+            .starts_with(&hex!("f5aeba08b59975")));
     }
 
     #[rstest]
