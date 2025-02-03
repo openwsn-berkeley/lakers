@@ -66,8 +66,12 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     assert ead_3 == None
     valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
     r_prk_out = responder.verify_message_3(valid_cred_i)
+    message_4 = responder.prepare_message_4(None)
 
     assert i_prk_out == r_prk_out
+
+    # initiator
+    ead_4 = initiator.process_message_4(message_4)
 
     i_oscore_secret = initiator.edhoc_exporter(0, [], 16)
     i_oscore_salt = initiator.edhoc_exporter(1, [], 8)

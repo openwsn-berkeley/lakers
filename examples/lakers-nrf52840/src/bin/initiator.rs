@@ -81,13 +81,15 @@ async fn main(spawner: Spawner) {
     let (initiator, message_1) = initiator.prepare_message_1(Some(c_i), &None).unwrap();
     let pckt_1 = common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5))
         .expect("Buffer not long enough");
-
     let rcvd = common::transmit_and_wait_response(&mut radio, pckt_1, Some(0xf5)).await;
 
     match rcvd {
         Ok(pckt_2) => {
+            info!("Received message_2");
             let message_2: EdhocMessageBuffer =
+                // starts in 1 to consider only the content and not the metadata
                 pckt_2.pdu[1..pckt_2.len].try_into().expect("wrong length");
+            info!("message_2 :{:?}", message_2.content);
             let (initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2).unwrap();
             let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
             let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
@@ -95,15 +97,27 @@ async fn main(spawner: Spawner) {
             let (mut initiator, message_3, i_prk_out) = initiator
                 .prepare_message_3(CredentialTransfer::ByReference, &None)
                 .unwrap();
-
-            common::transmit_without_response(
-                &mut radio,
+            let pckt_3 =
                 common::Packet::new_from_slice(message_3.as_slice(), Some(c_r.as_slice()[0]))
-                    .unwrap(),
-            )
-            .await;
+                    .expect("Buffer not long enough");
+            info!("Send message_3 and wait message_4");
+            let rcvd =
+                common::transmit_and_wait_response(&mut radio, pckt_3, Some(c_r.as_slice()[0]))
+                    .await;
 
-            info!("Handshake completed. prk_out = {:X}", i_prk_out);
+            info!("Sent message_3");
+            match rcvd {
+                Ok(pckt_4) => {
+                    info!("Received message_4");
+                    let message_4: EdhocMessageBuffer =
+                        pckt_4.pdu[1..pckt_4.len].try_into().expect("wrong length");
+
+                    let (initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+
+                    info!("Handshake completed. prk_out = {:X}", i_prk_out);
+                }
+                Err(_) => panic!("parsing error"),
+            }
         }
         Err(_) => panic!("parsing error"),
     }

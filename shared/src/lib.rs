@@ -107,7 +107,9 @@ pub const MAX_INFO_LEN: usize = 2 + SHA256_DIGEST_LEN + // 32-byte digest as bst
 						    1 + MAX_KDF_CONTEXT_LEN +   // context <24 bytes as bstr
 						    1; // length as u8
 
-pub const KCSS_LABEL: u8 = 14;
+pub const KCCS_LABEL: u8 = 14;
+#[deprecated(note = "Typo for KCCS_LABEL")]
+pub const KCSS_LABEL: u8 = KCCS_LABEL;
 pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
@@ -137,12 +139,15 @@ pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
 pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
 pub type BufferPlaintext2 = EdhocMessageBuffer;
 pub type BufferPlaintext3 = EdhocMessageBuffer;
+pub type BufferPlaintext4 = EdhocMessageBuffer;
 pub type BytesMac2 = [u8; MAC_LENGTH_2];
 pub type BytesMac3 = [u8; MAC_LENGTH_3];
 pub type BufferMessage1 = EdhocMessageBuffer;
 pub type BufferMessage3 = EdhocMessageBuffer;
+pub type BufferMessage4 = EdhocMessageBuffer;
 pub type BufferCiphertext2 = EdhocMessageBuffer;
 pub type BufferCiphertext3 = EdhocMessageBuffer;
+pub type BufferCiphertext4 = EdhocMessageBuffer;
 pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
 pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
 pub type BufferMessage2 = EdhocMessageBuffer;
@@ -498,12 +503,29 @@ pub struct ProcessingM3 {
     pub ead_3: Option<EADItem>,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct PreparingM3 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
     pub th_3: BytesHashLen,
     pub mac_3: BytesMac3,
+}
+
+#[derive(Default, Debug)]
+pub struct ProcessedM3 {
+    pub prk_4e3m: BytesHashLen,
+    pub th_4: BytesHashLen,
+    pub prk_out: BytesHashLen,
+    pub prk_exporter: BytesHashLen,
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct WaitM4 {
+    pub prk_4e3m: BytesHashLen,
+    pub th_4: BytesHashLen,
+    pub prk_out: BytesHashLen,
+    pub prk_exporter: BytesHashLen,
 }
 
 #[derive(Default, Debug)]
@@ -898,6 +920,27 @@ mod edhoc_parser {
             }
         } else if decoder.finished() {
             Ok((id_cred_i, mac_3, None))
+        } else {
+            Err(EDHOCError::ParsingError)
+        }
+    }
+
+    pub fn decode_plaintext_4(
+        plaintext_4: &BufferPlaintext4,
+    ) -> Result<Option<EADItem>, EDHOCError> {
+        trace!("Enter decode_plaintext_4");
+        let decoder = CBORDecoder::new(plaintext_4.as_slice());
+
+        if plaintext_4.len > decoder.position() {
+            // assume only one EAD item
+            let ead_res = parse_ead(decoder.remaining_buffer()?);
+            if let Ok(ead_4) = ead_res {
+                Ok(ead_4)
+            } else {
+                Err(ead_res.unwrap_err())
+            }
+        } else if decoder.finished() {
+            Ok(None)
         } else {
             Err(EDHOCError::ParsingError)
         }

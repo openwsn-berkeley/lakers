@@ -118,8 +118,8 @@ jobs:
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+    - name: Install arm gcc and cbindgen
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
 
     - name: Build static library, generate headers, and zip to file
       run: cd lakers-c && ./build.sh "${{ matrix.crypto_backend }}"
@@ -156,8 +156,8 @@ jobs:
 
     - name: Install arm targets for Rust
       run: rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+    - name: Install arm gcc and cbindgen
+      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
 
     - name: Build static library and generate headers
       run: cd lakers-c && ./build.sh crypto-rustcrypto
