@@ -1,7 +1,14 @@
+import io
+import logging
 import lakers
 import cbor2
 import pytest
 from lakers import CredentialTransfer, EdhocInitiator, EdhocResponder
+
+# This needs to be early, thus top-level: Once Lakers objects are created, the
+# log level is fixed.
+LOGSTREAM = io.StringIO()
+logging.basicConfig(stream=LOGSTREAM, level=0, force=True)
 
 # values from RFC9529, but CRED_I shortened so that passing by value is possible in a 256 byte message
 CRED_I = bytes.fromhex("A202617808A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8")
@@ -96,6 +103,15 @@ def test_buffer_error():
     with pytest.raises(ValueError) as err:
         _ = initiator.parse_message_2([1] * 1000)
     assert str(err.value) == "MessageBufferError::SliceTooLong"
+
+def test_logging():
+    LOGSTREAM.truncate(0)
+    LOGSTREAM.seek(0)
+
+    test_handshake_credential_transfer_by(CredentialTransfer.ByValue, CredentialTransfer.ByValue)
+
+    # So far we don't test much, but that is currently in it an shows that log messages get through.
+    assert 'Initializing EdhocInitiator' in LOGSTREAM.getvalue()
 
 @pytest.mark.parametrize("cred_r_transfer", [CredentialTransfer.ByReference, CredentialTransfer.ByValue])
 @pytest.mark.parametrize("cred_i_transfer", [CredentialTransfer.ByReference, CredentialTransfer.ByValue])
