@@ -28,8 +28,16 @@ impl std::fmt::Display for StateMismatch {
     }
 }
 impl From<StateMismatch> for PyErr {
+    #[track_caller]
     fn from(err: StateMismatch) -> PyErr {
-        pyo3::exceptions::PyRuntimeError::new_err(err.to_string())
+        let location = std::panic::Location::caller();
+        // It would be nice to inject something more idiomatic on the Python side, eg. setting a
+        // cause with a Rust file and line number, but to create such an object we'd need the GIL,
+        // and that'd required doing a lot of things custom, eg. by creating a custom class where
+        // we pass that extra info in extra arguments, or re-implementing PyErr's lazy state (which
+        // we can't hook into because that's private) -- having the location in the text is the
+        // second best option.
+        pyo3::exceptions::PyRuntimeError::new_err(format!("{} (internally {})", err, location))
     }
 }
 
