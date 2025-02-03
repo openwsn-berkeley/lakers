@@ -89,8 +89,9 @@ def test_edhoc_error():
 
 def test_buffer_error():
     initiator = EdhocInitiator()
+    initiator.prepare_message_1()
     with pytest.raises(ValueError) as err:
-        _ = initiator.parse_message_2([1] * 10000)
+        _ = initiator.parse_message_2(cbor2.dumps(bytes([1] * 10000)))
     assert str(err.value) == "MessageBufferError::SliceTooLong"
 
 @pytest.mark.parametrize("cred_r_transfer", [CredentialTransfer.ByReference, CredentialTransfer.ByValue])
