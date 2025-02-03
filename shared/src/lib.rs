@@ -32,6 +32,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
 mod python_bindings;
 
+// When changing this, beware that it is re-implemented in cbindgen.toml
 pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_1024") {
     1024
 } else if cfg!(feature = "max_message_size_len_512") {
@@ -64,6 +65,8 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
+//
+// When changing this, beware that it is re-implemented in cbindgen.toml
 pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_1024") {
     1024
 } else if cfg!(feature = "max_kdf_content_len_512") {
@@ -78,6 +81,8 @@ pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_10
     256
 };
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
+
+// When changing this, beware that it is re-implemented in cbindgen.toml
 pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_1024") {
     1024
 } else if cfg!(feature = "max_buffer_len_512") {
@@ -121,6 +126,8 @@ pub const MAX_EAD_SIZE_LEN: usize = 64;
 /// This length includes the leading CBOR encoding byte(s).
 // Note that when implementing larger sizes than 24, the encoding will need to use actual CBOR
 // rather than masking a known short length into a byte.
+//
+// When changing this, beware that it is re-implemented in cbindgen.toml
 const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "max_connid_encoded_len_24") {
     24
 } else {
