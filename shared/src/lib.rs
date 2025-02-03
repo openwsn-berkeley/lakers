@@ -32,19 +32,23 @@ use pyo3::prelude::*;
 #[cfg(feature = "python-bindings")]
 mod python_bindings;
 
-/// Configured upscaling applied to fixed-size buffers
-///
-/// Do not rely on this: It is only pub because cbindgen needs it.
-#[cfg(not(feature = "quadruple_sizes"))]
-#[doc(hidden)]
-pub const SCALE_FACTOR: usize = 1;
-#[cfg(feature = "quadruple_sizes")]
-#[doc(hidden)]
-pub const SCALE_FACTOR: usize = 4;
-
-// TODO: find a way to configure the buffer size
-// need 128 to handle EAD fields, and 192 for the EAD_1 voucher
-pub const MAX_MESSAGE_SIZE_LEN: usize = SCALE_FACTOR * (128 + 64);
+// When changing this, beware that it is re-implemented in cbindgen.toml
+pub const MAX_MESSAGE_SIZE_LEN: usize = if cfg!(feature = "max_message_size_len_1024") {
+    1024
+} else if cfg!(feature = "max_message_size_len_512") {
+    512
+} else if cfg!(feature = "max_message_size_len_448") {
+    448
+} else if cfg!(feature = "max_message_size_len_384") {
+    384
+} else if cfg!(feature = "max_message_size_len_320") {
+    320
+} else if cfg!(feature = "max_message_size_len_256") {
+    256
+} else {
+    // need 128 to handle EAD fields, and 192 for the EAD_1 voucher
+    128 + 64
+};
 
 pub const ID_CRED_LEN: usize = 4;
 pub const SUITES_LEN: usize = 9;
@@ -61,9 +65,35 @@ pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
 
 // maximum supported length of connection identifier for R
-pub const MAX_KDF_CONTEXT_LEN: usize = SCALE_FACTOR * 256;
+//
+// When changing this, beware that it is re-implemented in cbindgen.toml
+pub const MAX_KDF_CONTEXT_LEN: usize = if cfg!(feature = "max_kdf_content_len_1024") {
+    1024
+} else if cfg!(feature = "max_kdf_content_len_512") {
+    512
+} else if cfg!(feature = "max_kdf_content_len_448") {
+    448
+} else if cfg!(feature = "max_kdf_content_len_384") {
+    384
+} else if cfg!(feature = "max_kdf_content_len_320") {
+    320
+} else {
+    256
+};
 pub const MAX_KDF_LABEL_LEN: usize = 15; // for "KEYSTREAM_2"
-pub const MAX_BUFFER_LEN: usize = SCALE_FACTOR * 256 + 64;
+
+// When changing this, beware that it is re-implemented in cbindgen.toml
+pub const MAX_BUFFER_LEN: usize = if cfg!(feature = "max_buffer_len_1024") {
+    1024
+} else if cfg!(feature = "max_buffer_len_512") {
+    512
+} else if cfg!(feature = "max_buffer_len_448") {
+    448
+} else if cfg!(feature = "max_buffer_len_384") {
+    384
+} else {
+    256 + 64
+};
 pub const CBOR_BYTE_STRING: u8 = 0x58u8;
 pub const CBOR_TEXT_STRING: u8 = 0x78u8;
 pub const CBOR_UINT_1BYTE: u8 = 0x18u8;
@@ -89,13 +119,16 @@ pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
-pub const MAX_EAD_SIZE_LEN: usize = SCALE_FACTOR * 64;
+pub const MAX_EAD_SIZE_LEN: usize = 64;
 
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
 /// This length includes the leading CBOR encoding byte(s).
-// If ints had a const `.clamp()` feature, this could be (8 * SCALE_FACTOR).clamp(1, 23).
-const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "quadruple_sizes") {
+// Note that when implementing larger sizes than 24, the encoding will need to use actual CBOR
+// rather than masking a known short length into a byte.
+//
+// When changing this, beware that it is re-implemented in cbindgen.toml
+const MAX_CONNID_ENCODED_LEN: usize = if cfg!(feature = "max_connid_encoded_len_24") {
     24
 } else {
     8
