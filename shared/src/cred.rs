@@ -359,6 +359,103 @@ impl Credential {
         }
     }
 
+    /// Parse a COSE Key, accepting only understood fields.
+    ///
+    /// This takes a decoder rather than a slice because this enables a naked decoder to assert that
+    /// the decoder is done, and others to continue.
+    ///
+    /// This function does not try to require deterministic encoding, as that is not exposed by the
+    /// decoder. (Adding it would be possible, but would not just mean asserting monotony, but also
+    /// requiring it integer encodings etc).
+    fn parse_cosekey<'data>(
+        decoder: &mut CBORDecoder<'data>,
+    ) -> Result<(CredentialKey, Option<BufferKid>), EDHOCError> {
+        let items = decoder.map()?;
+        let mut x = None;
+        let mut kid = None;
+        for _ in 0..items {
+            match decoder.i8()? {
+                // kty: EC2
+                1 => {
+                    if decoder.u8()? != 2 {
+                        return Err(EDHOCError::ParsingError);
+                    }
+                }
+                // kid: bytes. Note that this is always a byte string, even if in other places it's used
+                // with integer compression.
+                2 => {
+                    kid = Some(
+                        BufferKid::new_from_slice(decoder.bytes()?)
+                            // Could be too long
+                            .map_err(|_| EDHOCError::ParsingError)?,
+                    );
+                }
+                // crv: p-256
+                -1 => {
+                    if decoder.u8()? != 1 {
+                        return Err(EDHOCError::ParsingError);
+                    }
+                }
+                // x
+                -2 => {
+                    x = Some(CredentialKey::EC2Compact(
+                        decoder
+                            .bytes()?
+                            // Wrong length
+                            .try_into()
+                            .map_err(|_| EDHOCError::ParsingError)?,
+                    ));
+                }
+                // y
+                -3 => {
+                    let _ = decoder.bytes()?;
+                }
+                _ => {
+                    return Err(EDHOCError::ParsingError);
+                }
+            }
+        }
+        Ok((x.ok_or(EDHOCError::ParsingError)?, kid))
+    }
+
+    /// Dress a naked COSE_Key as a CCS by prepending 0xA108A101 as specified in Section 3.5.2 of
+    /// RFC9528
+    ///
+    ///
+    /// # Usage example
+    ///
+    /// ```
+    /// # use hexlit::hex;
+    /// let key = hex!("a301022001215820bac5b11cad8f99f9c72b05cf4b9e26d244dc189f745228255a219a86d6a09eff");
+    /// let ccs = lakers_shared::Credential::parse_and_dress_naked_cosekey(&key).unwrap();
+    /// // The key bytes that are part of the input
+    /// assert!(ccs.public_key().unwrap().as_slice().starts_with(&hex!("bac5b1")));
+    /// // This particular key does not contain a KID
+    /// assert!(ccs.kid.is_none());
+    /// // This is true for all dressed naked COSE keys
+    /// assert!(ccs.bytes.as_slice().starts_with(&hex!("a108a101")));
+    /// ```
+    pub fn parse_and_dress_naked_cosekey(cosekey: &[u8]) -> Result<Self, EDHOCError> {
+        let mut decoder = CBORDecoder::new(cosekey);
+        let (key, kid) = Self::parse_cosekey(&mut decoder)?;
+        if !decoder.finished() {
+            return Err(EDHOCError::ParsingError);
+        }
+        let mut bytes = BufferCred::new();
+        bytes
+            .extend_from_slice(&[0xa1, 0x08, 0xa1, 0x01])
+            .expect("Minimal size fits in the buffer");
+        bytes
+            .extend_from_slice(cosekey)
+            .map_err(|_| EDHOCError::CredentialTooLongError)?;
+        Ok(Self {
+            bytes,
+            key,
+            kid,
+            cred_type: CredentialType::CCS,
+        })
+    }
+
     /// Returns a COSE_Header map with a single entry representing a credential by value.
     ///
     /// For example, if the credential is a CCS:
