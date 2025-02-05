@@ -218,34 +218,37 @@ impl Credential {
     /// its public key and key ID are extracted into a full credential.
     pub fn parse_ccs(value: &[u8]) -> Result<Self, EDHOCError> {
         let mut decoder = CBORDecoder::new(value);
-        if decoder.map()? != 2 {
-            // eg. no subject present
-            return Err(EDHOCError::ParsingError);
+        let mut x_kid = None;
+        for _ in 0..decoder.map()? {
+            match decoder.u8()? {
+                // subject: ignored
+                2 => {
+                    let _subject = decoder.str()?;
+                }
+                // cnf
+                8 => {
+                    if decoder.map()? != 1 {
+                        // cnf is always single-item'd
+                        return Err(EDHOCError::ParsingError);
+                    }
+
+                    if decoder.u8()? != 1 {
+                        // Unexpected cnf
+                        return Err(EDHOCError::ParsingError);
+                    }
+
+                    x_kid = Some(Self::parse_cosekey(&mut decoder)?);
+                }
+                _ => {
+                    return Err(EDHOCError::ParsingError);
+                }
+            }
         }
 
-        if decoder.u8()? != 2 {
-            // expected 2 (subject)
+        let Some((x, kid)) = x_kid else {
+            // Missing critical component
             return Err(EDHOCError::ParsingError);
-        }
-
-        let _subject = decoder.str()?;
-
-        if decoder.u8()? != 8 {
-            // expected 8 (cnf)
-            return Err(EDHOCError::ParsingError);
-        }
-
-        if decoder.map()? != 1 {
-            // cnf is always single-item'd
-            return Err(EDHOCError::ParsingError);
-        }
-
-        if decoder.u8()? != 1 {
-            // Unexpected cnf
-            return Err(EDHOCError::ParsingError);
-        }
-
-        let (x, kid) = Self::parse_cosekey(&mut decoder)?;
+        };
 
         if !decoder.finished() {
             return Err(EDHOCError::ParsingError);
