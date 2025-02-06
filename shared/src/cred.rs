@@ -218,34 +218,37 @@ impl Credential {
     /// its public key and key ID are extracted into a full credential.
     pub fn parse_ccs(value: &[u8]) -> Result<Self, EDHOCError> {
         let mut decoder = CBORDecoder::new(value);
-        if decoder.map()? != 2 {
-            // eg. no subject present
-            return Err(EDHOCError::ParsingError);
+        let mut x_kid = None;
+        for _ in 0..decoder.map()? {
+            match decoder.u8()? {
+                // subject: ignored
+                2 => {
+                    let _subject = decoder.str()?;
+                }
+                // cnf
+                8 => {
+                    if decoder.map()? != 1 {
+                        // cnf is always single-item'd
+                        return Err(EDHOCError::ParsingError);
+                    }
+
+                    if decoder.u8()? != 1 {
+                        // Unexpected cnf
+                        return Err(EDHOCError::ParsingError);
+                    }
+
+                    x_kid = Some(Self::parse_cosekey(&mut decoder)?);
+                }
+                _ => {
+                    return Err(EDHOCError::ParsingError);
+                }
+            }
         }
 
-        if decoder.u8()? != 2 {
-            // expected 2 (subject)
+        let Some((x, kid)) = x_kid else {
+            // Missing critical component
             return Err(EDHOCError::ParsingError);
-        }
-
-        let _subject = decoder.str()?;
-
-        if decoder.u8()? != 8 {
-            // expected 8 (cnf)
-            return Err(EDHOCError::ParsingError);
-        }
-
-        if decoder.map()? != 1 {
-            // cnf is always single-item'd
-            return Err(EDHOCError::ParsingError);
-        }
-
-        if decoder.u8()? != 1 {
-            // Unexpected cnf
-            return Err(EDHOCError::ParsingError);
-        }
-
-        let (x, kid) = Self::parse_cosekey(&mut decoder)?;
+        };
 
         if !decoder.finished() {
             return Err(EDHOCError::ParsingError);
@@ -503,21 +506,23 @@ mod test {
         assert_eq!(cred.kid.unwrap().as_slice(), KID_VALUE_TV);
         assert_eq!(cred.cred_type, CredentialType::CCS);
 
-        // A CCS without a subject. It's OK if this starts working in future, but then its
-        // public key needs to start with F5AEBA08B599754 (it'd be clearly wrong if this produced
-        // an Ok value with a different public key).
+        // A CCS without a subject.
         let cred_no_sub = hex!("a108a101a401022001215820f5aeba08b599754ba16f5db80feafdf91e90a5a7ccb2e83178adb51b8c68ea9522582097e7a3fdd70a3a7c0a5f9578c6e4e96d8bc55f6edd0ff64f1caeaac19d37b67d");
-        Credential::parse_ccs(&cred_no_sub).unwrap_err();
         // A CCS without a KID.
         let cred_no_kid = hex!("a20263666f6f08a101a401022001215820f5aeba08b599754ba16f5db80feafdf91e90a5a7ccb2e83178adb51b8c68ea9522582097e7a3fdd70a3a7c0a5f9578c6e4e96d8bc55f6edd0ff64f1caeaac19d37b67d");
-        let CredentialKey::EC2Compact(key_of_cred_no_kid) =
-            Credential::parse_ccs(&cred_no_kid).unwrap().key
-        else {
-            panic!("CCS contains unexpected key type.");
-        };
-        assert!(key_of_cred_no_kid
-            .as_slice()
-            .starts_with(&hex!("f5aeba08b59975")));
+        for cred in [cred_no_sub.as_slice(), cred_no_kid.as_slice()] {
+            let CredentialKey::EC2Compact(key) = Credential::parse_ccs(&cred).unwrap().key else {
+                panic!("CCS contains unexpected key type.");
+            };
+            assert!(key.as_slice().starts_with(&hex!("f5aeba08b59975")));
+        }
+
+        // A CCS with an issuer.
+        // It's OK if this starts working in future, but then its public key needs to start with
+        // F5AEBA08B599754 (it'd be clearly wrong if this produced an Ok value with a different
+        // public key).
+        let cred_exotic = hex!("a2016008a101a401022001215820f5aeba08b599754ba16f5db80feafdf91e90a5a7ccb2e83178adb51b8c68ea9522582097e7a3fdd70a3a7c0a5f9578c6e4e96d8bc55f6edd0ff64f1caeaac19d37b67d");
+        Credential::parse_ccs(&cred_exotic).unwrap_err();
     }
 
     #[rstest]
