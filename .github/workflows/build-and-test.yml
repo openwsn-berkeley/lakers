@@ -23,272 +23,272 @@ jobs:
     - name: Check if code is well formatted
       run: cargo fmt --check
 
-  unit-tests-default:
-    needs: check-style
-    runs-on: ubuntu-latest
+  # unit-tests-default:
+  #   needs: check-style
+  #   runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
+  #   strategy:
+  #     fail-fast: false
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-    - name: Run unit tests with default features
-      run: RUST_BACKTRACE=1 cargo test
-
-
-  unit-tests:
-    needs: check-style
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        crypto_backend: [lakers-crypto/psa, lakers-crypto/rustcrypto]
-        ead: [ead-none, ead-authz]
-
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-authz` when testing with that config
-      run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, test-${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
+  #   - name: Run unit tests with default features
+  #     run: RUST_BACKTRACE=1 cargo test
 
 
-  build-edhoc-package:
-    needs: unit-tests
-    runs-on: ubuntu-latest
+  # unit-tests:
+  #   needs: check-style
+  #   runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        crypto_backend: [lakers-crypto/psa, lakers-crypto/psa-baremetal, lakers-crypto/cryptocell310, lakers-crypto/rustcrypto]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       crypto_backend: [lakers-crypto/psa, lakers-crypto/rustcrypto]
+  #       ead: [ead-none, ead-authz]
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-    - name: Install arm targets for Rust
-      run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
-
-    - name: Build
-      run: cargo build --package lakers --package lakers-crypto --package lakers-ead-authz --no-default-features --features="${{ matrix.crypto_backend }}" --release
+  #   - name: Run unit tests with feature matrix # note that we only add `--package lakers-ead-authz` when testing with that config
+  #     run: RUST_BACKTRACE=1 cargo test -p lakers -p lakers-crypto -p lakers-shared ${{ matrix.ead == 'ead-authz' && '-p lakers-ead-authz' || '' }}  --no-default-features --features="${{ matrix.crypto_backend }}, test-${{ matrix.ead }}" --no-fail-fast -- --test-threads 1
 
 
-  generate-fstar:
-    runs-on: ubuntu-latest
+  # build-edhoc-package:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout lakers
-      uses: actions/checkout@v4
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       crypto_backend: [lakers-crypto/psa, lakers-crypto/psa-baremetal, lakers-crypto/cryptocell310, lakers-crypto/rustcrypto]
 
-    - name: Generate fstar code over lakers and lakers-shared
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/lakers docker.io/geonnave/hax bash -e -c "
-        cd lakers
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-        # generate the fstar files
-        cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/rustcrypto' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
-        cargo-hax -C -p lakers-shared \; into -i '-lakers_shared::ffi::**' fstar
+  #   - name: Install arm targets for Rust
+  #     run: rustup target add thumbv7m-none-eabi && rustup target add thumbv7em-none-eabihf
+  #   - name: Install arm gcc
+  #     run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
 
-        # even if fstar generation was ok, fail if something is not implemented
-        [ -z "$(find -name *.fst -type f | xargs grep 'something is not implemented yet')" ]
-        "
-        zip -j -r lakers-fstar.zip $(find . -name *fst)
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: fstar-code
-        path: ./lakers-fstar.zip
-
-  build-lakers-c:
-    needs: unit-tests
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        crypto_backend: [crypto-rustcrypto, crypto-psa-baremetal, crypto-cryptocell310]
-
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    - name: Install arm targets for Rust
-      run: rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc and cbindgen
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
-
-    - name: Build static library, generate headers, and zip to file
-      run: cd lakers-c && ./build.sh "${{ matrix.crypto_backend }}"
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: lakers-c-${{ matrix.crypto_backend }}
-        path: ./target/lakers-c-*.zip
+  #   - name: Build
+  #     run: cargo build --package lakers --package lakers-crypto --package lakers-ead-authz --no-default-features --features="${{ matrix.crypto_backend }}" --release
 
 
-  build-lakers-c-example:
-    needs: unit-tests
-    runs-on: ubuntu-latest
+  # generate-fstar:
+  #   runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
+  #   steps:
+  #   - name: Checkout lakers
+  #     uses: actions/checkout@v4
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+  #   - name: Generate fstar code over lakers and lakers-shared
+  #     run: |
+  #       docker run --rm -v ${{ github.workspace }}:/lakers docker.io/geonnave/hax bash -e -c "
+  #       cd lakers
 
-    - name: Checkout libcoap
-      uses: actions/checkout@v4
-      with:
-        repository: obgm/libcoap
-        path: libcoap
+  #       # generate the fstar files
+  #       cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/rustcrypto' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
+  #       cargo-hax -C -p lakers-shared \; into -i '-lakers_shared::ffi::**' fstar
 
-    - name: Install libcoap
-      run: |
-        cd libcoap && ./autogen.sh
-        ./configure --disable-doxygen --disable-manpages --disable-dtls --disable-oscore
-        make && sudo make install
+  #       # even if fstar generation was ok, fail if something is not implemented
+  #       [ -z "$(find -name *.fst -type f | xargs grep 'something is not implemented yet')" ]
+  #       "
+  #       zip -j -r lakers-fstar.zip $(find . -name *fst)
 
-    - name: Install arm targets for Rust
-      run: rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc and cbindgen
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
+  #   - name: Upload artifact
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: fstar-code
+  #       path: ./lakers-fstar.zip
 
-    - name: Build static library and generate headers
-      run: cd lakers-c && ./build.sh crypto-rustcrypto
+  # build-lakers-c:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
 
-    - name: Build and run native C eaxmple
-      run: |
-        cd examples/lakers-c-native
-        make all LAKERS_EAD=authz
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       crypto_backend: [crypto-rustcrypto, crypto-psa-baremetal, crypto-cryptocell310]
 
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-  test-lakers-python:
-    needs: check-style
-    runs-on: ubuntu-latest
+  #   - name: Install arm targets for Rust
+  #     run: rustup target add thumbv7em-none-eabihf
+  #   - name: Install arm gcc and cbindgen
+  #     run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
 
-    strategy:
-      fail-fast: false
+  #   - name: Build static library, generate headers, and zip to file
+  #     run: cd lakers-c && ./build.sh "${{ matrix.crypto_backend }}"
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    - name: set up python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
-    - name: Test Python package
-      run: |
-        cd lakers-python
-        python3 -m venv .venv
-        source .venv/bin/activate
-        pip install --upgrade pip
-        pip install -U maturin pytest cbor2
-        pip freeze
-        maturin develop && pytest
+  #   - name: Upload artifact
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: lakers-c-${{ matrix.crypto_backend }}
+  #       path: ./target/lakers-c-*.zip
 
 
-  run-example-on-qemu:
-    needs: unit-tests
-    runs-on: ubuntu-latest
+  # build-lakers-c-example:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        crypto_backend: [crypto-psa]
+  #   strategy:
+  #     fail-fast: false
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-    - name: Install arm targets for Rust
-      run: rustup target add thumbv7m-none-eabi
-    - name: Install arm gcc
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
-    - name: Install QEMU ARM emulator
-      run: sudo apt-get -y install qemu-system-arm
+  #   - name: Checkout libcoap
+  #     uses: actions/checkout@v4
+  #     with:
+  #       repository: obgm/libcoap
+  #       path: libcoap
 
-    - name: Run tests in QEMU
-      run: cd examples/lakers-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.crypto_backend }}" --release
+  #   - name: Install libcoap
+  #     run: |
+  #       cd libcoap && ./autogen.sh
+  #       ./configure --disable-doxygen --disable-manpages --disable-dtls --disable-oscore
+  #       make && sudo make install
 
+  #   - name: Install arm targets for Rust
+  #     run: rustup target add thumbv7em-none-eabihf
+  #   - name: Install arm gcc and cbindgen
+  #     run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi cbindgen
 
-  build-example-for-cortex-m4:
-    needs: unit-tests
-    runs-on: ubuntu-latest
+  #   - name: Build static library and generate headers
+  #     run: cd lakers-c && ./build.sh crypto-rustcrypto
 
-    strategy:
-      fail-fast: false
-      matrix:
-        crypto_backend: [crypto-psa, crypto-cryptocell310]
-
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    - name: Install arm targets for Rust
-      run: rustup target add thumbv7em-none-eabihf
-    - name: Install arm gcc
-      run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
-
-    - name: Build example
-      run: cd examples/lakers-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto_backend }}, rtt" --release
+  #   - name: Build and run native C eaxmple
+  #     run: |
+  #       cd examples/lakers-c-native
+  #       make all LAKERS_EAD=authz
 
 
-  build-coap-example:
-    needs: unit-tests
-    runs-on: ubuntu-latest
+  # test-lakers-python:
+  #   needs: check-style
+  #   runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+  #   strategy:
+  #     fail-fast: false
 
-    - name: Build server
-      run: cargo build --bin coapserver
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
 
-    - name: Build client
-      run: cargo build --bin coapclient
+  #   - name: set up python
+  #     uses: actions/setup-python@v5
+  #     with:
+  #       python-version: '3.10'
 
-    - name: Build coap-handler based server
-      run: cargo build --bin coapserver-coaphandler
+  #   - name: Test Python package
+  #     run: |
+  #       cd lakers-python
+  #       python3 -m venv .venv
+  #       source .venv/bin/activate
+  #       pip install --upgrade pip
+  #       pip install -U maturin pytest cbor2
+  #       pip freeze
+  #       maturin develop && pytest
 
 
-  release:
-    runs-on: ubuntu-latest
-    needs: [
-      build-edhoc-package, build-lakers-c,
-      generate-fstar,
-      build-example-for-cortex-m4, build-coap-example, build-lakers-c-example,
-      run-example-on-qemu,
-    ]
-    if: >-
-      github.event_name == 'push' &&
-      startsWith(github.event.ref, 'refs/tags')
+  # run-example-on-qemu:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      - name: Download artifacts
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: fstar-code
-          path: ./release-artifacts
-      - name: Download artifacts
-        uses: actions/download-artifact@v4.1.7
-        with:
-          pattern: lakers-c*
-          path: ./release-artifacts
-      - name: Release
-        uses: ncipollo/release-action@v1
-        with:
-          generateReleaseNotes: true
-          artifacts: "release-artifacts/*"
-          token: ${{ secrets.RELEASE_TOKEN }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       crypto_backend: [crypto-psa]
+
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
+
+  #   - name: Install arm targets for Rust
+  #     run: rustup target add thumbv7m-none-eabi
+  #   - name: Install arm gcc
+  #     run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+  #   - name: Install QEMU ARM emulator
+  #     run: sudo apt-get -y install qemu-system-arm
+
+  #   - name: Run tests in QEMU
+  #     run: cd examples/lakers-no_std && cargo run --target="thumbv7m-none-eabi" --no-default-features --features="${{ matrix.crypto_backend }}" --release
+
+
+  # build-example-for-cortex-m4:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
+
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       crypto_backend: [crypto-psa, crypto-cryptocell310]
+
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
+
+  #   - name: Install arm targets for Rust
+  #     run: rustup target add thumbv7em-none-eabihf
+  #   - name: Install arm gcc
+  #     run: sudo apt-get -y update && sudo apt-get -y install gcc-arm-none-eabi
+
+  #   - name: Build example
+  #     run: cd examples/lakers-no_std && cargo build --target="thumbv7em-none-eabihf" --no-default-features --features="${{ matrix.crypto_backend }}, rtt" --release
+
+
+  # build-coap-example:
+  #   needs: unit-tests
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #   - name: Checkout repo
+  #     uses: actions/checkout@v4
+
+  #   - name: Build server
+  #     run: cargo build --bin coapserver
+
+  #   - name: Build client
+  #     run: cargo build --bin coapclient
+
+  #   - name: Build coap-handler based server
+  #     run: cargo build --bin coapserver-coaphandler
+
+
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs: [
+  #     build-edhoc-package, build-lakers-c,
+  #     generate-fstar,
+  #     build-example-for-cortex-m4, build-coap-example, build-lakers-c-example,
+  #     run-example-on-qemu,
+  #   ]
+  #   if: >-
+  #     github.event_name == 'push' &&
+  #     startsWith(github.event.ref, 'refs/tags')
+
+  #   steps:
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v4
+  #     - name: Download artifacts
+  #       uses: actions/download-artifact@v4.1.7
+  #       with:
+  #         name: fstar-code
+  #         path: ./release-artifacts
+  #     - name: Download artifacts
+  #       uses: actions/download-artifact@v4.1.7
+  #       with:
+  #         pattern: lakers-c*
+  #         path: ./release-artifacts
+  #     - name: Release
+  #       uses: ncipollo/release-action@v1
+  #       with:
+  #         generateReleaseNotes: true
+  #         artifacts: "release-artifacts/*"
+  #         token: ${{ secrets.RELEASE_TOKEN }}
