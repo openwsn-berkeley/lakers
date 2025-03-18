@@ -18,7 +18,7 @@
 use defmt_or_log::trace;
 pub use {lakers_shared::Crypto as CryptoTrait, lakers_shared::*};
 
-#[cfg(all(feature = "ead-authz", test))]
+#[cfg(test)]
 pub use lakers_ead_authz::*;
 
 mod edhoc;

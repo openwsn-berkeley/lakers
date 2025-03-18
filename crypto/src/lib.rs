@@ -9,10 +9,10 @@
 /// Convenience re-export
 pub use lakers_shared::Crypto as CryptoTrait;
 
-#[cfg(any(feature = "psa", feature = "psa-rust",))]
+#[cfg(feature = "psa")]
 pub type Crypto = lakers_crypto_psa::Crypto;
 
-#[cfg(any(feature = "psa", feature = "psa-rust",))]
+#[cfg(feature = "psa")]
 pub const fn default_crypto() -> Crypto {
     lakers_crypto_psa::Crypto
 }
@@ -25,10 +25,10 @@ pub const fn default_crypto() -> Crypto {
     lakers_crypto_rustcrypto::Crypto::new(rand_core::OsRng)
 }
 
-#[cfg(any(feature = "cryptocell310", feature = "cryptocell310-rust"))]
+#[cfg(feature = "cryptocell310")]
 pub type Crypto = lakers_crypto_cryptocell310::Crypto;
 
-#[cfg(any(feature = "cryptocell310", feature = "cryptocell310-rust"))]
+#[cfg(feature = "cryptocell310")]
 pub const fn default_crypto() -> Crypto {
     lakers_crypto_cryptocell310::Crypto
 }
