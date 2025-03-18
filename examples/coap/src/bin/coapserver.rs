@@ -92,6 +92,7 @@ fn main() {
             } else {
                 // potentially message 3
                 println!("Received message 3");
+                #[allow(deprecated)]
                 let c_r_rcvd = ConnId::from_int_raw(request.message.payload[0]);
                 // FIXME let's better not *panic here
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();

@@ -511,6 +511,7 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
 
 pub fn generate_connection_identifier_cbor<Crypto: CryptoTrait>(crypto: &mut Crypto) -> ConnId {
     let c_i = generate_connection_identifier(crypto);
+    #[allow(deprecated)]
     ConnId::from_int_raw(if c_i >= 0 && c_i <= 23 {
         c_i as u8 // verbatim encoding of single byte integer
     } else if c_i < 0 && c_i >= -24 {

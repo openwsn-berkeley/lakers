@@ -66,6 +66,7 @@ impl EdhocHandler {
         if result >= 24 {
             panic!("Contexts exceeded");
         }
+        #[allow(deprecated)]
         ConnId::from_int_raw(result as _)
     }
 }
@@ -162,6 +163,7 @@ impl coap_handler::Handler for EdhocHandler {
 
             // FIXME: This panics or creates an in valid ConnId (but once we fix
             // working with longer IDs, there will be a function that has proper error handling)
+            #[allow(deprecated)]
             let c_r_rcvd = ConnId::from_int_raw(*c_r_rcvd);
 
             let responder = self
