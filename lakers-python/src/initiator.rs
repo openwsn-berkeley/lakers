@@ -59,13 +59,10 @@ impl PyEdhocInitiator {
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
 
-        match i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1) {
-            Ok((state, message_1)) => {
-                self.wait_m2 = Some(state);
-                Ok(PyBytes::new_bound(py, message_1.as_slice()))
-            }
-            Err(error) => Err(error.into()),
-        }
+        let (state, message_1) =
+            i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1)?;
+        self.wait_m2 = Some(state);
+        Ok(PyBytes::new_bound(py, message_1.as_slice()))
     }
 
     pub fn parse_message_2<'a>(
@@ -75,21 +72,17 @@ impl PyEdhocInitiator {
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
 
-        match i_parse_message_2(
+        let (state, c_r, id_cred_r, ead_2) = i_parse_message_2(
             &self.wait_m2.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &message_2,
-        ) {
-            Ok((state, c_r, id_cred_r, ead_2)) => {
-                self.processing_m2 = Some(state);
-                Ok((
-                    PyBytes::new_bound(py, c_r.as_slice()),
-                    PyBytes::new_bound(py, id_cred_r.bytes.as_slice()),
-                    ead_2,
-                ))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.processing_m2 = Some(state);
+        Ok((
+            PyBytes::new_bound(py, c_r.as_slice()),
+            PyBytes::new_bound(py, id_cred_r.bytes.as_slice()),
+            ead_2,
+        ))
     }
 
     pub fn verify_message_2(
@@ -101,21 +94,17 @@ impl PyEdhocInitiator {
         let cred_i = cred_i.to_credential()?;
         let valid_cred_r = valid_cred_r.to_credential()?;
 
-        match i_verify_message_2(
+        let state = i_verify_message_2(
             &self.processing_m2.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             valid_cred_r,
             i.as_slice()
                 .try_into()
                 .expect("Wrong length of initiator private key"),
-        ) {
-            Ok(state) => {
-                self.processed_m2 = Some(state);
-                self.cred_i = Some(cred_i);
-                Ok(())
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.processed_m2 = Some(state);
+        self.cred_i = Some(cred_i);
+        Ok(())
     }
 
     #[pyo3(signature = (cred_transfer, ead_3=None))]
@@ -125,32 +114,24 @@ impl PyEdhocInitiator {
         cred_transfer: CredentialTransfer,
         ead_3: Option<EADItem>,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
-        match i_prepare_message_3(
+        let (state, message_3, prk_out) = i_prepare_message_3(
             &mut self.processed_m2.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             self.cred_i.unwrap(),
             cred_transfer,
             &ead_3,
-        ) {
-            Ok((state, message_3, prk_out)) => {
-                self.wait_m4 = Some(state);
-                Ok((
-                    PyBytes::new_bound(py, message_3.as_slice()),
-                    PyBytes::new_bound(py, prk_out.as_slice()),
-                ))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.wait_m4 = Some(state);
+        Ok((
+            PyBytes::new_bound(py, message_3.as_slice()),
+            PyBytes::new_bound(py, prk_out.as_slice()),
+        ))
     }
 
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
-        match i_complete_without_message_4(&self.wait_m4.take().ok_or(StateMismatch)?) {
-            Ok(state) => {
-                self.completed = Some(state);
-                Ok(())
-            }
-            Err(error) => Err(error.into()),
-        }
+        let state = i_complete_without_message_4(&self.wait_m4.take().ok_or(StateMismatch)?)?;
+        self.completed = Some(state);
+        Ok(())
     }
 
     pub fn process_message_4<'a>(
@@ -160,17 +141,13 @@ impl PyEdhocInitiator {
     ) -> PyResult<Option<EADItem>> {
         let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())?;
 
-        match i_process_message_4(
+        let (state, ead_4) = i_process_message_4(
             &mut self.wait_m4.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &message_4,
-        ) {
-            Ok((state, ead_4)) => {
-                self.completed = Some(state);
-                Ok(ead_4)
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.completed = Some(state);
+        Ok(ead_4)
     }
 
     pub fn edhoc_exporter<'a>(

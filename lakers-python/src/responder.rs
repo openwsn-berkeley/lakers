@@ -79,7 +79,7 @@ impl PyEdhocResponder {
         let mut r = BytesP256ElemLen::default();
         r.copy_from_slice(self.r.as_slice());
 
-        match r_prepare_message_2(
+        let (state, message_2) = r_prepare_message_2(
             self.processing_m1.as_ref().ok_or(StateMismatch)?,
             &mut default_crypto(),
             self.cred_r,
@@ -87,13 +87,9 @@ impl PyEdhocResponder {
             c_r,
             cred_transfer,
             &ead_2,
-        ) {
-            Ok((state, message_2)) => {
-                self.wait_m3 = Some(state);
-                Ok(PyBytes::new_bound(py, message_2.as_slice()))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.wait_m3 = Some(state);
+        Ok(PyBytes::new_bound(py, message_2.as_slice()))
     }
 
     pub fn parse_message_3<'a>(
@@ -102,17 +98,13 @@ impl PyEdhocResponder {
         message_3: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
-        match r_parse_message_3(
+        let (state, id_cred_i, ead_3) = r_parse_message_3(
             &mut self.wait_m3.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &message_3,
-        ) {
-            Ok((state, id_cred_i, ead_3)) => {
-                self.processing_m3 = Some(state);
-                Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.processing_m3 = Some(state);
+        Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
     }
 
     pub fn verify_message_3<'a>(
@@ -121,17 +113,13 @@ impl PyEdhocResponder {
         valid_cred_i: super::AutoCredential,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let valid_cred_i = valid_cred_i.to_credential()?;
-        match r_verify_message_3(
+        let (state, prk_out) = r_verify_message_3(
             &mut self.processing_m3.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             valid_cred_i,
-        ) {
-            Ok((state, prk_out)) => {
-                self.processed_m3 = Some(state);
-                Ok(PyBytes::new_bound(py, prk_out.as_slice()))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.processed_m3 = Some(state);
+        Ok(PyBytes::new_bound(py, prk_out.as_slice()))
     }
 
     #[pyo3(signature = (ead_4=None))]
@@ -140,27 +128,19 @@ impl PyEdhocResponder {
         py: Python<'a>,
         ead_4: Option<EADItem>,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        match r_prepare_message_4(
+        let (state, message_4) = r_prepare_message_4(
             &self.processed_m3.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
             &ead_4,
-        ) {
-            Ok((state, message_4)) => {
-                self.completed = Some(state);
-                Ok(PyBytes::new_bound(py, message_4.as_slice()))
-            }
-            Err(error) => Err(error.into()),
-        }
+        )?;
+        self.completed = Some(state);
+        Ok(PyBytes::new_bound(py, message_4.as_slice()))
     }
 
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
-        match r_complete_without_message_4(&self.processed_m3.take().ok_or(StateMismatch)?) {
-            Ok(state) => {
-                self.completed = Some(state);
-                Ok(())
-            }
-            Err(error) => Err(error.into()),
-        }
+        let state = r_complete_without_message_4(&self.processed_m3.take().ok_or(StateMismatch)?)?;
+        self.completed = Some(state);
+        Ok(())
     }
 
     pub fn edhoc_exporter<'a>(
