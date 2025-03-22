@@ -3,7 +3,7 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
-use super::StateMismatch;
+use super::{ErrExt as _, StateMismatch};
 
 #[pyclass(name = "EdhocResponder")]
 pub struct PyEdhocResponder {
@@ -20,11 +20,13 @@ pub struct PyEdhocResponder {
 #[pymethods]
 impl PyEdhocResponder {
     #[new]
-    fn new(r: Vec<u8>, cred_r: super::AutoCredential) -> PyResult<Self> {
+    fn new(r: Vec<u8>, py: Python<'_>, cred_r: super::AutoCredential) -> PyResult<Self> {
         trace!("Initializing EdhocResponder");
         let (y, g_y) = default_crypto().p256_generate_key_pair();
 
-        let cred_r = cred_r.to_credential()?;
+        let cred_r = cred_r
+            .to_credential()
+            .with_cause(py, "Failed to ingest CRED_R")?;
 
         Ok(Self {
             r,
@@ -47,7 +49,8 @@ impl PyEdhocResponder {
         py: Python<'a>,
         message_1: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
-        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())?;
+        let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())
+            .with_cause(py, "Message 1 too long")?;
         let (state, c_i, ead_1) = r_process_message_1(
             &self.start.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
@@ -68,12 +71,8 @@ impl PyEdhocResponder {
         ead_2: Option<EADItem>,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_r = match c_r {
-            Some(c_r) => ConnId::from_slice(c_r.as_slice()).ok_or(
-                pyo3::exceptions::PyValueError::new_err(format!(
-                    "Connection identifier out of range: {:?}",
-                    c_r
-                )),
-            )?,
+            Some(c_r) => ConnId::from_slice(c_r.as_slice())
+                .with_cause(py, "Connection identifier C_R out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
         let mut r = BytesP256ElemLen::default();
@@ -97,7 +96,8 @@ impl PyEdhocResponder {
         py: Python<'a>,
         message_3: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Option<EADItem>)> {
-        let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())?;
+        let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())
+            .with_cause(py, "Message 3 too long")?;
         let (state, id_cred_i, ead_3) = r_parse_message_3(
             &mut self.wait_m3.take().ok_or(StateMismatch)?,
             &mut default_crypto(),
@@ -112,7 +112,9 @@ impl PyEdhocResponder {
         py: Python<'a>,
         valid_cred_i: super::AutoCredential,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        let valid_cred_i = valid_cred_i.to_credential()?;
+        let valid_cred_i = valid_cred_i
+            .to_credential()
+            .with_cause(py, "Failed to ingest CRED_I")?;
         let (state, prk_out) = r_verify_message_3(
             &mut self.processing_m3.take().ok_or(StateMismatch)?,
             &mut default_crypto(),

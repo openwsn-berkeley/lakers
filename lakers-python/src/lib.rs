@@ -21,6 +21,25 @@ mod responder;
 #[derive(Debug)]
 pub(crate) struct StateMismatch;
 
+trait ErrExt {
+    type T;
+    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<Self::T, PyErr>;
+}
+
+impl<T> ErrExt for Option<T> {
+    type T = T;
+    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+        self.ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("{}", cause)))
+    }
+}
+
+impl<T, E: core::fmt::Display> ErrExt for Result<T, E> {
+    type T = T;
+    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+        self.map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{} ({})", cause, e)))
+    }
+}
+
 impl std::error::Error for StateMismatch {}
 impl std::fmt::Display for StateMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -87,7 +106,7 @@ pub enum AutoCredential {
 }
 
 impl AutoCredential {
-    pub fn to_credential(self) -> PyResult<Credential> {
+    pub fn to_credential(self) -> Result<Credential, EDHOCError> {
         use AutoCredential::*;
         Ok(match self {
             Existing(e) => e,

@@ -3,7 +3,7 @@ use lakers_crypto::{default_crypto, CryptoTrait};
 use log::trace;
 use pyo3::{prelude::*, types::PyBytes};
 
-use super::StateMismatch;
+use super::{ErrExt as _, StateMismatch};
 
 #[pyclass(name = "EdhocInitiator")]
 pub struct PyEdhocInitiator {
@@ -53,9 +53,8 @@ impl PyEdhocInitiator {
         ead_1: Option<EADItem>,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_i = match c_i {
-            Some(c_i) => ConnId::from_slice(c_i.as_slice()).ok_or(
-                pyo3::exceptions::PyValueError::new_err("Connection identifier out of range"),
-            )?,
+            Some(c_i) => ConnId::from_slice(c_i.as_slice())
+                .with_cause(py, "Connection identifier C_I out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
 
@@ -70,7 +69,8 @@ impl PyEdhocInitiator {
         py: Python<'a>,
         message_2: Vec<u8>,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Option<EADItem>)> {
-        let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())?;
+        let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())
+            .with_cause(py, "Message 2 too long")?;
 
         let (state, c_r, id_cred_r, ead_2) = i_parse_message_2(
             &self.wait_m2.take().ok_or(StateMismatch)?,
@@ -87,12 +87,17 @@ impl PyEdhocInitiator {
 
     pub fn verify_message_2(
         &mut self,
+        py: Python<'_>,
         i: Vec<u8>,
         cred_i: super::AutoCredential,
         valid_cred_r: super::AutoCredential,
     ) -> PyResult<()> {
-        let cred_i = cred_i.to_credential()?;
-        let valid_cred_r = valid_cred_r.to_credential()?;
+        let cred_i = cred_i
+            .to_credential()
+            .with_cause(py, "Failed to ingest CRED_I")?;
+        let valid_cred_r = valid_cred_r
+            .to_credential()
+            .with_cause(py, "Failed to ingest CRED_R")?;
 
         let state = i_verify_message_2(
             &self.processing_m2.take().ok_or(StateMismatch)?,
@@ -139,7 +144,8 @@ impl PyEdhocInitiator {
         py: Python<'a>,
         message_4: Vec<u8>,
     ) -> PyResult<Option<EADItem>> {
-        let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())?;
+        let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())
+            .with_cause(py, "Message 4 too long")?;
 
         let (state, ead_4) = i_process_message_4(
             &mut self.wait_m4.take().ok_or(StateMismatch)?,
