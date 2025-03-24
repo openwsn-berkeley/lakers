@@ -128,7 +128,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: lakers-c-${{ matrix.crypto_backend }}
-        path: ./target/lakers-c-${{ matrix.crypto_backend }}.zip
+        path: ./target/lakers-c-*.zip
 
 
   build-lakers-c-example:
