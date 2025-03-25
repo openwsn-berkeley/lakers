@@ -2,9 +2,15 @@
 lakers -- An implementation of EDHOC (RFC 9528) in Rust
 =======================================================
 
+This is the documentation of the Python bindings for Lakers,
+called lakers-python_.
+Documentation on the underlying Rust library is found `on docs.rs`_.
+
 See the project README_ file for installation, maintenance and license information.
 
 .. _README: https://github.com/openwsn-berkeley/lakers/blob/main/lakers-python/README.md
+.. _lakers-python: https://pypi.org/project/lakers-python/
+.. _`on docs.rs`: https://docs.rs/lakers/
 
 .. automodule:: lakers
    :members:
