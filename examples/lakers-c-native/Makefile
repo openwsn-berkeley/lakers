@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -I../../target/include -fsanitize=address,undefined,leak
+CFLAGS+=-Wall -I../../target/include -fsanitize=address,undefined,leak
 
 TARGET=lakers_c_native
 
@@ -16,13 +16,13 @@ ifeq ($(LAKERS_EAD), authz)
 	CFLAGS += -DLAKERS_EAD_AUTHZ
 endif
 
-LDFLAGS=-fsanitize=address,undefined,leak
+LDFLAGS+=-fsanitize=address,undefined,leak
 
 all: $(TARGET)
 
 # rule for building the target executable
 $(TARGET): $(OBJ)
-	$(CC) $(CFLAGS) -ggdb -O0 -o $@ $^ -L$(LIB_DIR) -l$(LIB_NAME) -lcoap-3
+	$(CC) $(CFLAGS) -ggdb -O0 -o $@ $^ $(LDFLAGS) -L$(LIB_DIR) -l$(LIB_NAME) -lcoap-3
 
 # rule for building object files
 %.o: %.c
