@@ -542,11 +542,21 @@ pub struct Completed {
     pub prk_exporter: BytesHashLen,
 }
 
+/// An enum describing options how to send credentials.
 #[cfg_attr(feature = "python-bindings", pyclass(eq, eq_int))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(C)]
 pub enum CredentialTransfer {
+    /// This sends a short reference (key ID) of the credential.
+    ///
+    /// In order to complete the protocol, the peer needs to either know the full credential, or
+    /// load it from an external source, or extract it from (possibly protected) EAD data such as
+    /// a CWT.
     ByReference,
+    /// This sends a credential by value.
+    ///
+    /// The peer can complete the protocol without additional information, although in most cases
+    /// the peer will still need to inspect the value.
     ByValue,
 }
 
