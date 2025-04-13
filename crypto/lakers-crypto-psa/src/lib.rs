@@ -44,7 +44,6 @@ impl CryptoTrait for Crypto {
 
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
 
-
         // N = ceil(L/HashLen)
         let n = if length % SHA256_DIGEST_LEN == 0 {
             length / SHA256_DIGEST_LEN
