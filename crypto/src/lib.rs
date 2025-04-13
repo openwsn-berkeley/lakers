@@ -9,29 +9,27 @@
 /// Convenience re-export
 pub use lakers_shared::Crypto as CryptoTrait;
 
-#[cfg(feature = "psa")]
-pub type Crypto = lakers_crypto_psa::Crypto;
-
-#[cfg(feature = "psa")]
-pub const fn default_crypto() -> Crypto {
-    lakers_crypto_psa::Crypto
-}
-
-#[cfg(feature = "rustcrypto")]
-pub type Crypto = lakers_crypto_rustcrypto::Crypto<rand_core::OsRng>;
-
-#[cfg(feature = "rustcrypto")]
-pub const fn default_crypto() -> Crypto {
-    lakers_crypto_rustcrypto::Crypto::new(rand_core::OsRng)
-}
-
-#[cfg(feature = "cryptocell310")]
-pub type Crypto = lakers_crypto_cryptocell310::Crypto;
-
-#[cfg(feature = "cryptocell310")]
-pub const fn default_crypto() -> Crypto {
-    lakers_crypto_cryptocell310::Crypto
-}
+cfg_if::cfg_if!(
+    if #[cfg(feature = "psa")] {
+        pub type Crypto = lakers_crypto_psa::Crypto;
+        pub const fn default_crypto() -> Crypto {
+            lakers_crypto_psa::Crypto
+        }
+    } else if #[cfg(feature = "rustcrypto")] {
+        pub type Crypto = lakers_crypto_rustcrypto::Crypto<rand_core::OsRng>;
+        pub const fn default_crypto() -> Crypto {
+            lakers_crypto_rustcrypto::Crypto::new(rand_core::OsRng)
+        }
+    } else if #[cfg(feature = "cryptocell310")] {
+        pub type Crypto = lakers_crypto_cryptocell310::Crypto;
+        pub const fn default_crypto() -> Crypto {
+            lakers_crypto_cryptocell310::Crypto
+        }
+    }
+    else {
+        compile_error!("Either feature `psa` or `rustcrypto` or `cryptocell310` must be enabled.");
+    }
+);
 
 /// See test_implements_crypto
 #[allow(dead_code)]
