@@ -80,30 +80,12 @@ impl CryptoTrait for Crypto {
         plaintext: &BufferPlaintext3,
     ) -> BufferCiphertext3 {
         let mut output: BufferCiphertext3 = BufferCiphertext3::new();
-        let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
+        let tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
         let mut aesccm_ad = [0x00u8; ENC_STRUCTURE_LEN];
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
         aesccm_ad[0..ad.len()].copy_from_slice(&ad[..]);
-
-        let err = unsafe {
-            CC_AESCCM(
-                SaSiAesEncryptMode_t_SASI_AES_ENCRYPT,
-                aesccm_key.as_mut_ptr(),
-                CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
-                iv.clone().as_mut_ptr(),
-                iv.len() as u8,
-                aesccm_ad.as_mut_ptr(),
-                ad.len() as u32,
-                plaintext.content.clone().as_mut_ptr(),
-                plaintext.len as u32,
-                output.content.as_mut_ptr(),
-                AES_CCM_TAG_LEN as u8, // authentication tag length
-                tag.as_mut_ptr(),
-                0 as u32, // CCM
-            )
-        };
 
         output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
             .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
@@ -123,8 +105,6 @@ impl CryptoTrait for Crypto {
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
-
-        let mut err = EDHOCError::MacVerificationFailed;
 
         unsafe {
             match CC_AESCCM(
@@ -167,7 +147,7 @@ impl CryptoTrait for Crypto {
 
         let mut public_key_cc310: CRYS_ECPKI_UserPublKey_t = Default::default();
 
-        let mut domain =
+        let domain =
             unsafe { CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1) };
 
         unsafe {
@@ -237,14 +217,14 @@ impl CryptoTrait for Crypto {
             );
         }
         let rnd_generate_vect_func: SaSiRndGenerateVectWorkFunc_t = Some(CRYS_RND_GenerateVector);
-        let mut curve_256 =
+        let curve_256 =
             unsafe { CRYS_ECPKI_GetEcDomain(CRYS_ECPKI_DomainID_t_CRYS_ECPKI_DomainID_secp256r1) };
-        let mut crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t =
+        let crys_private_key: *mut CRYS_ECPKI_UserPrivKey_t =
             &mut CRYS_ECPKI_UserPrivKey_t::default();
-        let mut crys_public_key: *mut CRYS_ECPKI_UserPublKey_t =
+        let crys_public_key: *mut CRYS_ECPKI_UserPublKey_t =
             &mut CRYS_ECPKI_UserPublKey_t::default();
-        let mut temp_data: *mut CRYS_ECPKI_KG_TempData_t = &mut CRYS_ECPKI_KG_TempData_t::default();
-        let mut temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t =
+        let temp_data: *mut CRYS_ECPKI_KG_TempData_t = &mut CRYS_ECPKI_KG_TempData_t::default();
+        let temp_fips_buffer: *mut CRYS_ECPKI_KG_FipsContext_t =
             &mut CRYS_ECPKI_KG_FipsContext_t::default();
 
         unsafe {
