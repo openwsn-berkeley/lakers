@@ -156,7 +156,7 @@ impl IdCred {
     }
 }
 
-/// A credential for use in EDHOC
+/// A credential for use in EDHOC.
 ///
 /// For now supports CCS credentials only.
 /// Experimental support for CCS_PSK credentials is also available.
