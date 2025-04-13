@@ -153,7 +153,7 @@ impl PyEdhocResponder {
         }
     }
 
-    pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
+    pub fn completed_without_message_4(&mut self) -> PyResult<()> {
         match r_complete_without_message_4(&self.processed_m3.take().ok_or(StateMismatch)?) {
             Ok(state) => {
                 self.completed = Some(state);

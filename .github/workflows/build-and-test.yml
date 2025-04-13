@@ -9,6 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings 
 
 jobs:
   check-style:
@@ -19,7 +20,7 @@ jobs:
     - name: Install Rust formatter
       run: rustup component add rustfmt
     - name: Run cargo check
-      run: RUSTFLAGS="-Dwarnings" cargo check --all-features
+      run: cargo check --all-features
     - name: Check if code is well formatted
       run: cargo fmt --check
 

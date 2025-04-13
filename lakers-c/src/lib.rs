@@ -88,6 +88,7 @@ impl ProcessingM2C {
             x: self.x,
             g_y: self.g_y,
             plaintext_2: self.plaintext_2,
+            #[allow(deprecated)]
             c_r: ConnId::from_int_raw(self.c_r),
             id_cred_r: self.id_cred_r.clone(),
             ead_2: if self.ead_2.is_null() {
