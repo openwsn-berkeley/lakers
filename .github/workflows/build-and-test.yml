@@ -19,7 +19,7 @@ jobs:
     - name: Install Rust formatter
       run: rustup component add rustfmt
     - name: Run cargo check
-      run: RUSTFLAGS="-Dwarnings" cargo check
+      run: RUSTFLAGS="-Dwarnings" cargo check --all-features
     - name: Check if code is well formatted
       run: cargo fmt --check
 
