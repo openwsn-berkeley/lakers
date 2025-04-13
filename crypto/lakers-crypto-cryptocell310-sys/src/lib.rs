@@ -75,7 +75,7 @@ impl CryptoTrait for Crypto {
     fn aes_ccm_encrypt_tag_8(
         &mut self,
         key: &BytesCcmKeyLen,
-        iv: &BytesCcmIvLen,
+        _iv: &BytesCcmIvLen,
         ad: &[u8],
         plaintext: &BufferPlaintext3,
     ) -> BufferCiphertext3 {

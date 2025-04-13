@@ -9,8 +9,8 @@ use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, Usag
 
 #[no_mangle]
 pub extern "C" fn mbedtls_hardware_poll(
-    data: *mut ::core::ffi::c_void,
-    output: *mut ::core::ffi::c_uchar,
+    _data: *mut ::core::ffi::c_void,
+    _output: *mut ::core::ffi::c_uchar,
     len: usize,
     olen: *mut usize,
 ) -> ::core::ffi::c_int {
