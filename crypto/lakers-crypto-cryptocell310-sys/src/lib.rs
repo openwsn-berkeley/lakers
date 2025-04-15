@@ -75,17 +75,35 @@ impl CryptoTrait for Crypto {
     fn aes_ccm_encrypt_tag_8(
         &mut self,
         key: &BytesCcmKeyLen,
-        _iv: &BytesCcmIvLen,
+        iv: &BytesCcmIvLen,
         ad: &[u8],
         plaintext: &BufferPlaintext3,
     ) -> BufferCiphertext3 {
         let mut output: BufferCiphertext3 = BufferCiphertext3::new();
-        let tag: CRYS_AESCCM_Mac_Res_t = Default::default();
+        let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
         let mut aesccm_ad = [0x00u8; ENC_STRUCTURE_LEN];
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
         aesccm_ad[0..ad.len()].copy_from_slice(&ad[..]);
+
+        let _err = unsafe {
+            CC_AESCCM(
+                SaSiAesEncryptMode_t_SASI_AES_ENCRYPT,
+                aesccm_key.as_mut_ptr(),
+                CRYS_AESCCM_KeySize_t_CRYS_AES_Key128BitSize,
+                iv.clone().as_mut_ptr(),
+                iv.len() as u8,
+                aesccm_ad.as_mut_ptr(),
+                ad.len() as u32,
+                plaintext.content.clone().as_mut_ptr(),
+                plaintext.len as u32,
+                output.content.as_mut_ptr(),
+                AES_CCM_TAG_LEN as u8, // authentication tag length
+                tag.as_mut_ptr(),
+                0 as u32, // CCM
+            )
+        };
 
         output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
             .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
