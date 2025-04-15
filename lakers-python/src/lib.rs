@@ -3,7 +3,6 @@
 use lakers::*;
 // use lakers_ead_authz::consts::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
-use log::trace;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, types::PyBytes};
 

@@ -180,7 +180,7 @@ impl PyEdhocResponder {
     ///
     /// Key material may be exported from this point, and is used to confirm key agreement to the
     /// initiator by using it to protect any next protocol.
-    pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
+    pub fn completed_without_message_4(&mut self) -> PyResult<()> {
         match r_complete_without_message_4(&self.processed_m3.take().ok_or(StateMismatch)?) {
             Ok(state) => {
                 self.completed = Some(state);

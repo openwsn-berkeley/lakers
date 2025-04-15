@@ -22,7 +22,7 @@ fn main() {
         .clang_arg(format!("-I{}", out_dir.to_str().unwrap()))
         .clang_arg(format!("-I{}", include_dir.to_str().unwrap()))
         .clang_arg(format!("-I{}", common_dir.to_str().unwrap()))
-        .rustfmt_bindings(true)
+        .formatter(bindgen::Formatter::Rustfmt)
         .header("src/c/wrapper.h")
         .blocklist_type("max_align_t")
         .generate_comments(false)

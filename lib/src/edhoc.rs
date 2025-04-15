@@ -1180,6 +1180,7 @@ mod tests {
     const SUITES_I_TV_FIRST_TIME: &str = "06";
     const G_X_TV_FIRST_TIME: BytesP256ElemLen =
         hex!("741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9");
+    #[allow(deprecated)]
     const C_I_TV_FIRST_TIME: ConnId = ConnId::from_int_raw(0x0e);
     const MESSAGE_1_TV_FIRST_TIME: &str =
         "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
@@ -1190,6 +1191,7 @@ mod tests {
     const SUITES_I_TV: &str = "0602";
     const G_X_TV: BytesP256ElemLen =
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
+    #[allow(deprecated)]
     const C_I_TV: ConnId = ConnId::from_int_raw(0x37);
     const MESSAGE_1_TV: &str =
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
@@ -1213,6 +1215,7 @@ mod tests {
         "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc";
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
+    #[allow(deprecated)]
     const C_R_TV: ConnId = ConnId::from_int_raw(0x27);
     const MESSAGE_2_TV: &str = "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a1eef9e0e7e1886fcd";
     const CIPHERTEXT_2_TV: &str = "9862a1eef9e0e7e1886fcd";
@@ -1239,7 +1242,6 @@ mod tests {
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("81cc8a298e357044e3c466bb5c0a1e507e01d49238aeba138df94635407c0ff7");
     const MESSAGE_4_TV: &str = "4828c966b7ca304f83";
-    const CIPHERTEXT_4_TV: &str = "28c966b7ca304f83";
     const PLAINTEXT_4_TV: &str = "";
     const K_4_TV: BytesCcmKeyLen = hex!("d3c77872b6eeb508911bdbd308b2e6a0");
     const IV_4_TV: BytesCcmIvLen = hex!("04ff0f44456e96e217853c3601");
@@ -1614,7 +1616,7 @@ mod tests {
 
         let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
         assert!(plaintext_4.is_ok());
-        let (ead_4) = plaintext_4.unwrap();
+        let ead_4 = plaintext_4.unwrap();
         assert!(ead_4.is_none());
     }
 

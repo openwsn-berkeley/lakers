@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(default_alloc_error_handler)]
 
 use cortex_m_rt::entry;
 use cortex_m_semihosting::debug::{self, EXIT_SUCCESS};

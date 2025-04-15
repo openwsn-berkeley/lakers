@@ -168,7 +168,7 @@ impl PyEdhocInitiator {
     /// Key material can be extracted after this point, but some properties of the protocol only
     /// hold when non-EDHOC messages protected with the extracted key material are received from
     /// the peer.
-    pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
+    pub fn completed_without_message_4(&mut self) -> PyResult<()> {
         match i_complete_without_message_4(&self.wait_m4.take().ok_or(StateMismatch)?) {
             Ok(state) => {
                 self.completed = Some(state);
@@ -181,11 +181,7 @@ impl PyEdhocInitiator {
     /// Processes and verifies message 4.
     ///
     /// This produces EAD data if the peer sent any.
-    pub fn process_message_4<'a>(
-        &mut self,
-        py: Python<'a>,
-        message_4: Vec<u8>,
-    ) -> PyResult<Option<EADItem>> {
+    pub fn process_message_4<'a>(&mut self, message_4: Vec<u8>) -> PyResult<Option<EADItem>> {
         let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())?;
 
         match i_process_message_4(

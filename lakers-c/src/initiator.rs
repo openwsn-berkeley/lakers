@@ -56,6 +56,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     let c_i = if c_i.is_null() {
         generate_connection_identifier_cbor(crypto)
     } else {
+        #[allow(deprecated)]
         ConnId::from_int_raw(*c_i)
     };
 
