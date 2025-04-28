@@ -36,14 +36,14 @@ trait ErrExt {
 
 impl<T> ErrExt for Option<T> {
     type T = T;
-    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+    fn with_cause(self, _py: Python<'_>, cause: &str) -> Result<T, PyErr> {
         self.ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("{}", cause)))
     }
 }
 
 impl<T, E: core::fmt::Display> ErrExt for Result<T, E> {
     type T = T;
-    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+    fn with_cause(self, _py: Python<'_>, cause: &str) -> Result<T, PyErr> {
         self.map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{} ({})", cause, e)))
     }
 }

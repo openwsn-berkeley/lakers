@@ -181,7 +181,7 @@ impl PyEdhocInitiator {
     /// Key material can be extracted after this point, but some properties of the protocol only
     /// hold when non-EDHOC messages protected with the extracted key material are received from
     /// the peer.
-    pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
+    pub fn completed_without_message_4<'a>(&mut self) -> PyResult<()> {
         let state = i_complete_without_message_4(&self.take_wait_m4()?)?;
         self.completed = Some(state);
         Ok(())
