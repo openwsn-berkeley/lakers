@@ -156,7 +156,7 @@ impl IdCred {
     }
 }
 
-/// A credential for use in EDHOC
+/// A credential for use in EDHOC.
 ///
 /// For now supports CCS credentials only.
 /// Experimental support for CCS_PSK credentials is also available.
@@ -471,11 +471,6 @@ mod test {
     const ID_CRED_BY_REF_TV: &[u8] = &hex!("a1044132");
     const ID_CRED_BY_VALUE_TV: &[u8] = &hex!("A10EA2026B6578616D706C652E65647508A101A501020241322001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
     const KID_VALUE_TV: &[u8] = &hex!("32");
-
-    const CRED_PSK: &[u8] =
-        &hex!("A202686D79646F74626F7408A101A30104024132205050930FF462A77A3540CF546325DEA214");
-    const K: &[u8] = &hex!("50930FF462A77A3540CF546325DEA214");
-    const KID_VALUE_PSK: &[u8] = &hex!("32");
 
     #[test]
     fn test_new_cred_ccs() {

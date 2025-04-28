@@ -8,7 +8,7 @@ use coap_message_utils::{Error, OptionsExt as _};
 use embedded_nal::UdpFullStack;
 
 const ID_CRED_I: &[u8] = &hex!("a104412b");
-const ID_CRED_R: &[u8] = &hex!("a104410a");
+const _ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const _G_I: &[u8] = &hex!("ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb6");
 const _G_I_Y_COORD: &[u8] =
@@ -66,6 +66,7 @@ impl EdhocHandler {
         if result >= 24 {
             panic!("Contexts exceeded");
         }
+        #[allow(deprecated)]
         ConnId::from_int_raw(result as _)
     }
 }
@@ -162,6 +163,7 @@ impl coap_handler::Handler for EdhocHandler {
 
             // FIXME: This panics or creates an in valid ConnId (but once we fix
             // working with longer IDs, there will be a function that has proper error handling)
+            #[allow(deprecated)]
             let c_r_rcvd = ConnId::from_int_raw(*c_r_rcvd);
 
             let responder = self
@@ -187,7 +189,7 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
+            let (mut responder, _message_4) = responder.prepare_message_4(&None).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 

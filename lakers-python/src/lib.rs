@@ -3,7 +3,6 @@
 use lakers::*;
 // use lakers_ead_authz::consts::*;
 use lakers_crypto::{default_crypto, CryptoTrait};
-use log::trace;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, types::PyBytes};
 
@@ -132,14 +131,14 @@ impl AutoCredential {
     }
 }
 
-/// Lakers implementation of EDHOC.
+/// The :class:`EdhocInitiator` and :class:`EdhocResponder` are entry points to this module. Both
+/// provided classes that represent one side of the EDHOC exchange, and are updated with and
+/// produce messages and information through a series of method calls on the object.
 ///
-/// The `EdhocInitiator` and `EdhocResponder` are entry points to this module.
-///
-/// Operations in this module produce logging entries on the `lakers.initiator` and
-/// `lakers.responder` logger names. Due to implementation details of `pyo3_log`, Python's log
+/// Operations in this module produce logging entries on the ``lakers.initiator`` and
+/// ``lakers.responder`` logger names. Due to implementation details of ``pyo3_log``, Python's log
 /// levels are cached in the Rust implementation. It is recommended that the full logging
-/// is configured before creating Lakers objects. A setup with `logging.basicConfig(loglevel=5)`
+/// is configured before creating Lakers objects. A setup with ``logging.basicConfig(loglevel=5)``
 /// will also show Lakers' trace level log messages, which have no equivalent Python level.
 #[pymodule]
 // this name must match `lib.name` in `Cargo.toml`

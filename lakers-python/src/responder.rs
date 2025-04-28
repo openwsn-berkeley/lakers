@@ -5,6 +5,7 @@ use pyo3::{prelude::*, types::PyBytes};
 
 use super::{ErrExt as _, StateMismatch};
 
+/// An implementation of the EDHOC protocol for the responder side.
 #[pyclass(name = "EdhocResponder")]
 pub struct PyEdhocResponder {
     r: Vec<u8>,
@@ -70,6 +71,9 @@ impl PyEdhocResponder {
         )
     }
 
+    /// Processes an incoming message 1.
+    ///
+    /// It produces the ``C_I`` and any additional EAD data.
     fn process_message_1<'a>(
         &mut self,
         py: Python<'a>,
@@ -85,6 +89,10 @@ impl PyEdhocResponder {
         Ok((c_i, ead_1))
     }
 
+    /// Generates message 2.
+    ///
+    /// Input influences whether the credential is sent by value or reference, which credential is
+    /// sent, and whether any optional EAD data is to be sent.
     #[pyo3(signature = (cred_transfer, c_r=None, ead_2=None))]
     fn prepare_message_2<'a>(
         &mut self,
@@ -114,6 +122,12 @@ impl PyEdhocResponder {
         Ok(PyBytes::new_bound(py, message_2.as_slice()))
     }
 
+    /// Processes message 3.
+    ///
+    /// This produces the initiator's ``ID_CRED_I`` and maybe additional EAD data sent by the
+    /// initiator, but does not verify them yet: They are only verified when the application
+    /// provides the expanded credential ``CRED_I`` (typically based on the information in
+    /// ``ID_CRED_I``) in :meth:`verify_message_3()`.
     pub fn parse_message_3<'a>(
         &mut self,
         py: Python<'a>,
@@ -127,6 +141,10 @@ impl PyEdhocResponder {
         Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
     }
 
+    /// Verifies the previously inserted message 3.
+    ///
+    /// Verification is based on the ``CRED_I`` (as looked up by its ``ID_CRED_I`` from the
+    /// preceeding :meth:`parse_message_3()` output).
     pub fn verify_message_3<'a>(
         &mut self,
         py: Python<'a>,
@@ -144,6 +162,11 @@ impl PyEdhocResponder {
         Ok(PyBytes::new_bound(py, prk_out.as_slice()))
     }
 
+    /// Generates a message 4.
+    ///
+    /// This may contain additional EAD data.
+    ///
+    /// After generating this message, the protocol has completed.
     #[pyo3(signature = (ead_4=None))]
     fn prepare_message_4<'a>(
         &mut self,
@@ -156,12 +179,17 @@ impl PyEdhocResponder {
         Ok(PyBytes::new_bound(py, message_4.as_slice()))
     }
 
+    /// Declares the protocol to have completed without any message 4.
+    ///
+    /// Key material may be exported from this point, and is used to confirm key agreement to the
+    /// initiator by using it to protect any next protocol.
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
         let state = r_complete_without_message_4(&self.take_processed_m3()?)?;
         self.completed = Some(state);
         Ok(())
     }
 
+    /// Exports key material.
     pub fn edhoc_exporter<'a>(
         &mut self,
         py: Python<'a>,
@@ -183,6 +211,7 @@ impl PyEdhocResponder {
         Ok(PyBytes::new_bound(py, &res[..length]))
     }
 
+    /// Performs the key update procedure, enabling the production of new key material.
     pub fn edhoc_key_update<'a>(
         &mut self,
         py: Python<'a>,

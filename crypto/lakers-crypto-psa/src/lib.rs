@@ -9,8 +9,8 @@ use psa_crypto::types::key::{Attributes, EccFamily, Lifetime, Policy, Type, Usag
 
 #[no_mangle]
 pub extern "C" fn mbedtls_hardware_poll(
-    data: *mut ::core::ffi::c_void,
-    output: *mut ::core::ffi::c_uchar,
+    _data: *mut ::core::ffi::c_void,
+    _output: *mut ::core::ffi::c_uchar,
     len: usize,
     olen: *mut usize,
 ) -> ::core::ffi::c_int {
@@ -44,14 +44,12 @@ impl CryptoTrait for Crypto {
 
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
 
-        let mut n = 0;
-
         // N = ceil(L/HashLen)
-        if length % SHA256_DIGEST_LEN == 0 {
-            n = length / SHA256_DIGEST_LEN;
+        let n = if length % SHA256_DIGEST_LEN == 0 {
+            length / SHA256_DIGEST_LEN
         } else {
-            n = length / SHA256_DIGEST_LEN + 1;
-        }
+            length / SHA256_DIGEST_LEN + 1
+        };
 
         let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
             [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];

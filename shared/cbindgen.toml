@@ -14,6 +14,13 @@ header = """
 
 /* Manually implemented to work around https://github.com/mozilla/cbindgen/issues/1018 */
 
+#if defined(_LARGE_BUFFERS)
+#define _MAX_MESSAGE_SIZE_LEN_1024
+#define _MAX_KDF_CONTENT_LEN_1024
+#define _MAX_BUFFER_LEN_1024
+#define _MAX_CONNID_ENCODED_LEN_24
+#endif
+
 #if defined(_MAX_MESSAGE_SIZE_LEN_1024)
 #define MAX_MESSAGE_SIZE_LEN 1024
 #elif defined(_MAX_MESSAGE_SIZE_LEN_512)
@@ -22,8 +29,12 @@ header = """
 #define MAX_MESSAGE_SIZE_LEN 448
 #elif defined(_MAX_MESSAGE_SIZE_LEN_384)
 #define MAX_MESSAGE_SIZE_LEN 384
+#elif defined(_MAX_MESSAGE_SIZE_LEN_320)
+#define MAX_MESSAGE_SIZE_LEN 320
+#elif defined(_MAX_MESSAGE_SIZE_LEN_256)
+#define MAX_MESSAGE_SIZE_LEN 256
 #else
-#define MAX_MESSAGE_SIZE_LEN 256 + 64
+#define MAX_MESSAGE_SIZE_LEN 128 + 64
 #endif
 
 #if defined(_MAX_KDF_CONTENT_LEN_1024)
@@ -40,13 +51,13 @@ header = """
 #define MAX_KDF_CONTEXT_LEN 256
 #endif
 
-#if defined(_MAX_KDF_CONTENT_LEN_1024)
+#if defined(_MAX_BUFFER_LEN_1024)
 #define MAX_BUFFER_LEN 1024
-#elif defined(_MAX_KDF_CONTENT_LEN_512)
+#elif defined(_MAX_BUFFER_LEN_512)
 #define MAX_BUFFER_LEN 512
-#elif defined(_MAX_KDF_CONTENT_LEN_448)
+#elif defined(_MAX_BUFFER_LEN_448)
 #define MAX_BUFFER_LEN 448
-#elif defined(_MAX_KDF_CONTENT_LEN_384)
+#elif defined(_MAX_BUFFER_LEN_384)
 #define MAX_BUFFER_LEN 384
 #else
 #define MAX_BUFFER_LEN 256 + 64
@@ -67,7 +78,7 @@ trailer = """
 cpp_compat = true
 
 [defines]
-"feature = large_buffers" = "LARGE_BUFFERS"
+"feature = large_buffers" = "_LARGE_BUFFERS"
 "feature = max_message_size_len_256" = "_MAX_MESSAGE_SIZE_LEN_256"
 "feature = max_message_size_len_320" = "_MAX_MESSAGE_SIZE_LEN_320"
 "feature = max_message_size_len_384" = "_MAX_MESSAGE_SIZE_LEN_384"

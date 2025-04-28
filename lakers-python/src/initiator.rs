@@ -5,6 +5,7 @@ use pyo3::{prelude::*, types::PyBytes};
 
 use super::{ErrExt as _, StateMismatch};
 
+/// An implementation of the EDHOC protocol for the initiator side.
 #[pyclass(name = "EdhocInitiator")]
 pub struct PyEdhocInitiator {
     cred_i: Option<Credential>,
@@ -71,6 +72,10 @@ impl PyEdhocInitiator {
         )
     }
 
+    /// Generates message 1.
+    ///
+    /// At this point, a ``C_I`` (connection identifier) may be provided, as well as additonal EAD
+    /// data.
     #[pyo3(signature = (c_i=None, ead_1=None))]
     fn prepare_message_1<'a>(
         &mut self,
@@ -90,6 +95,12 @@ impl PyEdhocInitiator {
         Ok(PyBytes::new_bound(py, message_1.as_slice()))
     }
 
+    /// Process message 2.
+    ///
+    /// This produces both the ``C_R`` and the ``ID_CRED_R``, and maybe additional EAD data sent by
+    /// the responder, but does not verify them yet: They are only verified when the application
+    /// provides the expanded credential ``CRED_R`` (typically based on the information in
+    /// ``ID_CRED_R``) in :meth:`.verify_message_2()`.
     pub fn parse_message_2<'a>(
         &mut self,
         py: Python<'a>,
@@ -108,6 +119,11 @@ impl PyEdhocInitiator {
         ))
     }
 
+    /// Verifies the previously inserted message 2.
+    ///
+    /// At this point, the initiator's private key ``I`` as well as the initiator's identity ``CRED_I``
+    /// needs to be provided, as well as the peer's credential ``CRED_R`` (as looked up by its
+    /// ``ID_CRED_R`` from the preceeding :meth:`parse_message_2()` output).
     pub fn verify_message_2(
         &mut self,
         py: Python<'_>,
@@ -135,6 +151,10 @@ impl PyEdhocInitiator {
         Ok(())
     }
 
+    /// Generates a message 3.
+    ///
+    /// Input influences whether the credential previously provided in :meth:`verify_message_2()` is
+    /// sent by value or reference, and whether any additional EAD data is to be sent.
     #[pyo3(signature = (cred_transfer, ead_3=None))]
     pub fn prepare_message_3<'a>(
         &mut self,
@@ -156,12 +176,20 @@ impl PyEdhocInitiator {
         ))
     }
 
+    /// Declares the protocol to have completed without the need of a message 4.
+    ///
+    /// Key material can be extracted after this point, but some properties of the protocol only
+    /// hold when non-EDHOC messages protected with the extracted key material are received from
+    /// the peer.
     pub fn completed_without_message_4<'a>(&mut self, py: Python<'a>) -> PyResult<()> {
         let state = i_complete_without_message_4(&self.take_wait_m4()?)?;
         self.completed = Some(state);
         Ok(())
     }
 
+    /// Processes and verifies message 4.
+    ///
+    /// This produces EAD data if the peer sent any.
     pub fn process_message_4<'a>(
         &mut self,
         py: Python<'a>,
@@ -169,13 +197,13 @@ impl PyEdhocInitiator {
     ) -> PyResult<Option<EADItem>> {
         let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())
             .with_cause(py, "Message 4 too long")?;
-
         let (state, ead_4) =
             i_process_message_4(&mut self.take_wait_m4()?, &mut default_crypto(), &message_4)?;
         self.completed = Some(state);
         Ok(ead_4)
     }
 
+    /// Exports key material.
     pub fn edhoc_exporter<'a>(
         &mut self,
         py: Python<'a>,
@@ -197,6 +225,7 @@ impl PyEdhocInitiator {
         Ok(PyBytes::new_bound(py, &res[..length]))
     }
 
+    /// Performs the key update procedure, enabling the production of new key material.
     pub fn edhoc_key_update<'a>(
         &mut self,
         py: Python<'a>,
@@ -232,6 +261,7 @@ impl PyEdhocInitiator {
         Ok(PyBytes::new_bound(py, &secret[..]))
     }
 
+    /// The cipher suite that is agreed on by the exchange.
     pub fn selected_cipher_suite(&self) -> PyResult<u8> {
         Ok(self.start.suites_i[self.start.suites_i.len() - 1])
     }

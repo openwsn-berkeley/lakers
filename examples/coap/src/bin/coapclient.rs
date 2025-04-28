@@ -60,7 +60,7 @@ fn client_handshake() -> Result<(), EDHOCError> {
     let initiator = initiator.verify_message_2(valid_cred_r)?;
 
     let mut msg_3 = Vec::from(c_r.as_cbor());
-    let (mut initiator, message_3, prk_out) =
+    let (initiator, message_3, prk_out) =
         initiator.prepare_message_3(CredentialTransfer::ByReference, &None)?;
     msg_3.extend_from_slice(message_3.as_slice());
     println!("message_3 len = {}", msg_3.len());
@@ -72,7 +72,7 @@ fn client_handshake() -> Result<(), EDHOCError> {
     println!("response_vec = {:02x?}", response.message.payload);
     println!("message_3 len = {}", response.message.payload.len());
     let message_4 = EdhocMessageBuffer::new_from_slice(&response.message.payload[..]).unwrap();
-    let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+    let (mut initiator, _ead_4) = initiator.process_message_4(&message_4).unwrap();
 
     println!("EDHOC exchange successfully completed");
     println!("PRK_out: {:02x?}", prk_out);

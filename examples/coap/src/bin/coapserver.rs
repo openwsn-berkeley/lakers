@@ -6,7 +6,7 @@ use lakers_ead_authz::{ZeroTouchAuthenticator, ZeroTouchServer};
 use std::net::UdpSocket;
 
 const ID_CRED_I: &[u8] = &hex!("a104412b");
-const ID_CRED_R: &[u8] = &hex!("a104410a");
+const _ID_CRED_R: &[u8] = &hex!("a104410a");
 const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
 const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 const R: &[u8] = &hex!("72cc4761dbd4c78f758931aa589d348d1ef874a7e303ede2f140dcf3e6aa4aac");
@@ -92,6 +92,7 @@ fn main() {
             } else {
                 // potentially message 3
                 println!("Received message 3");
+                #[allow(deprecated)]
                 let c_r_rcvd = ConnId::from_int_raw(request.message.payload[0]);
                 // FIXME let's better not *panic here
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
@@ -108,7 +109,7 @@ fn main() {
                 };
                 let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-                let Ok((mut responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
+                let Ok((responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };

@@ -1,0 +1,21 @@
+# Maturin setup for readthedocs, copied from https://www.maturin.rs/sphinx.html and adjusted
+
+version: 2
+
+sphinx:
+  builder: html
+
+build:
+  os: "ubuntu-24.04"
+  tools:
+    python: "3.12"
+    rust: "1.82"
+
+python:
+  install:
+    - method: pip
+      path: lakers-python
+
+sphinx:
+  # Path to your Sphinx configuration file.
+  configuration: lakers-python/doc/conf.py
