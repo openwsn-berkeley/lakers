@@ -103,7 +103,25 @@ def test_buffer_error():
     initiator.prepare_message_1()
     with pytest.raises(ValueError) as err:
         _ = initiator.parse_message_2(cbor2.dumps(bytes([1] * 10000)))
-    assert str(err.value) == "MessageBufferError::SliceTooLong"
+    assert str(err.value) == "Message 2 too long (MessageBufferError::SliceTooLong)"
+
+def test_state_missing_step():
+    initiator = EdhocInitiator()
+    with pytest.raises(RuntimeError) as err:
+        initiator.prepare_message_3(CredentialTransfer.ByReference, None)
+    assert str(err.value).startswith("State machine is just at Start, but this operation requires it to have progressed to ProcessedM2")
+
+def test_state_no_going_back():
+    initiator = EdhocInitiator()
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=None)
+
+    responder = EdhocResponder(R, CRED_R)
+    assert "Start" in repr(responder), f"Expected state to be reported in repr, found {responder!r}"
+    responder.process_message_1(message_1)
+    assert "ProcessingM1" in repr(responder), f"Expected state to be reported in repr, found {responder!r}"
+    with pytest.raises(RuntimeError) as err:
+        responder.process_message_1(message_1)
+    assert str(err.value).startswith("State machine has progressed beyond expected Start, is already at ProcessingM1"), str(err.value)
 
 def test_logging():
     LOGSTREAM.truncate(0)

@@ -13,22 +13,58 @@ mod responder;
 /// Error raised when operations on a Python object did not happen in the sequence in which they
 /// were intended.
 ///
-/// This currently has no more detailed response because for every situation this can occur in,
-/// there are different possible explainations that we can't get across easily in a single message.
-/// For example, if `responder.processing_m1` is absent, that can be either because no message 1
-/// was processed into it yet, or because message 2 was already generated.
+/// This carries data purely for the purpose of guiding the user towards an understanding of how
+/// things went wrong; for less powerful error reporting, this could be a ZSTs, and all its
+/// constructors, the `.summarize()` methods and the detailed `.take_…()`/`.as_ref_…()` methods
+/// could be plain `.take()`/`.as_ref()` on their fields.
 #[derive(Debug)]
-pub(crate) struct StateMismatch;
+pub(crate) struct StateMismatch<S> {
+    expected: S,
+    found: S,
+}
 
-impl std::error::Error for StateMismatch {}
-impl std::fmt::Display for StateMismatch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Type state mismatch")
+impl<S> StateMismatch<S> {
+    pub(crate) fn new(expected: S, found: S) -> Self {
+        Self { expected, found }
     }
 }
-impl From<StateMismatch> for PyErr {
+
+trait ErrExt {
+    type T;
+    fn with_cause(self, py: Python<'_>, cause: &str) -> Result<Self::T, PyErr>;
+}
+
+impl<T> ErrExt for Option<T> {
+    type T = T;
+    fn with_cause(self, _py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+        self.ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("{}", cause)))
+    }
+}
+
+impl<T, E: core::fmt::Display> ErrExt for Result<T, E> {
+    type T = T;
+    fn with_cause(self, _py: Python<'_>, cause: &str) -> Result<T, PyErr> {
+        self.map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{} ({})", cause, e)))
+    }
+}
+
+impl<S: Ord + core::fmt::Debug> std::error::Error for StateMismatch<S> {}
+impl<S: Ord + core::fmt::Debug> std::fmt::Display for StateMismatch<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.expected < self.found {
+            write!(
+                f,
+                "State machine has progressed beyond expected {:?}, is already at {:?}",
+                self.expected, self.found
+            )
+        } else {
+            write!(f, "State machine is just at {:?}, but this operation requires it to have progressed to {:?}", self.found, self.expected)
+        }
+    }
+}
+impl<S: Ord + core::fmt::Debug> From<StateMismatch<S>> for PyErr {
     #[track_caller]
-    fn from(err: StateMismatch) -> PyErr {
+    fn from(err: StateMismatch<S>) -> PyErr {
         let location = std::panic::Location::caller();
         // It would be nice to inject something more idiomatic on the Python side, eg. setting a
         // cause with a Rust file and line number, but to create such an object we'd need the GIL,
@@ -86,7 +122,7 @@ pub enum AutoCredential {
 }
 
 impl AutoCredential {
-    pub fn to_credential(self) -> PyResult<Credential> {
+    pub fn to_credential(self) -> Result<Credential, EDHOCError> {
         use AutoCredential::*;
         Ok(match self {
             Existing(e) => e,
