@@ -82,7 +82,7 @@ enum EdhocResponse {
         //
         // Also, we'll want to carry around the set of actually authenticated claims (right now
         // it's just "if something is here, our single W completed authz")
-        ead_2: Option<EADItem>,
+        ead_2: [EADItem; MAX_EAD_ITEMS],
     },
     Message3Processed,
 }
@@ -123,7 +123,9 @@ impl coap_handler::Handler for EdhocHandler {
             .process_message_1(message_1)
             .map_err(render_error)?;
 
-            let ead_2 = if let Some(ead_1) = ead_1 {
+            let mut ead_2 = EADItem::new_array();
+            if ead_1[0].value.is_some() {
+                let ead_1 = &ead_1[0];
                 let authenticator = ZeroTouchAuthenticator::default();
                 let (authenticator, _loc_w, voucher_request) = authenticator
                     .process_ead_1(&ead_1, &message_1)
@@ -135,14 +137,12 @@ impl coap_handler::Handler for EdhocHandler {
                     .handle_voucher_request(&mut lakers_crypto::default_crypto(), &voucher_request)
                     .map_err(render_error)?;
 
-                let ead_2 = authenticator
+                let ead_item = authenticator
                     .prepare_ead_2(&voucher_response)
                     .map_err(render_error)?;
 
                 println!("Authenticator confirmed authz");
-                Some(ead_2)
-            } else {
-                None
+                ead_2[0] = ead_item;
             };
 
             let c_r = self.new_c_r();
@@ -189,7 +189,8 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let (mut responder, _message_4) = responder.prepare_message_4(&None).unwrap();
+            let (mut responder, _message_4) =
+                responder.prepare_message_4(&EADItem::new_array()).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 
