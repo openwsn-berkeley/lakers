@@ -4,6 +4,7 @@ edition = "2021"
 version ="0.5.0"
 repository.workspace = true
 license.workspace = true
+description = "An implementation of EDHOC, written in Rust"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
