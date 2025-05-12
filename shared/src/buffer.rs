@@ -15,7 +15,6 @@ pub enum EdhocBufferError {
 ///
 /// Trying to have an API as similar as possible to `heapless::Vec`,
 /// so that in the future it can be hot-swappable by the application.
-// TODO: replace EdhocMessageBuffer with EdhocBuffer all over the library
 // NOTE: how would this const generic thing work across the C and Python bindings?
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(C)]

@@ -103,7 +103,7 @@ def test_buffer_error():
     initiator.prepare_message_1()
     with pytest.raises(ValueError) as err:
         _ = initiator.parse_message_2(cbor2.dumps(bytes([1] * 10000)))
-    assert str(err.value) == "Message 2 too long (MessageBufferError::SliceTooLong)"
+    assert str(err.value) == "Message 2 too long (EdhocBufferError::SliceTooLong)"
 
 def test_state_missing_step():
     initiator = EdhocInitiator()
