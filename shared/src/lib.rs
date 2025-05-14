@@ -191,8 +191,6 @@ pub type EADBuffer = EdhocBuffer<MAX_EAD_LEN>;
 /// Its legal values are constrained to only contain a single CBOR item that is either a byte
 /// string or a number in -24..=23, all in preferred encoding.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-// TODO: This should not be needed, there is nothing special about the value 0.
-#[derive(Default)]
 pub struct ConnId([u8; MAX_CONNID_ENCODED_LEN]);
 
 /// Classifier for the content of [`ConnId`]; used internally in its implementation.
@@ -470,7 +468,7 @@ pub struct ResponderStart {
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
@@ -479,21 +477,21 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct WaitM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
@@ -507,7 +505,7 @@ pub struct ProcessingM2 {
     pub ead_2: Option<EADItem>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
@@ -515,7 +513,7 @@ pub struct ProcessedM2 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessingM3 {
     pub mac_3: BytesMac3,
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
@@ -526,7 +524,7 @@ pub struct ProcessingM3 {
     pub ead_3: Option<EADItem>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct PreparingM3 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -534,7 +532,7 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessedM3 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,
@@ -542,7 +540,7 @@ pub struct ProcessedM3 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
@@ -551,7 +549,7 @@ pub struct WaitM4 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
