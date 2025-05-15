@@ -4,8 +4,7 @@ pub fn edhoc_exporter(
     state: &Completed,
     crypto: &mut impl CryptoTrait,
     label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
+    context: &[u8],
     length: usize,
 ) -> BytesMaxBuffer {
     edhoc_kdf(
@@ -13,7 +12,6 @@ pub fn edhoc_exporter(
         &state.prk_exporter,
         label,
         context,
-        context_len,
         length,
     )
 }
@@ -21,8 +19,7 @@ pub fn edhoc_exporter(
 pub fn edhoc_key_update(
     state: &mut Completed,
     crypto: &mut impl CryptoTrait,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
+    context: &[u8],
 ) -> BytesHashLen {
     // new PRK_out
     let prk_new_buf = edhoc_kdf(
@@ -30,7 +27,6 @@ pub fn edhoc_key_update(
         &state.prk_out,
         11u8,
         context,
-        context_len,
         SHA256_DIGEST_LEN,
     );
     state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
@@ -40,8 +36,7 @@ pub fn edhoc_key_update(
         crypto,
         &state.prk_out,
         10u8,
-        &[0x00; MAX_KDF_CONTEXT_LEN],
-        0,
+        &[],
         SHA256_DIGEST_LEN,
     );
     state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
@@ -214,16 +209,13 @@ pub fn r_verify_message_3(
             valid_cred_i.bytes.as_slice(),
         );
 
-        let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-        th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
         // compute prk_out
         // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
         let prk_out_buf = edhoc_kdf(
             crypto,
             &prk_4e3m,
             7u8,
-            &th_4_buf,
-            th_4.len(),
+            &th_4,
             SHA256_DIGEST_LEN,
         );
         let mut prk_out: BytesHashLen = Default::default();
@@ -235,8 +227,7 @@ pub fn r_verify_message_3(
             crypto,
             &prk_out,
             10u8,
-            &[0x00u8; MAX_KDF_CONTEXT_LEN],
-            0,
+            &[],
             SHA256_DIGEST_LEN,
         );
         let mut prk_exporter = BytesHashLen::default();
@@ -424,8 +415,6 @@ pub fn i_prepare_message_3(
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i.bytes.as_slice());
 
-    let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
 
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
@@ -433,8 +422,7 @@ pub fn i_prepare_message_3(
         crypto,
         &state.prk_4e3m,
         7u8,
-        &th_4_buf,
-        th_4.len(),
+        &th_4,
         SHA256_DIGEST_LEN,
     );
     let mut prk_out: BytesHashLen = Default::default();
@@ -446,8 +434,7 @@ pub fn i_prepare_message_3(
         crypto,
         &prk_out,
         10u8,
-        &[0x00; MAX_KDF_CONTEXT_LEN],
-        0,
+        &[],
         SHA256_DIGEST_LEN,
     );
     let mut prk_exporter: BytesHashLen = Default::default();
@@ -661,11 +648,10 @@ fn edhoc_kdf(
     crypto: &mut impl CryptoTrait,
     prk: &BytesHashLen,
     label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
+    context: &[u8],
     length: usize,
 ) -> BytesMaxBuffer {
-    let (info, info_len) = encode_info(label, context, context_len, length);
+    let (info, info_len) = encode_info(label, context, length);
 
     crypto.hkdf_expand(prk, &info, info_len, length)
 }
@@ -748,21 +734,18 @@ fn compute_k_3_iv_3(
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
     let mut k_3: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let mut th_3_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_3_buf[..th_3.len()].copy_from_slice(&th_3[..]);
     let k_3_buf = edhoc_kdf(
         crypto,
         prk_3e2m,
         3u8,
-        &th_3_buf,
-        th_3.len(),
+        th_3,
         AES_CCM_KEY_LEN,
     );
     k_3[..].copy_from_slice(&k_3_buf[..AES_CCM_KEY_LEN]);
 
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
     let mut iv_3: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_3_buf = edhoc_kdf(crypto, prk_3e2m, 4u8, &th_3_buf, th_3.len(), AES_CCM_IV_LEN);
+    let iv_3_buf = edhoc_kdf(crypto, prk_3e2m, 4u8, th_3, AES_CCM_IV_LEN);
     iv_3[..].copy_from_slice(&iv_3_buf[..AES_CCM_IV_LEN]);
 
     (k_3, iv_3)
@@ -775,21 +758,18 @@ fn compute_k_4_iv_4(
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_4 = EDHOC-KDF( PRK_4e3m, ?? , TH_4,      key_length )
     let mut k_4: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let mut th_4_buf: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_4_buf[..th_4.len()].copy_from_slice(&th_4[..]);
     let k_4_buf = edhoc_kdf(
         crypto,
         prk_4e3m,
         8u8, // FIXME
-        &th_4_buf,
-        th_4.len(),
+        th_4,
         AES_CCM_KEY_LEN,
     );
     k_4[..].copy_from_slice(&k_4_buf[..AES_CCM_KEY_LEN]);
 
     // IV_3 = EDHOC-KDF( PRK_4e3m, ?? , TH_4,      iv_length )
     let mut iv_4: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_4_buf = edhoc_kdf(crypto, prk_4e3m, 9u8, &th_4_buf, th_4.len(), AES_CCM_IV_LEN);
+    let iv_4_buf = edhoc_kdf(crypto, prk_4e3m, 9u8, th_4, AES_CCM_IV_LEN);
     iv_4[..].copy_from_slice(&iv_4_buf[..AES_CCM_IV_LEN]);
 
     (k_4, iv_4)
@@ -989,8 +969,7 @@ fn compute_mac_3(
         crypto,
         prk_4e3m,
         6u8, // registered label for "MAC_3"
-        &context,
-        context_len,
+        &context[..context_len],
         MAC_LENGTH_3,
     );
 
@@ -1014,7 +993,7 @@ fn compute_mac_2(
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
     mac_2[..].copy_from_slice(
-        &edhoc_kdf(crypto, prk_3e2m, 2_u8, &context, context_len, MAC_LENGTH_2)[..MAC_LENGTH_2],
+        &edhoc_kdf(crypto, prk_3e2m, 2_u8, &context[..context_len], MAC_LENGTH_2)[..MAC_LENGTH_2],
     );
 
     mac_2
@@ -1064,17 +1043,12 @@ fn encrypt_decrypt_ciphertext_2(
     th_2: &BytesHashLen,
     ciphertext_2: &BufferCiphertext2,
 ) -> BufferCiphertext2 {
-    // convert the transcript hash th_2 to BytesMaxContextBuffer type
-    let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
-
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
     let keystream_2 = edhoc_kdf(
         crypto,
         prk_2e,
         0u8,
-        &th_2_context,
-        SHA256_DIGEST_LEN,
+        th_2,
         ciphertext_2.len,
     );
 
@@ -1092,14 +1066,11 @@ fn compute_salt_4e3m(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
 ) -> BytesHashLen {
-    let mut th_3_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_3_context[..th_3.len()].copy_from_slice(&th_3[..]);
     let salt_4e3m_buf = edhoc_kdf(
         crypto,
         prk_3e2m,
         5u8,
-        &th_3_context,
-        th_3.len(),
+        th_3,
         SHA256_DIGEST_LEN,
     );
     let mut salt_4e3m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
@@ -1125,15 +1096,11 @@ fn compute_salt_3e2m(
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
 ) -> BytesHashLen {
-    let mut th_2_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-    th_2_context[..th_2.len()].copy_from_slice(&th_2[..]);
-
     let salt_3e2m_buf = edhoc_kdf(
         crypto,
         prk_2e,
         1u8,
-        &th_2_context,
-        SHA256_DIGEST_LEN,
+        th_2,
         SHA256_DIGEST_LEN,
     );
 
@@ -1456,32 +1423,24 @@ mod tests {
 
     #[test]
     fn test_edhoc_kdf() {
-        let mut th_2_context_tv: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        th_2_context_tv[..TH_2_TV.len()].copy_from_slice(&TH_2_TV[..]);
         const LEN_TV: usize = PLAINTEXT_2_LEN_TV;
 
         let output = edhoc_kdf(
             &mut default_crypto(),
             &PRK_2E_TV,
             0u8,
-            &th_2_context_tv,
-            SHA256_DIGEST_LEN,
+            &TH_2_TV,
             LEN_TV,
         );
         for i in 0..KEYSTREAM_2_TV.len() {
             assert_eq!(KEYSTREAM_2_TV[i], output[i]);
         }
 
-        let mut context_info_mac_2: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_info_mac_2[..CONTEXT_INFO_MAC_2_TV.len()]
-            .copy_from_slice(&CONTEXT_INFO_MAC_2_TV[..]);
-
         let output_2 = edhoc_kdf(
             &mut default_crypto(),
             &PRK_3E2M_TV,
             2u8,
-            &context_info_mac_2,
-            CONTEXT_INFO_MAC_2_TV.len(),
+            &CONTEXT_INFO_MAC_2_TV,
             MAC_LENGTH_2,
         );
 
@@ -1801,15 +1760,12 @@ mod tests {
     #[test]
     fn test_compute_prk_out() {
         let mut prk_out: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
-        let mut th_4_context: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
-        th_4_context[..TH_4_TV.len()].copy_from_slice(&TH_4_TV[..]);
 
         let prk_out_buf = edhoc_kdf(
             &mut default_crypto(),
             &PRK_4E3M_TV,
             7u8,
-            &th_4_context,
-            TH_4_TV.len(),
+            &TH_4_TV,
             SHA256_DIGEST_LEN,
         );
         prk_out[..].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
@@ -1824,8 +1780,7 @@ mod tests {
             &mut default_crypto(),
             &PRK_OUT_TV,
             10u8,
-            &[0x00; MAX_KDF_CONTEXT_LEN],
-            0,
+            &[],
             SHA256_DIGEST_LEN,
         );
         prk_exporter[..].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
@@ -1839,8 +1794,7 @@ mod tests {
             &mut default_crypto(),
             &PRK_EXPORTER_TV,
             0u8,
-            &[0x00; MAX_KDF_CONTEXT_LEN],
-            0,
+            &[],
             OSCORE_MASTER_SECRET_TV.len(),
         );
         assert_eq!(
@@ -1852,8 +1806,7 @@ mod tests {
             &mut default_crypto(),
             &PRK_EXPORTER_TV,
             1u8,
-            &[0x00; MAX_KDF_CONTEXT_LEN],
-            0,
+            &[],
             OSCORE_MASTER_SALT_TV.len(),
         );
 

@@ -258,28 +258,20 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
         context: &[u8],
         length: usize,
     ) -> [u8; MAX_BUFFER_LEN] {
-        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context);
-
         edhoc_exporter(
             &self.state,
             &mut self.crypto,
             label,
-            &context_buf,
-            context.len(),
+            context,
             length,
         )
     }
 
     pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
-        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context);
-
         edhoc_key_update(
             &mut self.state,
             &mut self.crypto,
-            &context_buf,
-            context.len(),
+            context,
         )
     }
 }
@@ -480,28 +472,20 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         context: &[u8],
         length: usize,
     ) -> [u8; MAX_BUFFER_LEN] {
-        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context);
-
         edhoc_exporter(
             &self.state,
             &mut self.crypto,
             label,
-            &context_buf,
-            context.len(),
+            context,
             length,
         )
     }
 
     pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
-        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context);
-
         edhoc_key_update(
             &mut self.state,
             &mut self.crypto,
-            &context_buf,
-            context.len(),
+            context,
         )
     }
 }

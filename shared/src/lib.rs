@@ -609,23 +609,22 @@ mod helpers {
 
     pub fn encode_info(
         label: u8,
-        context: &BytesMaxContextBuffer,
-        context_len: usize,
+        context: &[u8],
         length: usize,
     ) -> (BytesMaxInfoBuffer, usize) {
         let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
 
         // construct info with inline cbor encoding
         info[0] = label;
-        let mut info_len = if context_len < 24 {
-            info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-            info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-            2 + context_len
+        let mut info_len = if context.len() < 24 {
+            info[1] = context.len() as u8 | CBOR_MAJOR_BYTE_STRING;
+            info[2..2 + context.len()].copy_from_slice(context);
+            2 + context.len()
         } else {
             info[1] = CBOR_BYTE_STRING;
-            info[2] = context_len as u8;
-            info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-            3 + context_len
+            info[2] = context.len() as u8;
+            info[3..3 + context.len()].copy_from_slice(context);
+            3 + context.len()
         };
 
         info_len = if length < 24 {
