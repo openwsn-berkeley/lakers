@@ -61,6 +61,36 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    /// Creates a new buffer from an array, with compile-time checking of the size.
+    ///
+    /// This is identical to [`.new_from_slice`][Self::new_from_slice], but handles overflow as a
+    /// built-time error, thus removing the need for a fallible result.
+    ///
+    /// This is particularly useful in tests and other const contexts:
+    ///
+    /// ```
+    /// # use lakers_shared::*;
+    /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0, 1, 2]);
+    /// ```
+    ///
+    /// While this fails to build:
+    ///
+    /// ```compile_fail
+    /// # use lakers_shared::*;
+    /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0; 10_000]);
+    /// ```
+    pub const fn new_from_array<const AN: usize>(input: &[u8; AN]) -> Self {
+        const {
+            if AN > N {
+                panic!("Array exceeds buffer size")
+            }
+        };
+        match Self::new_from_slice(input.as_slice()) {
+            Ok(s) => s,
+            _ => panic!("unreachable: Was checked above in a guaranteed-const fashion"),
+        }
+    }
+
     pub fn get(self, index: usize) -> Option<u8> {
         if index < self.len {
             None
