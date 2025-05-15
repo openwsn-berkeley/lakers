@@ -40,24 +40,12 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_1 = EDHOC-Expand(PRK, info = (0, h'', AES_CCM_KEY_LEN), length)
     let mut k_1: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let k_1_buf = edhoc_kdf_expand(
-        crypto,
-        prk,
-        EAD_AUTHZ_INFO_K_1_LABEL,
-        &[],
-        AES_CCM_KEY_LEN,
-    );
+    let k_1_buf = edhoc_kdf_expand(crypto, prk, EAD_AUTHZ_INFO_K_1_LABEL, &[], AES_CCM_KEY_LEN);
     k_1[..].copy_from_slice(&k_1_buf[..AES_CCM_KEY_LEN]);
 
     // IV_1 = EDHOC-Expand(PRK, info = (1, h'', AES_CCM_IV_LEN), length)
     let mut iv_1: BytesCcmIvLen = [0x00; AES_CCM_IV_LEN];
-    let iv_1_buf = edhoc_kdf_expand(
-        crypto,
-        prk,
-        EAD_AUTHZ_INFO_IV_1_LABEL,
-        &[],
-        AES_CCM_IV_LEN,
-    );
+    let iv_1_buf = edhoc_kdf_expand(crypto, prk, EAD_AUTHZ_INFO_IV_1_LABEL, &[], AES_CCM_IV_LEN);
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
 
     (k_1, iv_1)

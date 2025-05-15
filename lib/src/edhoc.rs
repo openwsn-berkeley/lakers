@@ -7,13 +7,7 @@ pub fn edhoc_exporter(
     context: &[u8],
     length: usize,
 ) -> BytesMaxBuffer {
-    edhoc_kdf(
-        crypto,
-        &state.prk_exporter,
-        label,
-        context,
-        length,
-    )
+    edhoc_kdf(crypto, &state.prk_exporter, label, context, length)
 }
 
 pub fn edhoc_key_update(
@@ -22,23 +16,11 @@ pub fn edhoc_key_update(
     context: &[u8],
 ) -> BytesHashLen {
     // new PRK_out
-    let prk_new_buf = edhoc_kdf(
-        crypto,
-        &state.prk_out,
-        11u8,
-        context,
-        SHA256_DIGEST_LEN,
-    );
+    let prk_new_buf = edhoc_kdf(crypto, &state.prk_out, 11u8, context, SHA256_DIGEST_LEN);
     state.prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     // new PRK_exporter
-    let prk_new_buf = edhoc_kdf(
-        crypto,
-        &state.prk_out,
-        10u8,
-        &[],
-        SHA256_DIGEST_LEN,
-    );
+    let prk_new_buf = edhoc_kdf(crypto, &state.prk_out, 10u8, &[], SHA256_DIGEST_LEN);
     state.prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_new_buf[..SHA256_DIGEST_LEN]);
 
     state.prk_out
@@ -211,25 +193,13 @@ pub fn r_verify_message_3(
 
         // compute prk_out
         // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-        let prk_out_buf = edhoc_kdf(
-            crypto,
-            &prk_4e3m,
-            7u8,
-            &th_4,
-            SHA256_DIGEST_LEN,
-        );
+        let prk_out_buf = edhoc_kdf(crypto, &prk_4e3m, 7u8, &th_4, SHA256_DIGEST_LEN);
         let mut prk_out: BytesHashLen = Default::default();
         prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
         // compute prk_exporter from prk_out
         // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-        let prk_exporter_buf = edhoc_kdf(
-            crypto,
-            &prk_out,
-            10u8,
-            &[],
-            SHA256_DIGEST_LEN,
-        );
+        let prk_exporter_buf = edhoc_kdf(crypto, &prk_out, 10u8, &[], SHA256_DIGEST_LEN);
         let mut prk_exporter = BytesHashLen::default();
         prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
@@ -415,28 +385,15 @@ pub fn i_prepare_message_3(
 
     let th_4 = compute_th_4(crypto, &state.th_3, &plaintext_3, cred_i.bytes.as_slice());
 
-
     // compute prk_out
     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
-    let prk_out_buf = edhoc_kdf(
-        crypto,
-        &state.prk_4e3m,
-        7u8,
-        &th_4,
-        SHA256_DIGEST_LEN,
-    );
+    let prk_out_buf = edhoc_kdf(crypto, &state.prk_4e3m, 7u8, &th_4, SHA256_DIGEST_LEN);
     let mut prk_out: BytesHashLen = Default::default();
     prk_out[..SHA256_DIGEST_LEN].copy_from_slice(&prk_out_buf[..SHA256_DIGEST_LEN]);
 
     // compute prk_exporter from prk_out
     // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
-    let prk_exporter_buf = edhoc_kdf(
-        crypto,
-        &prk_out,
-        10u8,
-        &[],
-        SHA256_DIGEST_LEN,
-    );
+    let prk_exporter_buf = edhoc_kdf(crypto, &prk_out, 10u8, &[], SHA256_DIGEST_LEN);
     let mut prk_exporter: BytesHashLen = Default::default();
     prk_exporter[..SHA256_DIGEST_LEN].copy_from_slice(&prk_exporter_buf[..SHA256_DIGEST_LEN]);
 
@@ -734,13 +691,7 @@ fn compute_k_3_iv_3(
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
     let mut k_3: BytesCcmKeyLen = [0x00; AES_CCM_KEY_LEN];
-    let k_3_buf = edhoc_kdf(
-        crypto,
-        prk_3e2m,
-        3u8,
-        th_3,
-        AES_CCM_KEY_LEN,
-    );
+    let k_3_buf = edhoc_kdf(crypto, prk_3e2m, 3u8, th_3, AES_CCM_KEY_LEN);
     k_3[..].copy_from_slice(&k_3_buf[..AES_CCM_KEY_LEN]);
 
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
@@ -993,7 +944,13 @@ fn compute_mac_2(
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
     mac_2[..].copy_from_slice(
-        &edhoc_kdf(crypto, prk_3e2m, 2_u8, &context[..context_len], MAC_LENGTH_2)[..MAC_LENGTH_2],
+        &edhoc_kdf(
+            crypto,
+            prk_3e2m,
+            2_u8,
+            &context[..context_len],
+            MAC_LENGTH_2,
+        )[..MAC_LENGTH_2],
     );
 
     mac_2
@@ -1044,13 +1001,7 @@ fn encrypt_decrypt_ciphertext_2(
     ciphertext_2: &BufferCiphertext2,
 ) -> BufferCiphertext2 {
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
-    let keystream_2 = edhoc_kdf(
-        crypto,
-        prk_2e,
-        0u8,
-        th_2,
-        ciphertext_2.len,
-    );
+    let keystream_2 = edhoc_kdf(crypto, prk_2e, 0u8, th_2, ciphertext_2.len);
 
     let mut result = BufferCiphertext2::default();
     for i in 0..ciphertext_2.len {
@@ -1066,13 +1017,7 @@ fn compute_salt_4e3m(
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
 ) -> BytesHashLen {
-    let salt_4e3m_buf = edhoc_kdf(
-        crypto,
-        prk_3e2m,
-        5u8,
-        th_3,
-        SHA256_DIGEST_LEN,
-    );
+    let salt_4e3m_buf = edhoc_kdf(crypto, prk_3e2m, 5u8, th_3, SHA256_DIGEST_LEN);
     let mut salt_4e3m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
     salt_4e3m[..].copy_from_slice(&salt_4e3m_buf[..SHA256_DIGEST_LEN]);
 
@@ -1096,13 +1041,7 @@ fn compute_salt_3e2m(
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
 ) -> BytesHashLen {
-    let salt_3e2m_buf = edhoc_kdf(
-        crypto,
-        prk_2e,
-        1u8,
-        th_2,
-        SHA256_DIGEST_LEN,
-    );
+    let salt_3e2m_buf = edhoc_kdf(crypto, prk_2e, 1u8, th_2, SHA256_DIGEST_LEN);
 
     let mut salt_3e2m: BytesHashLen = [0x00; SHA256_DIGEST_LEN];
     salt_3e2m[..].copy_from_slice(&salt_3e2m_buf[..SHA256_DIGEST_LEN]);
@@ -1425,13 +1364,7 @@ mod tests {
     fn test_edhoc_kdf() {
         const LEN_TV: usize = PLAINTEXT_2_LEN_TV;
 
-        let output = edhoc_kdf(
-            &mut default_crypto(),
-            &PRK_2E_TV,
-            0u8,
-            &TH_2_TV,
-            LEN_TV,
-        );
+        let output = edhoc_kdf(&mut default_crypto(), &PRK_2E_TV, 0u8, &TH_2_TV, LEN_TV);
         for i in 0..KEYSTREAM_2_TV.len() {
             assert_eq!(KEYSTREAM_2_TV[i], output[i]);
         }

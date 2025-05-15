@@ -258,21 +258,11 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
         context: &[u8],
         length: usize,
     ) -> [u8; MAX_BUFFER_LEN] {
-        edhoc_exporter(
-            &self.state,
-            &mut self.crypto,
-            label,
-            context,
-            length,
-        )
+        edhoc_exporter(&self.state, &mut self.crypto, label, context, length)
     }
 
     pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
-        edhoc_key_update(
-            &mut self.state,
-            &mut self.crypto,
-            context,
-        )
+        edhoc_key_update(&mut self.state, &mut self.crypto, context)
     }
 }
 
@@ -472,21 +462,11 @@ impl<Crypto: CryptoTrait> EdhocInitiatorDone<Crypto> {
         context: &[u8],
         length: usize,
     ) -> [u8; MAX_BUFFER_LEN] {
-        edhoc_exporter(
-            &self.state,
-            &mut self.crypto,
-            label,
-            context,
-            length,
-        )
+        edhoc_exporter(&self.state, &mut self.crypto, label, context, length)
     }
 
     pub fn edhoc_key_update(&mut self, context: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
-        edhoc_key_update(
-            &mut self.state,
-            &mut self.crypto,
-            context,
-        )
+        edhoc_key_update(&mut self.state, &mut self.crypto, context)
     }
 }
 
