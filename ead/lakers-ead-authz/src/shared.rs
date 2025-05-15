@@ -44,8 +44,7 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
         crypto,
         prk,
         EAD_AUTHZ_INFO_K_1_LABEL,
-        &[0x00; MAX_KDF_CONTEXT_LEN],
-        0,
+        &[],
         AES_CCM_KEY_LEN,
     );
     k_1[..].copy_from_slice(&k_1_buf[..AES_CCM_KEY_LEN]);
@@ -56,8 +55,7 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
         crypto,
         prk,
         EAD_AUTHZ_INFO_IV_1_LABEL,
-        &[0x00; MAX_KDF_CONTEXT_LEN],
-        0,
+        &[],
         AES_CCM_IV_LEN,
     );
     iv_1[..].copy_from_slice(&iv_1_buf[..AES_CCM_IV_LEN]);
@@ -128,10 +126,7 @@ fn compute_voucher_mac<Crypto: CryptoTrait>(
 ) -> BytesMac {
     let mut voucher_mac: BytesMac = [0x00; MAC_LENGTH];
 
-    let mut context = [0x00; MAX_KDF_CONTEXT_LEN];
-    context[..voucher_input.len].copy_from_slice(voucher_input.as_slice());
-
-    let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, &context, voucher_input.len, MAC_LENGTH);
+    let voucher_mac_buf = edhoc_kdf_expand(crypto, prk, 2, voucher_input.as_slice(), MAC_LENGTH);
     voucher_mac[..MAC_LENGTH].copy_from_slice(&voucher_mac_buf[..MAC_LENGTH]);
 
     voucher_mac
@@ -149,11 +144,10 @@ fn edhoc_kdf_expand<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
     prk: &BytesHashLen,
     label: u8,
-    context: &BytesMaxContextBuffer,
-    context_len: usize,
+    context: &[u8],
     length: usize,
 ) -> BytesMaxBuffer {
-    let (info, info_len) = encode_info(label, context, context_len, length);
+    let (info, info_len) = encode_info(label, context, length);
     let output = crypto.hkdf_expand(prk, &info, info_len, length);
     output
 }
