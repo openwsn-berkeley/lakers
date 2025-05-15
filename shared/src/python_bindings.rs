@@ -22,18 +22,6 @@ impl From<EDHOCError> for PyErr {
     }
 }
 
-impl fmt::Display for MessageBufferError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MessageBufferError::{:?}", self)
-    }
-}
-
-impl From<MessageBufferError> for PyErr {
-    fn from(error: MessageBufferError) -> Self {
-        PyValueError::new_err(error.to_string())
-    }
-}
-
 impl fmt::Display for EdhocBufferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "EdhocBufferError::{:?}", self)

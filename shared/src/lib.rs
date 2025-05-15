@@ -175,8 +175,6 @@ pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD
 /// Its legal values are constrained to only contain a single CBOR item that is either a byte
 /// string or a number in -24..=23, all in preferred encoding.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-// TODO: This should not be needed, there is nothing special about the value 0.
-#[derive(Default)]
 pub struct ConnId([u8; MAX_CONNID_ENCODED_LEN]);
 
 /// Classifier for the content of [`ConnId`]; used internally in its implementation.
@@ -199,7 +197,7 @@ impl ConnIdType {
     /// Returns a classifier based on an initial byte.
     ///
     /// Its signature will need to change if ever connection IDs longer than 1+0+n are supported.
-    fn classify(byte: u8) -> Option<Self> {
+    const fn classify(byte: u8) -> Option<Self> {
         if byte >> 5 <= 1 && byte & 0x1f < 24 {
             return Some(ConnIdType::SingleByte);
         } else if byte >> 5 == 2 && byte & 0x1f < 24 {
@@ -304,7 +302,7 @@ impl ConnId {
     /// let c_i = ConnId::from_slice(&[0x12, 0x34]).unwrap();
     /// assert!(c_i.as_slice() == &[0x12, 0x34]);
     /// ```
-    pub fn from_slice(input: &[u8]) -> Option<Self> {
+    pub const fn from_slice(input: &[u8]) -> Option<Self> {
         if input.len() > MAX_CONNID_ENCODED_LEN - 1 {
             None
         } else {
@@ -314,8 +312,10 @@ impl ConnId {
             {
                 s[0] = input[0];
             } else {
-                s[0] = input.len() as u8 | 0x40;
-                s[1..1 + input.len()].copy_from_slice(input);
+                let (first, tail) = s.split_at_mut(1);
+                first[0] = input.len() as u8 | 0x40;
+                let (used_tail, _unused_tail) = tail.split_at_mut(input.len());
+                used_tail.copy_from_slice(input);
             }
             Some(Self(s))
         }
@@ -454,7 +454,7 @@ pub struct ResponderStart {
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
@@ -463,21 +463,21 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct WaitM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
@@ -491,7 +491,7 @@ pub struct ProcessingM2 {
     pub ead_2: Option<EADItem>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
@@ -499,7 +499,7 @@ pub struct ProcessedM2 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessingM3 {
     pub mac_3: BytesMac3,
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
@@ -510,7 +510,7 @@ pub struct ProcessingM3 {
     pub ead_3: Option<EADItem>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct PreparingM3 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -518,7 +518,7 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ProcessedM3 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,
@@ -526,7 +526,7 @@ pub struct ProcessedM3 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
@@ -535,7 +535,7 @@ pub struct WaitM4 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
@@ -560,120 +560,11 @@ pub enum CredentialTransfer {
     ByValue,
 }
 
-#[derive(PartialEq, Debug)]
-#[repr(C)]
-pub enum MessageBufferError {
-    BufferAlreadyFull,
-    SliceTooLong,
-}
+#[deprecated]
+pub type MessageBufferError = buffer::EdhocBufferError;
 
-/// An owned u8 vector of a limited length
-///
-/// It is used to represent the various messages in encrypted and in decrypted form, as well as
-/// other data items. Its maximum length is [MAX_MESSAGE_SIZE_LEN].
-#[repr(C)]
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub struct EdhocMessageBuffer {
-    pub content: [u8; MAX_MESSAGE_SIZE_LEN],
-    pub len: usize,
-}
-
-impl Default for EdhocMessageBuffer {
-    fn default() -> Self {
-        EdhocMessageBuffer {
-            content: [0; MAX_MESSAGE_SIZE_LEN],
-            len: 0,
-        }
-    }
-}
-
-impl EdhocMessageBuffer {
-    pub fn new() -> Self {
-        EdhocMessageBuffer {
-            content: [0u8; MAX_MESSAGE_SIZE_LEN],
-            len: 0,
-        }
-    }
-
-    pub fn new_from_slice(slice: &[u8]) -> Result<Self, MessageBufferError> {
-        let mut buffer = Self::new();
-        if buffer.fill_with_slice(slice).is_ok() {
-            Ok(buffer)
-        } else {
-            Err(MessageBufferError::SliceTooLong)
-        }
-    }
-
-    pub fn get(self, index: usize) -> Option<u8> {
-        self.content.get(index).copied()
-    }
-
-    pub fn push(&mut self, item: u8) -> Result<(), MessageBufferError> {
-        if self.len < self.content.len() {
-            self.content[self.len] = item;
-            self.len += 1;
-            Ok(())
-        } else {
-            Err(MessageBufferError::BufferAlreadyFull)
-        }
-    }
-
-    pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..start + len)
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        &self.content[0..self.len]
-    }
-
-    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), MessageBufferError> {
-        if slice.len() <= self.content.len() {
-            self.len = slice.len();
-            self.content[..self.len].copy_from_slice(slice);
-            Ok(())
-        } else {
-            Err(MessageBufferError::SliceTooLong)
-        }
-    }
-
-    pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), MessageBufferError> {
-        if self.len + slice.len() <= self.content.len() {
-            self.content[self.len..self.len + slice.len()].copy_from_slice(slice);
-            self.len += slice.len();
-            Ok(())
-        } else {
-            Err(MessageBufferError::SliceTooLong)
-        }
-    }
-
-    pub fn from_hex(hex: &str) -> Self {
-        let mut buffer = EdhocMessageBuffer::new();
-        buffer.len = hex.len() / 2;
-        for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
-            let chunk_str = core::str::from_utf8(chunk).unwrap();
-            buffer.content[i] = u8::from_str_radix(chunk_str, 16).unwrap();
-        }
-        buffer
-    }
-}
-
-impl TryInto<EdhocMessageBuffer> for &[u8] {
-    type Error = ();
-
-    fn try_into(self) -> Result<EdhocMessageBuffer, Self::Error> {
-        let mut buffer = [0u8; MAX_MESSAGE_SIZE_LEN];
-        if self.len() <= buffer.len() {
-            buffer[..self.len()].copy_from_slice(self);
-
-            Ok(EdhocMessageBuffer {
-                content: buffer,
-                len: self.len(),
-            })
-        } else {
-            Err(())
-        }
-    }
-}
+/// An [`EdhocBuffer`] used for messages (and, transitionally, other components).
+pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
@@ -702,25 +593,20 @@ impl EADItem {
 mod helpers {
     use super::*;
 
-    pub fn encode_info(
-        label: u8,
-        context: &BytesMaxContextBuffer,
-        context_len: usize,
-        length: usize,
-    ) -> (BytesMaxInfoBuffer, usize) {
+    pub fn encode_info(label: u8, context: &[u8], length: usize) -> (BytesMaxInfoBuffer, usize) {
         let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
 
         // construct info with inline cbor encoding
         info[0] = label;
-        let mut info_len = if context_len < 24 {
-            info[1] = context_len as u8 | CBOR_MAJOR_BYTE_STRING;
-            info[2..2 + context_len].copy_from_slice(&context[..context_len]);
-            2 + context_len
+        let mut info_len = if context.len() < 24 {
+            info[1] = context.len() as u8 | CBOR_MAJOR_BYTE_STRING;
+            info[2..2 + context.len()].copy_from_slice(context);
+            2 + context.len()
         } else {
             info[1] = CBOR_BYTE_STRING;
-            info[2] = context_len as u8;
-            info[3..3 + context_len].copy_from_slice(&context[..context_len]);
-            3 + context_len
+            info[2] = context.len() as u8;
+            info[3..3 + context.len()].copy_from_slice(context);
+            3 + context.len()
         };
 
         info_len = if length < 24 {

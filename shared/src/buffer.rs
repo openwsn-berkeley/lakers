@@ -15,7 +15,6 @@ pub enum EdhocBufferError {
 ///
 /// Trying to have an API as similar as possible to `heapless::Vec`,
 /// so that in the future it can be hot-swappable by the application.
-// TODO: replace EdhocMessageBuffer with EdhocBuffer all over the library
 // NOTE: how would this const generic thing work across the C and Python bindings?
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(C)]
@@ -49,12 +48,42 @@ impl<const N: usize> EdhocBuffer<N> {
         N
     }
 
-    pub fn new_from_slice(slice: &[u8]) -> Result<Self, EdhocBufferError> {
+    pub const fn new_from_slice(slice: &[u8]) -> Result<Self, EdhocBufferError> {
         let mut buffer = Self::new();
         if buffer.fill_with_slice(slice).is_ok() {
             Ok(buffer)
         } else {
             Err(EdhocBufferError::SliceTooLong)
+        }
+    }
+
+    /// Creates a new buffer from an array, with compile-time checking of the size.
+    ///
+    /// This is identical to [`.new_from_slice`][Self::new_from_slice], but handles overflow as a
+    /// built-time error, thus removing the need for a fallible result.
+    ///
+    /// This is particularly useful in tests and other const contexts:
+    ///
+    /// ```
+    /// # use lakers_shared::*;
+    /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0, 1, 2]);
+    /// ```
+    ///
+    /// While this fails to build:
+    ///
+    /// ```compile_fail
+    /// # use lakers_shared::*;
+    /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0; 10_000]);
+    /// ```
+    pub const fn new_from_array<const AN: usize>(input: &[u8; AN]) -> Self {
+        const {
+            if AN > N {
+                panic!("Array exceeds buffer size")
+            }
+        };
+        match Self::new_from_slice(input.as_slice()) {
+            Ok(s) => s,
+            _ => panic!("unreachable: Was checked above in a guaranteed-const fashion"),
         }
     }
 
@@ -84,10 +113,11 @@ impl<const N: usize> EdhocBuffer<N> {
         &self.content[0..self.len]
     }
 
-    pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
+    pub const fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
         if slice.len() <= self.content.len() {
             self.len = slice.len();
-            self.content[..self.len].copy_from_slice(slice);
+            // Like content[..len].copy_from_silce(), but const compatible
+            self.content.split_at_mut(self.len).0.copy_from_slice(slice);
             Ok(())
         } else {
             Err(EdhocBufferError::SliceTooLong)
@@ -123,17 +153,17 @@ impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     }
 }
 
-impl<const N: usize> TryInto<EdhocBuffer<N>> for &[u8] {
+impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
     type Error = ();
 
-    fn try_into(self) -> Result<EdhocBuffer<N>, Self::Error> {
+    fn try_from(input: &[u8]) -> Result<Self, Self::Error> {
         let mut buffer = [0u8; N];
-        if self.len() <= buffer.len() {
-            buffer[..self.len()].copy_from_slice(self);
+        if input.len() <= buffer.len() {
+            buffer[..input.len()].copy_from_slice(input);
 
             Ok(EdhocBuffer {
                 content: buffer,
-                len: self.len(),
+                len: input.len(),
             })
         } else {
             Err(())
