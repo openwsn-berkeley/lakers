@@ -32,7 +32,7 @@ struct EdhocHandler {
 ///
 /// Places using this function may be simplified if From/Into is specified (possibly after
 /// enlarging the Error type)
-fn too_small(_e: MessageBufferError) -> Error {
+fn too_small(_e: EdhocBufferError) -> Error {
     Error::bad_request()
 }
 
