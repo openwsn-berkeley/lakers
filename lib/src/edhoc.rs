@@ -1738,7 +1738,7 @@ mod tests {
 
         // the actual value will be zeroed since it doesn't matter in this test
         let mut ead_value = EdhocBuffer::new();
-        ead_value.len = MAX_EAD_SIZE_LEN;
+        ead_value.len = MAX_EAD_LEN;
 
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,

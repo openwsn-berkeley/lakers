@@ -119,7 +119,23 @@ pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
-pub const MAX_EAD_SIZE_LEN: usize = MAX_MESSAGE_SIZE_LEN;
+pub const MAX_EAD_LEN: usize = if cfg!(feature = "max_ead_len_1024") {
+    1024
+} else if cfg!(feature = "max_ead_len_768") {
+    768
+} else if cfg!(feature = "max_ead_len_512") {
+    512
+} else if cfg!(feature = "max_ead_len_384") {
+    384
+} else if cfg!(feature = "max_ead_len_256") {
+    256
+} else if cfg!(feature = "max_ead_len_192") {
+    192
+} else if cfg!(feature = "max_ead_len_128") {
+    128
+} else {
+    64
+};
 
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
@@ -166,7 +182,7 @@ pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
-pub type EADBuffer = EdhocBuffer<MAX_EAD_SIZE_LEN>;
+pub type EADBuffer = EdhocBuffer<MAX_EAD_LEN>;
 
 /// Value of C_R or C_I, as chosen by ourself or the peer.
 ///
