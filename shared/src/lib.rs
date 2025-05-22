@@ -650,7 +650,6 @@ mod edhoc_parser {
                     // EAD value is present
                     let mut buffer = EdhocMessageBuffer::new();
                     buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
-                    buffer.len = tail.len();
                     Some(buffer)
                 } else {
                     None
