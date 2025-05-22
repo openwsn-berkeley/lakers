@@ -170,7 +170,7 @@ mod test_authenticator {
     #[test]
     fn test_r_prepare_ead_2() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
-        let ead_2_value_tv: EdhocMessageBuffer = EAD2_VALUE_TV.try_into().unwrap();
+        let ead_2_value_tv: EADBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
         let ead_authenticator = ZeroTouchAuthenticatorWaitVoucherResp::default();
 
@@ -179,7 +179,7 @@ mod test_authenticator {
             .unwrap();
         assert_eq!(ead_2.label, EAD_AUTHZ_LABEL);
         assert_eq!(ead_2.is_critical, true);
-        assert_eq!(ead_2.value.unwrap().content, ead_2_value_tv.content);
+        assert_eq!(ead_2.value.unwrap(), ead_2_value_tv);
     }
 }
 

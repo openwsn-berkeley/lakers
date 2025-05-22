@@ -119,7 +119,7 @@ pub const KID_LABEL: u8 = 4;
 
 pub const ENC_STRUCTURE_LEN: usize = 8 + 5 + SHA256_DIGEST_LEN; // 8 for ENCRYPT0
 
-pub const MAX_EAD_SIZE_LEN: usize = 64;
+pub const MAX_EAD_SIZE_LEN: usize = MAX_MESSAGE_SIZE_LEN;
 
 /// Maximum length of a [`ConnId`] (`C_x`).
 ///
@@ -166,7 +166,7 @@ pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
-pub type EADBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+pub type EADBuffer = EdhocBuffer<MAX_EAD_SIZE_LEN>;
 
 /// Value of C_R or C_I, as chosen by ourself or the peer.
 ///
@@ -563,9 +563,10 @@ pub enum CredentialTransfer {
 #[deprecated]
 pub type MessageBufferError = buffer::EdhocBufferError;
 
-/// An [`EdhocBuffer`] used for messages (and, transitionally, other components).
+/// An [`EdhocBuffer`] used for messages.
 pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 
+/// An owned EAD item.
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EADItem {
@@ -576,8 +577,7 @@ pub struct EADItem {
     /// Currently, only values up to 23 are supported.
     pub label: u16,
     pub is_critical: bool,
-    // TODO[ead]: have adjustable (smaller) length for this buffer
-    pub value: Option<EdhocMessageBuffer>,
+    pub value: Option<EADBuffer>,
 }
 
 impl EADItem {
@@ -648,7 +648,7 @@ mod edhoc_parser {
             if let Ok((label, is_critical)) = label_res {
                 let ead_value = if tail.len() > 0 {
                     // EAD value is present
-                    let mut buffer = EdhocMessageBuffer::new();
+                    let mut buffer = EdhocBuffer::new();
                     buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
                     Some(buffer)
                 } else {

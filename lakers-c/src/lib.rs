@@ -26,7 +26,7 @@ static HEAP: Heap = Heap::empty();
 pub struct EADItemC {
     pub label: u16,
     pub is_critical: bool,
-    pub value: EdhocMessageBuffer,
+    pub value: EADBuffer,
 }
 
 impl EADItemC {

@@ -66,7 +66,7 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
 }
 
 pub(crate) fn parse_ead_1_value(
-    value: &EdhocMessageBuffer,
+    value: &EADBuffer,
 ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
     let mut outer_decoder = CBORDecoder::new(value.as_slice());
     let voucher_info_seq = outer_decoder.bytes()?;

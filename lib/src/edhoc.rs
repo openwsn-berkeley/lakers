@@ -493,8 +493,8 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
     })
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> Result<EdhocMessageBuffer, EDHOCError> {
-    let mut output = EdhocMessageBuffer::new();
+fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
+    let mut output = EdhocBuffer::new();
 
     // encode label
     // FIXME: This only works for values up to 23
@@ -1697,12 +1697,12 @@ mod tests {
 
     #[test]
     fn test_encode_ead_item() {
-        let ead_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_CRITICAL_TV);
+        let ead_tv = EdhocBuffer::from_hex(EAD_DUMMY_CRITICAL_TV);
 
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
             is_critical: true,
-            value: Some(EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
+            value: Some(EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
         let res = encode_ead_item(&ead_item);
@@ -1720,7 +1720,7 @@ mod tests {
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
             is_critical: true,
-            value: Some(EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
+            value: Some(EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
         let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &Some(ead_item));
@@ -1737,8 +1737,8 @@ mod tests {
         let c_i_tv = C_I_TV;
 
         // the actual value will be zeroed since it doesn't matter in this test
-        let mut ead_value = EdhocMessageBuffer::new();
-        ead_value.len = MAX_MESSAGE_SIZE_LEN;
+        let mut ead_value = EdhocBuffer::new();
+        ead_value.len = MAX_EAD_SIZE_LEN;
 
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
@@ -1754,7 +1754,7 @@ mod tests {
     fn test_parse_ead_item() {
         let message_tv_offset = MESSAGE_1_TV.len() / 2;
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
-        let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
+        let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
         let res = parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]);
         assert!(res.is_ok());
@@ -1787,7 +1787,7 @@ mod tests {
     #[test]
     fn test_parse_message_with_ead_item() {
         let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
-        let ead_value_tv = EdhocMessageBuffer::from_hex(EAD_DUMMY_VALUE_TV);
+        let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
         let res = parse_message_1(&message_1_ead_tv);
         assert!(res.is_ok());
