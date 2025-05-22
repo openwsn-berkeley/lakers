@@ -166,7 +166,7 @@ pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
 pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
-pub type EADMessageBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
+pub type EADBuffer = EdhocMessageBuffer; // TODO: make it of size MAX_EAD_SIZE_LEN
 
 /// Value of C_R or C_I, as chosen by ourself or the peer.
 ///
