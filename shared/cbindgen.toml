@@ -19,6 +19,7 @@ header = """
 #define _MAX_KDF_CONTENT_LEN_1024
 #define _MAX_BUFFER_LEN_1024
 #define _MAX_CONNID_ENCODED_LEN_24
+#define _MAX_EAD_LEN_1024
 #endif
 
 #if defined(_MAX_MESSAGE_SIZE_LEN_1024)
@@ -63,6 +64,24 @@ header = """
 #define MAX_BUFFER_LEN 256 + 64
 #endif
 
+#if defined(_MAX_EAD_LEN_1024)
+#define MAX_EAD_LEN 1024
+#elif defined(_MAX_EAD_LEN_768)
+#define MAX_EAD_LEN 768
+#elif defined(_MAX_EAD_LEN_512)
+#define MAX_EAD_LEN 512
+#elif defined(_MAX_EAD_LEN_384)
+#define MAX_EAD_LEN 384
+#elif defined(_MAX_EAD_LEN_256)
+#define MAX_EAD_LEN 256
+#elif defined(_MAX_EAD_LEN_192)
+#define MAX_EAD_LEN 192
+#elif defined(_MAX_EAD_LEN_128)
+#define MAX_EAD_LEN 128
+#else
+#define MAX_EAD_LEN 64
+#endif
+
 #if defined(_MAX_CONNID_ENCODED_LEN_24)
 #define MAX_CONNID_ENCODED_LEN 24
 #else
@@ -94,11 +113,19 @@ cpp_compat = true
 "feature = max_buffer_len_448" = "_MAX_BUFFER_LEN_448"
 "feature = max_buffer_len_512" = "_MAX_BUFFER_LEN_512"
 "feature = max_buffer_len_1024" = "_MAX_BUFFER_LEN_1024"
+"feature = max_ead_len_128" = "_MAX_EAD_LEN_128"
+"feature = max_ead_len_192" = "_MAX_EAD_LEN_192"
+"feature = max_ead_len_256" = "_MAX_EAD_LEN_256"
+"feature = max_ead_len_384" = "_MAX_EAD_LEN_384"
+"feature = max_ead_len_512" = "_MAX_EAD_LEN_512"
+"feature = max_ead_len_768" = "_MAX_EAD_LEN_768"
+"feature = max_ead_len_1024" = "_MAX_EAD_LEN_1024"
 "feature = max_connid_encoded_len_24" = "_MAX_CONNID_ENCODED_LEN_24"
 
 [export]
 include = [
     "EdhocMessageBuffer", "BytesMac", "BytesMac2",
+    "EADBuffer",
     "EADItemC",
     "EdhocBuffer", "BufferKid", "BufferCred", "BufferIdCred",
     "CredentialKey", "CredentialType", "IdCred",
