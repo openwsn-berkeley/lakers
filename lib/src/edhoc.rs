@@ -509,8 +509,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
     };
 
     if let Some(label) = res {
-        output.content[0] = label;
-        output.len = 1;
+        output.push(label).unwrap();
 
         // encode value
         if let Some(ead_1_value) = &ead_1.value {
@@ -535,43 +534,34 @@ fn encode_message_1(
     ead_1: &Option<EADItem>,
 ) -> Result<BufferMessage1, EDHOCError> {
     let mut output = BufferMessage1::new();
-    let mut raw_suites_len: usize = 0;
 
-    output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+    output.push(method).unwrap(); // CBOR unsigned int less than 24 is encoded verbatim
 
     if suites.len == 1 {
         // only one suite, will be encoded as a single integer
         if suites[0] <= CBOR_UINT_1BYTE {
-            output.content[1] = suites[0];
-            raw_suites_len = 1;
+            output.push(suites[0]).unwrap();
         } else {
-            output.content[1] = CBOR_UINT_1BYTE;
-            output.content[2] = suites[0]; // assume it is smaller than 255, which all suites are
-            raw_suites_len = 2;
+            output.push(CBOR_UINT_1BYTE).unwrap();
+            output.push(suites[0]).unwrap(); // assume it is smaller than 255, which all suites are
         }
     } else {
         // several suites, will be encoded as an array
-        output.content[1] = CBOR_MAJOR_ARRAY + (suites.len as u8);
-        raw_suites_len += 1;
+        output.push(CBOR_MAJOR_ARRAY + (suites.len as u8)).unwrap();
         for &suite in suites.as_slice().iter() {
             if suite <= CBOR_UINT_1BYTE {
-                output.content[1 + raw_suites_len] = suite;
-                raw_suites_len += 1;
+                output.push(suite).unwrap();
             } else {
-                output.content[1 + raw_suites_len] = CBOR_UINT_1BYTE;
-                output.content[2 + raw_suites_len] = suite;
-                raw_suites_len += 2;
+                output.push(CBOR_UINT_1BYTE).unwrap();
+                output.push(suite).unwrap();
             }
         }
     };
 
-    output.content[1 + raw_suites_len] = CBOR_BYTE_STRING; // CBOR byte string magic number
-    output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
-    output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
-        .copy_from_slice(&g_x[..]);
-    let c_i = c_i.as_cbor();
-    output.len = 3 + raw_suites_len + P256_ELEM_LEN + c_i.len();
-    output.content[3 + raw_suites_len + P256_ELEM_LEN..][..c_i.len()].copy_from_slice(c_i);
+    output.push(CBOR_BYTE_STRING).unwrap(); // CBOR byte string magic number
+    output.push(P256_ELEM_LEN as u8).unwrap(); // length of the byte string
+    output.extend_from_slice(&g_x[..]).unwrap();
+    output.extend_from_slice(c_i.as_cbor()).unwrap();
 
     if let Some(ead_1) = ead_1 {
         match encode_ead_item(ead_1) {
