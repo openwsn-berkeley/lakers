@@ -58,11 +58,15 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get(self, index: usize) -> Option<u8> {
-        self.content.get(index).copied()
+        if index < self.len {
+            None
+        } else {
+            self.content.get(index).copied()
+        }
     }
 
     pub fn contains(&self, item: &u8) -> bool {
-        self.content.contains(item)
+        self.as_slice().contains(item)
     }
 
     pub fn push(&mut self, item: u8) -> Result<(), EdhocBufferError> {
@@ -76,7 +80,11 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..start + len)
+        if start.saturating_add(len) > self.len {
+            None
+        } else {
+            self.content.get(start..start + len)
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -117,8 +125,9 @@ impl<const N: usize> EdhocBuffer<N> {
 
 impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     type Output = u8;
+    #[track_caller]
     fn index(&self, item: usize) -> &Self::Output {
-        &self.content[item]
+        &self.as_slice()[item]
     }
 }
 
