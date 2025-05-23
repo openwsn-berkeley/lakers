@@ -67,16 +67,12 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         plaintext: &[u8],
     ) -> EdhocBuffer<N> {
         let key = AesCcm16_64_128::new(key.into());
-        let mut outbuffer = EdhocBuffer::new();
-        outbuffer.content[..plaintext.len()].copy_from_slice(plaintext);
-        if let Ok(tag) =
-            key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len()])
-        {
-            outbuffer.content[plaintext.len()..][..AES_CCM_TAG_LEN].copy_from_slice(&tag);
+        let mut outbuffer = EdhocBuffer::new_from_slice(plaintext).unwrap();
+        if let Ok(tag) = key.encrypt_in_place_detached(iv.into(), ad, outbuffer.as_mut_slice()) {
+            outbuffer.extend_from_slice(&tag).unwrap();
         } else {
             panic!("Preconfigured sizes should not allow encryption to fail")
         }
-        outbuffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         outbuffer
     }
 
