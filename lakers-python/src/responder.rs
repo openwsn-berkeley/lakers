@@ -204,8 +204,7 @@ impl PyEdhocResponder {
             self.as_mut_completed()?,
             &mut default_crypto(),
             label,
-            &context_buf,
-            context.len(),
+            context.as_slice(),
             length,
         );
         Ok(PyBytes::new_bound(py, &res[..length]))
@@ -217,14 +216,10 @@ impl PyEdhocResponder {
         py: Python<'a>,
         context: Vec<u8>,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        let mut context_buf = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context.as_slice());
-
         let res = edhoc_key_update(
             self.as_mut_completed()?,
             &mut default_crypto(),
-            &context_buf,
-            context.len(),
+            context.as_slice(),
         );
         Ok(PyBytes::new_bound(py, &res[..SHA256_DIGEST_LEN]))
     }
