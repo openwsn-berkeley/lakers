@@ -22,14 +22,15 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
         unsafe {
             CRYS_HASH(
                 CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-                message.clone().as_mut_ptr(),
-                message_len,
+                // This just reads, the C code is missing a `const`.
+                message.as_ptr() as *mut _,
+                message.len(),
                 buffer.as_mut_ptr(),
             );
         }
