@@ -91,10 +91,6 @@ impl<const N: usize> EdhocBuffer<N> {
         &self.content[0..self.len]
     }
 
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.content[0..self.len]
-    }
-
     pub fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
         if slice.len() <= self.content.len() {
             self.len = slice.len();
