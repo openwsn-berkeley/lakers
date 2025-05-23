@@ -41,11 +41,8 @@ impl ZeroTouchServer {
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
 
-        if self.acl.is_none() || self.authorized(id_u.content[3]) {
-            // compute hash
-            let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-            message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-            let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+        if self.acl.is_none() || self.authorized(id_u[3]) {
+            let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
             let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
@@ -96,10 +93,7 @@ impl ZeroTouchServerUserAcl {
         let (_method, _suites_i, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        // compute hash
-        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-        let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+        let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
         let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
         let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);

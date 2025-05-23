@@ -39,9 +39,7 @@ pub fn r_process_message_1(
             // Step 2: verify that the selected cipher suite is supported
             if suites_i[suites_i.len() - 1] == EDHOC_SUPPORTED_SUITES[0] {
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-                message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-                let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+                let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
                 Ok((
                     ProcessingM1 {
@@ -251,11 +249,8 @@ pub fn i_prepare_message_1(
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     let message_1 = encode_message_1(state.method, &state.suites_i, &state.g_x, c_i, ead_1)?;
 
-    let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-    message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-
     // hash message_1 here to avoid saving the whole message in the state
-    let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+    let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
     Ok((
         WaitM2 {
@@ -548,7 +543,7 @@ fn compute_th_2(
     g_y: &BytesP256ElemLen,
     h_message_1: &BytesHashLen,
 ) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+    let mut message = [0x00; 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN];
     message[0] = CBOR_BYTE_STRING;
     message[1] = P256_ELEM_LEN as u8;
     message[2..2 + P256_ELEM_LEN].copy_from_slice(g_y);
@@ -557,9 +552,7 @@ fn compute_th_2(
     message[4 + P256_ELEM_LEN..4 + P256_ELEM_LEN + SHA256_DIGEST_LEN]
         .copy_from_slice(&h_message_1[..]);
 
-    let len = 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
-
-    crypto.sha256_digest(&message, len)
+    crypto.sha256_digest(message.as_slice())
 }
 
 fn compute_th_3(
@@ -578,7 +571,7 @@ fn compute_th_3(
     message[2 + th_2.len() + plaintext_2.len..2 + th_2.len() + plaintext_2.len + cred_r.len()]
         .copy_from_slice(cred_r);
 
-    crypto.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len + cred_r.len())
+    crypto.sha256_digest(&message[..th_2.len() + 2 + plaintext_2.len + cred_r.len()])
 }
 
 fn compute_th_4(
@@ -597,7 +590,7 @@ fn compute_th_4(
     message[2 + th_3.len() + plaintext_3.len..2 + th_3.len() + plaintext_3.len + cred_i.len()]
         .copy_from_slice(cred_i);
 
-    crypto.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len + cred_i.len())
+    crypto.sha256_digest(&message[..th_3.len() + 2 + plaintext_3.len + cred_i.len()])
 }
 
 // TODO: consider moving this to a new 'edhoc crypto primitives' module

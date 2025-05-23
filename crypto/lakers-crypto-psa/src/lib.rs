@@ -24,11 +24,11 @@ pub extern "C" fn mbedtls_hardware_poll(
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
         let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
         psa_crypto::init().unwrap();
-        hash_compute(hash_alg, &message[..message_len], &mut hash).unwrap();
+        hash_compute(hash_alg, message, &mut hash).unwrap();
 
         hash
     }
@@ -242,7 +242,7 @@ impl Crypto {
         s2[64..64 + message.len()].copy_from_slice(message);
 
         //    (4) apply H to the stream generated in step (3)
-        let ih = self.sha256_digest(&s2, 64 + message.len());
+        let ih = self.sha256_digest(&s2[..64 + message.len()]);
 
         //    (5) XOR (bitwise exclusive-OR) the B byte string computed in
         //        step (1) with opad
@@ -256,7 +256,7 @@ impl Crypto {
 
         //    (7) apply H to the stream generated in step (6) and output
         //        the result
-        let oh = self.sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
+        let oh = self.sha256_digest(&s5[..3 * SHA256_DIGEST_LEN]);
 
         oh
     }

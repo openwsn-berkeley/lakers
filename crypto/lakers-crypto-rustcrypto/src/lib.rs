@@ -36,9 +36,9 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> core::fmt::Debug for Crypto
 }
 
 impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng> {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let mut hasher = sha2::Sha256::new();
-        hasher.update(&message[..message_len]);
+        hasher.update(message);
         hasher.finalize().into()
     }
 
