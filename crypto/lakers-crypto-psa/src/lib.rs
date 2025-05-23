@@ -33,13 +33,7 @@ impl CryptoTrait for Crypto {
         hash
     }
 
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
         // Implementation of HKDF-Expand as per RFC5869
 
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
@@ -53,17 +47,16 @@ impl CryptoTrait for Crypto {
 
         let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
             [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];
-        message[..info_len].copy_from_slice(&info[..info_len]);
-        message[info_len] = 0x01;
-        let mut t_i = self.hmac_sha256(&message[..info_len + 1], prk);
+        message[..info.len()].copy_from_slice(info);
+        message[info.len()] = 0x01;
+        let mut t_i = self.hmac_sha256(&message[..info.len() + 1], prk);
         output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
 
         for i in 2..=n {
             message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
-            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
-                .copy_from_slice(&info[..info_len]);
-            message[SHA256_DIGEST_LEN + info_len] = i as u8;
-            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
+            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info.len()].copy_from_slice(&info);
+            message[SHA256_DIGEST_LEN + info.len()] = i as u8;
+            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info.len() + 1], prk);
             output[(i - 1) * SHA256_DIGEST_LEN..i * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 

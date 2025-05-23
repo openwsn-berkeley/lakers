@@ -37,13 +37,7 @@ impl CryptoTrait for Crypto {
         convert_array(&buffer[0..SHA256_DIGEST_LEN / 4])
     }
 
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
         let mut buffer = [0x00u8; MAX_BUFFER_LEN];
         unsafe {
             CRYS_HKDF_KeyDerivFunc(
@@ -52,8 +46,9 @@ impl CryptoTrait for Crypto {
                 0 as usize,
                 prk.clone().as_mut_ptr(),
                 prk.len() as u32,
-                info.clone().as_mut_ptr(),
-                info_len as u32,
+                // Function does not write there, merely misses `const` in C
+                info.as_ptr() as *mut _,
+                info.len() as u32,
                 buffer.as_mut_ptr(),
                 length as u32,
                 SaSiBool_SASI_TRUE,

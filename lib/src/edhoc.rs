@@ -610,7 +610,7 @@ fn edhoc_kdf(
 ) -> BytesMaxBuffer {
     let (info, info_len) = encode_info(label, context, length);
 
-    crypto.hkdf_expand(prk, &info, info_len, length)
+    crypto.hkdf_expand(prk, &info[..info_len], length)
 }
 
 fn encode_plaintext_3(
