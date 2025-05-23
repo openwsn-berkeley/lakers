@@ -607,11 +607,7 @@ impl EADItem {
 mod helpers {
     use super::*;
 
-    pub fn encode_info(
-        label: u8,
-        context: &[u8],
-        length: usize,
-    ) -> (BytesMaxInfoBuffer, usize) {
+    pub fn encode_info(label: u8, context: &[u8], length: usize) -> (BytesMaxInfoBuffer, usize) {
         let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
 
         // construct info with inline cbor encoding
