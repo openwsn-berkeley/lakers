@@ -1,9 +1,8 @@
 #![no_std]
 
 use lakers_shared::{
-    BufferCiphertext3, BufferPlaintext3, BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen,
-    BytesMaxBuffer, BytesP256ElemLen, Crypto as CryptoTrait, EDHOCError, AES_CCM_TAG_LEN,
-    MAX_BUFFER_LEN,
+    BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen, BytesMaxBuffer, BytesP256ElemLen,
+    Crypto as CryptoTrait, EDHOCError, EdhocBuffer, AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
 };
 
 use ccm::AeadInPlace;
@@ -60,39 +59,39 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         extracted.finalize().0.into()
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
         let key = AesCcm16_64_128::new(key.into());
-        let mut outbuffer = BufferCiphertext3::new();
-        outbuffer.content[..plaintext.len].copy_from_slice(plaintext.as_slice());
+        let mut outbuffer = EdhocBuffer::new();
+        outbuffer.content[..plaintext.len()].copy_from_slice(plaintext);
         if let Ok(tag) =
-            key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len])
+            key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len()])
         {
-            outbuffer.content[plaintext.len..][..AES_CCM_TAG_LEN].copy_from_slice(&tag);
+            outbuffer.content[plaintext.len()..][..AES_CCM_TAG_LEN].copy_from_slice(&tag);
         } else {
             panic!("Preconfigured sizes should not allow encryption to fail")
         }
-        outbuffer.len = plaintext.len + AES_CCM_TAG_LEN;
+        outbuffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         outbuffer
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
         let key = AesCcm16_64_128::new(key.into());
-        let mut buffer = BufferPlaintext3::new();
-        buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
-        buffer.content[..buffer.len].copy_from_slice(&ciphertext.content[..buffer.len]);
-        let tag = &ciphertext.content[buffer.len..][..AES_CCM_TAG_LEN];
+        let mut buffer = EdhocBuffer::new();
+        buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
+        buffer.content[..buffer.len].copy_from_slice(&ciphertext[..buffer.len]);
+        let tag = &ciphertext[buffer.len..];
         key.decrypt_in_place_detached(iv.into(), ad, &mut buffer.content[..buffer.len], tag.into())
             .map_err(|_| EDHOCError::MacVerificationFailed)?;
         Ok(buffer)

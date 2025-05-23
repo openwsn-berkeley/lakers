@@ -67,14 +67,14 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
-        let mut output: BufferCiphertext3 = BufferCiphertext3::new();
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
+        let mut output = EdhocBuffer::new();
         let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
         let mut aesccm_ad = [0x00u8; ENC_STRUCTURE_LEN];
@@ -91,8 +91,9 @@ impl CryptoTrait for Crypto {
                 iv.len() as u8,
                 aesccm_ad.as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.content.clone().as_mut_ptr(),
-                plaintext.len as u32,
+                // CC_AESCCM does not really write there, it's just missing a `const`
+                plaintext.as_ptr() as *mut _,
+                plaintext.len() as u32,
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
@@ -100,21 +101,21 @@ impl CryptoTrait for Crypto {
             )
         };
 
-        output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
+        output.content[plaintext.len()..plaintext.len() + AES_CCM_TAG_LEN]
             .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
-        output.len = plaintext.len + AES_CCM_TAG_LEN;
+        output.len = plaintext.len() + AES_CCM_TAG_LEN;
 
         output
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
-        let mut output: BufferPlaintext3 = BufferPlaintext3::new();
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
+        let mut output = EdhocBuffer::new();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
@@ -128,15 +129,17 @@ impl CryptoTrait for Crypto {
                 iv.len() as u8,
                 ad.as_ptr() as *mut _,
                 ad.len() as u32,
-                ciphertext.content.clone().as_mut_ptr(),
-                (ciphertext.len - AES_CCM_TAG_LEN) as u32,
+                // CC_AESCCM does not really write there, it's just missing a `const`
+                ciphertext.as_ptr() as *mut _,
+                (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext.content.clone()[ciphertext.len - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                // as before
+                ciphertext[ciphertext.len() - AES_CCM_TAG_LEN..].as_ptr() as *mut _,
                 0 as u32, // CCM
             ) {
                 CRYS_OK => {
-                    output.len = ciphertext.len - AES_CCM_TAG_LEN;
+                    output.len = ciphertext.len() - AES_CCM_TAG_LEN;
                     Ok(output)
                 }
                 _ => Err(EDHOCError::MacVerificationFailed),

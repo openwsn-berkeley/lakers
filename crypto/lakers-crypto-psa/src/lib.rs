@@ -74,13 +74,13 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -100,29 +100,21 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferCiphertext3 = BufferCiphertext3::new();
+        let mut output_buffer = EdhocBuffer::new();
 
-        aead::encrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            plaintext.as_slice(),
-            &mut output_buffer.content,
-        )
-        .unwrap();
+        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer.content).unwrap();
 
-        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
+        output_buffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         output_buffer
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -142,18 +134,11 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferPlaintext3 = BufferPlaintext3::new();
+        let mut output_buffer = EdhocBuffer::new();
 
-        match aead::decrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            &ciphertext.as_slice(),
-            &mut output_buffer.content,
-        ) {
+        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
             Ok(_) => {
-                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
                 Ok(output_buffer)
             }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
