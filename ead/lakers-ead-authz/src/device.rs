@@ -116,11 +116,8 @@ fn encrypt_enc_id<Crypto: CryptoTrait>(
     crypto.aes_ccm_encrypt_tag_8(&k_1, &iv_1, &enc_structure[..], plaintext)
 }
 
-fn encode_ead_1_value(
-    loc_w: &EdhocMessageBuffer,
-    enc_id: &EdhocMessageBuffer,
-) -> EdhocMessageBuffer {
-    let mut output = EdhocMessageBuffer::new();
+fn encode_ead_1_value(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EADBuffer {
+    let mut output = EdhocBuffer::new();
 
     output.content[0] = CBOR_BYTE_STRING;
     // put length at output.content[1] after other sizes are known
@@ -176,7 +173,7 @@ mod test_device {
 
     #[test]
     fn test_prepare_ead_1() {
-        let ead_1_value_tv: EdhocMessageBuffer = EAD1_VALUE_TV.try_into().unwrap();
+        let ead_1_value_tv: EADBuffer = EAD1_VALUE_TV.try_into().unwrap();
 
         let ead_device = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
@@ -188,7 +185,7 @@ mod test_device {
             ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
         assert_eq!(ead_1.label, EAD_AUTHZ_LABEL);
         assert_eq!(ead_1.is_critical, true);
-        assert_eq!(ead_1.value.unwrap().content, ead_1_value_tv.content);
+        assert_eq!(ead_1.value.unwrap(), ead_1_value_tv);
     }
 
     #[test]
