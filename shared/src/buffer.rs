@@ -58,11 +58,15 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get(self, index: usize) -> Option<u8> {
-        self.content.get(index).copied()
+        if index < self.len {
+            None
+        } else {
+            self.content.get(index).copied()
+        }
     }
 
     pub fn contains(&self, item: &u8) -> bool {
-        self.content.contains(item)
+        self.as_slice().contains(item)
     }
 
     pub fn push(&mut self, item: u8) -> Result<(), EdhocBufferError> {
@@ -76,7 +80,11 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..start + len)
+        if start.saturating_add(len) > self.len {
+            None
+        } else {
+            self.content.get(start..start + len)
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -113,12 +121,20 @@ impl<const N: usize> EdhocBuffer<N> {
         }
         buffer
     }
+
+    pub fn building() -> BufferBuilder<typenum::U0, N> {
+        BufferBuilder {
+            buf: Self::new(),
+            phantom: core::marker::PhantomData,
+        }
+    }
 }
 
 impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     type Output = u8;
+    #[track_caller]
     fn index(&self, item: usize) -> &Self::Output {
-        &self.content[item]
+        &self.as_slice()[item]
     }
 }
 
@@ -137,6 +153,85 @@ impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
         } else {
             Err(())
         }
+    }
+}
+
+/// A nascent [`EdhocBuffer`] with a guaranteed `BuiltLength` prefix that can be assembled with its
+/// methods in a type-checked non-panicking way.
+pub struct BufferBuilder<Used: typenum::Unsigned, const N: usize> {
+    buf: EdhocBuffer<N>,
+    phantom: core::marker::PhantomData<Used>,
+}
+
+impl<Used: typenum::Unsigned, const N: usize> BufferBuilder<Used, N>
+where
+    Used: core::ops::Add<typenum::U1>,
+    <Used as core::ops::Add<typenum::U1>>::Output: typenum::Unsigned,
+{
+    pub fn push(
+        mut self,
+        data: u8,
+    ) -> BufferBuilder<<Used as core::ops::Add<typenum::U1>>::Output, N> {
+        self.buf.push(data).unwrap();
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    pub fn extend_from_array<const D: usize>(
+        mut self,
+        data: &[u8; D],
+    ) -> BufferBuilder<
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output,
+        N,
+    >
+    where
+        typenum::Const<D>: typenum::generic_const_mappings::ToUInt,
+        Used:
+            core::ops::Add<<typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output>,
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output: typenum::Unsigned,
+    {
+        self.buf.extend_from_slice(data.as_slice()).unwrap();
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    pub fn extend_from_buffer<const D: usize>(
+        mut self,
+        data: &EdhocBuffer<D>,
+    ) -> BufferBuilder<
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output,
+        N,
+    >
+    where
+        typenum::Const<D>: typenum::generic_const_mappings::ToUInt,
+        Used:
+            core::ops::Add<<typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output>,
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output: typenum::Unsigned,
+    {
+        self.buf.extend_from_slice(data.as_slice()).unwrap();
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    pub fn done(self) -> EdhocBuffer<N> {
+        const {
+            assert!(Used::USIZE <= N, "Built data exceeds buffer size");
+        }
+        self.buf
     }
 }
 

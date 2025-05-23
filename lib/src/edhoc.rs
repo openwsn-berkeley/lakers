@@ -438,7 +438,7 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
-    let mut output = EdhocBuffer::new();
+    let output = EdhocBuffer::building();
 
     // encode label
     // FIXME: This only works for values up to 23
@@ -453,8 +453,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
     };
 
     if let Some(label) = res {
-        output.content[0] = label;
-        output.len = 1;
+        let mut output = output.push(label).done();
 
         // encode value
         if let Some(ead_1_value) = &ead_1.value {
@@ -479,43 +478,34 @@ fn encode_message_1(
     ead_1: &Option<EADItem>,
 ) -> Result<BufferMessage1, EDHOCError> {
     let mut output = BufferMessage1::new();
-    let mut raw_suites_len: usize = 0;
 
-    output.content[0] = method; // CBOR unsigned int less than 24 is encoded verbatim
+    output.push(method).unwrap(); // CBOR unsigned int less than 24 is encoded verbatim
 
     if suites.len == 1 {
         // only one suite, will be encoded as a single integer
         if suites[0] <= CBOR_UINT_1BYTE {
-            output.content[1] = suites[0];
-            raw_suites_len = 1;
+            output.push(suites[0]).unwrap();
         } else {
-            output.content[1] = CBOR_UINT_1BYTE;
-            output.content[2] = suites[0]; // assume it is smaller than 255, which all suites are
-            raw_suites_len = 2;
+            output.push(CBOR_UINT_1BYTE).unwrap();
+            output.push(suites[0]).unwrap(); // assume it is smaller than 255, which all suites are
         }
     } else {
         // several suites, will be encoded as an array
-        output.content[1] = CBOR_MAJOR_ARRAY + (suites.len as u8);
-        raw_suites_len += 1;
+        output.push(CBOR_MAJOR_ARRAY + (suites.len as u8)).unwrap();
         for &suite in suites.as_slice().iter() {
             if suite <= CBOR_UINT_1BYTE {
-                output.content[1 + raw_suites_len] = suite;
-                raw_suites_len += 1;
+                output.push(suite).unwrap();
             } else {
-                output.content[1 + raw_suites_len] = CBOR_UINT_1BYTE;
-                output.content[2 + raw_suites_len] = suite;
-                raw_suites_len += 2;
+                output.push(CBOR_UINT_1BYTE).unwrap();
+                output.push(suite).unwrap();
             }
         }
     };
 
-    output.content[1 + raw_suites_len] = CBOR_BYTE_STRING; // CBOR byte string magic number
-    output.content[2 + raw_suites_len] = P256_ELEM_LEN as u8; // length of the byte string
-    output.content[3 + raw_suites_len..3 + raw_suites_len + P256_ELEM_LEN]
-        .copy_from_slice(&g_x[..]);
-    let c_i = c_i.as_cbor();
-    output.len = 3 + raw_suites_len + P256_ELEM_LEN + c_i.len();
-    output.content[3 + raw_suites_len + P256_ELEM_LEN..][..c_i.len()].copy_from_slice(c_i);
+    output.push(CBOR_BYTE_STRING).unwrap(); // CBOR byte string magic number
+    output.push(P256_ELEM_LEN as u8).unwrap(); // length of the byte string
+    output.extend_from_slice(&g_x[..]).unwrap();
+    output.extend_from_slice(c_i.as_cbor()).unwrap();
 
     if let Some(ead_1) = ead_1 {
         match encode_ead_item(ead_1) {
@@ -531,16 +521,12 @@ fn encode_message_1(
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
-    let mut output: BufferMessage2 = BufferMessage2::new();
-
-    output.content[0] = CBOR_BYTE_STRING;
-    output.content[1] = P256_ELEM_LEN as u8 + ciphertext_2.len as u8;
-    output.content[2..2 + P256_ELEM_LEN].copy_from_slice(&g_y[..]);
-    output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len]
-        .copy_from_slice(ciphertext_2.as_slice());
-
-    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len;
-    output
+    BufferMessage2::building()
+        .push(CBOR_BYTE_STRING)
+        .push(P256_ELEM_LEN as u8 + ciphertext_2.len as u8)
+        .extend_from_array(g_y)
+        .extend_from_buffer(ciphertext_2)
+        .done()
 }
 
 fn compute_th_2(
@@ -1312,7 +1298,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
-        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
             parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1487,19 +1473,13 @@ mod tests {
             &ciphertext_2_tv,
         );
 
-        assert_eq!(plaintext_2.len, PLAINTEXT_2_LEN_TV);
-        for i in 0..PLAINTEXT_2_LEN_TV {
-            assert_eq!(plaintext_2.content[i], plaintext_2_tv.content[i]);
-        }
+        assert_eq!(plaintext_2, plaintext_2_tv);
 
         // test encryption
         let ciphertext_2 =
             encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, &plaintext_2);
 
-        assert_eq!(ciphertext_2.len, CIPHERTEXT_2_LEN_TV);
-        for i in 0..CIPHERTEXT_2_LEN_TV {
-            assert_eq!(ciphertext_2.content[i], ciphertext_2_tv.content[i]);
-        }
+        assert_eq!(ciphertext_2, ciphertext_2_tv);
     }
 
     #[test]
@@ -1600,7 +1580,7 @@ mod tests {
         let res = encode_ead_item(&ead_item);
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
-        assert_eq!(ead_buffer.content, ead_tv.content);
+        assert_eq!(ead_buffer, ead_tv);
     }
 
     #[test]
@@ -1619,7 +1599,7 @@ mod tests {
         assert!(res.is_ok());
         let message_1 = res.unwrap();
 
-        assert_eq!(message_1.content, message_1_ead_tv.content);
+        assert_eq!(message_1, message_1_ead_tv);
     }
 
     #[test]
@@ -1655,7 +1635,7 @@ mod tests {
         let ead_item = ead_item.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
@@ -1664,7 +1644,7 @@ mod tests {
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
@@ -1687,7 +1667,7 @@ mod tests {
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_1.value.unwrap(), ead_value_tv);
     }
 
     #[test]
