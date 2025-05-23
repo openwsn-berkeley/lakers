@@ -494,7 +494,7 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
-    let mut output = EdhocBuffer::new();
+    let output = EdhocBuffer::building();
 
     // encode label
     // FIXME: This only works for values up to 23
@@ -509,7 +509,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
     };
 
     if let Some(label) = res {
-        output.push(label).unwrap();
+        let mut output = output.push(label).done();
 
         // encode value
         if let Some(ead_1_value) = &ead_1.value {
@@ -577,16 +577,12 @@ fn encode_message_1(
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
-    let mut output: BufferMessage2 = BufferMessage2::new();
-
-    output.content[0] = CBOR_BYTE_STRING;
-    output.content[1] = P256_ELEM_LEN as u8 + ciphertext_2.len as u8;
-    output.content[2..2 + P256_ELEM_LEN].copy_from_slice(&g_y[..]);
-    output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len]
-        .copy_from_slice(ciphertext_2.as_slice());
-
-    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len;
-    output
+    BufferMessage2::building()
+        .push(CBOR_BYTE_STRING)
+        .push(P256_ELEM_LEN as u8 + ciphertext_2.len as u8)
+        .extend_from_array(g_y)
+        .extend_from_buffer(ciphertext_2)
+        .done()
 }
 
 fn compute_th_2(
@@ -1396,7 +1392,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
-        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
             parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
