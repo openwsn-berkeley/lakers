@@ -92,17 +92,15 @@ pub(crate) fn encode_enc_structure(ss: u8) -> [u8; EAD_AUTHZ_ENC_STRUCTURE_LEN] 
 fn encode_voucher_input(h_message_1: &BytesHashLen, cred_v: &[u8]) -> EdhocMessageBuffer {
     let mut voucher_input = EdhocMessageBuffer::new();
 
-    voucher_input.content[0] = CBOR_BYTE_STRING;
-    voucher_input.content[1] = SHA256_DIGEST_LEN as u8;
-    voucher_input.content[2..2 + SHA256_DIGEST_LEN]
-        .copy_from_slice(&h_message_1[..SHA256_DIGEST_LEN]);
+    voucher_input.push(CBOR_BYTE_STRING).unwrap();
+    voucher_input.push(SHA256_DIGEST_LEN as u8).unwrap();
+    voucher_input
+        .extend_from_slice(&h_message_1[..SHA256_DIGEST_LEN])
+        .unwrap();
 
-    voucher_input.content[2 + SHA256_DIGEST_LEN] = CBOR_BYTE_STRING;
-    voucher_input.content[3 + SHA256_DIGEST_LEN] = cred_v.len() as u8;
-    voucher_input.content[4 + SHA256_DIGEST_LEN..4 + SHA256_DIGEST_LEN + cred_v.len()]
-        .copy_from_slice(cred_v);
-
-    voucher_input.len = 4 + SHA256_DIGEST_LEN + cred_v.len();
+    voucher_input.push(CBOR_BYTE_STRING).unwrap();
+    voucher_input.push(cred_v.len() as u8).unwrap();
+    voucher_input.extend_from_slice(cred_v).unwrap();
 
     voucher_input
 }
@@ -177,7 +175,7 @@ mod test_shared {
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
 
         let voucher_input = encode_voucher_input(&h_message_1_tv, &CRED_V_TV);
-        assert_eq!(voucher_input.content, voucher_input_tv.content);
+        assert_eq!(voucher_input, voucher_input_tv);
     }
 
     #[test]

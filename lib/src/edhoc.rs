@@ -523,13 +523,13 @@ fn encode_message_1(
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
     let mut output: BufferMessage2 = BufferMessage2::new();
 
-    output.content[0] = CBOR_BYTE_STRING;
-    output.content[1] = P256_ELEM_LEN as u8 + ciphertext_2.len as u8;
-    output.content[2..2 + P256_ELEM_LEN].copy_from_slice(&g_y[..]);
-    output.content[2 + P256_ELEM_LEN..2 + P256_ELEM_LEN + ciphertext_2.len]
-        .copy_from_slice(ciphertext_2.as_slice());
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output
+        .push(P256_ELEM_LEN as u8 + ciphertext_2.len() as u8)
+        .unwrap();
+    output.extend_from_slice(g_y).unwrap();
+    output.extend_from_slice(ciphertext_2.as_slice()).unwrap();
 
-    output.len = 2 + P256_ELEM_LEN + ciphertext_2.len;
     output
 }
 
@@ -608,26 +608,22 @@ fn encode_plaintext_3(
     mac_3: &BytesMac3,
     ead_3: &Option<EADItem>,
 ) -> Result<BufferPlaintext3, EDHOCError> {
-    let mut plaintext_3: BufferPlaintext3 = BufferPlaintext3::new();
-
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
-    // id_cred_i.write_to_message(&mut plaintext_3)?;
+    let mut plaintext_3 =
+        BufferPlaintext3::new_from_slice(id_cred_i).or(Err(EDHOCError::EncodingError))?;
     plaintext_3
-        .extend_from_slice(id_cred_i)
+        .push(CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8)
         .or(Err(EDHOCError::EncodingError))?;
-    let offset_cred = plaintext_3.len;
-    plaintext_3.content[offset_cred] = CBOR_MAJOR_BYTE_STRING | MAC_LENGTH_3 as u8;
-    plaintext_3.content[offset_cred + 1..][..mac_3.len()].copy_from_slice(&mac_3[..]);
-    plaintext_3.len = offset_cred + 1 + mac_3.len();
+    plaintext_3
+        .extend_from_slice(mac_3)
+        .or(Err(EDHOCError::EncodingError))?;
 
     if let Some(ead_3) = ead_3 {
-        match encode_ead_item(ead_3) {
-            Ok(ead_3) => plaintext_3
-                .extend_from_slice(ead_3.as_slice())
-                .and(Ok(plaintext_3))
-                .or(Err(EDHOCError::EadTooLongError)),
-            Err(e) => Err(e),
-        }
+        let ead_3 = encode_ead_item(ead_3)?;
+        plaintext_3
+            .extend_from_slice(ead_3.as_slice())
+            .and(Ok(plaintext_3))
+            .or(Err(EDHOCError::EadTooLongError))
     } else {
         Ok(plaintext_3)
     }
@@ -725,21 +721,20 @@ fn encrypt_message_3(
 ) -> BufferMessage3 {
     let mut output: BufferMessage3 = BufferMessage3::new();
     let bytestring_length = plaintext_3.len + AES_CCM_TAG_LEN;
-    let prefix_length;
     // FIXME: Reuse CBOR encoder
     if bytestring_length < 24 {
-        output.content[0] = CBOR_MAJOR_BYTE_STRING | (bytestring_length) as u8;
-        prefix_length = 1;
+        output
+            .push(CBOR_MAJOR_BYTE_STRING | (bytestring_length) as u8)
+            .unwrap();
     } else {
         // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
-        output.content[0] = CBOR_MAJOR_BYTE_STRING | 24;
-        output.content[1] = bytestring_length as _;
-        prefix_length = 2;
+        output.push(CBOR_MAJOR_BYTE_STRING | 24).unwrap();
+        output.push(bytestring_length as _).unwrap();
     };
-    output.len = prefix_length + bytestring_length;
+
     // FIXME: Make the function fallible, especially with the prospect of algorithm agility
     assert!(
-        output.len <= MAX_MESSAGE_SIZE_LEN,
+        output.len() + bytestring_length <= MAX_MESSAGE_SIZE_LEN,
         "Tried to encode a message that is too large."
     );
 
@@ -750,7 +745,7 @@ fn encrypt_message_3(
     let ciphertext_3: BufferCiphertext3 =
         crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3.as_slice());
 
-    output.content[prefix_length..][..ciphertext_3.len].copy_from_slice(ciphertext_3.as_slice());
+    output.extend_from_slice(ciphertext_3.as_slice()).unwrap();
 
     output
 }
@@ -765,19 +760,19 @@ fn decrypt_message_3(
     let bytestring_length: usize;
     let prefix_length;
     // FIXME: Reuse CBOR decoder
-    if (0..=23).contains(&(message_3.content[0] ^ CBOR_MAJOR_BYTE_STRING)) {
-        bytestring_length = (message_3.content[0] ^ CBOR_MAJOR_BYTE_STRING).into();
+    if (0..=23).contains(&(message_3[0] ^ CBOR_MAJOR_BYTE_STRING)) {
+        bytestring_length = (message_3[0] ^ CBOR_MAJOR_BYTE_STRING).into();
         prefix_length = 1;
     } else {
         // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
-        bytestring_length = message_3.content[1].into();
+        bytestring_length = message_3[1].into();
         prefix_length = 2;
     }
 
-    let mut ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new();
-    ciphertext_3.len = bytestring_length;
-    ciphertext_3.content[..bytestring_length]
-        .copy_from_slice(&message_3.content[prefix_length..][..bytestring_length]);
+    let ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new_from_slice(
+        &message_3.as_slice()[prefix_length..][..bytestring_length],
+    )
+    .unwrap();
 
     let (k_3, iv_3) = compute_k_3_iv_3(crypto, prk_3e2m, th_3);
 
@@ -993,13 +988,12 @@ fn encrypt_decrypt_ciphertext_2(
     ciphertext_2: &BufferCiphertext2,
 ) -> BufferCiphertext2 {
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
-    let keystream_2 = edhoc_kdf(crypto, prk_2e, 0u8, th_2, ciphertext_2.len);
+    let keystream_2 = edhoc_kdf(crypto, prk_2e, 0u8, th_2, ciphertext_2.len());
 
     let mut result = BufferCiphertext2::default();
-    for i in 0..ciphertext_2.len {
-        result.content[i] = ciphertext_2.content[i] ^ keystream_2[i];
+    for i in 0..ciphertext_2.len() {
+        result.push(ciphertext_2[i] ^ keystream_2[i]).unwrap();
     }
-    result.len = ciphertext_2.len;
 
     result
 }
@@ -1204,7 +1198,7 @@ mod tests {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1212,7 +1206,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1220,7 +1214,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1230,7 +1224,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1240,7 +1234,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
@@ -1634,7 +1628,7 @@ mod tests {
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
         let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]);
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]);
         assert!(res.is_ok());
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
@@ -1645,8 +1639,7 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
-        let res =
-            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1654,8 +1647,7 @@ mod tests {
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
-        let res =
-            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
         let ead_item = res.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);

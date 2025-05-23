@@ -100,10 +100,10 @@ impl CryptoTrait for Crypto {
                 0 as u32, // CCM
             )
         };
+        assert!(plaintext.len() <= N);
+        output.len = plaintext.len();
 
-        output.content[plaintext.len()..plaintext.len() + AES_CCM_TAG_LEN]
-            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
-        output.len = plaintext.len() + AES_CCM_TAG_LEN;
+        output.extend_from_slice(&tag[..AES_CCM_TAG_LEN]).unwrap();
 
         output
     }
@@ -119,6 +119,8 @@ impl CryptoTrait for Crypto {
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
+
+        assert!(ciphertext.len() - AES_CCM_TAG_LEN <= N);
 
         unsafe {
             match CC_AESCCM(
