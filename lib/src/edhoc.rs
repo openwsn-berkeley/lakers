@@ -1287,7 +1287,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_1_invalid_traces() {
-        let message_1_tv: EdhocMessageBuffer = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
         assert_eq!(
             parse_message_1(&message_1_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1314,7 +1314,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
-        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
             parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1506,7 +1506,7 @@ mod tests {
 
     #[test]
     fn test_decode_plaintext_4() {
-        let plaintext_4_tv = BufferPlaintext2::from_hex(PLAINTEXT_4_TV);
+        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
 
         let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
         assert!(plaintext_4.is_ok());
@@ -1531,7 +1531,7 @@ mod tests {
     #[test]
     fn test_decrypt_message_4() {
         let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
-        let message_4_tv = BufferMessage3::from_hex(MESSAGE_4_TV);
+        let message_4_tv = BufferMessage4::from_hex(MESSAGE_4_TV);
 
         let plaintext_4 =
             decrypt_message_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV, &message_4_tv);

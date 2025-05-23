@@ -109,14 +109,14 @@ impl ZeroTouchServerUserAcl {
 
 fn parse_voucher_request(
     vreq: &EdhocMessageBuffer,
-) -> Result<(EdhocMessageBuffer, Option<EdhocMessageBuffer>), EDHOCError> {
+) -> Result<(BufferMessage1, Option<EdhocMessageBuffer>), EDHOCError> {
     let mut decoder = CBORDecoder::new(vreq.as_slice());
     let array_size = decoder.array()?;
     if array_size != 1 && array_size != 2 {
         return Err(EDHOCError::EADUnprocessable);
     }
 
-    let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
+    let message_1: BufferMessage1 = decoder.bytes()?.try_into().unwrap();
 
     if array_size == 2 {
         let opaque_state: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
@@ -149,7 +149,7 @@ fn decode_id_u(id_u_bstr: EdhocMessageBuffer) -> Result<EdhocMessageBuffer, EDHO
 }
 
 fn encode_voucher_response(
-    message_1: &EdhocMessageBuffer,
+    message_1: &BufferMessage1,
     voucher: &BytesEncodedVoucher,
     opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
@@ -215,7 +215,7 @@ mod test_enrollment_server {
 
     #[test]
     fn test_encode_voucher_response() {
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let message_1_tv = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
@@ -228,7 +228,7 @@ mod test_enrollment_server {
     #[test]
     fn test_parse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = VOUCHER_REQUEST_TV.try_into().unwrap();
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let message_1_tv: BufferMessage1 = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
 
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
@@ -327,7 +327,7 @@ mod test_server_stateless_operation {
     #[test]
     fn test_slo_parse_voucher_request() {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let message_1_tv: BufferMessage1 = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
 
         let voucher_request = parse_voucher_request(&voucher_request_tv);

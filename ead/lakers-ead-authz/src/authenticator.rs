@@ -12,7 +12,7 @@ impl ZeroTouchAuthenticator {
     pub fn process_ead_1(
         &self,
         ead_1: &EADItem,
-        message_1: &EdhocMessageBuffer,
+        message_1: &BufferMessage1,
     ) -> Result<
         (
             ZeroTouchAuthenticatorWaitVoucherResp,
@@ -56,7 +56,7 @@ impl ZeroTouchAuthenticatorWaitVoucherResp {
 }
 
 pub fn encode_voucher_request(
-    message_1: &EdhocMessageBuffer,
+    message_1: &BufferMessage1,
     opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
@@ -190,7 +190,7 @@ mod test_responder_stateless_operation {
 
     #[test]
     fn test_slo_encode_voucher_request() {
-        let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
+        let message_1_tv = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
 
