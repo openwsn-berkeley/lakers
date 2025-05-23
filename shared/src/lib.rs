@@ -499,7 +499,7 @@ pub struct ProcessingM2 {
     pub th_2: BytesHashLen,
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
-    pub plaintext_2: EdhocMessageBuffer,
+    pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
     pub ead_2: Option<EADItem>,
@@ -520,7 +520,7 @@ pub struct ProcessingM3 {
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
-    pub plaintext_3: EdhocMessageBuffer,
+    pub plaintext_3: BufferPlaintext3,
     pub ead_3: Option<EADItem>,
 }
 
@@ -735,7 +735,7 @@ mod edhoc_parser {
             let c_i = ConnId::from_decoder(&mut decoder)?;
 
             // if there is still more to parse, the rest will be the EAD_1
-            if rcvd_message_1.len > decoder.position() {
+            if rcvd_message_1.len() > decoder.position() {
                 // NOTE: since the current implementation only supports one EAD handler,
                 // we assume only one EAD item
                 let ead_res = parse_ead(decoder.remaining_buffer()?);
@@ -802,7 +802,7 @@ mod edhoc_parser {
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
         // if there is still more to parse, the rest will be the EAD_2
-        if plaintext_2.len > decoder.position() {
+        if plaintext_2.len() > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
             if let Ok(ead_2) = ead_res {
@@ -831,7 +831,7 @@ mod edhoc_parser {
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 
         // if there is still more to parse, the rest will be the EAD_3
-        if plaintext_3.len > decoder.position() {
+        if plaintext_3.len() > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
             if let Ok(ead_3) = ead_res {
@@ -852,7 +852,7 @@ mod edhoc_parser {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
 
-        if plaintext_4.len > decoder.position() {
+        if plaintext_4.len() > decoder.position() {
             // assume only one EAD item
             let ead_res = parse_ead(decoder.remaining_buffer()?);
             if let Ok(ead_4) = ead_res {
