@@ -320,7 +320,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     }
 
     pub fn selected_cipher_suite(&self) -> u8 {
-        self.state.suites_i[self.state.suites_i.len - 1]
+        self.state.suites_i[self.state.suites_i.len() - 1]
     }
 }
 
