@@ -101,13 +101,25 @@ impl CryptoTrait for Crypto {
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer = EdhocBuffer::new();
+        let full_range = output_buffer
+            .extend_reserve(plaintext.len() + AES_CCM_TAG_LEN)
+            .unwrap();
 
-        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer.content).unwrap();
+        #[allow(deprecated)] // reason = "using extend_reserve"
+        aead::encrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            plaintext,
+            &mut output_buffer.content[full_range],
+        )
+        .unwrap();
 
-        output_buffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         output_buffer
     }
 
+    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
     fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,

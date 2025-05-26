@@ -67,16 +67,15 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         plaintext: &[u8],
     ) -> EdhocBuffer<N> {
         let key = AesCcm16_64_128::new(key.into());
-        let mut outbuffer = EdhocBuffer::new();
-        outbuffer.content[..plaintext.len()].copy_from_slice(plaintext);
+        let mut outbuffer = EdhocBuffer::new_from_slice(plaintext).unwrap();
+        #[allow(deprecated)] // reason = "hax won't allow creating a .as_mut_slice() method"
         if let Ok(tag) =
             key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len()])
         {
-            outbuffer.content[plaintext.len()..][..AES_CCM_TAG_LEN].copy_from_slice(&tag);
+            outbuffer.extend_from_slice(&tag).unwrap();
         } else {
             panic!("Preconfigured sizes should not allow encryption to fail")
         }
-        outbuffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         outbuffer
     }
 
@@ -88,12 +87,17 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         ciphertext: &[u8],
     ) -> Result<EdhocBuffer<N>, EDHOCError> {
         let key = AesCcm16_64_128::new(key.into());
-        let mut buffer = EdhocBuffer::new();
-        buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
-        buffer.content[..buffer.len].copy_from_slice(&ciphertext[..buffer.len]);
-        let tag = &ciphertext[buffer.len..];
-        key.decrypt_in_place_detached(iv.into(), ad, &mut buffer.content[..buffer.len], tag.into())
-            .map_err(|_| EDHOCError::MacVerificationFailed)?;
+        let plaintext_len = ciphertext.len() - AES_CCM_TAG_LEN;
+        let mut buffer = EdhocBuffer::new_from_slice(&ciphertext[..plaintext_len]).unwrap();
+        let tag = &ciphertext[plaintext_len..];
+        #[allow(deprecated)] // reason = "hax won't allow creating a .as_mut_slice() method"
+        key.decrypt_in_place_detached(
+            iv.into(),
+            ad,
+            &mut buffer.content[..plaintext_len],
+            tag.into(),
+        )
+        .map_err(|_| EDHOCError::MacVerificationFailed)?;
         Ok(buffer)
     }
 
