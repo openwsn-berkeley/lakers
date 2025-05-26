@@ -111,6 +111,33 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    /// Like [`.extend_from_slice()`], but leaves the data in the buffer "uninitialized" --
+    /// anticipating that the user will populate `self.content[result]`.
+    ///
+    /// ("Uninitialized" is in quotes because there are no guarentees on the content; from the
+    /// compiler's perspective, that area is initialized because this type doesn't play with
+    /// [`MaybeUninit`][core::mem::MaybeUninit], but don't rely on it).
+    ///
+    /// This is not a fully idiomatic Rust API: Preferably, this would return a `&mut [u8]` of the
+    /// requested length. However, as `.as_mut_slice()` or `.get_mut()` can not be checked by hax,
+    /// pushing and getting a range is the next best thing.
+    pub fn extend_reserve(
+        &mut self,
+        length: usize,
+    ) -> Result<core::ops::Range<usize>, EdhocBufferError> {
+        let start = self.len;
+        let end = self
+            .len
+            .checked_add(length)
+            .ok_or(EdhocBufferError::SliceTooLong)?;
+        if end <= N {
+            self.len = end;
+            Ok(start..end)
+        } else {
+            Err(EdhocBufferError::BufferAlreadyFull)
+        }
+    }
+
     // so far only used in test contexts
     pub fn from_hex(hex: &str) -> Self {
         let mut buffer = EdhocBuffer::new();
