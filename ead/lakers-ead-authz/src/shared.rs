@@ -177,7 +177,7 @@ mod test_shared {
         let voucher_input_tv: EdhocMessageBuffer = VOUCHER_INPUT_TV.try_into().unwrap();
 
         let voucher_input = encode_voucher_input(&h_message_1_tv, &CRED_V_TV);
-        assert_eq!(voucher_input.content, voucher_input_tv.content);
+        assert_eq!(voucher_input, voucher_input_tv);
     }
 
     #[test]

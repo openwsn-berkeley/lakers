@@ -194,7 +194,7 @@ mod test_enrollment_server {
             SS_TV,
         );
         assert!(id_u_res.is_ok());
-        assert_eq!(id_u_res.unwrap().content, id_u_encoded_tv.content);
+        assert_eq!(id_u_res.unwrap(), id_u_encoded_tv);
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod test_enrollment_server {
 
         let voucher_response =
             encode_voucher_response(&message_1_tv, &voucher_tv, &Some(opaque_state_tv));
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -227,7 +227,7 @@ mod test_enrollment_server {
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
         let (message_1, opaque_state) = voucher_request.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert!(opaque_state.is_none());
     }
 
@@ -243,7 +243,7 @@ mod test_enrollment_server {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -262,7 +262,7 @@ mod test_enrollment_server {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod test_enrollment_server_acl_user {
         );
         assert!(res.is_ok());
         let id_u = res.unwrap();
-        assert_eq!(id_u.content, id_u_tv.content);
+        assert_eq!(id_u, id_u_tv);
 
         let res = ead_server.prepare_voucher(
             &mut default_crypto(),
@@ -308,7 +308,7 @@ mod test_enrollment_server_acl_user {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 }
 
@@ -327,8 +327,8 @@ mod test_server_stateless_operation {
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
         let (message_1, opaque_state) = voucher_request.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+        assert_eq!(message_1, message_1_tv);
+        assert_eq!(opaque_state.unwrap(), opaque_state_tv);
     }
 
     #[test]
@@ -343,6 +343,6 @@ mod test_server_stateless_operation {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 }

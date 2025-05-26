@@ -1198,7 +1198,7 @@ mod tests {
         let message_1 =
             encode_message_1(METHOD_TV, &suites_i_tv, &G_X_TV, C_I_TV, &None::<EADItem>).unwrap();
 
-        assert_eq!(message_1.len, 39);
+        assert_eq!(message_1.len(), 39);
         assert_eq!(message_1, BufferMessage1::from_hex(MESSAGE_1_TV));
     }
 
@@ -1207,7 +1207,7 @@ mod tests {
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1215,7 +1215,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1223,7 +1223,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1233,7 +1233,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1243,7 +1243,7 @@ mod tests {
 
         let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.content[1..message_1_tv.len]);
+        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
@@ -1482,19 +1482,13 @@ mod tests {
             &ciphertext_2_tv,
         );
 
-        assert_eq!(plaintext_2.len, PLAINTEXT_2_LEN_TV);
-        for i in 0..PLAINTEXT_2_LEN_TV {
-            assert_eq!(plaintext_2.content[i], plaintext_2_tv.content[i]);
-        }
+        assert_eq!(plaintext_2, plaintext_2_tv);
 
         // test encryption
         let ciphertext_2 =
             encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, &plaintext_2);
 
-        assert_eq!(ciphertext_2.len, CIPHERTEXT_2_LEN_TV);
-        for i in 0..CIPHERTEXT_2_LEN_TV {
-            assert_eq!(ciphertext_2.content[i], ciphertext_2_tv.content[i]);
-        }
+        assert_eq!(ciphertext_2, ciphertext_2_tv);
     }
 
     #[test]
@@ -1595,7 +1589,7 @@ mod tests {
         let res = encode_ead_item(&ead_item);
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
-        assert_eq!(ead_buffer.content, ead_tv.content);
+        assert_eq!(ead_buffer, ead_tv);
     }
 
     #[test]
@@ -1614,7 +1608,7 @@ mod tests {
         assert!(res.is_ok());
         let message_1 = res.unwrap();
 
-        assert_eq!(message_1.content, message_1_ead_tv.content);
+        assert_eq!(message_1, message_1_ead_tv);
     }
 
     #[test]
@@ -1625,7 +1619,7 @@ mod tests {
 
         // the actual value will be zeroed since it doesn't matter in this test
         let mut ead_value = EdhocBuffer::new();
-        ead_value.len = MAX_EAD_LEN;
+        ead_value.extend_reserve(MAX_EAD_LEN).unwrap();
 
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
@@ -1643,28 +1637,26 @@ mod tests {
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
         let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
 
-        let res = parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]);
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]);
         assert!(res.is_ok());
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
         let ead_item = ead_item.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
-        let res =
-            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
-        let res =
-            parse_ead(&message_ead_tv.content[message_tv_offset..message_ead_tv.len]).unwrap();
+        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
         let ead_item = res.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1682,7 +1674,7 @@ mod tests {
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_1.value.unwrap().content, ead_value_tv.content);
+        assert_eq!(ead_1.value.unwrap(), ead_value_tv);
     }
 
     #[test]

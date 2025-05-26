@@ -126,8 +126,8 @@ mod test_authenticator {
         let res = parse_ead_1_value(&EAD1_VALUE_TV.try_into().unwrap());
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
-        assert_eq!(loc_w.content, loc_w_tv.content);
-        assert_eq!(enc_id.content, enc_id_tv.content);
+        assert_eq!(loc_w, loc_w_tv);
+        assert_eq!(enc_id, enc_id_tv);
     }
 
     #[test]
@@ -136,7 +136,7 @@ mod test_authenticator {
 
         let voucher_request =
             encode_voucher_request(&MESSAGE_1_WITH_EAD_TV.try_into().unwrap(), &None);
-        assert_eq!(voucher_request.content, voucher_request_tv.content);
+        assert_eq!(voucher_request, voucher_request_tv);
     }
 
     #[test]
@@ -162,7 +162,7 @@ mod test_authenticator {
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert_eq!(voucher, voucher_tv);
         assert!(opaque_state.is_none());
     }
@@ -195,7 +195,7 @@ mod test_responder_stateless_operation {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
 
         let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
-        assert_eq!(voucher_request.content, voucher_request_tv.content);
+        assert_eq!(voucher_request, voucher_request_tv);
     }
 
     #[test]
@@ -208,8 +208,8 @@ mod test_responder_stateless_operation {
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert_eq!(voucher, voucher_tv);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+        assert_eq!(opaque_state.unwrap(), opaque_state_tv);
     }
 }

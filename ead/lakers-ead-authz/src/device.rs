@@ -168,7 +168,7 @@ mod test_device {
             &ID_U_ENCODED_TV.try_into().unwrap(),
             SS_TV,
         );
-        assert_eq!(enc_id.content, enc_id_tv.content);
+        assert_eq!(enc_id, enc_id_tv);
     }
 
     #[test]
