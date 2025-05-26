@@ -149,27 +149,24 @@ fn encode_voucher_response(
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[1] = CBOR_BYTE_STRING;
-    output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(message_1.as_slice());
+    if opaque_state.is_some() {
+        output.push(CBOR_MAJOR_ARRAY | 3).unwrap();
+    } else {
+        output.push(CBOR_MAJOR_ARRAY | 2).unwrap();
+    }
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output.push(message_1.len() as u8).unwrap();
+    output.extend_from_slice(message_1.as_slice()).unwrap();
 
-    output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8;
-    output.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN]
-        .copy_from_slice(&voucher[..]);
+    output
+        .push(CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8)
+        .unwrap();
+    output.extend_from_slice(voucher).unwrap();
 
     if let Some(opaque_state) = opaque_state {
-        output.content[0] = CBOR_MAJOR_ARRAY | 3;
-
-        output.content[4 + message_1.len + ENCODED_VOUCHER_LEN] = CBOR_BYTE_STRING;
-        output.content[5 + message_1.len + ENCODED_VOUCHER_LEN] = opaque_state.len as u8;
-        output.content[6 + message_1.len + ENCODED_VOUCHER_LEN
-            ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len]
-            .copy_from_slice(opaque_state.as_slice());
-
-        output.len = 6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len;
-    } else {
-        output.content[0] = CBOR_MAJOR_ARRAY | 2;
-        output.len = 4 + message_1.len + ENCODED_VOUCHER_LEN;
+        output.push(CBOR_BYTE_STRING).unwrap();
+        output.push(opaque_state.len() as u8).unwrap();
+        output.extend_from_slice(opaque_state.as_slice()).unwrap();
     }
 
     output

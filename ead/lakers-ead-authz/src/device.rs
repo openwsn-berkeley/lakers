@@ -82,7 +82,7 @@ impl ZeroTouchDeviceWaitEAD2 {
             return Err(ZeroTouchError::EmptyEADValue);
         };
         let mut ead_2_value: BytesEncodedVoucher = Default::default();
-        ead_2_value[..].copy_from_slice(&ead_2_value_buffer.content[..ENCODED_VOUCHER_LEN]);
+        ead_2_value[..].copy_from_slice(&ead_2_value_buffer.as_slice()[..ENCODED_VOUCHER_LEN]);
 
         match verify_voucher(crypto, &ead_2_value, &self.h_message_1, cred_v, &self.prk) {
             Ok(voucher) => Ok(ZeroTouchDeviceDone { voucher }),
@@ -94,9 +94,10 @@ impl ZeroTouchDeviceWaitEAD2 {
 fn encode_id_u(id_u: &EdhocMessageBuffer) -> EdhocMessageBuffer {
     // plaintext = (ID_U: bstr)
     let mut plaintext = EdhocMessageBuffer::new();
-    plaintext.content[0] = CBOR_MAJOR_BYTE_STRING + id_u.len as u8;
-    plaintext.content[1..1 + id_u.len].copy_from_slice(id_u.as_slice());
-    plaintext.len = 1 + id_u.len;
+    plaintext
+        .push(CBOR_MAJOR_BYTE_STRING + id_u.len() as u8)
+        .unwrap();
+    plaintext.extend_from_slice(id_u.as_slice()).unwrap();
 
     plaintext
 }
@@ -119,18 +120,19 @@ fn encrypt_enc_id<Crypto: CryptoTrait>(
 fn encode_ead_1_value(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EADBuffer {
     let mut output = EdhocBuffer::new();
 
-    output.content[0] = CBOR_BYTE_STRING;
-    // put length at output.content[1] after other sizes are known
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output
+        .push((2 + loc_w.len() + 1 + enc_id.len()) as u8)
+        .unwrap();
 
-    output.content[2] = CBOR_TEXT_STRING;
-    output.content[3] = loc_w.len as u8;
-    output.content[4..4 + loc_w.len].copy_from_slice(loc_w.as_slice());
+    output.push(CBOR_TEXT_STRING).unwrap();
+    output.push(loc_w.len() as u8).unwrap();
+    output.extend_from_slice(loc_w.as_slice()).unwrap();
 
-    output.content[4 + loc_w.len] = CBOR_MAJOR_BYTE_STRING + enc_id.len as u8;
-    output.content[5 + loc_w.len..5 + loc_w.len + enc_id.len].copy_from_slice(enc_id.as_slice());
-
-    output.len = 5 + loc_w.len + enc_id.len;
-    output.content[1] = (output.len - 2) as u8;
+    output
+        .push(CBOR_MAJOR_BYTE_STRING + enc_id.len() as u8)
+        .unwrap();
+    output.extend_from_slice(enc_id.as_slice()).unwrap();
 
     output
 }
