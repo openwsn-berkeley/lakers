@@ -19,10 +19,13 @@ pub enum EdhocBufferError {
 #[derive(PartialEq, Debug, Clone)]
 #[repr(C)]
 pub struct EdhocBuffer<const N: usize> {
+    #[deprecated]
     pub content: [u8; N],
+    #[deprecated(note = "use .len()")]
     pub len: usize,
 }
 
+#[allow(deprecated)]
 impl<const N: usize> Default for EdhocBuffer<N> {
     fn default() -> Self {
         EdhocBuffer {
@@ -32,6 +35,7 @@ impl<const N: usize> Default for EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> EdhocBuffer<N> {
     pub const fn new() -> Self {
         EdhocBuffer {
@@ -150,6 +154,7 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     type Output = u8;
     #[track_caller]
@@ -158,6 +163,7 @@ impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
     type Error = ();
 
@@ -176,6 +182,7 @@ impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 mod test {
 
     #[test]
