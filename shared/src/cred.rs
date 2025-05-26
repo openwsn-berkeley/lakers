@@ -51,7 +51,7 @@ impl From<u8> for IdCredType {
 /// let long_kid = IdCred::from_encoded_value(&hex!("43616263")).unwrap(); // 'abc'
 /// assert_eq!(long_kid.as_full_value(), &hex!("a10443616263")); // {4: 'abc'}
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct IdCred {
     /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
@@ -162,7 +162,7 @@ impl IdCred {
 /// Experimental support for CCS_PSK credentials is also available.
 // TODO: add back support for C and Python bindings
 #[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[repr(C)]
 pub struct Credential {
     /// Original bytes of the credential, CBOR-encoded

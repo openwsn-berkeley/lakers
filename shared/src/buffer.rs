@@ -16,7 +16,7 @@ pub enum EdhocBufferError {
 /// Trying to have an API as similar as possible to `heapless::Vec`,
 /// so that in the future it can be hot-swappable by the application.
 // NOTE: how would this const generic thing work across the C and Python bindings?
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 #[repr(C)]
 pub struct EdhocBuffer<const N: usize> {
     pub content: [u8; N],

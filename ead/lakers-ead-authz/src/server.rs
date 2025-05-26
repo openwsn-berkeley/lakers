@@ -3,7 +3,7 @@ use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 /// This server also stores an ACL
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ZeroTouchServer {
     w: BytesP256ElemLen,            // private key of the enrollment server (W)
     pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)
@@ -18,9 +18,9 @@ impl ZeroTouchServer {
         ZeroTouchServer { w, cred_v, acl }
     }
 
-    pub fn authorized(self, kid: u8) -> bool {
-        if let Some(acl) = self.acl {
-            acl.content.contains(&kid)
+    pub fn authorized(&self, kid: u8) -> bool {
+        if let Some(acl) = self.acl.as_ref() {
+            acl.contains(&kid)
         } else {
             // if no acl then allow it
             true
@@ -57,7 +57,7 @@ impl ZeroTouchServer {
 }
 
 /// This server can be used when the ACL is stored in the application layer
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ZeroTouchServerUserAcl {
     w: BytesP256ElemLen,            // private key of the enrollment server (W)
     pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)

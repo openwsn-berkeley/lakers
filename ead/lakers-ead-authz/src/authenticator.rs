@@ -28,7 +28,7 @@ impl ZeroTouchAuthenticator {
             return Err(EDHOCError::EADUnprocessable);
         }
 
-        let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
+        let (loc_w, _enc_id) = parse_ead_1_value(ead_1.value.as_ref().unwrap())?;
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
         Ok((
