@@ -721,7 +721,7 @@ mod edhoc_parser {
 
                 let bstr_bytes = input.get(1..offset + len).ok_or(EDHOCError::ParsingError)?;
 
-                let mut buf = EdhocMessageBuffer::new();
+                let mut buf = EdhocBuffer::new();
                 buf.fill_with_slice(bstr_bytes)
                     .map_err(|_| EDHOCError::ParsingError)?;
                 buf.len = offset + len - 1;
