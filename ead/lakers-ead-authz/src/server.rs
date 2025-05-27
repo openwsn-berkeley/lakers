@@ -37,7 +37,7 @@ impl ZeroTouchServer {
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
+        let (_loc_w, enc_id) = parse_ead_1_value(&ead_1[0].value.unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
 
@@ -80,7 +80,7 @@ impl ZeroTouchServerUserAcl {
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        let (_loc_w, enc_id) = parse_ead_1_value(&ead_1.unwrap().value.unwrap())?;
+        let (_loc_w, enc_id) = parse_ead_1_value(&ead_1[0].value.unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
 
         decode_id_u(id_u_encoded)
