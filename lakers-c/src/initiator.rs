@@ -46,7 +46,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     c_i: *mut u8,
     ead_1_c: *mut EADItemC,
     // output params
-    message_1: *mut EdhocMessageBuffer,
+    message_1: *mut BufferMessage1,
 ) -> i8 {
     if message_1.is_null() {
         return -1;
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
 pub unsafe extern "C" fn initiator_parse_message_2(
     // input params
     initiator_c: *mut EdhocInitiator,
-    message_2: *const EdhocMessageBuffer,
+    message_2: *const BufferMessage2,
     // output params
     c_r_out: *mut u8,
     id_cred_r_out: *mut IdCred,
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     cred_transfer: CredentialTransfer,
     ead_3_c: *mut EADItemC,
     // output params
-    message_3: *mut EdhocMessageBuffer,
+    message_3: *mut BufferMessage3,
     prk_out_c: *mut [u8; SHA256_DIGEST_LEN],
 ) -> i8 {
     if initiator_c.is_null() || message_3.is_null() || prk_out_c.is_null() {
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
 pub unsafe extern "C" fn initiator_process_message_4(
     // input params
     initiator_c: *mut EdhocInitiator,
-    message_4: *const EdhocMessageBuffer,
+    message_4: *const BufferMessage4,
     // output params
     ead_4_c_out: *mut EADItemC,
 ) -> i8 {
