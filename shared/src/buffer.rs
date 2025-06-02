@@ -279,7 +279,7 @@ where
         mut self,
         data: u8,
     ) -> BufferBuilder<<Used as core::ops::Add<typenum::U1>>::Output, N> {
-        const {
+        const /* BUT NOT FOR HAX */ {
             assert!(
                 Used::USIZE + 1 <= N,
                 "Buffer is not (unconditionally) large enough"
@@ -312,7 +312,7 @@ where
             <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
         >>::Output: typenum::Unsigned,
     {
-        const {
+        const /* BUT NOT FOR HAX */ {
             assert!(
                 Used::USIZE + D <= N,
                 "Buffer is not (unconditionally) large enough"
@@ -345,7 +345,7 @@ where
             <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
         >>::Output: typenum::Unsigned,
     {
-        const {
+        const /* BUT NOT FOR HAX */ {
             assert!(
                 Used::USIZE + D <= N,
                 "Buffer is not (unconditionally) large enough"
@@ -365,7 +365,7 @@ where
         // This is really redundant with the earlier checks, but it doesn't hurt to be thorough.
         // (We can't rely on this alone: Otherwise, any build that is not terminated with a done
         // would generate code that does need the runtime panic checks).
-        const {
+        const /* BUT NOT FOR HAX */ {
             assert!(Used::USIZE <= N, "Built data exceeds buffer size");
         }
         self.buf
