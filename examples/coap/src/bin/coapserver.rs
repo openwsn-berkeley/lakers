@@ -52,7 +52,7 @@ fn main() {
                     cred_r,
                 );
 
-                let message_1: EdhocMessageBuffer = request.message.payload[1..]
+                let message_1: BufferMessage1 = request.message.payload[1..]
                     .try_into()
                     .expect("wrong length");
                 let result = responder.process_message_1(&message_1);
@@ -98,8 +98,7 @@ fn main() {
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let message_3 =
-                    EdhocMessageBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
+                let message_3 = EdhocBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
                 let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
                 else {
                     println!("EDHOC error at parse_message_3: {:?}", message_3);

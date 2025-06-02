@@ -610,7 +610,7 @@ fn edhoc_kdf(
 ) -> BytesMaxBuffer {
     let (info, info_len) = encode_info(label, context, length);
 
-    crypto.hkdf_expand(prk, &info, info_len, length)
+    crypto.hkdf_expand(prk, &info[..info_len], length)
 }
 
 fn encode_plaintext_3(
@@ -757,7 +757,8 @@ fn encrypt_message_3(
 
     let (k_3, iv_3) = compute_k_3_iv_3(crypto, prk_3e2m, th_3);
 
-    let ciphertext_3 = crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3);
+    let ciphertext_3: BufferCiphertext3 =
+        crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure[..], plaintext_3.as_slice());
 
     output.content[prefix_length..][..ciphertext_3.len].copy_from_slice(ciphertext_3.as_slice());
 
@@ -792,7 +793,7 @@ fn decrypt_message_3(
 
     let enc_structure = encode_enc_structure(th_3);
 
-    crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3)
+    crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, ciphertext_3.as_slice())
 }
 
 fn encrypt_message_4(
@@ -825,7 +826,8 @@ fn encrypt_message_4(
 
     let (k_4, iv_4) = compute_k_4_iv_4(crypto, prk_4e3m, th_4);
 
-    let ciphertext_4 = crypto.aes_ccm_encrypt_tag_8(&k_4, &iv_4, &enc_structure[..], plaintext_4);
+    let ciphertext_4: BufferCiphertext4 =
+        crypto.aes_ccm_encrypt_tag_8(&k_4, &iv_4, &enc_structure[..], plaintext_4.as_slice());
 
     output.content[prefix_length..][..ciphertext_4.len].copy_from_slice(ciphertext_4.as_slice());
 
@@ -860,7 +862,7 @@ fn decrypt_message_4(
 
     let enc_structure = encode_enc_structure(th_4);
 
-    crypto.aes_ccm_decrypt_tag_8(&k_4, &iv_4, &enc_structure, &ciphertext_4)
+    crypto.aes_ccm_decrypt_tag_8(&k_4, &iv_4, &enc_structure, ciphertext_4.as_slice())
 }
 
 // output must hold id_cred.len() + cred.len()
@@ -1285,7 +1287,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_1_invalid_traces() {
-        let message_1_tv: EdhocMessageBuffer = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
         assert_eq!(
             parse_message_1(&message_1_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1312,7 +1314,7 @@ mod tests {
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
-        let message_2_tv = BufferMessage1::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
+        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
             parse_message_2(&message_2_tv).unwrap_err(),
             EDHOCError::ParsingError
@@ -1504,7 +1506,7 @@ mod tests {
 
     #[test]
     fn test_decode_plaintext_4() {
-        let plaintext_4_tv = BufferPlaintext2::from_hex(PLAINTEXT_4_TV);
+        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
 
         let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
         assert!(plaintext_4.is_ok());
@@ -1529,7 +1531,7 @@ mod tests {
     #[test]
     fn test_decrypt_message_4() {
         let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
-        let message_4_tv = BufferMessage3::from_hex(MESSAGE_4_TV);
+        let message_4_tv = BufferMessage4::from_hex(MESSAGE_4_TV);
 
         let plaintext_4 =
             decrypt_message_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV, &message_4_tv);

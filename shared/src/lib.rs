@@ -499,7 +499,7 @@ pub struct ProcessingM2 {
     pub th_2: BytesHashLen,
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
-    pub plaintext_2: EdhocMessageBuffer,
+    pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
     pub ead_2: Option<EADItem>,
@@ -520,7 +520,7 @@ pub struct ProcessingM3 {
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
-    pub plaintext_3: EdhocMessageBuffer,
+    pub plaintext_3: BufferPlaintext3,
     pub ead_3: Option<EADItem>,
 }
 

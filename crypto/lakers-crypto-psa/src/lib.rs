@@ -33,13 +33,7 @@ impl CryptoTrait for Crypto {
         hash
     }
 
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
         // Implementation of HKDF-Expand as per RFC5869
 
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
@@ -53,17 +47,16 @@ impl CryptoTrait for Crypto {
 
         let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
             [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];
-        message[..info_len].copy_from_slice(&info[..info_len]);
-        message[info_len] = 0x01;
-        let mut t_i = self.hmac_sha256(&message[..info_len + 1], prk);
+        message[..info.len()].copy_from_slice(info);
+        message[info.len()] = 0x01;
+        let mut t_i = self.hmac_sha256(&message[..info.len() + 1], prk);
         output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
 
         for i in 2..=n {
             message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
-            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
-                .copy_from_slice(&info[..info_len]);
-            message[SHA256_DIGEST_LEN + info_len] = i as u8;
-            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
+            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info.len()].copy_from_slice(&info);
+            message[SHA256_DIGEST_LEN + info.len()] = i as u8;
+            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info.len() + 1], prk);
             output[(i - 1) * SHA256_DIGEST_LEN..i * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 
@@ -81,13 +74,13 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -107,29 +100,21 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferCiphertext3 = BufferCiphertext3::new();
+        let mut output_buffer = EdhocBuffer::new();
 
-        aead::encrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            plaintext.as_slice(),
-            &mut output_buffer.content,
-        )
-        .unwrap();
+        aead::encrypt(my_key, alg, iv, ad, plaintext, &mut output_buffer.content).unwrap();
 
-        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
+        output_buffer.len = plaintext.len() + AES_CCM_TAG_LEN;
         output_buffer
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -149,18 +134,11 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferPlaintext3 = BufferPlaintext3::new();
+        let mut output_buffer = EdhocBuffer::new();
 
-        match aead::decrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            &ciphertext.as_slice(),
-            &mut output_buffer.content,
-        ) {
+        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
             Ok(_) => {
-                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
                 Ok(output_buffer)
             }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
