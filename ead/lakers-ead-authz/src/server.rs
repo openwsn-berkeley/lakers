@@ -3,7 +3,7 @@ use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 /// This server also stores an ACL
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ZeroTouchServer {
     w: BytesP256ElemLen,            // private key of the enrollment server (W)
     pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)
@@ -18,9 +18,9 @@ impl ZeroTouchServer {
         ZeroTouchServer { w, cred_v, acl }
     }
 
-    pub fn authorized(self, kid: u8) -> bool {
-        if let Some(acl) = self.acl {
-            acl.content.contains(&kid)
+    pub fn authorized(&self, kid: u8) -> bool {
+        if let Some(acl) = self.acl.as_ref() {
+            acl.contains(&kid)
         } else {
             // if no acl then allow it
             true
@@ -41,11 +41,8 @@ impl ZeroTouchServer {
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
 
-        if self.acl.is_none() || self.authorized(id_u.content[3]) {
-            // compute hash
-            let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-            message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-            let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+        if self.acl.is_none() || self.authorized(id_u[3]) {
+            let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
             let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
             let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
@@ -57,7 +54,7 @@ impl ZeroTouchServer {
 }
 
 /// This server can be used when the ACL is stored in the application layer
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ZeroTouchServerUserAcl {
     w: BytesP256ElemLen,            // private key of the enrollment server (W)
     pub cred_v: EdhocMessageBuffer, // credential of the authenticator (V)
@@ -96,10 +93,7 @@ impl ZeroTouchServerUserAcl {
         let (_method, _suites_i, g_x, _c_i, _ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        // compute hash
-        let mut message_1_buf: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
-        message_1_buf[..message_1.len].copy_from_slice(message_1.as_slice());
-        let h_message_1 = crypto.sha256_digest(&message_1_buf, message_1.len);
+        let h_message_1 = crypto.sha256_digest(message_1.as_slice());
 
         let voucher = prepare_voucher(crypto, &h_message_1, &self.cred_v.as_slice(), &prk);
         let voucher_response = encode_voucher_response(&message_1, &voucher, &opaque_state);
@@ -155,27 +149,24 @@ fn encode_voucher_response(
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[1] = CBOR_BYTE_STRING;
-    output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(message_1.as_slice());
+    if opaque_state.is_some() {
+        output.push(CBOR_MAJOR_ARRAY | 3).unwrap();
+    } else {
+        output.push(CBOR_MAJOR_ARRAY | 2).unwrap();
+    }
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output.push(message_1.len() as u8).unwrap();
+    output.extend_from_slice(message_1.as_slice()).unwrap();
 
-    output.content[3 + message_1.len] = CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8;
-    output.content[4 + message_1.len..4 + message_1.len + ENCODED_VOUCHER_LEN]
-        .copy_from_slice(&voucher[..]);
+    output
+        .push(CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8)
+        .unwrap();
+    output.extend_from_slice(voucher).unwrap();
 
     if let Some(opaque_state) = opaque_state {
-        output.content[0] = CBOR_MAJOR_ARRAY | 3;
-
-        output.content[4 + message_1.len + ENCODED_VOUCHER_LEN] = CBOR_BYTE_STRING;
-        output.content[5 + message_1.len + ENCODED_VOUCHER_LEN] = opaque_state.len as u8;
-        output.content[6 + message_1.len + ENCODED_VOUCHER_LEN
-            ..6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len]
-            .copy_from_slice(opaque_state.as_slice());
-
-        output.len = 6 + message_1.len + ENCODED_VOUCHER_LEN + opaque_state.len;
-    } else {
-        output.content[0] = CBOR_MAJOR_ARRAY | 2;
-        output.len = 4 + message_1.len + ENCODED_VOUCHER_LEN;
+        output.push(CBOR_BYTE_STRING).unwrap();
+        output.push(opaque_state.len() as u8).unwrap();
+        output.extend_from_slice(opaque_state.as_slice()).unwrap();
     }
 
     output
@@ -200,7 +191,7 @@ mod test_enrollment_server {
             SS_TV,
         );
         assert!(id_u_res.is_ok());
-        assert_eq!(id_u_res.unwrap().content, id_u_encoded_tv.content);
+        assert_eq!(id_u_res.unwrap(), id_u_encoded_tv);
     }
 
     #[test]
@@ -222,7 +213,7 @@ mod test_enrollment_server {
 
         let voucher_response =
             encode_voucher_response(&message_1_tv, &voucher_tv, &Some(opaque_state_tv));
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -233,7 +224,7 @@ mod test_enrollment_server {
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
         let (message_1, opaque_state) = voucher_request.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert!(opaque_state.is_none());
     }
 
@@ -249,7 +240,7 @@ mod test_enrollment_server {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -268,7 +259,7 @@ mod test_enrollment_server {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 
     #[test]
@@ -306,7 +297,7 @@ mod test_enrollment_server_acl_user {
         );
         assert!(res.is_ok());
         let id_u = res.unwrap();
-        assert_eq!(id_u.content, id_u_tv.content);
+        assert_eq!(id_u, id_u_tv);
 
         let res = ead_server.prepare_voucher(
             &mut default_crypto(),
@@ -314,7 +305,7 @@ mod test_enrollment_server_acl_user {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 }
 
@@ -333,8 +324,8 @@ mod test_server_stateless_operation {
         let voucher_request = parse_voucher_request(&voucher_request_tv);
         assert!(voucher_request.is_ok());
         let (message_1, opaque_state) = voucher_request.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+        assert_eq!(message_1, message_1_tv);
+        assert_eq!(opaque_state.unwrap(), opaque_state_tv);
     }
 
     #[test]
@@ -349,6 +340,6 @@ mod test_server_stateless_operation {
         );
         assert!(res.is_ok());
         let voucher_response = res.unwrap();
-        assert_eq!(voucher_response.content, voucher_response_tv.content);
+        assert_eq!(voucher_response, voucher_response_tv);
     }
 }

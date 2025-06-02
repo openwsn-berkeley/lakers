@@ -22,14 +22,15 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
         unsafe {
             CRYS_HASH(
                 CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-                message.clone().as_mut_ptr(),
-                message_len,
+                // This just reads, the C code is missing a `const`.
+                message.as_ptr() as *mut _,
+                message.len(),
                 buffer.as_mut_ptr(),
             );
         }
@@ -82,6 +83,8 @@ impl CryptoTrait for Crypto {
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
         aesccm_ad[0..ad.len()].copy_from_slice(&ad[..]);
 
+        output.extend_reserve(plaintext.len()).unwrap();
+
         let _err = unsafe {
             CC_AESCCM(
                 SaSiAesEncryptMode_t_SASI_AES_ENCRYPT,
@@ -94,6 +97,8 @@ impl CryptoTrait for Crypto {
                 // CC_AESCCM does not really write there, it's just missing a `const`
                 plaintext.as_ptr() as *mut _,
                 plaintext.len() as u32,
+                #[allow(deprecated)]
+                // reason = "hax won't allow creating a .as_mut_slice() method"
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
@@ -101,13 +106,12 @@ impl CryptoTrait for Crypto {
             )
         };
 
-        output.content[plaintext.len()..plaintext.len() + AES_CCM_TAG_LEN]
-            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
-        output.len = plaintext.len() + AES_CCM_TAG_LEN;
+        output.extend_from_slice(&tag[..AES_CCM_TAG_LEN]).unwrap();
 
         output
     }
 
+    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
     fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
@@ -119,6 +123,8 @@ impl CryptoTrait for Crypto {
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
+
+        assert!(ciphertext.len() - AES_CCM_TAG_LEN <= N);
 
         unsafe {
             match CC_AESCCM(

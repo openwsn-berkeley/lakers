@@ -112,7 +112,8 @@ impl PyEdhocResponder {
         let (state, message_2) = r_prepare_message_2(
             self.as_ref_processing_m1()?,
             &mut default_crypto(),
-            self.cred_r,
+            // FIXME: take as reference rather than cloning
+            self.cred_r.clone(),
             &r,
             c_r,
             cred_transfer,

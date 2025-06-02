@@ -28,7 +28,7 @@ impl ZeroTouchAuthenticator {
             return Err(EDHOCError::EADUnprocessable);
         }
 
-        let (loc_w, _enc_id) = parse_ead_1_value(&ead_1.value.unwrap())?;
+        let (loc_w, _enc_id) = parse_ead_1_value(ead_1.value.as_ref().unwrap())?;
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
         Ok((
@@ -61,22 +61,20 @@ pub fn encode_voucher_request(
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
 
-    output.content[1] = CBOR_BYTE_STRING;
-    output.content[2] = message_1.len as u8;
-    output.content[3..3 + message_1.len].copy_from_slice(message_1.as_slice());
+    if opaque_state.is_some() {
+        output.push(CBOR_MAJOR_ARRAY | 2).unwrap();
+    } else {
+        output.push(CBOR_MAJOR_ARRAY | 1).unwrap();
+    }
+
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output.push(message_1.len() as u8).unwrap();
+    output.extend_from_slice(message_1.as_slice()).unwrap();
 
     if let Some(opaque_state) = opaque_state {
-        output.content[0] = CBOR_MAJOR_ARRAY | 2;
-
-        output.content[3 + message_1.len] = CBOR_BYTE_STRING;
-        output.content[4 + message_1.len] = opaque_state.len as u8;
-        output.content[5 + message_1.len..5 + message_1.len + opaque_state.len]
-            .copy_from_slice(opaque_state.as_slice());
-
-        output.len = 5 + message_1.len + opaque_state.len;
-    } else {
-        output.content[0] = CBOR_MAJOR_ARRAY | 1;
-        output.len = 3 + message_1.len;
+        output.push(CBOR_BYTE_STRING).unwrap();
+        output.push(opaque_state.len() as u8).unwrap();
+        output.extend_from_slice(opaque_state.as_slice()).unwrap();
     }
 
     output
@@ -126,8 +124,8 @@ mod test_authenticator {
         let res = parse_ead_1_value(&EAD1_VALUE_TV.try_into().unwrap());
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
-        assert_eq!(loc_w.content, loc_w_tv.content);
-        assert_eq!(enc_id.content, enc_id_tv.content);
+        assert_eq!(loc_w, loc_w_tv);
+        assert_eq!(enc_id, enc_id_tv);
     }
 
     #[test]
@@ -136,7 +134,7 @@ mod test_authenticator {
 
         let voucher_request =
             encode_voucher_request(&MESSAGE_1_WITH_EAD_TV.try_into().unwrap(), &None);
-        assert_eq!(voucher_request.content, voucher_request_tv.content);
+        assert_eq!(voucher_request, voucher_request_tv);
     }
 
     #[test]
@@ -162,7 +160,7 @@ mod test_authenticator {
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert_eq!(voucher, voucher_tv);
         assert!(opaque_state.is_none());
     }
@@ -195,7 +193,7 @@ mod test_responder_stateless_operation {
         let voucher_request_tv: EdhocMessageBuffer = SLO_VOUCHER_REQUEST_TV.try_into().unwrap();
 
         let voucher_request = encode_voucher_request(&message_1_tv, &Some(opaque_state_tv));
-        assert_eq!(voucher_request.content, voucher_request_tv.content);
+        assert_eq!(voucher_request, voucher_request_tv);
     }
 
     #[test]
@@ -208,8 +206,8 @@ mod test_responder_stateless_operation {
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
-        assert_eq!(message_1.content, message_1_tv.content);
+        assert_eq!(message_1, message_1_tv);
         assert_eq!(voucher, voucher_tv);
-        assert_eq!(opaque_state.unwrap().content, opaque_state_tv.content);
+        assert_eq!(opaque_state.unwrap(), opaque_state_tv);
     }
 }

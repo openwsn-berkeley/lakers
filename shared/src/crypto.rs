@@ -42,7 +42,7 @@ pub trait Crypto: core::fmt::Debug {
         EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
             .expect("This should never fail, as the slice is of the correct length")
     }
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
     fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer;
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen;
     fn aes_ccm_encrypt_tag_8<const N: usize>(
