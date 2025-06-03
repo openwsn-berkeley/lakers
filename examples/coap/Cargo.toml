@@ -24,9 +24,9 @@ coap-message-utils = "0.3.1"
 env_logger = "0.11.3"
 defmt-or-log = { version = "0.2.1", default-features = false }
 log = { version = "0.4", optional = true }
-defmt = { version = "0.3", optional = true }
+defmt = { version = "0.3" }
 
 [features]
 default = ["log"]
-defmt = ["dep:defmt"]
+defmt = []
 log = ["dep:log"]

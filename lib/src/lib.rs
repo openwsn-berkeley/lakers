@@ -22,7 +22,7 @@ mod edhoc;
 pub use edhoc::*;
 
 /// Starting point for performing EDHOC in the role of the Initiator.
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiator<Crypto: CryptoTrait> {
     state: InitiatorStart,       // opaque state
     i: Option<BytesP256ElemLen>, // static public key of myself
@@ -30,7 +30,7 @@ pub struct EdhocInitiator<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiatorWaitM2<Crypto: CryptoTrait> {
     state: WaitM2, // opaque state
     i: Option<BytesP256ElemLen>,
@@ -38,7 +38,7 @@ pub struct EdhocInitiatorWaitM2<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiatorProcessingM2<Crypto: CryptoTrait> {
     state: ProcessingM2, // opaque state
     i: Option<BytesP256ElemLen>,
@@ -46,27 +46,27 @@ pub struct EdhocInitiatorProcessingM2<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiatorProcessedM2<Crypto: CryptoTrait> {
     state: ProcessedM2, // opaque state
     cred_i: Option<Credential>,
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiatorWaitM4<Crypto: CryptoTrait> {
     state: WaitM4, // opaque state
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocInitiatorDone<Crypto: CryptoTrait> {
     state: Completed,
     crypto: Crypto,
 }
 
 /// Starting point for performing EDHOC in the role of the Responder.
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponder<Crypto: CryptoTrait> {
     state: ResponderStart, // opaque state
     r: BytesP256ElemLen,   // private authentication key of R
@@ -74,7 +74,7 @@ pub struct EdhocResponder<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponderProcessedM1<Crypto: CryptoTrait> {
     state: ProcessingM1, // opaque state
     r: BytesP256ElemLen, // private authentication key of R
@@ -82,25 +82,25 @@ pub struct EdhocResponderProcessedM1<Crypto: CryptoTrait> {
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponderWaitM3<Crypto: CryptoTrait> {
     state: WaitM3, // opaque state
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponderProcessingM3<Crypto: CryptoTrait> {
     state: ProcessingM3, // opaque state
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponderProcessedM3<Crypto: CryptoTrait> {
     state: ProcessedM3, // opaque state
     crypto: Crypto,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct EdhocResponderDone<Crypto: CryptoTrait> {
     state: Completed,
     crypto: Crypto,
