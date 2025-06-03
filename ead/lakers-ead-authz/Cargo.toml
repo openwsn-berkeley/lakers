@@ -11,7 +11,10 @@ repository.workspace = true
 lakers-shared.workspace = true
 defmt-or-log = { version = "0.2.1", default-features = false }
 log = { version = "0.4", optional = true }
-defmt = { version = "0.3", optional = true }
+defmt = { version = "0.3" }
+
+[features]
+defmt = []
 
 [dev-dependencies]
 lakers-crypto.workspace = true

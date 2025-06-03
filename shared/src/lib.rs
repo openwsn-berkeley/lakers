@@ -190,7 +190,7 @@ pub type EADBuffer = EdhocBuffer<MAX_EAD_LEN>;
 ///
 /// Its legal values are constrained to only contain a single CBOR item that is either a byte
 /// string or a number in -24..=23, all in preferred encoding.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, defmt::Format)]
 pub struct ConnId([u8; MAX_CONNID_ENCODED_LEN]);
 
 /// Classifier for the content of [`ConnId`]; used internally in its implementation.
@@ -452,7 +452,7 @@ impl ErrCode {
     });
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 #[repr(C)]
 pub struct InitiatorStart {
     pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
@@ -461,14 +461,14 @@ pub struct InitiatorStart {
     pub g_x: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct ResponderStart {
     pub method: u8,
     pub y: BytesP256ElemLen,   // ephemeral private key of myself
     pub g_y: BytesP256ElemLen, // ephemeral public key of myself
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct ProcessingM1 {
     pub y: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
@@ -477,21 +477,21 @@ pub struct ProcessingM1 {
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, defmt::Format)]
 #[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct WaitM3 {
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 #[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
@@ -505,7 +505,7 @@ pub struct ProcessingM2 {
     pub ead_2: Option<EADItem>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 #[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
@@ -513,7 +513,7 @@ pub struct ProcessedM2 {
     pub th_3: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct ProcessingM3 {
     pub mac_3: BytesMac3,
     pub y: BytesP256ElemLen, // ephemeral private key of the responder
@@ -532,7 +532,7 @@ pub struct PreparingM3 {
     pub mac_3: BytesMac3,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct ProcessedM3 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,
@@ -540,7 +540,7 @@ pub struct ProcessedM3 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 #[repr(C)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
@@ -549,7 +549,7 @@ pub struct WaitM4 {
     pub prk_exporter: BytesHashLen,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 #[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
@@ -582,7 +582,7 @@ pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 
 /// An owned EAD item.
 #[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, defmt::Format)]
 pub struct EADItem {
     /// EAD label of the item
     ///
