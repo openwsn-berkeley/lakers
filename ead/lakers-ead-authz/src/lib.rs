@@ -19,7 +19,6 @@ pub mod consts {
 }
 
 #[derive(PartialEq, Debug)]
-#[repr(C)]
 pub enum ZeroTouchError {
     InvalidEADLabel,
     EmptyEADValue,

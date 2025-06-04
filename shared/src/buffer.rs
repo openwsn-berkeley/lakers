@@ -5,7 +5,6 @@ use core::ops::Index;
 pub const MAX_SUITES_LEN: usize = 9;
 
 #[derive(PartialEq, Debug)]
-#[repr(C)]
 pub enum EdhocBufferError {
     BufferAlreadyFull,
     SliceTooLong,
@@ -17,7 +16,6 @@ pub enum EdhocBufferError {
 /// so that in the future it can be hot-swappable by the application.
 // NOTE: how would this const generic thing work across the C and Python bindings?
 #[derive(PartialEq, Debug, Clone)]
-#[repr(C)]
 pub struct EdhocBuffer<const N: usize> {
     #[deprecated]
     pub content: [u8; N],
