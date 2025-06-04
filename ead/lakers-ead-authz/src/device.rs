@@ -5,7 +5,6 @@ use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 #[derive(Default, Debug)]
-#[repr(C)]
 pub struct ZeroTouchDevice {
     pub id_u: EdhocMessageBuffer, // identifier of the device (U), equivalent to ID_CRED_I in EDHOC
     pub g_w: BytesP256ElemLen,    // public key of the enrollment server (W)
@@ -13,14 +12,12 @@ pub struct ZeroTouchDevice {
 }
 
 #[derive(Default, Debug)]
-#[repr(C)]
 pub struct ZeroTouchDeviceWaitEAD2 {
     prk: BytesHashLen,
     pub h_message_1: BytesHashLen,
 }
 
 #[derive(Default, Debug)]
-#[repr(C)]
 pub struct ZeroTouchDeviceDone {
     pub voucher: BytesMac,
 }
