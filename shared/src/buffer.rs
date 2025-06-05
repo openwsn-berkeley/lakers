@@ -128,8 +128,13 @@ impl<const N: usize> EdhocBuffer<N> {
     pub const fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
         if slice.len() <= self.content.len() {
             self.len = slice.len();
-            // Like content[..len].copy_from_silce(), but const compatible
-            self.content.split_at_mut(self.len).0.copy_from_slice(slice);
+            // Could be content[..len].copy_from_silce() if not for const, and
+            // self.content.split_at_mut(self.len).0.copy_from_slice() if not for hax.
+            let mut i = 0;
+            while i < self.len {
+                self.content[i] = slice[i];
+                i = i + 1;
+            }
             Ok(())
         } else {
             Err(EdhocBufferError::SliceTooLong)

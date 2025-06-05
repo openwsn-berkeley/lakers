@@ -328,10 +328,16 @@ impl ConnId {
             {
                 s[0] = input[0];
             } else {
-                let (first, tail) = s.split_at_mut(1);
-                first[0] = input.len() as u8 | 0x40;
-                let (used_tail, _unused_tail) = tail.split_at_mut(input.len());
-                used_tail.copy_from_slice(input);
+                // This could be split_at_mut (eg. `let (first, tail) = s.split_at_mut(1);` if not
+                // for hax
+                s[0] = input.len() as u8 | 0x40;
+                // This could be a [input.len..].copy_from_slice() if not for const, and a
+                // split_at_mut if not for hax.
+                let mut i = 0;
+                while i < input.len() {
+                    s[1 + i] = input[i];
+                    i = i + 1;
+                }
             }
             Some(Self(s))
         }
