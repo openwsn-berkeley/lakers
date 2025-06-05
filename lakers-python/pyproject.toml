@@ -4,3 +4,11 @@ build-backend = "maturin"
 
 [tool.maturin]
 include = ["./examples/*"]
+
+[project]
+name = "lakers-python"
+dynamic = ["version"]
+
+[project.urls]
+"Source Code" = "https://github.com/openwsn-berkeley/lakers/tree/main/lakers-python"
+Documentation = "https://lakers.readthedocs.io/"
