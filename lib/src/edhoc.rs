@@ -752,17 +752,24 @@ fn decrypt_message_3(
     message_3: &BufferMessage3,
 ) -> Result<BufferPlaintext3, EDHOCError> {
     // decode message_3
-    let bytestring_length: usize;
-    let prefix_length;
     // FIXME: Reuse CBOR decoder
-    if (0..=23).contains(&(message_3[0] ^ CBOR_MAJOR_BYTE_STRING)) {
-        bytestring_length = (message_3[0] ^ CBOR_MAJOR_BYTE_STRING).into();
-        prefix_length = 1;
-    } else {
-        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
-        bytestring_length = message_3[1].into();
-        prefix_length = 2;
-    }
+    let (bytestring_length, prefix_length) =
+        if (0..=23).contains(&(message_3[0] ^ CBOR_MAJOR_BYTE_STRING)) {
+            (
+                // buffer_length =
+                (message_3[0] ^ CBOR_MAJOR_BYTE_STRING).into(),
+                // prefix_length =
+                1,
+            )
+        } else {
+            // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+            (
+                // buffer_length =
+                message_3[1].into(),
+                // prefix_length =
+                2,
+            )
+        };
 
     let ciphertext_3: BufferCiphertext3 = BufferCiphertext3::new_from_slice(
         &message_3.as_slice()[prefix_length..][..bytestring_length],
@@ -815,17 +822,24 @@ fn decrypt_message_4(
     message_4: &BufferMessage4,
 ) -> Result<BufferPlaintext4, EDHOCError> {
     // decode message_4
-    let bytestring_length: usize;
-    let prefix_length;
     // FIXME: Reuse CBOR decoder
-    if (0..=23).contains(&(message_4[0] ^ CBOR_MAJOR_BYTE_STRING)) {
-        bytestring_length = (message_4[0] ^ CBOR_MAJOR_BYTE_STRING).into();
-        prefix_length = 1;
-    } else {
-        // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
-        bytestring_length = message_4[1].into();
-        prefix_length = 2;
-    }
+    let (bytestring_length, prefix_length) =
+        if (0..=23).contains(&(message_4[0] ^ CBOR_MAJOR_BYTE_STRING)) {
+            (
+                // buffer_length =
+                (message_4[0] ^ CBOR_MAJOR_BYTE_STRING).into(),
+                // prefix_length =
+                1,
+            )
+        } else {
+            // FIXME: Assumes we don't exceed 256 bytes which is the current buffer size
+            (
+                // buffer_length =
+                message_4[1].into(),
+                // prefix_length =
+                2,
+            )
+        };
 
     let ciphertext_4 = BufferCiphertext4::new_from_slice(
         &message_4.as_slice()[prefix_length..][..bytestring_length],
