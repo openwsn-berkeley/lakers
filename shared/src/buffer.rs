@@ -80,7 +80,7 @@ impl<const N: usize> EdhocBuffer<N> {
     /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0; 10_000]);
     /// ```
     pub const fn new_from_array<const AN: usize>(input: &[u8; AN]) -> Self {
-        const {
+        const /* BUT NOT FOR HAX */ {
             if AN > N {
                 panic!("Array exceeds buffer size")
             }
