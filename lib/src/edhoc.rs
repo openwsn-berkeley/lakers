@@ -641,28 +641,27 @@ fn encode_plaintext_4(ead_4: &Option<EADItem>) -> Result<BufferPlaintext4, EDHOC
 }
 
 fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
-    let mut encrypt0: Bytes8 = [0x00; 8];
-    encrypt0[0] = 0x45u8; // 'E'
-    encrypt0[1] = 0x6eu8; // 'n'
-    encrypt0[2] = 0x63u8; // 'c'
-    encrypt0[3] = 0x72u8; // 'r'
-    encrypt0[4] = 0x79u8; // 'y'
-    encrypt0[5] = 0x70u8; // 'p'
-    encrypt0[6] = 0x74u8; // 't'
-    encrypt0[7] = 0x30u8; // '0'
+    let encrypt0 = b"Encrypt0";
 
-    let mut enc_structure: BytesEncStructureLen = [0x00; ENC_STRUCTURE_LEN];
+    let mut enc_structure = EdhocBuffer::<ENC_STRUCTURE_LEN>::new();
 
     // encode Enc_structure from draft-ietf-cose-rfc8152bis Section 5.3
-    enc_structure[0] = CBOR_MAJOR_ARRAY | 3_u8; // 3 is the fixed number of elements in the array
-    enc_structure[1] = CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8;
-    enc_structure[2..2 + encrypt0.len()].copy_from_slice(&encrypt0[..]);
-    enc_structure[encrypt0.len() + 2] = CBOR_MAJOR_BYTE_STRING | 0x00 as u8; // 0 for zero-length byte string
-    enc_structure[encrypt0.len() + 3] = CBOR_BYTE_STRING; // byte string greater than 24
-    enc_structure[encrypt0.len() + 4] = SHA256_DIGEST_LEN as u8;
-    enc_structure[encrypt0.len() + 5..encrypt0.len() + 5 + th_3.len()].copy_from_slice(&th_3[..]);
+    enc_structure.push(CBOR_MAJOR_ARRAY | 3_u8).unwrap(); // 3 is the fixed number of elements in the array
+    enc_structure
+        .push(CBOR_MAJOR_TEXT_STRING | encrypt0.len() as u8)
+        .unwrap();
+    enc_structure.extend_from_slice(&encrypt0[..]).unwrap();
+    enc_structure
+        .push(CBOR_MAJOR_BYTE_STRING | 0x00 as u8)
+        .unwrap(); // 0 for zero-length byte string
+    enc_structure.push(CBOR_BYTE_STRING).unwrap(); // byte string greater than 24
+    enc_structure.push(SHA256_DIGEST_LEN as u8).unwrap();
+    enc_structure.extend_from_slice(th_3).unwrap();
 
     enc_structure
+        .as_slice()
+        .try_into()
+        .expect("All components are fixed length")
 }
 
 fn compute_k_3_iv_3(
