@@ -1102,7 +1102,9 @@ mod cbor_decoder {
                     let major = head >> 5;
                     let minor = head & 0x1f;
                     let argument = match minor {
-                        0..=23 => minor,
+                        // Workaround-For: https://github.com/cryspen/hax/issues/925
+                        0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
+                        | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 => minor,
                         24 => self.read()?,
                         // We do not support values outside the range -256..256.
                         // FIXME: Sooner or later we should. There is probably an upper bound on
@@ -1120,12 +1122,12 @@ mod cbor_decoder {
                         _ => unreachable!("Value was masked to 5 bits"),
                     };
                     match major {
-                        0..=1 => (), // Argument consumed, remaining items were already decremented
+                        0 | 1 => (), // Argument consumed, remaining items were already decremented
                         7 => (), // Same, but in separate line due to Hax FStar backend limitations
                         6 => {
                             remaining_items += 1;
                         }
-                        2..=3 => {
+                        2 | 3 => {
                             self.read_slice(argument.into())?;
                         }
                         4 => {
