@@ -133,8 +133,8 @@ fn edhoc_kdf_expand<Crypto: CryptoTrait>(
     context: &[u8],
     length: usize,
 ) -> BytesMaxBuffer {
-    let (info, info_len) = encode_info(label, context, length);
-    let output = crypto.hkdf_expand(prk, &info[..info_len], length);
+    let info = encode_info(label, context, length);
+    let output = crypto.hkdf_expand(prk, info.as_slice(), length);
     output
 }
 

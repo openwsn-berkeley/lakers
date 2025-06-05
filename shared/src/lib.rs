@@ -176,7 +176,8 @@ pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
 pub type BufferMessage2 = EdhocMessageBuffer;
 pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
 pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
-pub type BytesMaxInfoBuffer = [u8; MAX_INFO_LEN];
+/// Buffer returned by [`encode_info`]
+pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
 pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
 pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
@@ -607,32 +608,37 @@ impl EADItem {
 mod helpers {
     use super::*;
 
-    pub fn encode_info(label: u8, context: &[u8], length: usize) -> (BytesMaxInfoBuffer, usize) {
-        let mut info: BytesMaxInfoBuffer = [0x00; MAX_INFO_LEN];
+    #[track_caller]
+    pub fn encode_info(label: u8, context: &[u8], length: usize) -> BufferInfo {
+        let mut info = BufferInfo::new();
+
+        // This should help the compiler see that this won't panic.
+        assert!(
+            context.len() <= MAX_KDF_CONTEXT_LEN,
+            "Context found to be {} (expected only up to {})",
+            context.len(),
+            SHA256_DIGEST_LEN
+        );
 
         // construct info with inline cbor encoding
-        info[0] = label;
-        let mut info_len = if context.len() < 24 {
-            info[1] = context.len() as u8 | CBOR_MAJOR_BYTE_STRING;
-            info[2..2 + context.len()].copy_from_slice(context);
-            2 + context.len()
+        info.push(label).unwrap();
+        if context.len() < 24 {
+            info.push(context.len() as u8 | CBOR_MAJOR_BYTE_STRING)
+                .unwrap();
         } else {
-            info[1] = CBOR_BYTE_STRING;
-            info[2] = context.len() as u8;
-            info[3..3 + context.len()].copy_from_slice(context);
-            3 + context.len()
+            info.push(CBOR_BYTE_STRING).unwrap();
+            info.push(context.len() as u8).unwrap();
+        };
+        info.extend_from_slice(context).unwrap();
+
+        if length < 24 {
+            info.push(length as u8).unwrap();
+        } else {
+            info.push(CBOR_UINT_1BYTE).unwrap();
+            info.push(length as u8).unwrap();
         };
 
-        info_len = if length < 24 {
-            info[info_len] = length as u8;
-            info_len + 1
-        } else {
-            info[info_len] = CBOR_UINT_1BYTE;
-            info[info_len + 1] = length as u8;
-            info_len + 2
-        };
-
-        (info, info_len)
+        info
     }
 }
 
