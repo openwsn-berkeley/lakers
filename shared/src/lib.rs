@@ -175,7 +175,7 @@ pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
 pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
 pub type BufferMessage2 = EdhocMessageBuffer;
 pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
-pub type BytesMaxContextBuffer = [u8; MAX_KDF_CONTEXT_LEN];
+pub type BufferContext = EdhocBuffer<MAX_KDF_CONTEXT_LEN>;
 /// Buffer returned by [`encode_info`]
 pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
 pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];

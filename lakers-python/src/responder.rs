@@ -198,9 +198,6 @@ impl PyEdhocResponder {
         context: Vec<u8>,
         length: usize,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        let mut context_buf: BytesMaxContextBuffer = [0x00u8; MAX_KDF_CONTEXT_LEN];
-        context_buf[..context.len()].copy_from_slice(context.as_slice());
-
         let res = edhoc_exporter(
             self.as_mut_completed()?,
             &mut default_crypto(),

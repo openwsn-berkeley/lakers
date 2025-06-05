@@ -860,38 +860,27 @@ fn encode_kdf_context(
     th: &BytesHashLen,
     cred: &[u8],
     ead: &Option<EADItem>,
-) -> (BytesMaxContextBuffer, usize) {
+) -> BufferContext {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded (and also EAD)
-    let mut output: BytesMaxContextBuffer = [0x00; MAX_KDF_CONTEXT_LEN];
+    let mut output = BufferContext::new();
 
-    let mut output_len = if let Some(c_r) = c_r {
-        let c_r = c_r.as_cbor();
-        output[..c_r.len()].copy_from_slice(c_r);
-        c_r.len()
-    } else {
-        0 // no u8 encoded
-    };
-    output[output_len..output_len + id_cred.len()].copy_from_slice(&id_cred);
-    output[output_len + id_cred.len()] = CBOR_BYTE_STRING;
-    output[output_len + id_cred.len() + 1] = SHA256_DIGEST_LEN as u8;
-    output[output_len + id_cred.len() + 2..output_len + id_cred.len() + 2 + th.len()]
-        .copy_from_slice(&th[..]);
-    output[output_len + id_cred.len() + 2 + th.len()
-        ..output_len + id_cred.len() + 2 + th.len() + cred.len()]
-        .copy_from_slice(cred);
+    if let Some(c_r) = c_r {
+        output.extend_from_slice(c_r.as_cbor()).unwrap();
+    }
+    output.extend_from_slice(&id_cred).unwrap();
+    output.push(CBOR_BYTE_STRING).unwrap();
+    output.push(SHA256_DIGEST_LEN as u8).unwrap();
+    output.extend_from_slice(th).unwrap();
+    output.extend_from_slice(cred).unwrap();
 
-    output_len = output_len + id_cred.len() + 2 + th.len() + cred.len();
+    if let Some(ead) = ead {
+        output
+            .extend_from_slice(encode_ead_item(ead).unwrap().as_slice())
+            .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
+    }
 
-    output_len += if let Some(ead) = ead {
-        let encoded_ead = encode_ead_item(ead).unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-        output[output_len..output_len + encoded_ead.len()].copy_from_slice(encoded_ead.as_slice());
-        encoded_ead.len()
-    } else {
-        0
-    };
-
-    (output, output_len)
+    output
 }
 
 fn compute_mac_3(
@@ -903,14 +892,14 @@ fn compute_mac_3(
     ead_3: &Option<EADItem>,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let (context, context_len) = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
+    let context = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
 
     // compute mac_3
     let output_buf = edhoc_kdf(
         crypto,
         prk_4e3m,
         6u8, // registered label for "MAC_3"
-        &context[..context_len],
+        context.as_slice(),
         MAC_LENGTH_3,
     );
 
@@ -929,18 +918,12 @@ fn compute_mac_2(
     ead_2: &Option<EADItem>,
 ) -> BytesMac2 {
     // compute MAC_2
-    let (context, context_len) = encode_kdf_context(Some(c_r), id_cred_r, th_2, cred_r, ead_2);
+    let context = encode_kdf_context(Some(c_r), id_cred_r, th_2, cred_r, ead_2);
 
     // MAC_2 = EDHOC-KDF( PRK_3e2m, 2, context_2, mac_length_2 )
     let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
     mac_2[..].copy_from_slice(
-        &edhoc_kdf(
-            crypto,
-            prk_3e2m,
-            2_u8,
-            &context[..context_len],
-            MAC_LENGTH_2,
-        )[..MAC_LENGTH_2],
+        &edhoc_kdf(crypto, prk_3e2m, 2_u8, context.as_slice(), MAC_LENGTH_2)[..MAC_LENGTH_2],
     );
 
     mac_2
