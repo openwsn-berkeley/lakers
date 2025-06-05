@@ -178,7 +178,6 @@ pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
 pub type BufferContext = EdhocBuffer<MAX_KDF_CONTEXT_LEN>;
 /// Buffer returned by [`encode_info`]
 pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
-pub type BytesMaxLabelBuffeer = [u8; MAX_KDF_LABEL_LEN];
 pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
