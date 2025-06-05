@@ -22,6 +22,11 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
+    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN> {
+        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
+            .expect("This should never fail, as the slice is of the correct length")
+    }
+
     fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
