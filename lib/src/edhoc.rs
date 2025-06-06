@@ -1656,7 +1656,7 @@ mod tests {
 
     #[test]
     fn test_compute_prk_exporter() {
-        let mut prk_exporter = edhoc_kdf_owned(&mut default_crypto(), &PRK_OUT_TV, 10u8, &[]);
+        let prk_exporter = edhoc_kdf_owned(&mut default_crypto(), &PRK_OUT_TV, 10u8, &[]);
 
         assert_eq!(prk_exporter, PRK_EXPORTER_TV);
     }
