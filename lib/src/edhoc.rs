@@ -1648,7 +1648,7 @@ mod tests {
 
     #[test]
     fn test_compute_prk_out() {
-        let mut prk_out: BytesHashLen =
+        let prk_out: BytesHashLen =
             edhoc_kdf_owned(&mut default_crypto(), &PRK_4E3M_TV, 7u8, &TH_4_TV);
 
         assert_eq!(prk_out, PRK_OUT_TV);
