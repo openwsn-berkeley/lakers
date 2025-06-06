@@ -595,7 +595,10 @@ fn edhoc_kdf(
 ) -> BytesMaxBuffer {
     let info = encode_info(label, context, length);
 
-    crypto.hkdf_expand(prk, info.as_slice(), length)
+    // FIXME continue return-into-reference rewriting here (in downstream API)
+    let mut buf = [0; MAX_BUFFER_LEN];
+    crypto.hkdf_expand(prk, info.as_slice(), &mut buf[..length]);
+    buf
 }
 
 fn encode_plaintext_3(
