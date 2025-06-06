@@ -40,7 +40,7 @@ pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites supported by the backend implementation.
     fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN>;
     fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
-    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer;
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]);
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen;
     fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
