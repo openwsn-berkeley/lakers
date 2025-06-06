@@ -155,9 +155,6 @@ pub type BytesSupportedSuites = [u8; SUPPORTED_SUITES_LEN];
 pub const EDHOC_SUITES: BytesSuites = [0, 1, 2, 3, 4, 5, 6, 24, 25]; // all but private cipher suites
 pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites = [0x2u8];
 
-pub type BytesEad2 = [u8; 0];
-pub type BytesIdCred = [u8; ID_CRED_LEN];
-pub type Bytes8 = [u8; 8];
 pub type BytesCcmKeyLen = [u8; AES_CCM_KEY_LEN];
 pub type BytesCcmIvLen = [u8; AES_CCM_IV_LEN];
 pub type BufferPlaintext2 = EdhocMessageBuffer;
@@ -174,10 +171,25 @@ pub type BufferCiphertext4 = EdhocMessageBuffer;
 pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
 pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
 pub type BufferMessage2 = EdhocMessageBuffer;
+/// Generic buffer type (soft-deprecated).
+///
+/// The use of this type is discouraged, because it contributes to this library's excessive stack
+/// usage, but will need some work to get rid of, for it is used in two places:
+///
+/// * In functions that compute transcript hashes (eg. [`compute_th_3`]): There, it builds data up
+///   to be fed into the cryptography module's SHA256 computation. That computation is streamable
+///   in the underlying APIs (i.e. there is no need to build a buffer, they could be fed
+///   incrementally), but the cryptography abstraction doesn't expose that.
+/// * As the return value of `edhoc_kdf_expand`. There, the data is taken up into some other buffer
+///   or type by the caller, so the caller could provide the place to expand into as a `&mut [u8]`,
+///   but likewise, our crypto API doesn't work that way.
 pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
 pub type BufferContext = EdhocBuffer<MAX_KDF_CONTEXT_LEN>;
 /// Buffer returned by [`encode_info`]
 pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
+/// A buffer holding a serialized COSE_Encrypt0 structure.
+///
+/// This is an array and not an [`EdhocBuffer`] because it always has a fixed length.
 pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];

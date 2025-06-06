@@ -1113,7 +1113,7 @@ mod tests {
         hex!("0ca3d3398296b3c03900987620c11f6fce70781c1d1219720f9ec08c122d8434");
     const CONTEXT_INFO_MAC_2_TV: [u8; 134] = hex!("27a10441325820356efd53771425e008f3fe3a86c83ff4c6b16e57028ff39d5236c182b202084ba2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
     const MAC_2_TV: BytesMac2 = hex!("0943305c899f5c54");
-    const ID_CRED_I_TV: BytesIdCred = hex!("a104412b");
+    const ID_CRED_I_TV: [u8; 4] = hex!("a104412b");
     const MAC_3_TV: BytesMac3 = hex!("623c91df41e34c2f");
     const MESSAGE_3_TV: &str = "52e562097bc417dd5919485ac7891ffd90a9fc";
     const PRK_4E3M_TV: BytesP256ElemLen =
@@ -1123,7 +1123,7 @@ mod tests {
     const K_4_TV: BytesCcmKeyLen = hex!("d3c77872b6eeb508911bdbd308b2e6a0");
     const IV_4_TV: BytesCcmIvLen = hex!("04ff0f44456e96e217853c3601");
     const CRED_I_TV : [u8; 107] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a5010202412b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
-    const ID_CRED_R_TV: BytesIdCred = hex!("a1044132");
+    const ID_CRED_R_TV: [u8; 4] = hex!("a1044132");
     const CRED_R_TV : [u8; 95] = hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
     const PLAINTEXT_2_TV: &str = "2732480943305c899f5c54";
     const SK_I_TV: BytesP256ElemLen =
@@ -1144,7 +1144,7 @@ mod tests {
     const PRK_EXPORTER_TV: BytesHashLen =
         hex!("e14d06699cee248c5a04bf9227bbcd4ce394de7dcb56db43555474171e6446db");
     const OSCORE_MASTER_SECRET_TV: BytesCcmKeyLen = hex!("f9868f6a3aca78a05d1485b35030b162");
-    const OSCORE_MASTER_SALT_TV: Bytes8 = hex!("ada24c7dbfc85eeb");
+    const OSCORE_MASTER_SALT_TV: [u8; 8] = hex!("ada24c7dbfc85eeb");
 
     // invalid test vectors, should result in a parsing error
     const MESSAGE_1_INVALID_ARRAY_TV: &str =
