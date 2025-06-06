@@ -38,9 +38,10 @@ impl CryptoTrait for Crypto {
         hash
     }
 
-    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]) {
         // Implementation of HKDF-Expand as per RFC5869
 
+        let length = result.len();
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
 
         // N = ceil(L/HashLen)
@@ -65,9 +66,8 @@ impl CryptoTrait for Crypto {
             output[(i - 1) * SHA256_DIGEST_LEN..i * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 
-        output[length..].fill(0x00);
-
-        output
+        // FIXME continue return-into-reference rewriting here (in implementation)
+        result.copy_from_slice(&output[..length]);
     }
 
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {

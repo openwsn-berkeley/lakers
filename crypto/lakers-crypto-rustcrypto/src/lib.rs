@@ -1,9 +1,8 @@
 #![no_std]
 
 use lakers_shared::{
-    BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen, BytesMaxBuffer, BytesP256ElemLen,
-    Crypto as CryptoTrait, EDHOCError, EDHOCSuite, EdhocBuffer, AES_CCM_TAG_LEN, MAX_BUFFER_LEN,
-    MAX_SUITES_LEN,
+    BytesCcmIvLen, BytesCcmKeyLen, BytesHashLen, BytesP256ElemLen, Crypto as CryptoTrait,
+    EDHOCError, EDHOCSuite, EdhocBuffer, AES_CCM_TAG_LEN, MAX_SUITES_LEN,
 };
 
 use ccm::AeadInPlace;
@@ -48,13 +47,11 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         hasher.finalize().into()
     }
 
-    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]) {
         let hkdf =
             hkdf::Hkdf::<sha2::Sha256>::from_prk(prk).expect("Static size was checked at extract");
-        let mut output: BytesMaxBuffer = [0; MAX_BUFFER_LEN];
-        hkdf.expand(info, &mut output[..length])
+        hkdf.expand(info, result)
             .expect("Static lengths match the algorithm");
-        output
     }
 
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen {
