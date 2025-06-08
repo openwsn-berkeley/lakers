@@ -500,7 +500,7 @@ pub struct ProcessingM2 {
     pub th_2: BytesHashLen,
     pub x: BytesP256ElemLen,
     pub g_y: BytesP256ElemLen,
-    pub plaintext_2: EdhocMessageBuffer,
+    pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
     pub ead_2: [EADItem; MAX_EAD_ITEMS],
@@ -521,7 +521,7 @@ pub struct ProcessingM3 {
     pub prk_3e2m: BytesHashLen,
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
-    pub plaintext_3: EdhocMessageBuffer,
+    pub plaintext_3: BufferPlaintext3,
     pub ead_3: [EADItem; MAX_EAD_ITEMS],
 }
 
@@ -583,7 +583,7 @@ pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 
 /// An owned EAD item.
 #[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct EADItem {
     /// EAD label of the item
     ///
@@ -685,7 +685,7 @@ mod edhoc_parser {
 
                 // Decode the length based on additional_info
                 let len = match additional_info {
-                    0..=23 => additional_info as usize,
+                    l if l <= 23 => additional_info as usize,
                     24 => {
                         let len_byte = *input.get(offset).ok_or(EDHOCError::ParsingError)? as usize;
                         offset += 1;
@@ -724,7 +724,6 @@ mod edhoc_parser {
                 let mut buf = EdhocBuffer::new();
                 buf.fill_with_slice(bstr_bytes)
                     .map_err(|_| EDHOCError::ParsingError)?;
-                buf.len = offset + len - 1;
                 offset += len;
 
                 Some(buf)
@@ -800,16 +799,14 @@ mod edhoc_parser {
             {
                 // NOTE: arrays must be at least 2 items long, otherwise the compact encoding (int) must be used
                 let received_suites_i_len = decoder.array()?;
-                if received_suites_i_len <= suites_i.capacity() {
-                    for i in 0..received_suites_i_len {
-                        // NOTE: could use suites_i.push, but hax complains about mutable references in loops
-                        suites_i.content[i] = decoder.u8()?;
-                    }
-                    suites_i.len = received_suites_i_len;
-                    Ok((suites_i, decoder))
-                } else {
-                    Err(EDHOCError::ParsingError)
+                let write_range = suites_i
+                    .extend_reserve(received_suites_i_len)
+                    .or(Err(EDHOCError::ParsingError))?;
+                #[allow(deprecated)] // reason = "hax complains about mutable references in loops"
+                for i in write_range {
+                    suites_i.content[i] = decoder.u8()?;
                 }
+                Ok((suites_i, decoder))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -842,7 +839,7 @@ mod edhoc_parser {
             let c_i = ConnId::from_decoder(&mut decoder)?;
 
             // if there is still more to parse, the rest will be the EADs
-            if rcvd_message_1.len > decoder.position() {
+            if rcvd_message_1.len() > decoder.position() {
                 let ead_res = parse_eads(decoder.remaining_buffer()?);
                 if let Ok(ead_buffer) = ead_res {
                     Ok((method, suites_i, g_x, c_i, ead_buffer))
@@ -907,7 +904,7 @@ mod edhoc_parser {
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
         // if there is still more to parse, the rest will be the EADs
-        if plaintext_2.len > decoder.position() {
+        if plaintext_2.len() > decoder.position() {
             let ead_res = parse_eads(decoder.remaining_buffer()?);
             if let Ok(ead2_buffer) = ead_res {
                 Ok((c_r, id_cred_r, mac_2, ead2_buffer))
@@ -935,7 +932,7 @@ mod edhoc_parser {
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 
         // if there is still more to parse, the rest will be the EADs
-        if plaintext_3.len > decoder.position() {
+        if plaintext_3.len() > decoder.position() {
             let ead_res = parse_eads(decoder.remaining_buffer()?);
             if let Ok(ead3_buffer) = ead_res {
                 Ok((id_cred_i, mac_3, ead3_buffer))
@@ -955,7 +952,7 @@ mod edhoc_parser {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
 
-        if plaintext_4.len > decoder.position() {
+        if plaintext_4.len() > decoder.position() {
             let ead_res = parse_eads(decoder.remaining_buffer()?);
             if let Ok(ead_4_buffer) = ead_res {
                 Ok(ead_4_buffer)
@@ -1206,7 +1203,9 @@ mod cbor_decoder {
                     let major = head >> 5;
                     let minor = head & 0x1f;
                     let argument = match minor {
-                        0..=23 => minor,
+                        // Workaround-For: https://github.com/cryspen/hax/issues/925
+                        0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
+                        | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 => minor,
                         24 => self.read()?,
                         // We do not support values outside the range -256..256.
                         // FIXME: Sooner or later we should. There is probably an upper bound on
@@ -1224,12 +1223,12 @@ mod cbor_decoder {
                         _ => unreachable!("Value was masked to 5 bits"),
                     };
                     match major {
-                        0..=1 => (), // Argument consumed, remaining items were already decremented
+                        0 | 1 => (), // Argument consumed, remaining items were already decremented
                         7 => (), // Same, but in separate line due to Hax FStar backend limitations
                         6 => {
                             remaining_items += 1;
                         }
-                        2..=3 => {
+                        2 | 3 => {
                             self.read_slice(argument.into())?;
                         }
                         4 => {

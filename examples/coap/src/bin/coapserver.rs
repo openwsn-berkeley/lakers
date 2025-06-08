@@ -52,7 +52,7 @@ fn main() {
                     cred_r,
                 );
 
-                let message_1: EdhocMessageBuffer = request.message.payload[1..]
+                let message_1: BufferMessage1 = request.message.payload[1..]
                     .try_into()
                     .expect("wrong length");
                 let result = responder.process_message_1(&message_1);
@@ -100,8 +100,7 @@ fn main() {
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let message_3 =
-                    EdhocMessageBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
+                let message_3 = EdhocBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
                 let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
                 else {
                     println!("EDHOC error at parse_message_3: {:?}", message_3);
@@ -111,7 +110,9 @@ fn main() {
                 };
                 let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
-                let Ok((responder, prk_out)) = responder.verify_message_3(valid_cred_i) else {
+                // FIXME: instead of cloning, take by reference
+                let Ok((responder, prk_out)) = responder.verify_message_3(valid_cred_i.clone())
+                else {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };

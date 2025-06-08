@@ -22,14 +22,20 @@ fn convert_array(input: &[u32]) -> [u8; SHA256_DIGEST_LEN] {
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN> {
+        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
+            .expect("This should never fail, as the slice is of the correct length")
+    }
+
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let mut buffer: [u32; 64 / 4] = [0x00; 64 / 4];
 
         unsafe {
             CRYS_HASH(
                 CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode,
-                message.clone().as_mut_ptr(),
-                message_len,
+                // This just reads, the C code is missing a `const`.
+                message.as_ptr() as *mut _,
+                message.len(),
                 buffer.as_mut_ptr(),
             );
         }
@@ -37,13 +43,7 @@ impl CryptoTrait for Crypto {
         convert_array(&buffer[0..SHA256_DIGEST_LEN / 4])
     }
 
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
         let mut buffer = [0x00u8; MAX_BUFFER_LEN];
         unsafe {
             CRYS_HKDF_KeyDerivFunc(
@@ -52,8 +52,9 @@ impl CryptoTrait for Crypto {
                 0 as usize,
                 prk.clone().as_mut_ptr(),
                 prk.len() as u32,
-                info.clone().as_mut_ptr(),
-                info_len as u32,
+                // Function does not write there, merely misses `const` in C
+                info.as_ptr() as *mut _,
+                info.len() as u32,
                 buffer.as_mut_ptr(),
                 length as u32,
                 SaSiBool_SASI_TRUE,
@@ -72,20 +73,22 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
-        let mut output: BufferCiphertext3 = BufferCiphertext3::new();
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
+        let mut output = EdhocBuffer::new();
         let mut tag: CRYS_AESCCM_Mac_Res_t = Default::default();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
         let mut aesccm_ad = [0x00u8; ENC_STRUCTURE_LEN];
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
         aesccm_ad[0..ad.len()].copy_from_slice(&ad[..]);
+
+        output.extend_reserve(plaintext.len()).unwrap();
 
         let _err = unsafe {
             CC_AESCCM(
@@ -96,8 +99,11 @@ impl CryptoTrait for Crypto {
                 iv.len() as u8,
                 aesccm_ad.as_mut_ptr(),
                 ad.len() as u32,
-                plaintext.content.clone().as_mut_ptr(),
-                plaintext.len as u32,
+                // CC_AESCCM does not really write there, it's just missing a `const`
+                plaintext.as_ptr() as *mut _,
+                plaintext.len() as u32,
+                #[allow(deprecated)]
+                // reason = "hax won't allow creating a .as_mut_slice() method"
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
@@ -105,24 +111,25 @@ impl CryptoTrait for Crypto {
             )
         };
 
-        output.content[plaintext.len..plaintext.len + AES_CCM_TAG_LEN]
-            .copy_from_slice(&tag[..AES_CCM_TAG_LEN]);
-        output.len = plaintext.len + AES_CCM_TAG_LEN;
+        output.extend_from_slice(&tag[..AES_CCM_TAG_LEN]).unwrap();
 
         output
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
-        let mut output: BufferPlaintext3 = BufferPlaintext3::new();
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
+        let mut output = EdhocBuffer::new();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
+
+        assert!(ciphertext.len() - AES_CCM_TAG_LEN <= N);
 
         unsafe {
             match CC_AESCCM(
@@ -133,15 +140,17 @@ impl CryptoTrait for Crypto {
                 iv.len() as u8,
                 ad.as_ptr() as *mut _,
                 ad.len() as u32,
-                ciphertext.content.clone().as_mut_ptr(),
-                (ciphertext.len - AES_CCM_TAG_LEN) as u32,
+                // CC_AESCCM does not really write there, it's just missing a `const`
+                ciphertext.as_ptr() as *mut _,
+                (ciphertext.len() - AES_CCM_TAG_LEN) as u32,
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
-                ciphertext.content.clone()[ciphertext.len - AES_CCM_TAG_LEN..].as_mut_ptr(),
+                // as before
+                ciphertext[ciphertext.len() - AES_CCM_TAG_LEN..].as_ptr() as *mut _,
                 0 as u32, // CCM
             ) {
                 CRYS_OK => {
-                    output.len = ciphertext.len - AES_CCM_TAG_LEN;
+                    output.len = ciphertext.len() - AES_CCM_TAG_LEN;
                     Ok(output)
                 }
                 _ => Err(EDHOCError::MacVerificationFailed),

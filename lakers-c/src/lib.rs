@@ -31,7 +31,7 @@ pub struct EADItemC {
 
 impl EADItemC {
     pub fn to_rust(&self) -> EADItem {
-        let value = Some(self.value);
+        let value = Some(self.value.clone());
 
         EADItem {
             label: self.label,
@@ -87,7 +87,7 @@ impl ProcessingM2C {
             th_2: self.th_2,
             x: self.x,
             g_y: self.g_y,
-            plaintext_2: self.plaintext_2,
+            plaintext_2: self.plaintext_2.clone(),
             #[allow(deprecated)]
             c_r: ConnId::from_int_raw(self.c_r),
             id_cred_r: self.id_cred_r.clone(),
@@ -114,7 +114,7 @@ impl ProcessingM2C {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[repr(C)]
 pub struct CredentialC {
     pub bytes: BufferCred,
@@ -129,9 +129,9 @@ pub struct CredentialC {
 impl CredentialC {
     pub fn to_rust(&self) -> Credential {
         Credential {
-            bytes: self.bytes,
+            bytes: self.bytes.clone(),
             key: self.key,
-            kid: Some(self.kid),
+            kid: Some(self.kid.clone()),
             cred_type: self.cred_type,
         }
     }
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn credential_check_or_fetch(
         Some((*cred_expected).to_rust())
     };
 
-    let id_cred_received_value = *id_cred_received;
+    let id_cred_received_value = (*id_cred_received).clone();
     match credential_check_or_fetch_rust(cred_expected, id_cred_received_value) {
         Ok(valid_cred) => {
             CredentialC::copy_into_c(valid_cred, cred_out);

@@ -38,33 +38,24 @@ pub fn prepare_suites_i(
 /// cryptography implementation can be taken out and stored separately.
 pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites supported by the backend implementation.
-    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN> {
-        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
-            .expect("This should never fail, as the slice is of the correct length")
-    }
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen;
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer;
+    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN>;
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer;
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen;
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3;
-    fn aes_ccm_decrypt_tag_8(
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N>;
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError>;
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError>;
     fn p256_ecdh(
         &mut self,
         private_key: &BytesP256ElemLen,

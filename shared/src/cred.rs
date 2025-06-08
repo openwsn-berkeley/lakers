@@ -51,7 +51,7 @@ impl From<u8> for IdCredType {
 /// let long_kid = IdCred::from_encoded_value(&hex!("43616263")).unwrap(); // 'abc'
 /// assert_eq!(long_kid.as_full_value(), &hex!("a10443616263")); // {4: 'abc'}
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[repr(C)]
 pub struct IdCred {
     /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
@@ -76,38 +76,37 @@ impl IdCred {
 
     /// Instantiate an IdCred from an encoded value.
     pub fn from_encoded_value(value: &[u8]) -> Result<Self, EDHOCError> {
-        let bytes = match value {
+        // This would be idiomatic as a match statement.
+        // Workaround-For: https://github.com/hacspec/hax/issues/804
+
+        let bytes = if value.len() == 1 && Self::bstr_representable_as_int(value[0]) {
             // kid that has been encoded as CBOR integer
-            &[x] if Self::bstr_representable_as_int(x) => {
-                BufferIdCred::new_from_slice(&[0xa1, KID_LABEL, 0x41, x])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: how to avoid map_err overuse?
-            }
+            BufferIdCred::new_from_slice(&[0xa1, KID_LABEL, 0x41, value[0]])
+                .map_err(|_| EDHOCError::CredentialTooLongError)? // TODO: how to avoid map_err overuse?
+        } else if value.len() >= 1 && value[0] >= 0x40 && value[0] <= 0x57 {
             // kid that has been encoded as CBOR byte string; supporting up to 23 long because
             // those are easy
-            &[0x40..=0x57, ..] => {
-                let tail = &value[1..];
-                if let &[single_byte] = tail {
-                    if Self::bstr_representable_as_int(single_byte) {
-                        // We require precise encoding
-                        return Err(EDHOCError::ParsingError);
-                    }
-                }
-                if usize::from(value[0] - 0x40) != tail.len() {
-                    // Missing or trailing bytes. This is impossible when called from within Lakers
-                    // where the value is a `.any_as_encoded()`.
-                    return Err(EDHOCError::ParsingError);
-                }
-                let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                bytes
-                    .extend_from_slice(value)
-                    .map_err(|_| EDHOCError::CredentialTooLongError)?;
-                bytes
+            let tail = &value[1..];
+            if tail.len() == 1 && Self::bstr_representable_as_int(tail[0]) {
+                // We require precise encoding
+                return Err(EDHOCError::ParsingError);
             }
+            if usize::from(value[0] - 0x40) != tail.len() {
+                // Missing or trailing bytes. This is impossible when called from within Lakers
+                // where the value is a `.any_as_encoded()`.
+                return Err(EDHOCError::ParsingError);
+            }
+            let mut bytes = BufferIdCred::new_from_slice(&[0xa1, KID_LABEL])
+                .map_err(|_| EDHOCError::CredentialTooLongError)?;
+            bytes
+                .extend_from_slice(value)
+                .map_err(|_| EDHOCError::CredentialTooLongError)?;
+            bytes
+        } else if value.len() > 2 && value[..2] == [0xa1, KCCS_LABEL] {
             // CCS by value
-            &[0xa1, KCCS_LABEL, ..] => BufferIdCred::new_from_slice(value)
-                .map_err(|_| EDHOCError::CredentialTooLongError)?,
-            _ => return Err(EDHOCError::ParsingError),
+            BufferIdCred::new_from_slice(value).map_err(|_| EDHOCError::CredentialTooLongError)?
+        } else {
+            return Err(EDHOCError::ParsingError);
         };
 
         Ok(Self { bytes })
@@ -126,12 +125,18 @@ impl IdCred {
     /// the compact encoding of ID_CRED fields.
     /// This style of encoding is used when ID_CRED_x has an impact on message size.
     pub fn as_encoded_value(&self) -> &[u8] {
-        match self.bytes.as_slice() {
-            [0xa1, KID_LABEL, 0x41, x] if (x >> 5) < 2 && (x & 0x1f) < 24 => {
-                &self.bytes.as_slice()[3..]
-            }
-            [0xa1, KID_LABEL, ..] => &self.bytes.as_slice()[2..],
-            _ => self.bytes.as_slice(),
+        // This would be idiomatic as a match statement.
+        // Workaround-For: https://github.com/hacspec/hax/issues/804
+        if self.bytes.len() == 4
+            && self.bytes.as_slice()[..3] == [0xa1, KID_LABEL, 0x41]
+            && (self.bytes[3] >> 5) < 2
+            && (self.bytes[3] & 0x1f) < 24
+        {
+            &self.bytes.as_slice()[3..]
+        } else if self.bytes.len() > 2 && self.bytes.as_slice()[..2] == [0xa1, KID_LABEL] {
+            &self.bytes.as_slice()[2..]
+        } else {
+            self.bytes.as_slice()
         }
     }
 
@@ -162,7 +167,7 @@ impl IdCred {
 /// Experimental support for CCS_PSK credentials is also available.
 // TODO: add back support for C and Python bindings
 #[cfg_attr(feature = "python-bindings", pyclass)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[repr(C)]
 pub struct Credential {
     /// Original bytes of the credential, CBOR-encoded

@@ -308,7 +308,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
         mut self,
         c_i: Option<ConnId>,
         ead_1: &[EADItem; MAX_EAD_ITEMS],
-    ) -> Result<(EdhocInitiatorWaitM2<Crypto>, EdhocMessageBuffer), EDHOCError> {
+    ) -> Result<(EdhocInitiatorWaitM2<Crypto>, BufferMessage1), EDHOCError> {
         trace!("Enter prepare_message_1");
         let c_i = match c_i {
             Some(c_i) => c_i,
@@ -334,7 +334,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     }
 
     pub fn selected_cipher_suite(&self) -> u8 {
-        self.state.suites_i[self.state.suites_i.len - 1]
+        self.state.suites_i[self.state.suites_i.len() - 1]
     }
 }
 
@@ -616,8 +616,8 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
-        let message_1_tv_first_time = EdhocMessageBuffer::from_hex(MESSAGE_1_TV_FIRST_TIME);
-        let message_1_tv = EdhocMessageBuffer::from_hex(MESSAGE_1_TV);
+        let message_1_tv_first_time = BufferMessage1::from_hex(MESSAGE_1_TV_FIRST_TIME);
+        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let responder = EdhocResponder::new(
             default_crypto(),
             EDHOCMethod::StatStat,

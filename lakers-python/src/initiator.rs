@@ -169,7 +169,8 @@ impl PyEdhocInitiator {
         let (state, message_3, prk_out) = i_prepare_message_3(
             &mut self.take_processed_m2()?,
             &mut default_crypto(),
-            self.cred_i.unwrap(),
+            // FIXME: take as reference rather than cloning
+            self.cred_i.as_ref().unwrap().clone(),
             cred_transfer,
             &ead_3,
         )?;
