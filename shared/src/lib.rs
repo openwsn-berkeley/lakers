@@ -743,46 +743,6 @@ mod edhoc_parser {
         Ok((item, offset))
     }
 
-    #[deprecated(
-        note = "This API is only capable of parsing a single EAD, use parse_eads instead."
-    )]
-    pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
-        trace!("Enter parse_ead");
-        // assuming label is a single byte integer (negative or positive)
-        if let Some((&label, tail)) = buffer.split_first() {
-            let label_res = if CBORDecoder::is_u8(label) {
-                // CBOR unsigned integer (0..=23)
-                Ok((label, false))
-            } else if CBORDecoder::is_i8(label) {
-                // CBOR negative integer (-1..=-24)
-                Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
-            } else {
-                Err(EDHOCError::ParsingError)
-            };
-
-            if let Ok((label, is_critical)) = label_res {
-                let ead_value = if tail.len() > 0 {
-                    // EAD value is present
-                    let mut buffer = EdhocBuffer::new();
-                    buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
-                    Some(buffer)
-                } else {
-                    None
-                };
-                let ead_item = Some(EADItem {
-                    label: label.into(),
-                    is_critical,
-                    value: ead_value,
-                });
-                Ok(ead_item)
-            } else {
-                Err(EDHOCError::ParsingError)
-            }
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
-    }
-
     pub fn parse_suites_i(
         mut decoder: CBORDecoder,
     ) -> Result<(EdhocBuffer<MAX_SUITES_LEN>, CBORDecoder), EDHOCError> {
