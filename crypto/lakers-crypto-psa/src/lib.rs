@@ -24,22 +24,21 @@ pub extern "C" fn mbedtls_hardware_poll(
 pub struct Crypto;
 
 impl CryptoTrait for Crypto {
-    fn sha256_digest(&mut self, message: &BytesMaxBuffer, message_len: usize) -> BytesHashLen {
+    fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN> {
+        EdhocBuffer::<MAX_SUITES_LEN>::new_from_slice(&[EDHOCSuite::CipherSuite2 as u8])
+            .expect("This should never fail, as the slice is of the correct length")
+    }
+
+    fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen {
         let hash_alg = Hash::Sha256;
         let mut hash: [u8; SHA256_DIGEST_LEN] = [0; SHA256_DIGEST_LEN];
         psa_crypto::init().unwrap();
-        hash_compute(hash_alg, &message[..message_len], &mut hash).unwrap();
+        hash_compute(hash_alg, message, &mut hash).unwrap();
 
         hash
     }
 
-    fn hkdf_expand(
-        &mut self,
-        prk: &BytesHashLen,
-        info: &BytesMaxInfoBuffer,
-        info_len: usize,
-        length: usize,
-    ) -> BytesMaxBuffer {
+    fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], length: usize) -> BytesMaxBuffer {
         // Implementation of HKDF-Expand as per RFC5869
 
         let mut output: [u8; MAX_BUFFER_LEN] = [0; MAX_BUFFER_LEN];
@@ -53,17 +52,16 @@ impl CryptoTrait for Crypto {
 
         let mut message: [u8; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1] =
             [0; MAX_INFO_LEN + SHA256_DIGEST_LEN + 1];
-        message[..info_len].copy_from_slice(&info[..info_len]);
-        message[info_len] = 0x01;
-        let mut t_i = self.hmac_sha256(&message[..info_len + 1], prk);
+        message[..info.len()].copy_from_slice(info);
+        message[info.len()] = 0x01;
+        let mut t_i = self.hmac_sha256(&message[..info.len() + 1], prk);
         output[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
 
         for i in 2..=n {
             message[..SHA256_DIGEST_LEN].copy_from_slice(&t_i);
-            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info_len]
-                .copy_from_slice(&info[..info_len]);
-            message[SHA256_DIGEST_LEN + info_len] = i as u8;
-            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info_len + 1], prk);
+            message[SHA256_DIGEST_LEN..SHA256_DIGEST_LEN + info.len()].copy_from_slice(&info);
+            message[SHA256_DIGEST_LEN + info.len()] = i as u8;
+            t_i = self.hmac_sha256(&message[..SHA256_DIGEST_LEN + info.len() + 1], prk);
             output[(i - 1) * SHA256_DIGEST_LEN..i * SHA256_DIGEST_LEN].copy_from_slice(&t_i);
         }
 
@@ -81,13 +79,13 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    fn aes_ccm_encrypt_tag_8(
+    fn aes_ccm_encrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        plaintext: &BufferPlaintext3,
-    ) -> BufferCiphertext3 {
+        plaintext: &[u8],
+    ) -> EdhocBuffer<N> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -107,29 +105,33 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferCiphertext3 = BufferCiphertext3::new();
+        let mut output_buffer = EdhocBuffer::new();
+        let full_range = output_buffer
+            .extend_reserve(plaintext.len() + AES_CCM_TAG_LEN)
+            .unwrap();
 
+        #[allow(deprecated)] // reason = "using extend_reserve"
         aead::encrypt(
             my_key,
             alg,
             iv,
             ad,
-            plaintext.as_slice(),
-            &mut output_buffer.content,
+            plaintext,
+            &mut output_buffer.content[full_range],
         )
         .unwrap();
 
-        output_buffer.len = plaintext.len + AES_CCM_TAG_LEN;
         output_buffer
     }
 
-    fn aes_ccm_decrypt_tag_8(
+    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
+    fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
         iv: &BytesCcmIvLen,
         ad: &[u8],
-        ciphertext: &BufferCiphertext3,
-    ) -> Result<BufferPlaintext3, EDHOCError> {
+        ciphertext: &[u8],
+    ) -> Result<EdhocBuffer<N>, EDHOCError> {
         psa_crypto::init().unwrap();
 
         let alg = Aead::AeadWithShortenedTag {
@@ -149,18 +151,11 @@ impl CryptoTrait for Crypto {
             },
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
-        let mut output_buffer: BufferPlaintext3 = BufferPlaintext3::new();
+        let mut output_buffer = EdhocBuffer::new();
 
-        match aead::decrypt(
-            my_key,
-            alg,
-            iv,
-            ad,
-            &ciphertext.as_slice(),
-            &mut output_buffer.content,
-        ) {
+        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
             Ok(_) => {
-                output_buffer.len = ciphertext.len - AES_CCM_TAG_LEN;
+                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
                 Ok(output_buffer)
             }
             Err(_) => Err(EDHOCError::MacVerificationFailed),
@@ -264,7 +259,7 @@ impl Crypto {
         s2[64..64 + message.len()].copy_from_slice(message);
 
         //    (4) apply H to the stream generated in step (3)
-        let ih = self.sha256_digest(&s2, 64 + message.len());
+        let ih = self.sha256_digest(&s2[..64 + message.len()]);
 
         //    (5) XOR (bitwise exclusive-OR) the B byte string computed in
         //        step (1) with opad
@@ -278,7 +273,7 @@ impl Crypto {
 
         //    (7) apply H to the stream generated in step (6) and output
         //        the result
-        let oh = self.sha256_digest(&s5, 3 * SHA256_DIGEST_LEN);
+        let oh = self.sha256_digest(&s5[..3 * SHA256_DIGEST_LEN]);
 
         oh
     }

@@ -16,13 +16,16 @@ pub enum EdhocBufferError {
 /// Trying to have an API as similar as possible to `heapless::Vec`,
 /// so that in the future it can be hot-swappable by the application.
 // NOTE: how would this const generic thing work across the C and Python bindings?
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 #[repr(C)]
 pub struct EdhocBuffer<const N: usize> {
+    #[deprecated]
     pub content: [u8; N],
+    #[deprecated(note = "use .len()")]
     pub len: usize,
 }
 
+#[allow(deprecated)]
 impl<const N: usize> Default for EdhocBuffer<N> {
     fn default() -> Self {
         EdhocBuffer {
@@ -32,6 +35,7 @@ impl<const N: usize> Default for EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> EdhocBuffer<N> {
     pub const fn new() -> Self {
         EdhocBuffer {
@@ -58,11 +62,15 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get(self, index: usize) -> Option<u8> {
-        self.content.get(index).copied()
+        if index < self.len {
+            None
+        } else {
+            self.content.get(index).copied()
+        }
     }
 
     pub fn contains(&self, item: &u8) -> bool {
-        self.content.contains(item)
+        self.as_slice().contains(item)
     }
 
     pub fn push(&mut self, item: u8) -> Result<(), EdhocBufferError> {
@@ -76,7 +84,11 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        self.content.get(start..start + len)
+        if start.saturating_add(len) > self.len {
+            None
+        } else {
+            self.content.get(start..start + len)
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -103,6 +115,33 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    /// Like [`.extend_from_slice()`], but leaves the data in the buffer "uninitialized" --
+    /// anticipating that the user will populate `self.content[result]`.
+    ///
+    /// ("Uninitialized" is in quotes because there are no guarentees on the content; from the
+    /// compiler's perspective, that area is initialized because this type doesn't play with
+    /// [`MaybeUninit`][core::mem::MaybeUninit], but don't rely on it).
+    ///
+    /// This is not a fully idiomatic Rust API: Preferably, this would return a `&mut [u8]` of the
+    /// requested length. However, as `.as_mut_slice()` or `.get_mut()` can not be checked by hax,
+    /// pushing and getting a range is the next best thing.
+    pub fn extend_reserve(
+        &mut self,
+        length: usize,
+    ) -> Result<core::ops::Range<usize>, EdhocBufferError> {
+        let start = self.len;
+        let end = self
+            .len
+            .checked_add(length)
+            .ok_or(EdhocBufferError::SliceTooLong)?;
+        if end <= N {
+            self.len = end;
+            Ok(start..end)
+        } else {
+            Err(EdhocBufferError::BufferAlreadyFull)
+        }
+    }
+
     // so far only used in test contexts
     pub fn from_hex(hex: &str) -> Self {
         let mut buffer = EdhocBuffer::new();
@@ -115,13 +154,16 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     type Output = u8;
+    #[track_caller]
     fn index(&self, item: usize) -> &Self::Output {
-        &self.content[item]
+        &self.as_slice()[item]
     }
 }
 
+#[allow(deprecated)]
 impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
     type Error = ();
 
@@ -140,6 +182,7 @@ impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
     }
 }
 
+#[allow(deprecated)]
 mod test {
 
     #[test]

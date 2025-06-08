@@ -88,7 +88,10 @@ jobs:
 
     - name: Generate fstar code over lakers and lakers-shared
       run: |
-        docker run --rm -v ${{ github.workspace }}:/lakers docker.io/geonnave/hax bash -e -c "
+        # This is a rather ad-hoc image: it is created by cloning
+        # <https://github.com/hacspec/hax>, running `docker build -f
+        # .docker/Dockerfile . -t hax` and `docker push hax chrysn/hax`
+        docker run --rm -v ${{ github.workspace }}:/lakers docker.io/chrysn/hax bash -e -c "
         cd lakers
 
         # generate the fstar files

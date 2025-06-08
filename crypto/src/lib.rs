@@ -77,7 +77,7 @@ mod tests {
         let mut info = [0; MAX_INFO_LEN];
         info[..info_slice.len()].copy_from_slice(info_slice);
 
-        let okm = crypto.hkdf_expand(&prk, &info, info_slice.len(), output_length);
+        let okm = crypto.hkdf_expand(&prk, &info[..info_slice.len()], output_length);
         assert_eq!(okm[..output_length], expected_okm_slice[..]);
     }
 }
