@@ -25,7 +25,7 @@ pub struct EdhocBuffer<const N: usize> {
     #[deprecated(note = "use .len()")]
     // `#[hax_lib::refine(len <= N)]` would allow dropping all the other hax_lib requires lines on
     // functions.
-    pub len: usize,
+    len: usize,
 }
 
 #[allow(deprecated)]

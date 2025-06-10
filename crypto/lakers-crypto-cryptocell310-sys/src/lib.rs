@@ -122,6 +122,9 @@ impl CryptoTrait for Crypto {
         ciphertext: &[u8],
     ) -> Result<EdhocBuffer<N>, EDHOCError> {
         let mut output = EdhocBuffer::new();
+        output
+            .extend_reserve(ciphertext.len() - AES_CCM_TAG_LEN)
+            .unwrap();
         let mut aesccm_key: CRYS_AESCCM_Key_t = Default::default();
 
         aesccm_key[0..AES_CCM_KEY_LEN].copy_from_slice(&key[..]);
@@ -146,10 +149,7 @@ impl CryptoTrait for Crypto {
                 ciphertext[ciphertext.len() - AES_CCM_TAG_LEN..].as_ptr() as *mut _,
                 0 as u32, // CCM
             ) {
-                CRYS_OK => {
-                    output.len = ciphertext.len() - AES_CCM_TAG_LEN;
-                    Ok(output)
-                }
+                CRYS_OK => Ok(output),
                 _ => Err(EDHOCError::MacVerificationFailed),
             }
         }
