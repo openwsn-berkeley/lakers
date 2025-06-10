@@ -143,8 +143,14 @@ impl<const N: usize> EdhocBuffer<N> {
 
     #[inline]
     pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
-        if self.len + slice.len() <= self.content.len() {
-            self.content[self.len..self.len + slice.len()].copy_from_slice(slice);
+        // The strict criterion avoids the need to use checked / saturating addition, which is not
+        // present in hax for usize.
+        if self.len >= usize::MAX / 2 || slice.len() >= usize::MAX / 2 {
+            return Err(EdhocBufferError::SliceTooLong);
+        }
+        let end = self.len() + slice.len();
+        if end <= self.content.len() {
+            self.content[self.len..end].copy_from_slice(slice);
             self.len += slice.len();
             Ok(())
         } else {
