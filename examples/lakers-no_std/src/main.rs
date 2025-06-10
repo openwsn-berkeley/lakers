@@ -146,11 +146,15 @@ fn main() -> ! {
         assert_eq!(i_prk_out, r_prk_out);
 
         // derive OSCORE secret and salt at both sides and compare
-        let i_oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-        let i_oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+        let mut i_oscore_secret = [0; 16];
+        initiator.edhoc_exporter(0u8, &[], &mut i_oscore_secret); // label is 0
+        let mut i_oscore_salt = [0; 8];
+        initiator.edhoc_exporter(1u8, &[], &mut i_oscore_salt); // label is 1
 
-        let r_oscore_secret = responder.edhoc_exporter(0u8, &[], 16); // label is 0
-        let r_oscore_salt = responder.edhoc_exporter(1u8, &[], 8); // label is 1
+        let mut r_oscore_secret = [0; 16];
+        responder.edhoc_exporter(0u8, &[], &mut r_oscore_secret); // label is 0
+        let mut r_oscore_salt = [0; 8];
+        responder.edhoc_exporter(1u8, &[], &mut r_oscore_salt); // label is 1
 
         assert_eq!(i_oscore_secret, r_oscore_secret);
         assert_eq!(i_oscore_salt, r_oscore_salt);
