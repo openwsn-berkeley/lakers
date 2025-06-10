@@ -5,18 +5,9 @@ pub fn edhoc_exporter(
     crypto: &mut impl CryptoTrait,
     label: u8,
     context: &[u8],
-    length: usize,
-) -> BytesMaxBuffer {
-    // FIXME continue return-into-reference rewriting here (in API)
-    let mut result = [0; MAX_BUFFER_LEN];
-    edhoc_kdf(
-        crypto,
-        &state.prk_exporter,
-        label,
-        context,
-        &mut result[..length],
-    );
-    result
+    result: &mut [u8],
+) {
+    edhoc_kdf(crypto, &state.prk_exporter, label, context, result);
 }
 
 pub fn edhoc_key_update(

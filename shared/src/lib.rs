@@ -180,9 +180,9 @@ pub type BufferMessage2 = EdhocMessageBuffer;
 ///   to be fed into the cryptography module's SHA256 computation. That computation is streamable
 ///   in the underlying APIs (i.e. there is no need to build a buffer, they could be fed
 ///   incrementally), but the cryptography abstraction doesn't expose that.
-/// * As the return value of `edhoc_kdf_expand`. There, the data is taken up into some other buffer
+/// * <del>As the return value of `edhoc_kdf_expand`. There, the data is taken up into some other buffer
 ///   or type by the caller, so the caller could provide the place to expand into as a `&mut [u8]`,
-///   but likewise, our crypto API doesn't work that way.
+///   but likewise, our crypto API doesn't work that way.</del>
 pub type BytesMaxBuffer = [u8; MAX_BUFFER_LEN];
 pub type BufferContext = EdhocBuffer<MAX_KDF_CONTEXT_LEN>;
 /// Buffer returned by [`encode_info`]
