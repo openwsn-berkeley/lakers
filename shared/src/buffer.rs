@@ -91,14 +91,6 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
-    pub fn get(self, index: usize) -> Option<u8> {
-        if index < self.len {
-            None
-        } else {
-            self.content.get(index).copied()
-        }
-    }
-
     pub fn contains(&self, item: &u8) -> bool {
         self.as_slice().contains(item)
     }
