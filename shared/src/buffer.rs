@@ -39,6 +39,7 @@ impl<const N: usize> Default for EdhocBuffer<N> {
 }
 
 #[allow(deprecated)]
+#[hax_lib::attributes]
 impl<const N: usize> EdhocBuffer<N> {
     pub const fn new() -> Self {
         EdhocBuffer {
@@ -94,6 +95,7 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    #[hax_lib::requires(self.len <= N)]
     pub fn contains(&self, item: &u8) -> bool {
         self.as_slice().contains(item)
     }
@@ -109,15 +111,11 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    #[hax_lib::requires(self.len <= N)]
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
         // The strict criterion avoids the need to use checked / saturating addition, which is not
         // present in hax for usize.
         if start >= usize::MAX / 2 || len >= usize::MAX / 2 {
-            return None;
-        }
-        if self.len > N {
-            // Just needed for hax typechecking, does not know this invariant and needs returning
-            // None as a non-panicking exit.
             return None;
         }
         let end = start + len;
@@ -129,12 +127,8 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     #[inline]
+    #[hax_lib::requires(self.len <= N)]
     pub fn as_slice(&self) -> &[u8] {
-        if self.len > N {
-            // Just needed for hax typechecking, does not know this invariant and needs returning
-            // None as a non-panicking exit.
-            return &[];
-        }
         &self.content[0..self.len]
     }
 
