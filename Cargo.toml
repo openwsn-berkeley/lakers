@@ -53,3 +53,6 @@ lakers = { package = "lakers", path = "lib/", version = "^0.8.0", default-featur
 
 [patch.crates-io]
 psa-crypto = { git = "https://github.com/malishav/rust-psa-crypto", branch = "baremetal" }
+
+#defmt = { git = "https://github.com/Dirbaio/defmt", branch = "hexencode" }
+defmt = { git = "https://github.com/chrysn-pull-requests/defmt", branch = "hexencode-and-no-equals" }
