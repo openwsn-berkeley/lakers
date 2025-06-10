@@ -18,10 +18,13 @@ pub enum EdhocBufferError {
 // NOTE: how would this const generic thing work across the C and Python bindings?
 #[derive(PartialEq, Debug, Clone)]
 #[repr(C)]
+// `#[hax_lib::attributes]` is not usable here due to https://github.com/cryspen/hax/issues/899
 pub struct EdhocBuffer<const N: usize> {
     #[deprecated]
     pub content: [u8; N],
     #[deprecated(note = "use .len()")]
+    // `#[hax_lib::refine(len <= N)]` would allow dropping all the other hax_lib requires lines on
+    // functions.
     pub len: usize,
 }
 
