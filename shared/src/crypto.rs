@@ -39,7 +39,20 @@ pub fn prepare_suites_i(
 pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites supported by the backend implementation.
     fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN>;
-    #[deprecated(note = "Use sha56_start instead")]
+    /// Calculate a SHA256 hash from a slice.
+    ///
+    /// This should only be used when the slice is already at hand or very small; otherwise, use
+    /// [`Self::sha256_start()`] and the `digest` interface.
+    ///
+    /// This is currently not provided due to [hax
+    /// constraints](https://github.com/cryspen/hax/issues/1495), but can be provided as:
+    ///
+    /// ```ignore
+    /// let mut hash = self.sha256_start();
+    /// use digest::Digest;
+    /// hash.update(message);
+    /// hash.finalize().into()
+    /// ```
     fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
     type HashInProcess<'a>: digest::Digest
         + digest::OutputSizeUser<OutputSize = digest::typenum::U32>
