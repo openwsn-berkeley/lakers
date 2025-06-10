@@ -965,7 +965,7 @@ fn encrypt_decrypt_ciphertext_2(
     let mut keystream_2 = BufferCiphertext2::new();
     let range = keystream_2.extend_reserve(ciphertext_2.len()).unwrap();
     // FIXME can we do this w/o having a full message on the stack?
-    #[allow(deprecated)] // reason = "using extend_reserve"
+    #[allow(deprecated, reason = "using extend_reserve")]
     edhoc_kdf(crypto, prk_2e, 0u8, th_2, &mut keystream_2.content[range]);
 
     let mut result = BufferCiphertext2::default();

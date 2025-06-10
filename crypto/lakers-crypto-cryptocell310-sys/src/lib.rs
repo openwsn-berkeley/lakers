@@ -99,8 +99,10 @@ impl CryptoTrait for Crypto {
                 // CC_AESCCM does not really write there, it's just missing a `const`
                 plaintext.as_ptr() as *mut _,
                 plaintext.len() as u32,
-                #[allow(deprecated)]
-                // reason = "hax won't allow creating a .as_mut_slice() method"
+                #[allow(
+                    deprecated,
+                    reason = "hax won't allow creating a .as_mut_slice() method"
+                )]
                 output.content.as_mut_ptr(),
                 AES_CCM_TAG_LEN as u8, // authentication tag length
                 tag.as_mut_ptr(),
@@ -113,7 +115,10 @@ impl CryptoTrait for Crypto {
         output
     }
 
-    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
+    #[allow(
+        deprecated,
+        reason = "questionable use of buffer in API necessitates popping"
+    )]
     fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
