@@ -194,6 +194,7 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    #[cfg(not(hax))]
     // so far only used in test contexts
     pub fn from_hex(hex: &str) -> Self {
         let mut buffer = EdhocBuffer::new();
