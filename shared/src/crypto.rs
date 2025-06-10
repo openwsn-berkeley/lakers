@@ -42,6 +42,7 @@ pub trait Crypto: core::fmt::Debug {
     #[deprecated(note = "Use sha56_start instead")]
     fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
     type HashInProcess<'a>: digest::Digest
+        + digest::OutputSizeUser<OutputSize = digest::typenum::U32>
     where
         Self: 'a;
     fn sha256_start<'a>(&'a mut self) -> Self::HashInProcess<'a>;
