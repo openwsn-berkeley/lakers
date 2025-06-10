@@ -115,6 +115,11 @@ impl<const N: usize> EdhocBuffer<N> {
         if start >= usize::MAX / 2 || len >= usize::MAX / 2 {
             return None;
         }
+        if self.len > N {
+            // Just needed for hax typechecking, does not know this invariant and needs returning
+            // None as a non-panicking exit.
+            return None;
+        }
         let end = start + len;
         if end > self.len {
             None
@@ -125,6 +130,11 @@ impl<const N: usize> EdhocBuffer<N> {
 
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
+        if self.len > N {
+            // Just needed for hax typechecking, does not know this invariant and needs returning
+            // None as a non-panicking exit.
+            return &[];
+        }
         &self.content[0..self.len]
     }
 
