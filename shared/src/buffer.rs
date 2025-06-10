@@ -107,10 +107,16 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 
     pub fn get_slice(&self, start: usize, len: usize) -> Option<&[u8]> {
-        if start.saturating_add(len) > self.len {
+        // The strict criterion avoids the need to use checked / saturating addition, which is not
+        // present in hax for usize.
+        if start >= usize::MAX / 2 || len >= usize::MAX / 2 {
+            return None;
+        }
+        let end = start + len;
+        if end > self.len {
             None
         } else {
-            self.content.get(start..start + len)
+            Some(&self.content[start..end])
         }
     }
 
