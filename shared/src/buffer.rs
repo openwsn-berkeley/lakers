@@ -166,11 +166,13 @@ impl<const N: usize> EdhocBuffer<N> {
         &mut self,
         length: usize,
     ) -> Result<core::ops::Range<usize>, EdhocBufferError> {
+        // The strict criterion avoids the need to use checked / saturating addition, which is not
+        // present in hax for usize.
+        if self.len >= usize::MAX / 2 || length >= usize::MAX / 2 {
+            return Err(EdhocBufferError::SliceTooLong);
+        }
         let start = self.len;
-        let end = self
-            .len
-            .checked_add(length)
-            .ok_or(EdhocBufferError::SliceTooLong)?;
+        let end = start + length;
         if end <= N {
             self.len = end;
             Ok(start..end)
