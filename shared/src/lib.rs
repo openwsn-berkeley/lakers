@@ -427,7 +427,6 @@ impl EDHOCError {
 }
 
 /// Representation of an EDHOC ERR_CODE
-#[repr(C)]
 pub struct ErrCode(pub NonZeroI16);
 
 impl ErrCode {
@@ -453,7 +452,6 @@ impl ErrCode {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct InitiatorStart {
     pub suites_i: EdhocBuffer<MAX_SUITES_LEN>,
     pub method: u8,
@@ -478,7 +476,6 @@ pub struct ProcessingM1 {
 }
 
 #[derive(Clone, Debug)]
-#[repr(C)]
 pub struct WaitM2 {
     pub x: BytesP256ElemLen, // ephemeral private key of the initiator
     pub h_message_1: BytesHashLen,
@@ -492,7 +489,6 @@ pub struct WaitM3 {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct ProcessingM2 {
     pub mac_2: BytesMac2,
     pub prk_2e: BytesHashLen,
@@ -506,7 +502,6 @@ pub struct ProcessingM2 {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct ProcessedM2 {
     pub prk_3e2m: BytesHashLen,
     pub prk_4e3m: BytesHashLen,
@@ -541,7 +536,6 @@ pub struct ProcessedM3 {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct WaitM4 {
     pub prk_4e3m: BytesHashLen,
     pub th_4: BytesHashLen,
@@ -550,7 +544,6 @@ pub struct WaitM4 {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct Completed {
     pub prk_out: BytesHashLen,
     pub prk_exporter: BytesHashLen,

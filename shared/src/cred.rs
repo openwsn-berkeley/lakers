@@ -7,7 +7,6 @@ pub type BytesKeyAES128 = [u8; 16];
 pub type BytesKeyEC2 = [u8; 32];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(C)]
 pub enum CredentialKey {
     Symmetric(BytesKeyAES128),
     EC2Compact(BytesKeyEC2),
@@ -15,7 +14,6 @@ pub enum CredentialKey {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[repr(C)]
 pub enum CredentialType {
     CCS,
     #[allow(non_camel_case_types)]
@@ -52,7 +50,6 @@ impl From<u8> for IdCredType {
 /// assert_eq!(long_kid.as_full_value(), &hex!("a10443616263")); // {4: 'abc'}
 /// ```
 #[derive(Clone, Debug, Default, PartialEq)]
-#[repr(C)]
 pub struct IdCred {
     /// The value is always stored in the ID_CRED_x form as a serialized one-element dictionary;
     /// while this technically wastes two bytes, it has the convenient property of having the full
@@ -168,7 +165,6 @@ impl IdCred {
 // TODO: add back support for C and Python bindings
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug, PartialEq)]
-#[repr(C)]
 pub struct Credential {
     /// Original bytes of the credential, CBOR-encoded
     ///
