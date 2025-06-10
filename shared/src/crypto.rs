@@ -39,7 +39,12 @@ pub fn prepare_suites_i(
 pub trait Crypto: core::fmt::Debug {
     /// Returns the list of cryptographic suites supported by the backend implementation.
     fn supported_suites(&self) -> EdhocBuffer<MAX_SUITES_LEN>;
+    #[deprecated(note = "Use sha56_start instead")]
     fn sha256_digest(&mut self, message: &[u8]) -> BytesHashLen;
+    type HashInProcess<'a>: digest::Digest
+    where
+        Self: 'a;
+    fn sha256_start<'a>(&'a mut self) -> Self::HashInProcess<'a>;
     fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]);
     fn hkdf_extract(&mut self, salt: &BytesHashLen, ikm: &BytesP256ElemLen) -> BytesHashLen;
     fn aes_ccm_encrypt_tag_8<const N: usize>(

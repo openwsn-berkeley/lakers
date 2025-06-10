@@ -47,6 +47,16 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         hasher.finalize().into()
     }
 
+    type HashInProcess<'a>
+        = sha2::Sha256
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sha256_start<'a>(&'a mut self) -> Self::HashInProcess<'a> {
+        sha2::Sha256::new()
+    }
+
     fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]) {
         let hkdf =
             hkdf::Hkdf::<sha2::Sha256>::from_prk(prk).expect("Static size was checked at extract");
