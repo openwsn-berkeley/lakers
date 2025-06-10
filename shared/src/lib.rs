@@ -552,6 +552,7 @@ pub struct Completed {
 /// An enum describing options how to send credentials.
 #[cfg_attr(feature = "python-bindings", pyclass(eq, eq_int))]
 #[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(C)]
 pub enum CredentialTransfer {
     /// This sends a short reference (key ID) of the credential.
     ///
