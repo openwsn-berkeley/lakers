@@ -71,7 +71,10 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
     ) -> EdhocBuffer<N> {
         let key = AesCcm16_64_128::new(key.into());
         let mut outbuffer = EdhocBuffer::new_from_slice(plaintext).unwrap();
-        #[allow(deprecated)] // reason = "hax won't allow creating a .as_mut_slice() method"
+        #[allow(
+            deprecated,
+            reason = "hax won't allow creating a .as_mut_slice() method"
+        )]
         if let Ok(tag) =
             key.encrypt_in_place_detached(iv.into(), ad, &mut outbuffer.content[..plaintext.len()])
         {
@@ -93,7 +96,10 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
         let plaintext_len = ciphertext.len() - AES_CCM_TAG_LEN;
         let mut buffer = EdhocBuffer::new_from_slice(&ciphertext[..plaintext_len]).unwrap();
         let tag = &ciphertext[plaintext_len..];
-        #[allow(deprecated)] // reason = "hax won't allow creating a .as_mut_slice() method"
+        #[allow(
+            deprecated,
+            reason = "hax won't allow creating a .as_mut_slice() method"
+        )]
         key.decrypt_in_place_detached(
             iv.into(),
             ad,
