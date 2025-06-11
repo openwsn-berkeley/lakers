@@ -86,10 +86,12 @@ jobs:
     - name: Checkout lakers
       uses: actions/checkout@v4
 
-    - name: Preprocess Rust code to avoid const expressions
+    - name: Preprocess repository for hax
       run: |
         # Workaround-For: https://github.com/cryspen/hax/issues/923
         find -name '*.rs' -print0 | xargs -0 sed -i 's@const /. BUT NOT FOR HAX ./ {@{@g'
+        # The hax-and-then-fstar Makefile asks: "> Do you have `hax-lib` in your `Cargo.toml` as a git or path dependency?"
+        sed -i -e 's/^hax-lib = /#&/' -e 's/^# to get proof-libs: //' Cargo.toml
 
     - name: Install hax and F* (Fstar)
       uses: hacspec/hax-actions@main
