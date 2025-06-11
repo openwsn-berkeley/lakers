@@ -707,7 +707,7 @@ mod edhoc_parser {
                 let write_range = suites_i
                     .extend_reserve(received_suites_i_len)
                     .or(Err(EDHOCError::ParsingError))?;
-                #[allow(deprecated)] // reason = "hax complains about mutable references in loops"
+                #[allow(deprecated, reason = "hax complains about mutable references in loops")]
                 for i in write_range {
                     suites_i.content[i] = decoder.u8()?;
                 }
