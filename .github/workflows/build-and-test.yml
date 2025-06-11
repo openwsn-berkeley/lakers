@@ -86,24 +86,31 @@ jobs:
     - name: Checkout lakers
       uses: actions/checkout@v4
 
-    - name: Generate fstar code over lakers and lakers-shared
+    - name: Preprocess repository for hax
       run: |
         # Workaround-For: https://github.com/cryspen/hax/issues/923
         find -name '*.rs' -print0 | xargs -0 sed -i 's@const /. BUT NOT FOR HAX ./ {@{@g'
+        # The hax-and-then-fstar Makefile asks: "> Do you have `hax-lib` in your `Cargo.toml` as a git or path dependency?"
+        sed -i -e 's/^hax-lib = /#&/' -e 's/^# to get proof-libs: //' Cargo.toml
 
-        # This is a rather ad-hoc image: it is created by cloning
-        # <https://github.com/hacspec/hax>, running `docker build -f
-        # .docker/Dockerfile . -t hax` and `docker push hax chrysn/hax`
-        docker run --rm -v ${{ github.workspace }}:/lakers docker.io/chrysn/hax bash -e -c "
-        cd lakers
+    - name: Install hax and F* (Fstar)
+      uses: hacspec/hax-actions@main
+      with:
+        # pin hax to known-working
+        hax_reference: "3c066cda73e708f085bf3212672a0e190f2d6e38"
+        fstar: v2025.03.25
 
-        # generate the fstar files
+    - name: Hax extract from lakers and lakers-shared into F* (Fstar)
+      run: |
         cargo-hax -C -p lakers --no-default-features --features='lakers-crypto/rustcrypto' --release \; into -i '-lakers::generate_connection_identifier_cbor -lakers::generate_connection_identifier' fstar
         cargo-hax -C -p lakers-shared \; into -i '-lakers_shared::ffi::**' fstar
 
+    - name: Check for missing items
+      run: |
         # even if fstar generation was ok, fail if something is not implemented
         [ -z "$(find -name *.fst -type f | xargs grep 'something is not implemented yet')" ]
-        "
+    - name: Pack up artifact
+      run: |
         zip -j -r lakers-fstar.zip $(find . -name *fst)
 
     - name: Upload artifact
@@ -111,6 +118,12 @@ jobs:
       with:
         name: fstar-code
         path: ./lakers-fstar.zip
+
+    - name: "Typecheck shared::buffer"
+      working-directory: ./shared/proofs/fstar/extraction
+      run: |
+        curl -o Makefile https://gist.githubusercontent.com/W95Psp/4c304132a1f85c5af4e4959dd6b356c3/raw/Makefile
+        ROOTS=Lakers_shared.Buffer.fst make verify
 
   build-lakers-c:
     needs: unit-tests

@@ -151,12 +151,19 @@ impl CryptoTrait for Crypto {
         };
         let my_key = key_management::import(attributes, None, &key[..]).unwrap();
         let mut output_buffer = EdhocBuffer::new();
+        let out_slice = output_buffer
+            .extend_reserve(ciphertext.len() - AES_CCM_TAG_LEN)
+            .unwrap();
 
-        match aead::decrypt(my_key, alg, iv, ad, ciphertext, &mut output_buffer.content) {
-            Ok(_) => {
-                output_buffer.len = ciphertext.len() - AES_CCM_TAG_LEN;
-                Ok(output_buffer)
-            }
+        match aead::decrypt(
+            my_key,
+            alg,
+            iv,
+            ad,
+            ciphertext,
+            &mut output_buffer.content[out_slice],
+        ) {
+            Ok(_) => Ok(output_buffer),
             Err(_) => Err(EDHOCError::MacVerificationFailed),
         }
     }
