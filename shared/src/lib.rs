@@ -431,25 +431,11 @@ impl EDHOCError {
 pub struct ErrCode(pub NonZeroI16);
 
 impl ErrCode {
-    // The way these are initialized will be simplified once const_option is stable
-
-    pub const UNSPECIFIED: Self = ErrCode(match NonZeroI16::new(1) {
-        Some(v) => v,
-        _ => unreachable!(),
-    });
-    pub const WRONG_SELECTED_CIPHER_SUITE: Self = ErrCode(match NonZeroI16::new(2) {
-        Some(v) => v,
-        _ => unreachable!(),
-    });
-    pub const UNKNOWN_CREDENTIAL: Self = ErrCode(match NonZeroI16::new(3) {
-        Some(v) => v,
-        _ => unreachable!(),
-    });
+    pub const UNSPECIFIED: Self = ErrCode(NonZeroI16::new(1).unwrap());
+    pub const WRONG_SELECTED_CIPHER_SUITE: Self = ErrCode(NonZeroI16::new(2).unwrap());
+    pub const UNKNOWN_CREDENTIAL: Self = ErrCode(NonZeroI16::new(3).unwrap());
     // Code requested in https://datatracker.ietf.org/doc/html/draft-ietf-lake-authz
-    pub const ACCESS_DENIED: Self = ErrCode(match NonZeroI16::new(3333) {
-        Some(v) => v,
-        _ => unreachable!(),
-    });
+    pub const ACCESS_DENIED: Self = ErrCode(NonZeroI16::new(3333).unwrap());
 }
 
 #[derive(Debug)]
