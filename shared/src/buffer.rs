@@ -4,6 +4,44 @@ use core::ops::Index;
 // TODO: move to lib.rs, once EdhocMessageBuffer is replaced by EdhocBuffer.
 pub const MAX_SUITES_LEN: usize = 9;
 
+/// Copies a short slice into the start of a long slice in a way both Rust's const fn and
+/// hax are happy with.
+///
+/// This is a dedicated function because it's tricky to convince hax of it being OK.
+#[hax_lib::requires(short.len() <= long.len())]
+// Inlining because this gets optimized into register shuffling and then a call to memcpy, provided
+// that the assert gets optimized out (that's usually clear from the context) and short is not
+// 0-long (IIUC that's because empty slices may point to NULL in Rust, but memcpy'ing 0 bytes from
+// or to NULL is UB in C where the memcpy comes from).
+#[inline(always)]
+const fn copy_into_longer(long: &mut [u8], short: &[u8]) {
+    // So the compiler knows what hax knows
+    assert!(short.len() <= long.len());
+    let mut cursor = short.len();
+    let _original_length = long.len();
+    while cursor > 0 {
+        hax_lib::loop_decreases!(cursor);
+        // Even though short.len() <= long.len() is a precondition (and thus
+        // `assert!(short.len() <= long.len());` should hold throughout the loop),
+        // from hax's PoV, `long` changes all the time as a whole, becoming an array --
+        // with the 2nd clause of the loop invariant, we can tell it to convince itself
+        // that indeed the cursor doesn't go out of it.
+        //
+        // Forcing it to convince itself that the length stays the same is not just relevant for
+        // the loop (where the assignment would fail otherwise), but also for later where the
+        // function is used: Only with this, the "returned" version of long will even "fit" in the
+        // slot where it was taken from under hax' move-calling pattern.
+        hax_lib::loop_invariant!(cursor <= short.len() && long.len() == _original_length);
+        cursor = cursor - 1;
+        // If you find yourself wondering why the original length trick is needed, put in this
+        // assert and observe how it does or does not trigger during typechecking depending on
+        // whether the assignment to long[cursor] happens (looping without assigning is always
+        // fine) and which invariants are required.
+        //assert!(short.len() <= long.len());
+        long[cursor] = short[cursor];
+    }
+}
+
 #[derive(PartialEq, Debug)]
 #[repr(C)]
 pub enum EdhocBufferError {
@@ -56,6 +94,7 @@ impl<const N: usize> EdhocBuffer<N> {
         N
     }
 
+    #[hax_lib::ensures(|result| result.is_ok() == (slice.len() <= N))]
     pub const fn new_from_slice(slice: &[u8]) -> Result<Self, EdhocBufferError> {
         let mut buffer = Self::new();
         if buffer.fill_with_slice(slice).is_ok() {
@@ -83,6 +122,7 @@ impl<const N: usize> EdhocBuffer<N> {
     /// # use lakers_shared::*;
     /// const MY_CONST: EdhocMessageBuffer = EdhocMessageBuffer::new_from_array(&[0; 10_000]);
     /// ```
+    #[hax_lib::requires(AN <= N)]
     pub const fn new_from_array<const AN: usize>(input: &[u8; AN]) -> Self {
         const /* BUT NOT FOR HAX */ {
             if AN > N {
@@ -132,16 +172,11 @@ impl<const N: usize> EdhocBuffer<N> {
         &self.content[0..self.len]
     }
 
+    #[hax_lib::ensures(|result| result.is_ok() == (slice.len() <= N))]
     pub const fn fill_with_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
         if slice.len() <= self.content.len() {
+            copy_into_longer(&mut self.content, slice);
             self.len = slice.len();
-            // Could be content[..len].copy_from_silce() if not for const, and
-            // self.content.split_at_mut(self.len).0.copy_from_slice() if not for hax.
-            let mut i = 0;
-            while i < self.len {
-                self.content[i] = slice[i];
-                i = i + 1;
-            }
             Ok(())
         } else {
             Err(EdhocBufferError::SliceTooLong)
