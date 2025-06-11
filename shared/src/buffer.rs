@@ -206,10 +206,12 @@ impl<const N: usize> EdhocBuffer<N> {
     }
 }
 
+#[hax_lib::attributes]
 #[allow(deprecated)]
 impl<const N: usize> Index<usize> for EdhocBuffer<N> {
     type Output = u8;
     #[track_caller]
+    #[hax_lib::requires(item < self.len && self.len <= N)]
     fn index(&self, item: usize) -> &Self::Output {
         &self.as_slice()[item]
     }
