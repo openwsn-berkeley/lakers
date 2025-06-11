@@ -88,6 +88,9 @@ jobs:
 
     - name: Generate fstar code over lakers and lakers-shared
       run: |
+        # Workaround-For: https://github.com/cryspen/hax/issues/923
+        find -name '*.rs' -print0 | xargs -0 sed -i 's@const /. BUT NOT FOR HAX ./ {@{@g'
+
         # This is a rather ad-hoc image: it is created by cloning
         # <https://github.com/hacspec/hax>, running `docker build -f
         # .docker/Dockerfile . -t hax` and `docker push hax chrysn/hax`

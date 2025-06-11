@@ -213,7 +213,7 @@ impl ConnIdType {
     /// Returns a classifier based on an initial byte.
     ///
     /// Its signature will need to change if ever connection IDs longer than 1+0+n are supported.
-    fn classify(byte: u8) -> Option<Self> {
+    const fn classify(byte: u8) -> Option<Self> {
         if byte >> 5 <= 1 && byte & 0x1f < 24 {
             return Some(ConnIdType::SingleByte);
         } else if byte >> 5 == 2 && byte & 0x1f < 24 {
@@ -318,7 +318,7 @@ impl ConnId {
     /// let c_i = ConnId::from_slice(&[0x12, 0x34]).unwrap();
     /// assert!(c_i.as_slice() == &[0x12, 0x34]);
     /// ```
-    pub fn from_slice(input: &[u8]) -> Option<Self> {
+    pub const fn from_slice(input: &[u8]) -> Option<Self> {
         if input.len() > MAX_CONNID_ENCODED_LEN - 1 {
             None
         } else {
@@ -328,8 +328,16 @@ impl ConnId {
             {
                 s[0] = input[0];
             } else {
+                // This could be split_at_mut (eg. `let (first, tail) = s.split_at_mut(1);` if not
+                // for hax
                 s[0] = input.len() as u8 | 0x40;
-                s[1..1 + input.len()].copy_from_slice(input);
+                // This could be a [input.len..].copy_from_slice() if not for const, and a
+                // split_at_mut if not for hax.
+                let mut i = 0;
+                while i < input.len() {
+                    s[1 + i] = input[i];
+                    i = i + 1;
+                }
             }
             Some(Self(s))
         }
