@@ -103,6 +103,7 @@ impl<const N: usize> EdhocBuffer<N> {
         self.as_slice().contains(item)
     }
 
+    #[inline]
     pub fn push(&mut self, item: u8) -> Result<(), EdhocBufferError> {
         if self.len < self.content.len() {
             self.content[self.len] = item;
@@ -121,6 +122,7 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    #[inline]
     pub fn as_slice(&self) -> &[u8] {
         &self.content[0..self.len]
     }
@@ -141,6 +143,7 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
+    #[inline]
     pub fn extend_from_slice(&mut self, slice: &[u8]) -> Result<(), EdhocBufferError> {
         if self.len + slice.len() <= self.content.len() {
             self.content[self.len..self.len + slice.len()].copy_from_slice(slice);
