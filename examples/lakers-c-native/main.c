@@ -126,9 +126,11 @@ int main(void)
     BytesP256ElemLen authz_secret;
     initiator_compute_ephemeral_secret(&initiator, &G_W, &authz_secret);
     puts("computing ead_1.");
-    EADItemC ead_1 = {0};
-    authz_device_prepare_ead_1(&device, &authz_secret, SS, &ead_1);
-    print_hex(ead_1.value.content, ead_1.value.len);
+    EADItemC ead_1[MAX_EAD_ITEMS] = {0};
+    authz_device_prepare_ead_1(&device, &authz_secret, SS, ead_1);
+    for (int i = 0; i < MAX_EAD_ITEMS && ead_1[i].value.len > 0; i++) {
+        print_hex(ead_1[i].value.content, ead_1[i].value.len);
+    }
 #endif
 
     puts("Begin test: edhoc initiator.");
@@ -151,7 +153,7 @@ int main(void)
     puts("processing msg2");
     EdhocMessageBuffer message_2 = {.len = coap_response_payload_len};
     memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
-    EADItemC ead_2 = {0};
+    EADItemC ead_2[MAX_EAD_ITEMS] = {0};
     uint8_t c_r;
     IdCred id_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ
@@ -174,7 +176,7 @@ int main(void)
     }
 #ifdef LAKERS_EAD_AUTHZ
     puts("processing ead2");
-    res = authz_device_process_ead_2(&device, &ead_2, &fetched_cred_r);
+    res = authz_device_process_ead_2(&device, ead_2, &fetched_cred_r);
     if (res != 0) {
         printf("Error process ead2 (authz): %d\n", res);
         return 1;

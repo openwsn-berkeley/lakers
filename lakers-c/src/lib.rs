@@ -60,7 +60,7 @@ pub struct ProcessingM2C {
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
     pub id_cred_r: IdCred,
-    pub ead_2: *mut EADItemC,
+    pub ead_2: *mut [EADItemC; MAX_EAD_ITEMS],
 }
 
 impl Default for ProcessingM2C {
@@ -91,11 +91,7 @@ impl ProcessingM2C {
             #[allow(deprecated)]
             c_r: ConnId::from_int_raw(self.c_r),
             id_cred_r: self.id_cred_r.clone(),
-            ead_2: if self.ead_2.is_null() {
-                None
-            } else {
-                Some(unsafe { (*self.ead_2).to_rust() })
-            },
+            ead_2: unsafe { (*self.ead_2).clone().map(|item| item.to_rust()) },
         }
     }
 

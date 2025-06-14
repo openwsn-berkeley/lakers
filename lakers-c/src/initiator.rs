@@ -44,7 +44,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     initiator_c: *mut EdhocInitiator,
     // input params
     c_i: *mut u8,
-    ead_1_c: *mut EADItemC,
+    ead_1_c: *mut [EADItemC; MAX_EAD_ITEMS],
     // output params
     message_1: *mut EdhocMessageBuffer,
 ) -> i8 {
@@ -60,12 +60,7 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
         ConnId::from_int_raw(*c_i)
     };
 
-    let ead_1 = if ead_1_c.is_null() {
-        None
-    } else {
-        let ead_1 = (*ead_1_c).to_rust();
-        Some(ead_1)
-    };
+    let ead_1 = (*ead_1_c).clone().map(|item| item.to_rust());
 
     let state = core::ptr::read(&(*initiator_c).start);
 
@@ -89,7 +84,7 @@ pub unsafe extern "C" fn initiator_parse_message_2(
     // output params
     c_r_out: *mut u8,
     id_cred_r_out: *mut IdCred,
-    ead_2_c_out: *mut EADItemC,
+    ead_2_c_out: *mut [EADItemC; MAX_EAD_ITEMS],
 ) -> i8 {
     // this is a parsing function, so all output parameters are mandatory
     if initiator_c.is_null()
@@ -113,10 +108,11 @@ pub unsafe extern "C" fn initiator_parse_message_2(
             assert_eq!(c_r.len(), 1, "C API only supports short C_R");
             *c_r_out = c_r[0];
             *id_cred_r_out = id_cred_r;
-            if let Some(ead_2) = ead_2 {
-                EADItemC::copy_into_c(ead_2, ead_2_c_out);
-                (*initiator_c).processing_m2.ead_2 = ead_2_c_out;
+
+            for i in 0..MAX_EAD_ITEMS {
+                EADItemC::copy_into_c(ead_2[i].clone(), &mut (*ead_2_c_out)[i]);
             }
+            (*initiator_c).processing_m2.ead_2 = ead_2_c_out;
 
             0
         }
@@ -156,7 +152,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
     // input params
     initiator_c: *mut EdhocInitiator,
     cred_transfer: CredentialTransfer,
-    ead_3_c: *mut EADItemC,
+    ead_3_c: *mut [EADItemC; MAX_EAD_ITEMS],
     // output params
     message_3: *mut EdhocMessageBuffer,
     prk_out_c: *mut [u8; SHA256_DIGEST_LEN],
@@ -168,12 +164,7 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
 
     let state = core::ptr::read(&(*initiator_c).processed_m2);
 
-    let ead_3 = if ead_3_c.is_null() {
-        None
-    } else {
-        let ead_3 = (*ead_3_c).to_rust();
-        Some(ead_3)
-    };
+    let ead_3 = (*ead_3_c).clone().map(|item| item.to_rust());
 
     match i_prepare_message_3(
         &state,
@@ -198,7 +189,7 @@ pub unsafe extern "C" fn initiator_process_message_4(
     initiator_c: *mut EdhocInitiator,
     message_4: *const EdhocMessageBuffer,
     // output params
-    ead_4_c_out: *mut EADItemC,
+    ead_4_c_out: *mut [EADItemC; MAX_EAD_ITEMS],
 ) -> i8 {
     // this is a parsing function, so all output parameters are mandatory
     if initiator_c.is_null() || message_4.is_null() || ead_4_c_out.is_null() {
@@ -211,8 +202,8 @@ pub unsafe extern "C" fn initiator_process_message_4(
     let result = match i_process_message_4(&mut state, crypto, &(*message_4)) {
         Ok((state, ead_4)) => {
             (*initiator_c).completed = state;
-            if let Some(ead_4) = ead_4 {
-                EADItemC::copy_into_c(ead_4, ead_4_c_out);
+            for i in 0..MAX_EAD_ITEMS {
+                EADItemC::copy_into_c(ead_4[i].clone(), &mut (*ead_4_c_out)[i]);
             }
 
             0
