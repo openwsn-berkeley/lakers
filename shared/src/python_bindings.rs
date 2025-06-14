@@ -60,7 +60,7 @@ impl EADItem {
     }
 
     #[staticmethod]
-    fn new_array_py() -> [Self; MAX_EAD_ITEMS] {
+    fn new_empty_array_py() -> [Self; MAX_EAD_ITEMS] {
         core::array::from_fn(|_| EADItem::new())
     }
 }

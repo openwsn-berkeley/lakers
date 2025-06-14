@@ -123,7 +123,7 @@ impl coap_handler::Handler for EdhocHandler {
             .process_message_1(message_1)
             .map_err(render_error)?;
 
-            let mut ead_2 = EADItem::new_array();
+            let mut ead_2 = EADItem::new_empty_array();
             if ead_1[0].value.is_some() {
                 let ead_1 = &ead_1[0];
                 let authenticator = ZeroTouchAuthenticator::default();
@@ -189,8 +189,9 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let (mut responder, _message_4) =
-                responder.prepare_message_4(&EADItem::new_array()).unwrap();
+            let (mut responder, _message_4) = responder
+                .prepare_message_4(&EADItem::new_empty_array())
+                .unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 

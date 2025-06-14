@@ -90,7 +90,7 @@ fn main() -> ! {
 
         let _c_i =
             generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto()).as_slice();
-        let message_1 = initiator.prepare_message_1(None, &EADItem::new_array());
+        let message_1 = initiator.prepare_message_1(None, &EADItem::new_empty_array());
         assert!(message_1.is_ok());
     }
 
@@ -114,12 +114,16 @@ fn main() -> ! {
         );
 
         let (initiator, message_1) = initiator
-            .prepare_message_1(None, &EADItem::new_array())
+            .prepare_message_1(None, &EADItem::new_empty_array())
             .unwrap();
 
         let (responder, _c_i, _ead_1) = responder.process_message_1(&message_1).unwrap();
         let (responder, message_2) = responder
-            .prepare_message_2(CredentialTransfer::ByReference, None, &EADItem::new_array())
+            .prepare_message_2(
+                CredentialTransfer::ByReference,
+                None,
+                &EADItem::new_empty_array(),
+            )
             .unwrap();
 
         let (mut initiator, _c_r, id_cred_r, _ead_2) =
@@ -134,7 +138,7 @@ fn main() -> ! {
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
         let (initiator, message_3, i_prk_out) = initiator
-            .prepare_message_3(CredentialTransfer::ByReference, &EADItem::new_array())
+            .prepare_message_3(CredentialTransfer::ByReference, &EADItem::new_empty_array())
             .unwrap();
 
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();

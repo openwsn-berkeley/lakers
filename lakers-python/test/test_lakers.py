@@ -24,7 +24,7 @@ def test_gen_keys():
 
 def test_initiator():
     initiator = EdhocInitiator()
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_array_py())
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_empty_array_py())
     assert type(message_1) == bytes
 
 def test_responder():
@@ -52,7 +52,7 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     responder = EdhocResponder(R, CRED_R)
 
     # initiator
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_array_py())
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_empty_array_py())
 
     # responder
     _c_i, ead_1 = responder.process_message_1(message_1)
@@ -65,7 +65,7 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     assert ead_2[0].value() == None
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
-    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer, EADItem.new_array_py())
+    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer, EADItem.new_empty_array_py())
     assert type(message_3) == bytes
 
     # responder
@@ -73,7 +73,7 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     assert ead_3[0].value() == None
     valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
     r_prk_out = responder.verify_message_3(valid_cred_i)
-    message_4 = responder.prepare_message_4(EADItem.new_array_py())
+    message_4 = responder.prepare_message_4(EADItem.new_empty_array_py())
 
     assert i_prk_out == r_prk_out
 
@@ -108,12 +108,12 @@ def test_buffer_error():
 def test_state_missing_step():
     initiator = EdhocInitiator()
     with pytest.raises(RuntimeError) as err:
-        initiator.prepare_message_3(CredentialTransfer.ByReference, EADItem.new_array_py())
+        initiator.prepare_message_3(CredentialTransfer.ByReference, EADItem.new_empty_array_py())
     assert str(err.value).startswith("State machine is just at Start, but this operation requires it to have progressed to ProcessedM2")
 
 def test_state_no_going_back():
     initiator = EdhocInitiator()
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_array_py())
+    message_1 = initiator.prepare_message_1(c_i=None, ead_1=EADItem.new_empty_array_py())
 
     responder = EdhocResponder(R, CRED_R)
     assert "Start" in repr(responder), f"Expected state to be reported in repr, found {responder!r}"

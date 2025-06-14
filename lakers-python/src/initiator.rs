@@ -76,7 +76,7 @@ impl PyEdhocInitiator {
     ///
     /// At this point, a ``C_I`` (connection identifier) may be provided, as well as additonal EAD
     /// data.
-    #[pyo3(signature = (c_i=None, ead_1=EADItem::new_array()))]
+    #[pyo3(signature = (c_i=None, ead_1=EADItem::new_empty_array()))]
     fn prepare_message_1<'a>(
         &mut self,
         py: Python<'a>,
@@ -159,7 +159,7 @@ impl PyEdhocInitiator {
     ///
     /// Input influences whether the credential previously provided in :meth:`verify_message_2()` is
     /// sent by value or reference, and whether any additional EAD data is to be sent.
-    #[pyo3(signature = (cred_transfer, ead_3=EADItem::new_array()))]
+    #[pyo3(signature = (cred_transfer, ead_3=EADItem::new_empty_array()))]
     pub fn prepare_message_3<'a>(
         &mut self,
         py: Python<'a>,

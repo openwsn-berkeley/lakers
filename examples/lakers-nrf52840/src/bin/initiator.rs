@@ -79,7 +79,7 @@ async fn main(spawner: Spawner) {
     // Send Message 1 over raw BLE and convert the response to byte
     let c_i = generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
     let (initiator, message_1) = initiator
-        .prepare_message_1(Some(c_i), &EADItem::new_array())
+        .prepare_message_1(Some(c_i), &EADItem::new_empty_array())
         .unwrap();
     let pckt_1 = common::Packet::new_from_slice(message_1.as_slice(), Some(0xf5))
         .expect("Buffer not long enough");
