@@ -1038,48 +1038,59 @@ mod tests {
 
     // message_1 (first_time)
     const METHOD_TV_FIRST_TIME: u8 = 0x03;
-    const SUITES_I_TV_FIRST_TIME: &str = "06";
+    const SUITES_I_TV_FIRST_TIME: EdhocBuffer<MAX_SUITES_LEN> =
+        EdhocBuffer::new_from_array(&hex!("06"));
     const G_X_TV_FIRST_TIME: BytesP256ElemLen =
         hex!("741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9");
     #[allow(deprecated)]
     const C_I_TV_FIRST_TIME: ConnId = ConnId::from_int_raw(0x0e);
-    const MESSAGE_1_TV_FIRST_TIME: &str =
-        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_TV_FIRST_TIME: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!(
+        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e"
+    ));
 
     // message_1 (second time)
     const METHOD_TV: u8 = 0x03;
     // manually modified test vector to include a single supported cipher suite
-    const SUITES_I_TV: &str = "0602";
+    const SUITES_I_TV: EdhocBuffer<MAX_SUITES_LEN> = EdhocBuffer::new_from_array(&hex!("0602"));
     const G_X_TV: BytesP256ElemLen =
         hex!("8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6");
     #[allow(deprecated)]
     const C_I_TV: ConnId = ConnId::from_int_raw(0x37);
-    const MESSAGE_1_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+    const MESSAGE_1_TV: BufferMessage1 = EdhocBuffer::new_from_array(&hex!(
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637"
+    ));
     // below are a few truncated messages for the purpose of testing cipher suites
     // message with one cipher suite (23..=255)
-    const MESSAGE_1_TV_SUITE_ONLY_A: &str = "031818";
+    const MESSAGE_1_TV_SUITE_ONLY_A: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("031818"));
     // message with an array having two cipher suites with small values (0..=23)
-    const MESSAGE_1_TV_SUITE_ONLY_B: &str = "03820201";
+    const MESSAGE_1_TV_SUITE_ONLY_B: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("03820201"));
     // message with an array having two cipher suites, where one is a large value (23..=255)
-    const MESSAGE_1_TV_SUITE_ONLY_C: &str = "0382021819";
+    const MESSAGE_1_TV_SUITE_ONLY_C: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("0382021819"));
     // message with an array having too many cipher suites (more than 9)
-    const MESSAGE_1_TV_SUITE_ONLY_ERR: &str = "038A02020202020202020202";
+    const MESSAGE_1_TV_SUITE_ONLY_ERR: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("038A02020202020202020202"));
     const EAD_DUMMY_LABEL_TV: u16 = 0x01;
-    const EAD_DUMMY_VALUE_TV: &str = "cccccc";
-    const EAD_DUMMY_CRITICAL_TV: &str = "20cccccc";
-    const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701";
-    const MESSAGE_1_WITH_DUMMY_EAD_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc";
-    const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc";
+    const EAD_DUMMY_VALUE_TV: EdhocBuffer<MAX_EAD_LEN> =
+        EdhocBuffer::new_from_array(&hex!("cccccc"));
+    const EAD_DUMMY_CRITICAL_TV: EdhocBuffer<MAX_EAD_LEN> =
+        EdhocBuffer::new_from_array(&hex!("20cccccc"));
+    const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(
+        &hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701"),
+    );
+    const MESSAGE_1_WITH_DUMMY_EAD_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!(
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63701cccccc"
+    ));
+    const MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!("0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b63720cccccc"));
     const G_Y_TV: BytesP256ElemLen =
         hex!("419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5");
     #[allow(deprecated)]
     const C_R_TV: ConnId = ConnId::from_int_raw(0x27);
-    const MESSAGE_2_TV: &str = "582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a1eef9e0e7e1886fcd";
-    const CIPHERTEXT_2_TV: &str = "9862a1eef9e0e7e1886fcd";
+    const MESSAGE_2_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!("582b419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d59862a1eef9e0e7e1886fcd"));
+    const CIPHERTEXT_2_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("9862a1eef9e0e7e1886fcd"));
     const H_MESSAGE_1_TV: BytesHashLen =
         hex!("ca02cabda5a8902749b42f711050bb4dbd52153e87527594b39f50cdf019888c");
     const TH_2_TV: BytesHashLen =
@@ -1090,7 +1101,7 @@ mod tests {
         hex!("c902b1e3a4326c93c5551f5f3aa6c5ecc0246806765612e52b5d99e6059d6b6e");
     const PRK_2E_TV: BytesP256ElemLen =
         hex!("5aa0d69f3e3d1e0c479f0b8a486690c9802630c3466b1dc92371c982563170b5");
-    const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len() / 2 - P256_ELEM_LEN - 2;
+    const CIPHERTEXT_2_LEN_TV: usize = MESSAGE_2_TV.len() - P256_ELEM_LEN - 2;
     const PLAINTEXT_2_LEN_TV: usize = CIPHERTEXT_2_LEN_TV;
     const KEYSTREAM_2_TV: [u8; PLAINTEXT_2_LEN_TV] = hex!("bf50e9e7bad0bb68173399");
     const PRK_3E2M_TV: BytesP256ElemLen =
@@ -1099,24 +1110,28 @@ mod tests {
     const MAC_2_TV: BytesMac2 = hex!("0943305c899f5c54");
     const ID_CRED_I_TV: [u8; 4] = hex!("a104412b");
     const MAC_3_TV: BytesMac3 = hex!("623c91df41e34c2f");
-    const MESSAGE_3_TV: &str = "52e562097bc417dd5919485ac7891ffd90a9fc";
+    const MESSAGE_3_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("52e562097bc417dd5919485ac7891ffd90a9fc"));
     const PRK_4E3M_TV: BytesP256ElemLen =
         hex!("81cc8a298e357044e3c466bb5c0a1e507e01d49238aeba138df94635407c0ff7");
-    const MESSAGE_4_TV: &str = "4828c966b7ca304f83";
-    const PLAINTEXT_4_TV: &str = "";
+    const MESSAGE_4_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("4828c966b7ca304f83"));
+    const PLAINTEXT_4_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!(""));
     const K_4_TV: BytesCcmKeyLen = hex!("d3c77872b6eeb508911bdbd308b2e6a0");
     const IV_4_TV: BytesCcmIvLen = hex!("04ff0f44456e96e217853c3601");
     const CRED_I_TV : [u8; 107] = hex!("a2027734322d35302d33312d46462d45462d33372d33322d333908a101a5010202412b2001215820ac75e9ece3e50bfc8ed60399889522405c47bf16df96660a41298cb4307f7eb62258206e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8");
     const ID_CRED_R_TV: [u8; 4] = hex!("a1044132");
     const CRED_R_TV : [u8; 95] = hex!("a2026b6578616d706c652e65647508a101a501020241322001215820bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f02258204519e257236b2a0ce2023f0931f1f386ca7afda64fcde0108c224c51eabf6072");
-    const PLAINTEXT_2_TV: &str = "2732480943305c899f5c54";
+    const PLAINTEXT_2_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("2732480943305c899f5c54"));
     const SK_I_TV: BytesP256ElemLen =
         hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
     const X_TV: BytesP256ElemLen =
         hex!("368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525");
     const G_R_TV: BytesP256ElemLen =
         hex!("bbc34960526ea4d32e940cad2a234148ddc21791a12afbcbac93622046dd44f0");
-    const PLAINTEXT_3_TV: &str = "2b48623c91df41e34c2f";
+    const PLAINTEXT_3_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("2b48623c91df41e34c2f"));
     const SALT_3E2M_TV: BytesHashLen =
         hex!("af4e103a47cb3cf32570d5c25ad27732bd8d8178e9a69d061c31a27f8e3ca926");
     const SALT_4E3M_TV: BytesHashLen =
@@ -1131,19 +1146,24 @@ mod tests {
     const OSCORE_MASTER_SALT_TV: [u8; 8] = hex!("ada24c7dbfc85eeb");
 
     // invalid test vectors, should result in a parsing error
-    const MESSAGE_1_INVALID_ARRAY_TV: &str =
-        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
+    const MESSAGE_1_INVALID_ARRAY_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!(
+        "8403025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e"
+    ));
     // This is invalid because the h'0e' byte string is a text string instead
-    const MESSAGE_1_INVALID_C_I_TV: &str =
-        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9610e";
-    const MESSAGE_1_INVALID_CIPHERSUITE_TV: &str =
-        "0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
-    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: &str =
-        "0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e";
-    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: &str =
-        "5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a";
-    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: &str = "27a10442321048fa5efa2ebf920bf3";
-    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: &str = "27413248fa5efa2ebf920bf3";
+    const MESSAGE_1_INVALID_C_I_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!(
+        "03025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa9610e"
+    ));
+    const MESSAGE_1_INVALID_CIPHERSUITE_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(
+        &hex!("0381025820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e"),
+    );
+    const MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(
+        &hex!("0302782020616972207370656564206F66206120756E6C6164656E207377616C6C6F77200e"),
+    );
+    const MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(&hex!("5820419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d54B9862a11de42a95d785386a"));
+    const PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("27a10442321048fa5efa2ebf920bf3"));
+    const PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV: EdhocMessageBuffer =
+        EdhocBuffer::new_from_array(&hex!("27413248fa5efa2ebf920bf3"));
 
     #[test]
     fn test_ecdh() {
@@ -1154,36 +1174,31 @@ mod tests {
 
     #[test]
     fn test_encode_message_1() {
-        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let message_1 =
-            encode_message_1(METHOD_TV, &suites_i_tv, &G_X_TV, C_I_TV, &None::<EADItem>).unwrap();
+            encode_message_1(METHOD_TV, &SUITES_I_TV, &G_X_TV, C_I_TV, &None::<EADItem>).unwrap();
 
         assert_eq!(message_1.len(), 39);
-        assert_eq!(message_1, BufferMessage1::from_hex(MESSAGE_1_TV));
+        assert_eq!(message_1, MESSAGE_1_TV);
     }
 
     #[test]
     fn test_parse_suites_i() {
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
+        let decoder = CBORDecoder::new(&MESSAGE_1_TV.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
-        assert_eq!(suites_i, suites_i_tv);
+        assert_eq!(suites_i, SUITES_I_TV);
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_A);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
+        let decoder = CBORDecoder::new(&MESSAGE_1_TV_SUITE_ONLY_A.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
         assert_eq!(suites_i[0], 0x18);
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_B);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
+        let decoder = CBORDecoder::new(&MESSAGE_1_TV_SUITE_ONLY_B.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1191,9 +1206,8 @@ mod tests {
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x01);
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_C);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
+        let decoder = CBORDecoder::new(&MESSAGE_1_TV_SUITE_ONLY_C.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert!(res.is_ok());
         let (suites_i, _decoder) = res.unwrap();
@@ -1201,38 +1215,32 @@ mod tests {
         assert_eq!(suites_i[0], 0x02);
         assert_eq!(suites_i[1], 0x19);
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV_SUITE_ONLY_ERR);
         // skip the fist byte (method)
-        let decoder = CBORDecoder::new(&message_1_tv.as_slice()[1..]);
+        let decoder = CBORDecoder::new(&MESSAGE_1_TV_SUITE_ONLY_ERR.as_slice()[1..]);
         let res = parse_suites_i(decoder);
         assert_eq!(res.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
     fn test_parse_message_1() {
-        let message_1_tv_first_time = BufferMessage1::from_hex(MESSAGE_1_TV_FIRST_TIME);
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
-        let suites_i_tv_first_time = EdhocBuffer::from_hex(SUITES_I_TV_FIRST_TIME);
-        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
-
         // first time message_1 parsing
-        let res = parse_message_1(&message_1_tv_first_time);
+        let res = parse_message_1(&MESSAGE_1_TV_FIRST_TIME);
         assert!(res.is_ok());
         let (method, suites_i, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV_FIRST_TIME);
-        assert_eq!(suites_i, suites_i_tv_first_time);
+        assert_eq!(suites_i, SUITES_I_TV_FIRST_TIME);
         assert_eq!(g_x, G_X_TV_FIRST_TIME);
         assert_eq!(c_i, C_I_TV_FIRST_TIME);
         assert!(ead_1.is_none());
 
         // second time message_1
-        let res = parse_message_1(&message_1_tv);
+        let res = parse_message_1(&MESSAGE_1_TV);
         assert!(res.is_ok());
         let (method, suites_i, g_x, c_i, ead_1) = res.unwrap();
 
         assert_eq!(method, METHOD_TV);
-        assert_eq!(suites_i, suites_i_tv);
+        assert_eq!(suites_i, SUITES_I_TV);
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
         assert!(ead_1.is_none());
@@ -1240,57 +1248,50 @@ mod tests {
 
     #[test]
     fn test_parse_message_1_invalid_traces() {
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_ARRAY_TV);
         assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
+            parse_message_1(&MESSAGE_1_INVALID_ARRAY_TV).unwrap_err(),
             EDHOCError::ParsingError
         );
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_C_I_TV);
         assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
+            parse_message_1(&MESSAGE_1_INVALID_C_I_TV).unwrap_err(),
             EDHOCError::ParsingError
         );
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_CIPHERSUITE_TV);
         assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
+            parse_message_1(&MESSAGE_1_INVALID_CIPHERSUITE_TV).unwrap_err(),
             EDHOCError::ParsingError
         );
 
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV);
         assert_eq!(
-            parse_message_1(&message_1_tv).unwrap_err(),
+            parse_message_1(&MESSAGE_1_INVALID_TEXT_EPHEMERAL_KEY_TV).unwrap_err(),
             EDHOCError::ParsingError
         );
     }
 
     #[test]
     fn test_parse_message_2_invalid_traces() {
-        let message_2_tv = BufferMessage2::from_hex(MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV);
         assert_eq!(
-            parse_message_2(&message_2_tv).unwrap_err(),
+            parse_message_2(&MESSAGE_2_INVALID_NUMBER_OF_CBOR_SEQUENCE_TV).unwrap_err(),
             EDHOCError::ParsingError
         );
     }
 
     #[test]
     fn test_encode_message_2() {
-        let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let message_2 = encode_message_2(&G_Y_TV, &ciphertext_2_tv);
+        let message_2 = encode_message_2(&G_Y_TV, &CIPHERTEXT_2_TV);
 
-        assert_eq!(message_2, BufferMessage2::from_hex(MESSAGE_2_TV));
+        assert_eq!(message_2, MESSAGE_2_TV);
     }
 
     #[test]
     fn test_parse_message_2() {
-        let ciphertext_2_tv = BufferCiphertext2::from_hex(CIPHERTEXT_2_TV);
-        let ret = parse_message_2(&BufferMessage2::from_hex(MESSAGE_2_TV));
+        let ret = parse_message_2(&MESSAGE_2_TV);
         assert!(ret.is_ok());
         let (g_y, ciphertext_2) = ret.unwrap();
 
         assert_eq!(g_y, G_Y_TV);
-        assert_eq!(ciphertext_2, ciphertext_2_tv);
+        assert_eq!(ciphertext_2, CIPHERTEXT_2_TV);
     }
 
     #[test]
@@ -1301,17 +1302,13 @@ mod tests {
 
     #[test]
     fn test_compute_th_3() {
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-
-        let th_3 = compute_th_3(&mut default_crypto(), &TH_2_TV, &plaintext_2_tv, &CRED_R_TV);
+        let th_3 = compute_th_3(&mut default_crypto(), &TH_2_TV, &PLAINTEXT_2_TV, &CRED_R_TV);
         assert_eq!(th_3, TH_3_TV);
     }
 
     #[test]
     fn test_compute_th_4() {
-        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-
-        let th_4 = compute_th_4(&mut default_crypto(), &TH_3_TV, &plaintext_3_tv, &CRED_I_TV);
+        let th_4 = compute_th_4(&mut default_crypto(), &TH_3_TV, &PLAINTEXT_3_TV, &CRED_I_TV);
         assert_eq!(th_4, TH_4_TV);
     }
 
@@ -1339,27 +1336,21 @@ mod tests {
 
     #[test]
     fn test_encrypt_message_3() {
-        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let message_3_tv = BufferMessage3::from_hex(MESSAGE_3_TV);
-
         let message_3 = encrypt_message_3(
             &mut default_crypto(),
             &PRK_3E2M_TV,
             &TH_3_TV,
-            &plaintext_3_tv,
+            &PLAINTEXT_3_TV,
         );
-        assert_eq!(message_3, message_3_tv);
+        assert_eq!(message_3, MESSAGE_3_TV);
     }
 
     #[test]
     fn test_decrypt_message_3() {
-        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-        let message_3_tv = BufferMessage3::from_hex(MESSAGE_3_TV);
-
         let plaintext_3 =
-            decrypt_message_3(&mut default_crypto(), &PRK_3E2M_TV, &TH_3_TV, &message_3_tv);
+            decrypt_message_3(&mut default_crypto(), &PRK_3E2M_TV, &TH_3_TV, &MESSAGE_3_TV);
         assert!(plaintext_3.is_ok());
-        assert_eq!(plaintext_3.unwrap(), plaintext_3_tv);
+        assert_eq!(plaintext_3.unwrap(), PLAINTEXT_3_TV);
     }
 
     #[test]
@@ -1392,7 +1383,6 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_2() {
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
         let plaintext_2 = encode_plaintext_2(
             C_R_TV,
             IdCred::from_full_value(&ID_CRED_R_TV[..])
@@ -1403,25 +1393,21 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(plaintext_2, plaintext_2_tv);
+        assert_eq!(plaintext_2, PLAINTEXT_2_TV);
     }
 
     #[test]
     fn test_parse_plaintext_2_invalid_traces() {
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV);
-        let ret = decode_plaintext_2(&plaintext_2_tv);
+        let ret = decode_plaintext_2(&PLAINTEXT_2_SURPLUS_MAP_ID_CRED_TV);
         assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
 
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV);
-        let ret = decode_plaintext_2(&plaintext_2_tv);
+        let ret = decode_plaintext_2(&PLAINTEXT_2_SURPLUS_BSTR_ID_CRED_TV);
         assert_eq!(ret.unwrap_err(), EDHOCError::ParsingError);
     }
 
     #[test]
     fn test_decode_plaintext_2() {
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-
-        let plaintext_2 = decode_plaintext_2(&plaintext_2_tv);
+        let plaintext_2 = decode_plaintext_2(&PLAINTEXT_2_TV);
         assert!(plaintext_2.is_ok());
         let (c_r, id_cred_r, mac_2, ead_2) = plaintext_2.unwrap();
         assert_eq!(c_r, C_R_TV);
@@ -1432,30 +1418,26 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_ciphertext_2() {
-        let plaintext_2_tv = BufferPlaintext2::from_hex(PLAINTEXT_2_TV);
-        let ciphertext_2_tv = BufferPlaintext2::from_hex(CIPHERTEXT_2_TV);
         // test decryption
         let plaintext_2 = encrypt_decrypt_ciphertext_2(
             &mut default_crypto(),
             &PRK_2E_TV,
             &TH_2_TV,
-            &ciphertext_2_tv,
+            &CIPHERTEXT_2_TV,
         );
 
-        assert_eq!(plaintext_2, plaintext_2_tv);
+        assert_eq!(plaintext_2, PLAINTEXT_2_TV);
 
         // test encryption
         let ciphertext_2 =
             encrypt_decrypt_ciphertext_2(&mut default_crypto(), &PRK_2E_TV, &TH_2_TV, &plaintext_2);
 
-        assert_eq!(ciphertext_2, ciphertext_2_tv);
+        assert_eq!(ciphertext_2, CIPHERTEXT_2_TV);
     }
 
     #[test]
     fn test_decode_plaintext_4() {
-        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
-
-        let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
+        let plaintext_4 = decode_plaintext_4(&PLAINTEXT_4_TV);
         assert!(plaintext_4.is_ok());
         let ead_4 = plaintext_4.unwrap();
         assert!(ead_4.is_none());
@@ -1463,27 +1445,21 @@ mod tests {
 
     #[test]
     fn test_encrypt_message_4() {
-        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
-        let message_4_tv = BufferMessage4::from_hex(MESSAGE_4_TV);
-
         let message_4 = encrypt_message_4(
             &mut default_crypto(),
             &PRK_4E3M_TV,
             &TH_4_TV,
-            &plaintext_4_tv,
+            &PLAINTEXT_4_TV,
         );
-        assert_eq!(message_4, message_4_tv);
+        assert_eq!(message_4, MESSAGE_4_TV);
     }
 
     #[test]
     fn test_decrypt_message_4() {
-        let plaintext_4_tv = BufferPlaintext4::from_hex(PLAINTEXT_4_TV);
-        let message_4_tv = BufferMessage4::from_hex(MESSAGE_4_TV);
-
         let plaintext_4 =
-            decrypt_message_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV, &message_4_tv);
+            decrypt_message_4(&mut default_crypto(), &PRK_4E3M_TV, &TH_4_TV, &MESSAGE_4_TV);
         assert!(plaintext_4.is_ok());
-        assert_eq!(plaintext_4.unwrap(), plaintext_4_tv);
+        assert_eq!(plaintext_4.unwrap(), PLAINTEXT_4_TV);
     }
 
     #[test]
@@ -1513,7 +1489,6 @@ mod tests {
 
     #[test]
     fn test_encode_plaintext_3() {
-        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
         let plaintext_3 = encode_plaintext_3(
             IdCred::from_full_value(&ID_CRED_I_TV[..])
                 .unwrap()
@@ -1522,14 +1497,12 @@ mod tests {
             &None::<EADItem>,
         )
         .unwrap();
-        assert_eq!(plaintext_3, plaintext_3_tv);
+        assert_eq!(plaintext_3, PLAINTEXT_3_TV);
     }
 
     #[test]
     fn test_decode_plaintext_3() {
-        let plaintext_3_tv = BufferPlaintext3::from_hex(PLAINTEXT_3_TV);
-
-        let (id_cred_i, mac_3, ead_3) = decode_plaintext_3(&plaintext_3_tv).unwrap();
+        let (id_cred_i, mac_3, ead_3) = decode_plaintext_3(&PLAINTEXT_3_TV).unwrap();
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(id_cred_i.as_full_value(), ID_CRED_I_TV);
@@ -1538,43 +1511,38 @@ mod tests {
 
     #[test]
     fn test_encode_ead_item() {
-        let ead_tv = EdhocBuffer::from_hex(EAD_DUMMY_CRITICAL_TV);
-
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
             is_critical: true,
-            value: Some(EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
+            value: Some(EAD_DUMMY_VALUE_TV),
         };
 
         let res = encode_ead_item(&ead_item);
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
-        assert_eq!(ead_buffer, ead_tv);
+        assert_eq!(ead_buffer, EAD_DUMMY_CRITICAL_TV);
     }
 
     #[test]
     fn test_encode_message_with_ead_item() {
         let method_tv = METHOD_TV;
-        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let c_i_tv = C_I_TV;
-        let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
         let ead_item = EADItem {
             label: EAD_DUMMY_LABEL_TV,
             is_critical: true,
-            value: Some(EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
+            value: Some(EAD_DUMMY_VALUE_TV),
         };
 
-        let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &Some(ead_item));
+        let res = encode_message_1(method_tv, &SUITES_I_TV, &G_X_TV, c_i_tv, &Some(ead_item));
         assert!(res.is_ok());
         let message_1 = res.unwrap();
 
-        assert_eq!(message_1, message_1_ead_tv);
+        assert_eq!(message_1, MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
     }
 
     #[test]
     fn test_encode_message_with_large_ead_item() {
         let method_tv = METHOD_TV;
-        let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let c_i_tv = C_I_TV;
 
         // the actual value will be zeroed since it doesn't matter in this test
@@ -1587,36 +1555,32 @@ mod tests {
             value: Some(ead_value),
         };
 
-        let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &Some(ead_item));
+        let res = encode_message_1(method_tv, &SUITES_I_TV, &G_X_TV, c_i_tv, &Some(ead_item));
         assert_eq!(res.unwrap_err(), EDHOCError::EadTooLongError);
     }
 
     #[test]
     fn test_parse_ead_item() {
-        let message_tv_offset = MESSAGE_1_TV.len() / 2;
-        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_TV);
-        let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
+        let message_tv_offset = MESSAGE_1_TV.len();
 
-        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]);
+        let res = parse_ead(&MESSAGE_1_WITH_DUMMY_EAD_TV.as_slice()[message_tv_offset..]);
         assert!(res.is_ok());
         let ead_item = res.unwrap();
         assert!(ead_item.is_some());
         let ead_item = ead_item.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
+        assert_eq!(ead_item.value.unwrap(), EAD_DUMMY_VALUE_TV);
 
-        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
-
-        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
+        let res = parse_ead(&MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV.as_slice()[message_tv_offset..])
+            .unwrap();
         let ead_item = res.unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.unwrap(), ead_value_tv);
+        assert_eq!(ead_item.value.unwrap(), EAD_DUMMY_VALUE_TV);
 
-        let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
-
-        let res = parse_ead(&message_ead_tv.as_slice()[message_tv_offset..]).unwrap();
+        let res = parse_ead(&MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV.as_slice()[message_tv_offset..])
+            .unwrap();
         let ead_item = res.unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
@@ -1625,16 +1589,13 @@ mod tests {
 
     #[test]
     fn test_parse_message_with_ead_item() {
-        let message_1_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
-        let ead_value_tv = EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV);
-
-        let res = parse_message_1(&message_1_ead_tv);
+        let res = parse_message_1(&MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
         assert!(res.is_ok());
         let (_method, _suites_i, _g_x, _c_i, ead_1) = res.unwrap();
         let ead_1 = ead_1.unwrap();
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_1.value.unwrap(), ead_value_tv);
+        assert_eq!(ead_1.value.unwrap(), EAD_DUMMY_VALUE_TV);
     }
 
     #[test]

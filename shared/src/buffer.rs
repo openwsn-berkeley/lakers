@@ -44,11 +44,11 @@ impl<const N: usize> EdhocBuffer<N> {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         N
     }
 
@@ -179,17 +179,6 @@ impl<const N: usize> EdhocBuffer<N> {
         } else {
             Err(EdhocBufferError::BufferAlreadyFull)
         }
-    }
-
-    // so far only used in test contexts
-    pub fn from_hex(hex: &str) -> Self {
-        let mut buffer = EdhocBuffer::new();
-        buffer.len = hex.len() / 2;
-        for (i, chunk) in hex.as_bytes().chunks(2).enumerate() {
-            let chunk_str = core::str::from_utf8(chunk).unwrap();
-            buffer.content[i] = u8::from_str_radix(chunk_str, 16).unwrap();
-        }
-        buffer
     }
 }
 

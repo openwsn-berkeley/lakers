@@ -538,6 +538,7 @@ pub fn credential_check_or_fetch(
 #[cfg(test)]
 mod test_vectors_common {
     use hexlit::hex;
+    use lakers_shared::*;
 
     pub const CRED_I: &[u8] = &hex!("A2027734322D35302D33312D46462D45462D33372D33322D333908A101A5010202412B2001215820AC75E9ECE3E50BFC8ED60399889522405C47BF16DF96660A41298CB4307F7EB62258206E5DE611388A4B8A8211334AC7D37ECB52A387D257E6DB3C2A93DF21FF3AFFC8");
     pub const I: &[u8] = &hex!("fb13adeb6518cee5f88417660841142e830a81fe334380a953406a1305e8706b");
@@ -546,10 +547,12 @@ mod test_vectors_common {
         &hex!("6e5de611388a4b8a8211334ac7d37ecb52a387d257e6db3c2a93df21ff3affc8"); // not used
     pub const CRED_R: &[u8] = &hex!("A2026008A101A5010202410A2001215820BBC34960526EA4D32E940CAD2A234148DDC21791A12AFBCBAC93622046DD44F02258204519E257236B2A0CE2023F0931F1F386CA7AFDA64FCDE0108C224C51EABF6072");
 
-    pub const MESSAGE_1_TV_FIRST_TIME: &str =
-        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e";
-    pub const MESSAGE_1_TV: &str =
-        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637";
+    pub const MESSAGE_1_TV_FIRST_TIME: BufferMessage1 = BufferMessage1::new_from_array(&hex!(
+        "03065820741a13d7ba048fbb615e94386aa3b61bea5b3d8f65f32620b749bee8d278efa90e"
+    ));
+    pub const MESSAGE_1_TV: BufferMessage1 = BufferMessage1::new_from_array(&hex!(
+        "0382060258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637"
+    ));
 }
 
 #[cfg(test)]
@@ -592,8 +595,6 @@ mod test {
 
     #[test]
     fn test_process_message_1() {
-        let message_1_tv_first_time = BufferMessage1::from_hex(MESSAGE_1_TV_FIRST_TIME);
-        let message_1_tv = BufferMessage1::from_hex(MESSAGE_1_TV);
         let responder = EdhocResponder::new(
             default_crypto(),
             EDHOCMethod::StatStat,
@@ -602,7 +603,7 @@ mod test {
         );
 
         // process message_1 first time, when unsupported suite is selected
-        let error = responder.process_message_1(&message_1_tv_first_time);
+        let error = responder.process_message_1(&MESSAGE_1_TV_FIRST_TIME);
         assert!(error.is_err());
         assert_eq!(error.unwrap_err(), EDHOCError::UnsupportedCipherSuite);
 
@@ -616,7 +617,7 @@ mod test {
         );
 
         // process message_1 second time
-        let error = responder.process_message_1(&message_1_tv);
+        let error = responder.process_message_1(&MESSAGE_1_TV);
         assert!(error.is_ok());
     }
 
@@ -774,7 +775,7 @@ mod test_authz {
         let authenticator = ZeroTouchAuthenticator::default();
 
         let single_byte_kid = cred_i.kid.as_ref().unwrap()[0]; // FIXME: add longer kid support in ACL
-        let acl = EdhocMessageBuffer::new_from_slice(&[single_byte_kid]).unwrap();
+        let acl = EdhocMessageBuffer::new_from_array(&[single_byte_kid]);
         let server = ZeroTouchServer::new(
             W_TV.try_into().unwrap(),
             CRED_R.try_into().unwrap(),
