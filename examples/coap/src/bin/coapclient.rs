@@ -78,8 +78,10 @@ fn client_handshake() -> Result<(), EDHOCError> {
     println!("EDHOC exchange successfully completed");
     println!("PRK_out: {:02x?}", prk_out);
 
-    let mut oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-    let mut oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+    let mut oscore_secret = [0; 16];
+    initiator.edhoc_exporter(0u8, &[], &mut oscore_secret); // label is 0
+    let mut oscore_salt = [0; 8];
+    initiator.edhoc_exporter(1u8, &[], &mut oscore_salt); // label is 1
 
     println!("OSCORE secret: {:02x?}", oscore_secret);
     println!("OSCORE salt: {:02x?}", oscore_salt);
@@ -93,8 +95,8 @@ fn client_handshake() -> Result<(), EDHOCError> {
     println!("PRK_out after key update: {:02x?}?", prk_out_new);
 
     // compute OSCORE secret and salt after key update
-    oscore_secret = initiator.edhoc_exporter(0u8, &[], 16); // label is 0
-    oscore_salt = initiator.edhoc_exporter(1u8, &[], 8); // label is 1
+    initiator.edhoc_exporter(0u8, &[], &mut oscore_secret); // label is 0
+    initiator.edhoc_exporter(1u8, &[], &mut oscore_salt); // label is 1
 
     println!("OSCORE secret after key update: {:02x?}", oscore_secret);
     println!("OSCORE salt after key update: {:02x?}", oscore_salt);

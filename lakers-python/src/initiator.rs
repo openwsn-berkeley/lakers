@@ -216,14 +216,16 @@ impl PyEdhocInitiator {
         context: Vec<u8>,
         length: usize,
     ) -> PyResult<Bound<'a, PyBytes>> {
-        let res = edhoc_exporter(
-            self.as_mut_completed()?,
-            &mut default_crypto(),
-            label,
-            context.as_slice(),
-            length,
-        );
-        Ok(PyBytes::new_bound(py, &res[..length]))
+        let completed = self.as_mut_completed()?;
+        PyBytes::new_bound_with(py, length, |output| {
+            Ok(edhoc_exporter(
+                completed,
+                &mut default_crypto(),
+                label,
+                context.as_slice(),
+                output,
+            ))
+        })
     }
 
     /// Performs the key update procedure, enabling the production of new key material.
