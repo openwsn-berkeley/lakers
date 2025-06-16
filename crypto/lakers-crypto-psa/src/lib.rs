@@ -38,6 +38,16 @@ impl CryptoTrait for Crypto {
         hash
     }
 
+    type HashInProcess<'a>
+        = BufferedHasherSha256
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sha256_start<'a>(&'a mut self) -> Self::HashInProcess<'a> {
+        Default::default()
+    }
+
     fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]) {
         // Implementation of HKDF-Expand as per RFC5869
 
@@ -284,6 +294,32 @@ impl Crypto {
         oh
     }
 }
+
+/// `psa_crypto` has no streaming hash API and needs to build a full message to be hashed in memory
+/// before hashing it in a single go.
+#[derive(Default)]
+pub struct BufferedHasherSha256(EdhocBuffer<MAX_BUFFER_LEN>);
+
+impl digest::FixedOutput for BufferedHasherSha256 {
+    #[inline]
+    fn finalize_into(self, out: &mut digest::Output<Self>) {
+        let hash_alg = Hash::Sha256;
+        psa_crypto::init().unwrap();
+        hash_compute(hash_alg, self.0.as_slice(), out).unwrap();
+    }
+}
+impl digest::Update for BufferedHasherSha256 {
+    #[inline]
+    fn update(&mut self, data: &[u8]) {
+        self.0
+            .extend_from_slice(data)
+            .expect("Maximum buffer length exceeded")
+    }
+}
+impl digest::OutputSizeUser for BufferedHasherSha256 {
+    type OutputSize = digest::typenum::U32;
+}
+impl digest::HashMarker for BufferedHasherSha256 {}
 
 #[cfg(test)]
 mod tests {
