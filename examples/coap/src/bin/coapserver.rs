@@ -60,25 +60,29 @@ fn main() {
                 if let Ok((responder, _c_i, ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
-                    let ead_2 = if let Some(ead_1) = ead_1 {
-                        let authenticator = ZeroTouchAuthenticator::default();
-                        let (authenticator, _loc_w, voucher_request) =
-                            authenticator.process_ead_1(&ead_1, &message_1).unwrap();
 
-                        // mock a request to the server
-                        let voucher_response = server
-                            .handle_voucher_request(
-                                &mut lakers_crypto::default_crypto(),
-                                &voucher_request,
-                            )
-                            .unwrap();
+                    let mut ead_2 = Ead::new();
+                    if let Some(ead_item) = &ead_1.items[0] {
+                        if ead_item.value.is_some() {
+                            let authenticator = ZeroTouchAuthenticator::default();
+                            let (authenticator, _loc_w, voucher_request) =
+                                authenticator.process_ead_1(&ead_item, &message_1).unwrap();
 
-                        let res = authenticator.prepare_ead_2(&voucher_response);
-                        assert!(res.is_ok());
-                        authenticator.prepare_ead_2(&voucher_response).ok()
-                    } else {
-                        None
-                    };
+                            // mock a request to the server
+                            let voucher_response = server
+                                .handle_voucher_request(
+                                    &mut lakers_crypto::default_crypto(),
+                                    &voucher_request,
+                                )
+                                .unwrap();
+
+                            let res = authenticator.prepare_ead_2(&voucher_response);
+                            assert!(res.is_ok());
+
+                            ead_2.try_push(res.unwrap()).unwrap();
+                        };
+                    }
+
                     let (responder, message_2) = responder
                         .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
                         .unwrap();
@@ -114,7 +118,7 @@ fn main() {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };
-                let (mut responder, message_4) = responder.prepare_message_4(&None).unwrap();
+                let (mut responder, message_4) = responder.prepare_message_4(&Ead::new()).unwrap();
                 // send empty ack back
                 response.message.payload = Vec::from(message_4.as_slice());
 

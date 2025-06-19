@@ -63,6 +63,7 @@ pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
 pub const MAC_LENGTH_2: usize = MAC_LENGTH;
 pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
 pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
+pub const MAX_EAD_ITEMS: usize = 4;
 
 // maximum supported length of connection identifier for R
 //
@@ -508,7 +509,7 @@ pub struct ProcessingM2 {
     pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
-    pub ead_2: Option<EADItem>,
+    pub ead_2: Ead,
 }
 
 #[derive(Debug)]
@@ -527,7 +528,7 @@ pub struct ProcessingM3 {
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
     pub plaintext_3: BufferPlaintext3,
-    pub ead_3: Option<EADItem>,
+    pub ead_3: Ead,
 }
 
 #[derive(Debug)]
@@ -610,6 +611,32 @@ impl EADItem {
     }
 }
 
+/// external authorization data.
+#[cfg_attr(feature = "python-bindings", pyclass)]
+#[derive(Clone, Debug)]
+pub struct Ead {
+    pub items: [Option<EADItem>; MAX_EAD_ITEMS],
+    pub len: usize,
+}
+
+impl Ead {
+    pub fn new() -> Self {
+        Self {
+            items: core::array::from_fn(|_| None),
+            len: 0,
+        }
+    }
+
+    pub fn try_push(&mut self, item: EADItem) -> Result<(), EADItem> {
+        if self.len == MAX_EAD_ITEMS {
+            return Err(item);
+        }
+        self.items[self.len] = Some(item);
+        self.len += 1;
+        return Ok(());
+    }
+}
+
 mod helpers {
     use super::*;
 
@@ -651,41 +678,91 @@ mod helpers {
 mod edhoc_parser {
     use super::*;
 
-    pub fn parse_ead(buffer: &[u8]) -> Result<Option<EADItem>, EDHOCError> {
-        trace!("Enter parse_ead");
-        // assuming label is a single byte integer (negative or positive)
-        if let Some((&label, tail)) = buffer.split_first() {
-            let label_res = if CBORDecoder::is_u8(label) {
-                // CBOR unsigned integer (0..=23)
-                Ok((label, false))
-            } else if CBORDecoder::is_i8(label) {
-                // CBOR negative integer (-1..=-24)
-                Ok((label - (CBOR_NEG_INT_1BYTE_START - 1), true))
-            } else {
-                Err(EDHOCError::ParsingError)
-            };
+    pub fn parse_eads(buffer: &[u8]) -> Result<Ead, EDHOCError> {
+        let mut count = 0;
+        let mut cursor = 0;
+        let mut eads = Ead::new();
 
-            if let Ok((label, is_critical)) = label_res {
-                let ead_value = if tail.len() > 0 {
-                    // EAD value is present
-                    let mut buffer = EdhocBuffer::new();
-                    buffer.fill_with_slice(tail).unwrap(); // TODO(hax): this *should* not panic due to the buffer sizes passed from upstream functions. can we prove it with hax?
-                    Some(buffer)
-                } else {
-                    None
+        for _ in 0..MAX_EAD_ITEMS {
+            if !buffer[cursor..].is_empty() {
+                let (item, consumed) = parse_single_ead(&buffer[cursor..])?;
+                eads.items[count] = Some(item);
+                count += 1;
+                cursor += consumed;
+            }
+        }
+
+        Ok(eads)
+    }
+
+    fn parse_single_ead(input: &[u8]) -> Result<(EADItem, usize), EDHOCError> {
+        let mut offset = 0;
+
+        let &label = input.get(offset).ok_or(EDHOCError::ParsingError)?;
+        offset += 1;
+
+        let (label, is_critical) = if CBORDecoder::is_u8(label) {
+            // CBOR unsigned integer (0..=23)
+            (label, false)
+        } else if CBORDecoder::is_i8(label) {
+            // CBOR negative integer (-1..=-24)
+            (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
+        } else {
+            return Err(EDHOCError::ParsingError);
+        };
+
+        let ead_value = if let Some(&bstr_head) = input.get(offset) {
+            if (bstr_head & 0xe0) == 0x40 {
+                let additional_info = bstr_head & 0x1f;
+                offset += 1;
+
+                // Decode the length based on additional_info
+                let len = match additional_info {
+                    l if l <= 23 => additional_info as usize,
+                    24 => {
+                        let len_byte = *input.get(offset).ok_or(EDHOCError::ParsingError)? as usize;
+                        offset += 1;
+                        len_byte
+                    }
+                    25 => {
+                        let len_bytes = input
+                            .get(offset..offset + 2)
+                            .ok_or(EDHOCError::ParsingError)?;
+                        offset += 2;
+                        u16::from_be_bytes(len_bytes.try_into().unwrap()) as usize
+                    }
+                    26 => {
+                        let len_bytes = input
+                            .get(offset..offset + 4)
+                            .ok_or(EDHOCError::ParsingError)?;
+                        offset += 4;
+                        u32::from_be_bytes(len_bytes.try_into().unwrap()) as usize
+                    }
+                    _ => return Err(EDHOCError::ParsingError),
                 };
-                let ead_item = Some(EADItem {
-                    label: label.into(),
-                    is_critical,
-                    value: ead_value,
-                });
-                Ok(ead_item)
+
+                let bstr_bytes = input.get(1..offset + len).ok_or(EDHOCError::ParsingError)?;
+
+                let mut buf = EdhocBuffer::new();
+                buf.fill_with_slice(bstr_bytes)
+                    .map_err(|_| EDHOCError::ParsingError)?;
+                offset += len;
+
+                Some(buf)
             } else {
-                Err(EDHOCError::ParsingError)
+                None
             }
         } else {
-            Err(EDHOCError::ParsingError)
-        }
+            None
+        };
+
+        let item = EADItem {
+            label: label.into(),
+            is_critical,
+            value: ead_value,
+        };
+
+        Ok((item, offset))
     }
 
     pub fn parse_suites_i(
@@ -728,7 +805,7 @@ mod edhoc_parser {
             EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
-            Option<EADItem>,
+            Ead,
         ),
         EDHOCError,
     > {
@@ -743,18 +820,16 @@ mod edhoc_parser {
             // consume c_i encoded as single-byte int (we still do not support bstr encoding)
             let c_i = ConnId::from_decoder(&mut decoder)?;
 
-            // if there is still more to parse, the rest will be the EAD_1
+            // if there is still more to parse, the rest will be the EADs
             if rcvd_message_1.len() > decoder.position() {
-                // NOTE: since the current implementation only supports one EAD handler,
-                // we assume only one EAD item
-                let ead_res = parse_ead(decoder.remaining_buffer()?);
-                if let Ok(ead_1) = ead_res {
-                    Ok((method, suites_i, g_x, c_i, ead_1))
+                let ead_res = parse_eads(decoder.remaining_buffer()?);
+                if let Ok(ead_buffer) = ead_res {
+                    Ok((method, suites_i, g_x, c_i, ead_buffer))
                 } else {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, g_x, c_i, None))
+                Ok((method, suites_i, g_x, c_i, Ead::new()))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -797,7 +872,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
-    ) -> Result<(ConnId, IdCred, BytesMac2, Option<EADItem>), EDHOCError> {
+    ) -> Result<(ConnId, IdCred, BytesMac2, Ead), EDHOCError> {
         trace!("Enter decode_plaintext_2");
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
@@ -810,17 +885,16 @@ mod edhoc_parser {
 
         mac_2[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_2)?);
 
-        // if there is still more to parse, the rest will be the EAD_2
+        // if there is still more to parse, the rest will be the EADs
         if plaintext_2.len() > decoder.position() {
-            // assume only one EAD item
-            let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if let Ok(ead_2) = ead_res {
-                Ok((c_r, id_cred_r, mac_2, ead_2))
+            let ead_res = parse_eads(decoder.remaining_buffer()?);
+            if let Ok(ead2_buffer) = ead_res {
+                Ok((c_r, id_cred_r, mac_2, ead2_buffer))
             } else {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((c_r, id_cred_r, mac_2, None))
+            Ok((c_r, id_cred_r, mac_2, Ead::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -828,7 +902,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_3(
         plaintext_3: &BufferPlaintext3,
-    ) -> Result<(IdCred, BytesMac3, Option<EADItem>), EDHOCError> {
+    ) -> Result<(IdCred, BytesMac3, Ead), EDHOCError> {
         trace!("Enter decode_plaintext_3");
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
 
@@ -839,38 +913,34 @@ mod edhoc_parser {
 
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 
-        // if there is still more to parse, the rest will be the EAD_3
+        // if there is still more to parse, the rest will be the EADs
         if plaintext_3.len() > decoder.position() {
-            // assume only one EAD item
-            let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if let Ok(ead_3) = ead_res {
-                Ok((id_cred_i, mac_3, ead_3))
+            let ead_res = parse_eads(decoder.remaining_buffer()?);
+            if let Ok(ead3_buffer) = ead_res {
+                Ok((id_cred_i, mac_3, ead3_buffer))
             } else {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((id_cred_i, mac_3, None))
+            Ok((id_cred_i, mac_3, Ead::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
     }
 
-    pub fn decode_plaintext_4(
-        plaintext_4: &BufferPlaintext4,
-    ) -> Result<Option<EADItem>, EDHOCError> {
+    pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<Ead, EDHOCError> {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
 
         if plaintext_4.len() > decoder.position() {
-            // assume only one EAD item
-            let ead_res = parse_ead(decoder.remaining_buffer()?);
-            if let Ok(ead_4) = ead_res {
-                Ok(ead_4)
+            let ead_res = parse_eads(decoder.remaining_buffer()?);
+            if let Ok(ead_4_buffer) = ead_res {
+                Ok(ead_4_buffer)
             } else {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok(None)
+            Ok(Ead::new())
         } else {
             Err(EDHOCError::ParsingError)
         }
