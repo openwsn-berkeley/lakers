@@ -78,7 +78,7 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_1: Vec<u8>,
-    ) -> PyResult<(Bound<'a, PyBytes>, [EADItem; MAX_EAD_ITEMS])> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Ead)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())
             .with_cause(py, "Message 1 too long")?;
         let (state, c_i, ead_1) =
@@ -99,7 +99,7 @@ impl PyEdhocResponder {
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
         c_r: Option<Vec<u8>>,
-        ead_2: [EADItem; MAX_EAD_ITEMS],
+        ead_2: Ead,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_r = match c_r {
             Some(c_r) => ConnId::from_slice(c_r.as_slice())
@@ -133,7 +133,7 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_3: Vec<u8>,
-    ) -> PyResult<(Bound<'a, PyBytes>, [EADItem; MAX_EAD_ITEMS])> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Ead)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())
             .with_cause(py, "Message 3 too long")?;
         let (state, id_cred_i, ead_3) =
@@ -172,7 +172,7 @@ impl PyEdhocResponder {
     fn prepare_message_4<'a>(
         &mut self,
         py: Python<'a>,
-        ead_4: [EADItem; MAX_EAD_ITEMS],
+        ead_4: Ead,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let (state, message_4) =
             r_prepare_message_4(&self.take_processed_m3()?, &mut default_crypto(), &ead_4)?;

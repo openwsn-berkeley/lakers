@@ -58,10 +58,32 @@ impl EADItem {
     fn is_critical(&self) -> bool {
         self.is_critical
     }
+}
 
-    #[staticmethod]
-    fn new_empty_array_py() -> [Self; MAX_EAD_ITEMS] {
-        core::array::from_fn(|_| EADItem::new())
+#[pymethods]
+impl Ead {
+    #[new]
+    pub fn new_py() -> Self {
+        Self {
+            items: core::array::from_fn(|_| None),
+            len: 0,
+        }
+    }
+
+    #[getter]
+    pub fn items(&self) -> Vec<Option<EADItem>> {
+        self.items.iter().cloned().collect()
+    }
+
+    #[getter]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn try_push_py(&mut self, item: EADItem) -> PyResult<()> {
+        self.try_push(item).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!("ead already full: {:?}", err))
+        })
     }
 }
 

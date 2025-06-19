@@ -81,7 +81,7 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         c_i: Option<Vec<u8>>,
-        ead_1: [EADItem; MAX_EAD_ITEMS],
+        ead_1: Ead,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_i = match c_i {
             Some(c_i) => ConnId::from_slice(c_i.as_slice())
@@ -105,11 +105,7 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         message_2: Vec<u8>,
-    ) -> PyResult<(
-        Bound<'a, PyBytes>,
-        Bound<'a, PyBytes>,
-        [EADItem; MAX_EAD_ITEMS],
-    )> {
+    ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Ead)> {
         let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())
             .with_cause(py, "Message 2 too long")?;
 
@@ -164,7 +160,7 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
-        ead_3: [EADItem; MAX_EAD_ITEMS],
+        ead_3: Ead,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
         let (state, message_3, prk_out) = i_prepare_message_3(
             &mut self.take_processed_m2()?,
@@ -195,11 +191,7 @@ impl PyEdhocInitiator {
     /// Processes and verifies message 4.
     ///
     /// This produces EAD data if the peer sent any.
-    pub fn process_message_4<'a>(
-        &mut self,
-        py: Python<'a>,
-        message_4: Vec<u8>,
-    ) -> PyResult<[EADItem; MAX_EAD_ITEMS]> {
+    pub fn process_message_4<'a>(&mut self, py: Python<'a>, message_4: Vec<u8>) -> PyResult<Ead> {
         let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())
             .with_cause(py, "Message 4 too long")?;
         let (state, ead_4) =

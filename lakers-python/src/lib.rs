@@ -160,6 +160,7 @@ fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<responder::PyEdhocResponder>()?;
     m.add_class::<lakers::CredentialTransfer>()?;
     m.add_class::<lakers::EADItem>()?;
+    m.add_class::<lakers::Ead>()?;
     m.add_class::<lakers::Credential>()?;
     // ead-authz items
     m.add_class::<ead_authz::PyAuthzDevice>()?;
