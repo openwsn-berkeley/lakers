@@ -738,17 +738,6 @@ mod edhoc_parser {
                         offset += 4;
                         u32::from_be_bytes(len_bytes.try_into().unwrap()) as usize
                     }
-                    27 => {
-                        let len_bytes = input
-                            .get(offset..offset + 8)
-                            .ok_or(EDHOCError::ParsingError)?;
-                        offset += 8;
-                        let len_u64 = u64::from_be_bytes(len_bytes.try_into().unwrap());
-                        if len_u64 > usize::MAX as u64 {
-                            return Err(EDHOCError::ParsingError);
-                        }
-                        len_u64 as usize
-                    }
                     _ => return Err(EDHOCError::ParsingError),
                 };
 
