@@ -49,6 +49,46 @@ impl EADItemC {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+#[repr(C)]
+pub struct EadC {
+    pub items: [EADItemC; MAX_EAD_ITEMS],
+    pub len: usize,
+}
+
+impl EadC {
+    pub fn to_rust(&self) -> Ead {
+        let items = self.items.clone().map(|i| match i.value.len() {
+            0 => None,
+            _ => Some(i.to_rust()),
+        });
+
+        Ead {
+            items,
+            len: self.len,
+        }
+    }
+
+    pub unsafe fn copy_into_c(ead: Ead, ead_c: *mut EadC) {
+        (*ead_c).len = ead.len;
+
+        for i in 0..MAX_EAD_ITEMS {
+            if let Some(item) = &ead.items[i] {
+                EADItemC::copy_into_c(item.clone(), &mut (*ead_c).items[i]);
+            };
+        }
+    }
+
+    pub fn try_push(&mut self, item: EADItemC) -> Result<(), EADItemC> {
+        if self.len == MAX_EAD_ITEMS {
+            return Err(item);
+        }
+        self.items[self.len] = item;
+        self.len += 1;
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct ProcessingM2C {
@@ -60,7 +100,7 @@ pub struct ProcessingM2C {
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
     pub id_cred_r: IdCred,
-    pub ead_2: *mut [EADItemC; MAX_EAD_ITEMS],
+    pub ead_2: *mut EadC,
 }
 
 impl Default for ProcessingM2C {
@@ -91,7 +131,7 @@ impl ProcessingM2C {
             #[allow(deprecated)]
             c_r: ConnId::from_int_raw(self.c_r),
             id_cred_r: self.id_cred_r.clone(),
-            ead_2: unsafe { (*self.ead_2).clone().map(|item| item.to_rust()) },
+            ead_2: unsafe { (*self.ead_2).to_rust() },
         }
     }
 
