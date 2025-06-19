@@ -109,7 +109,7 @@ impl CryptoTrait for Crypto {
             .extend_reserve(plaintext.len() + AES_CCM_TAG_LEN)
             .unwrap();
 
-        #[allow(deprecated)] // reason = "using extend_reserve"
+        #[allow(deprecated, reason = "using extend_reserve")]
         aead::encrypt(
             my_key,
             alg,
@@ -123,7 +123,6 @@ impl CryptoTrait for Crypto {
         output_buffer
     }
 
-    #[allow(deprecated)] // reason = "questionable use of buffer in API necessitates popping"
     fn aes_ccm_decrypt_tag_8<const N: usize>(
         &mut self,
         key: &BytesCcmKeyLen,
@@ -155,6 +154,7 @@ impl CryptoTrait for Crypto {
             .extend_reserve(ciphertext.len() - AES_CCM_TAG_LEN)
             .unwrap();
 
+        #[allow(deprecated, reason = "using extend_reserve")]
         match aead::decrypt(
             my_key,
             alg,
