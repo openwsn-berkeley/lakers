@@ -93,7 +93,7 @@ impl PyEdhocResponder {
     ///
     /// Input influences whether the credential is sent by value or reference, which credential is
     /// sent, and whether any optional EAD data is to be sent.
-    #[pyo3(signature = (cred_transfer, c_r=None, ead_2=EADItem::new_empty_array()))]
+    #[pyo3(signature = (cred_transfer, c_r=None, ead_2=Ead::new()))]
     fn prepare_message_2<'a>(
         &mut self,
         py: Python<'a>,
@@ -168,7 +168,7 @@ impl PyEdhocResponder {
     /// This may contain additional EAD data.
     ///
     /// After generating this message, the protocol has completed.
-    #[pyo3(signature = (ead_4=EADItem::new_empty_array()))]
+    #[pyo3(signature = (ead_4=Ead::new()))]
     fn prepare_message_4<'a>(
         &mut self,
         py: Python<'a>,

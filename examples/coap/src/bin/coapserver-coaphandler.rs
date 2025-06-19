@@ -82,7 +82,7 @@ enum EdhocResponse {
         //
         // Also, we'll want to carry around the set of actually authenticated claims (right now
         // it's just "if something is here, our single W completed authz")
-        ead_2: [EADItem; MAX_EAD_ITEMS],
+        ead_2: Ead,
     },
     Message3Processed,
 }
@@ -123,27 +123,31 @@ impl coap_handler::Handler for EdhocHandler {
             .process_message_1(message_1)
             .map_err(render_error)?;
 
-            let mut ead_2 = EADItem::new_empty_array();
-            if ead_1[0].value.is_some() {
-                let ead_1 = &ead_1[0];
-                let authenticator = ZeroTouchAuthenticator::default();
-                let (authenticator, _loc_w, voucher_request) = authenticator
-                    .process_ead_1(&ead_1, &message_1)
-                    .map_err(render_error)?;
+            let mut ead_2 = Ead::new();
+            if let Some(ead1_item) = &ead_1.items[0] {
+                if ead1_item.value.is_some() {
+                    let authenticator = ZeroTouchAuthenticator::default();
+                    let (authenticator, _loc_w, voucher_request) = authenticator
+                        .process_ead_1(&ead1_item, &message_1)
+                        .map_err(render_error)?;
 
-                // mock a request to the server
-                let voucher_response = self
-                    .mock_server
-                    .handle_voucher_request(&mut lakers_crypto::default_crypto(), &voucher_request)
-                    .map_err(render_error)?;
+                    // mock a request to the server
+                    let voucher_response = self
+                        .mock_server
+                        .handle_voucher_request(
+                            &mut lakers_crypto::default_crypto(),
+                            &voucher_request,
+                        )
+                        .map_err(render_error)?;
 
-                let ead_item = authenticator
-                    .prepare_ead_2(&voucher_response)
-                    .map_err(render_error)?;
+                    let ead_item = authenticator
+                        .prepare_ead_2(&voucher_response)
+                        .map_err(render_error)?;
 
-                println!("Authenticator confirmed authz");
-                ead_2[0] = ead_item;
-            };
+                    println!("Authenticator confirmed authz");
+                    ead_2.try_push(ead_item).expect("ead_2 is already full");
+                };
+            }
 
             let c_r = self.new_c_r();
             Ok(EdhocResponse::OkSend2 {
@@ -189,9 +193,7 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let (mut responder, _message_4) = responder
-                .prepare_message_4(&EADItem::new_empty_array())
-                .unwrap();
+            let (mut responder, _message_4) = responder.prepare_message_4(&Ead::new()).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 
