@@ -23,10 +23,6 @@ hax-lib.workspace = true
 hexlit = "0.5.3"
 rstest = "0.21.0"
 
-[lints.rust]
-# Some parts of the buffer API (eg. from_hex) are just not typecheckable.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(hax)'] }
-
 [features]
 default = [  ]
 python-bindings = ["pyo3", "hex"]
