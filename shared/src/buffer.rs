@@ -240,6 +240,15 @@ impl<const N: usize> EdhocBuffer<N> {
         }
         buffer
     }
+
+    #[cfg(not(hax))] // see BufferBuilder
+    #[inline(always)]
+    pub fn building() -> BufferBuilder<typenum::U0, N> {
+        BufferBuilder {
+            buf: Self::new(),
+            phantom: core::marker::PhantomData,
+        }
+    }
 }
 
 #[hax_lib::attributes]
@@ -269,6 +278,161 @@ impl<const N: usize> TryFrom<&[u8]> for EdhocBuffer<N> {
         } else {
             Err(())
         }
+    }
+}
+
+/// A nascent [`EdhocBuffer`] with a guaranteed `BuiltLength` prefix that can be assembled with its
+/// methods in a type-checked non-panicking way.
+///
+/// This allows populating a buffer without run-time error handling for the parts where it is not
+/// needed:
+///
+/// ```
+/// use lakers_shared::EdhocBuffer;
+/// # let data = Vec::new();
+/// let mut buf: EdhocBuffer::<20> = EdhocBuffer::building()
+///     // Adding the header, we know that this will fit in the 20 bytes…
+///     .push(10)
+///     .push(20)
+///     .push(30)
+///     .extend_from_array(&data.len().to_be_bytes())
+///     .done();
+/// // … but for the data, it's unsure
+/// buf.extend_from_slice(&data)?;
+/// # Ok::<(), lakers_shared::EdhocBufferError>(())
+/// ```
+///
+/// If that expectation does not hold, it's a compile time error
+///
+/// ```compile_fail
+/// use lakers_shared::EdhocBuffer;
+/// # let data = Vec::new();
+/// let mut buf: EdhocBuffer::<4> = EdhocBuffer::building()
+///     // Adding the header already does not fit in 4 bytes.
+///     .push(10)
+///     .push(20)
+///     .push(30)
+/// # // Please do not run this test architectures with an 8-bit usize ;-)
+///     .extend_from_array(&data.len().to_be_bytes())
+///     .done();
+/// // … but for the data, it's unsure
+/// buf.extend_from_slice(&data)?;
+/// # Ok::<(), lakers_shared::EdhocBufferError>(())
+/// ```
+// FIXME: This is excluded from hax because typenum doesn't work with hax. This is not a problem as
+// long as we only typecheck this module, but once we start typechecking its users, those functions
+// will not be availble, and we may need to provide alternatives (eg. one where Used is an actual
+// argument -- that version will be typecheckable and runtime will use a different version, not
+// sure whether that's good).
+//
+// Of course, if we had const generic expressions and hax supported them, all would be easy :-)
+#[cfg(not(hax))]
+pub struct BufferBuilder<Used: typenum::Unsigned, const N: usize> {
+    buf: EdhocBuffer<N>,
+    phantom: core::marker::PhantomData<Used>,
+}
+
+#[cfg(not(hax))] // see BufferBuilder
+impl<Used: typenum::Unsigned, const N: usize> BufferBuilder<Used, N>
+where
+    Used: core::ops::Add<typenum::U1>,
+    <Used as core::ops::Add<typenum::U1>>::Output: typenum::Unsigned,
+{
+    #[inline(always)]
+    pub fn push(
+        mut self,
+        data: u8,
+    ) -> BufferBuilder<<Used as core::ops::Add<typenum::U1>>::Output, N> {
+        const /* BUT NOT FOR HAX */ {
+            assert!(
+                Used::USIZE + 1 <= N,
+                "Buffer is not (unconditionally) large enough"
+            );
+        }
+        self.buf
+            .push(data)
+            .expect("Build time checks ensured this succeeds even in the worst case");
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    #[inline(always)]
+    pub fn extend_from_array<const D: usize>(
+        mut self,
+        data: &[u8; D],
+    ) -> BufferBuilder<
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output,
+        N,
+    >
+    where
+        typenum::Const<D>: typenum::generic_const_mappings::ToUInt,
+        Used:
+            core::ops::Add<<typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output>,
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output: typenum::Unsigned,
+    {
+        const /* BUT NOT FOR HAX */ {
+            assert!(
+                Used::USIZE + D <= N,
+                "Buffer is not (unconditionally) large enough"
+            );
+        }
+        self.buf
+            .extend_from_slice(data.as_slice())
+            .expect("Build time checks ensured this succeeds even in the worst case");
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    #[inline(always)]
+    pub fn extend_from_buffer<const D: usize>(
+        mut self,
+        data: &EdhocBuffer<D>,
+    ) -> BufferBuilder<
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output,
+        N,
+    >
+    where
+        typenum::Const<D>: typenum::generic_const_mappings::ToUInt,
+        Used:
+            core::ops::Add<<typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output>,
+        <Used as core::ops::Add<
+            <typenum::Const<D> as typenum::generic_const_mappings::ToUInt>::Output,
+        >>::Output: typenum::Unsigned,
+    {
+        const /* BUT NOT FOR HAX */ {
+            assert!(
+                Used::USIZE + D <= N,
+                "Buffer is not (unconditionally) large enough"
+            );
+        }
+        self.buf
+            .extend_from_slice(data.as_slice())
+            .expect("Build time checks ensured this succeeds even in the worst case");
+        BufferBuilder {
+            buf: self.buf,
+            phantom: core::marker::PhantomData,
+        }
+    }
+
+    #[inline(always)]
+    pub fn done(self) -> EdhocBuffer<N> {
+        // This is really redundant with the earlier checks, but it doesn't hurt to be thorough.
+        // (We can't rely on this alone: Otherwise, any build that is not terminated with a done
+        // would generate code that does need the runtime panic checks).
+        const /* BUT NOT FOR HAX */ {
+            assert!(Used::USIZE <= N, "Built data exceeds buffer size");
+        }
+        self.buf
     }
 }
 

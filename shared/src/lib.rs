@@ -170,7 +170,7 @@ pub type BufferCiphertext3 = EdhocMessageBuffer;
 pub type BufferCiphertext4 = EdhocMessageBuffer;
 pub type BytesHashLen = [u8; SHA256_DIGEST_LEN];
 pub type BytesP256ElemLen = [u8; P256_ELEM_LEN];
-pub type BufferMessage2 = EdhocMessageBuffer;
+pub type BufferMessage2 = EdhocBuffer<{ 2 + P256_ELEM_LEN + MAX_MESSAGE_SIZE_LEN }>;
 /// Generic buffer type (soft-deprecated).
 ///
 /// The use of this type is discouraged, because it contributes to this library's excessive stack
