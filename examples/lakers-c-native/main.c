@@ -126,9 +126,11 @@ int main(void)
     BytesP256ElemLen authz_secret;
     initiator_compute_ephemeral_secret(&initiator, &G_W, &authz_secret);
     puts("computing ead_1.");
-    EADItemC ead_1 = {0};
+    EadC ead_1 = {0};
     authz_device_prepare_ead_1(&device, &authz_secret, SS, &ead_1);
-    print_hex(ead_1.value.content, ead_1.value.len);
+    for (int i = 0; i < MAX_EAD_ITEMS; i++) {
+        print_hex(ead_1.items[i].value.content, ead_1.items[i].value.len);
+    }
 #endif
 
     puts("Begin test: edhoc initiator.");
@@ -151,7 +153,7 @@ int main(void)
     puts("processing msg2");
     EdhocMessageBuffer message_2 = {.len = coap_response_payload_len};
     memcpy(message_2.content, coap_response_payload, coap_response_payload_len);
-    EADItemC ead_2 = {0};
+    EadC ead_2 = {0};
     uint8_t c_r;
     IdCred id_cred_r = {0};
 #ifdef LAKERS_EAD_AUTHZ

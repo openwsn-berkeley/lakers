@@ -76,12 +76,12 @@ impl PyEdhocInitiator {
     ///
     /// At this point, a ``C_I`` (connection identifier) may be provided, as well as additonal EAD
     /// data.
-    #[pyo3(signature = (c_i=None, ead_1=None))]
+    #[pyo3(signature = (c_i=None, ead_1=Ead::new()))]
     fn prepare_message_1<'a>(
         &mut self,
         py: Python<'a>,
         c_i: Option<Vec<u8>>,
-        ead_1: Option<EADItem>,
+        ead_1: Ead,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_i = match c_i {
             Some(c_i) => ConnId::from_slice(c_i.as_slice())
@@ -105,8 +105,8 @@ impl PyEdhocInitiator {
         &mut self,
         py: Python<'a>,
         message_2: Vec<u8>,
-    ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Option<EADItem>)> {
-        let message_2 = EdhocBuffer::new_from_slice(message_2.as_slice())
+    ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>, Ead)> {
+        let message_2 = EdhocMessageBuffer::new_from_slice(message_2.as_slice())
             .with_cause(py, "Message 2 too long")?;
 
         let (state, c_r, id_cred_r, ead_2) =
@@ -155,12 +155,12 @@ impl PyEdhocInitiator {
     ///
     /// Input influences whether the credential previously provided in :meth:`verify_message_2()` is
     /// sent by value or reference, and whether any additional EAD data is to be sent.
-    #[pyo3(signature = (cred_transfer, ead_3=None))]
+    #[pyo3(signature = (cred_transfer, ead_3=Ead::new()))]
     pub fn prepare_message_3<'a>(
         &mut self,
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
-        ead_3: Option<EADItem>,
+        ead_3: Ead,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
         let (state, message_3, prk_out) = i_prepare_message_3(
             &mut self.take_processed_m2()?,
@@ -191,12 +191,8 @@ impl PyEdhocInitiator {
     /// Processes and verifies message 4.
     ///
     /// This produces EAD data if the peer sent any.
-    pub fn process_message_4<'a>(
-        &mut self,
-        py: Python<'a>,
-        message_4: Vec<u8>,
-    ) -> PyResult<Option<EADItem>> {
-        let message_4 = EdhocBuffer::new_from_slice(message_4.as_slice())
+    pub fn process_message_4<'a>(&mut self, py: Python<'a>, message_4: Vec<u8>) -> PyResult<Ead> {
+        let message_4 = EdhocMessageBuffer::new_from_slice(message_4.as_slice())
             .with_cause(py, "Message 4 too long")?;
         let (state, ead_4) =
             i_process_message_4(&mut self.take_wait_m4()?, &mut default_crypto(), &message_4)?;

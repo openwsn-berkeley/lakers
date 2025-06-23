@@ -126,7 +126,7 @@ cpp_compat = true
 include = [
     "EdhocMessageBuffer", "BytesMac", "BytesMac2",
     "EADBuffer",
-    "EADItemC",
+    "EADItemC", "EadC",
     "EdhocBuffer", "BufferKid", "BufferCred", "BufferIdCred",
     "CredentialKey", "CredentialType", "IdCred",
     "CredentialTransfer",
