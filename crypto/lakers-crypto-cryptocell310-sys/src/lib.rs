@@ -43,6 +43,16 @@ impl CryptoTrait for Crypto {
         convert_array(&buffer[0..SHA256_DIGEST_LEN / 4])
     }
 
+    type HashInProcess<'a>
+        = HashInProcessSha256
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sha256_start<'a>(&'a mut self) -> Self::HashInProcess<'a> {
+        Default::default()
+    }
+
     fn hkdf_expand(&mut self, prk: &BytesHashLen, info: &[u8], result: &mut [u8]) {
         unsafe {
             CRYS_HKDF_KeyDerivFunc(
@@ -316,3 +326,45 @@ impl Crypto {
         convert_array(&buffer[..SHA256_DIGEST_LEN / 4])
     }
 }
+
+pub struct HashInProcessSha256(CRYS_HASHUserContext_t);
+
+impl core::default::Default for HashInProcessSha256 {
+    fn default() -> Self {
+        let mut buf = CRYS_HASHUserContext_t::default();
+        // unsafe: used as per C API. The context struct is used just as a buffer and thus does not
+        // need to be pinned.
+        let result =
+            unsafe { CRYS_HASH_Init(&mut buf, CRYS_HASH_OperationMode_t_CRYS_HASH_SHA256_mode) };
+        assert!(result == CRYS_OK);
+        Self(buf)
+    }
+}
+
+impl digest::FixedOutput for HashInProcessSha256 {
+    #[inline]
+    fn finalize_into(mut self, out: &mut digest::Output<Self>) {
+        let mut out_buffer: [u32; 64 / 4] = [0x00; 64 / 4];
+
+        // unsafe: used as per C API.
+        let result = unsafe { CRYS_HASH_Finish(&mut self.0, out_buffer.as_mut_ptr()) };
+        assert!(result == CRYS_OK);
+
+        *out = convert_array(&out_buffer[0..SHA256_DIGEST_LEN / 4]).into();
+    }
+}
+impl digest::Update for HashInProcessSha256 {
+    #[inline]
+    fn update(&mut self, data: &[u8]) {
+        // unsafe: used as per C API.
+        let result = unsafe {
+            // mut cast: C API lacks `const` qualifier
+            CRYS_HASH_Update(&mut self.0, data.as_ptr() as *mut _, data.len())
+        };
+        assert!(result == CRYS_OK);
+    }
+}
+impl digest::OutputSizeUser for HashInProcessSha256 {
+    type OutputSize = digest::typenum::U32;
+}
+impl digest::HashMarker for HashInProcessSha256 {}
