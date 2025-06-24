@@ -655,6 +655,26 @@ impl EadItems {
         self.into_iter()
     }
 
+    /// Checks whether there are critical items remaining; if so, it returns the corresponding
+    /// error.
+    ///
+    /// Call this whenever processing EAD items after all processable items have been removed.
+    pub fn processed_critical_items(&self) -> Result<(), EDHOCError> {
+        if self.iter().any(|i| i.is_critical) {
+            return Err(EDHOCError::EADUnprocessable);
+        }
+        Ok(())
+    }
+
+    pub fn pop_by_label(&mut self, label: u16) -> Option<EADItem> {
+        for slot in self.items.iter_mut() {
+            if slot.as_ref().is_some_and(|i| i.label == label) {
+                return slot.take();
+            }
+        }
+        None
+    }
+
     // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
     // of tests that's not a meanginful question.
     pub fn len(&self) -> usize {
@@ -1285,5 +1305,44 @@ mod test_cbor_decoder {
 
         assert_eq!(input, decoder.any_as_encoded().unwrap());
         assert!(decoder.finished())
+    }
+}
+
+#[cfg(test)]
+mod test_ead_items {
+    use super::*;
+
+    #[test]
+    fn test_ead_items() {
+        let mut items = EadItems::new();
+        assert_eq!(items.len(), 0);
+
+        for label in 1..=MAX_EAD_ITEMS {
+            items
+                .try_push(EADItem {
+                    label: label as u16,
+                    is_critical: label == 1,
+                    value: None,
+                })
+                .unwrap();
+        }
+
+        items
+            .try_push(EADItem {
+                label: 1234,
+                is_critical: false,
+                value: None,
+            })
+            .unwrap_err();
+
+        assert_eq!(items.len(), MAX_EAD_ITEMS);
+
+        // This *should* be an error: the first item is critical.
+        items.processed_critical_items().unwrap_err();
+
+        let ead1 = items.pop_by_label(1).unwrap();
+        assert_eq!(ead1.label, 1);
+
+        items.processed_critical_items().unwrap();
     }
 }
