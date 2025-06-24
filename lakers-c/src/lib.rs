@@ -51,12 +51,12 @@ impl EADItemC {
 
 #[derive(Default, Clone, Debug)]
 #[repr(C)]
-pub struct EadC {
+pub struct EadItemsC {
     pub items: [EADItemC; MAX_EAD_ITEMS],
     pub len: usize,
 }
 
-impl EadC {
+impl EadItemsC {
     pub fn to_rust(&self) -> EadItems {
         let items = self.items.clone().map(|i| match i.value.len() {
             0 => None,
@@ -69,7 +69,7 @@ impl EadC {
         }
     }
 
-    pub unsafe fn copy_into_c(ead: EadItems, ead_c: *mut EadC) {
+    pub unsafe fn copy_into_c(ead: EadItems, ead_c: *mut EadItemsC) {
         (*ead_c).len = ead.len;
 
         for i in 0..MAX_EAD_ITEMS {
@@ -100,7 +100,7 @@ pub struct ProcessingM2C {
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
     pub id_cred_r: IdCred,
-    pub ead_2: *mut EadC,
+    pub ead_2: *mut EadItemsC,
 }
 
 impl Default for ProcessingM2C {
