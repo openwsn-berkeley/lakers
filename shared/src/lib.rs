@@ -611,11 +611,14 @@ impl EADItem {
     }
 }
 
-/// external authorization data.
+/// An owned list of External Authorization Data.
+///
+/// Internally, this is stored as an array of options. This eases the typical operations of one
+/// application "taking" out an option until all critical options are gone. This makes pushing an
+/// O(n) operation, but that doesn't matter a lot when N is typically 4.
 #[derive(Clone, Debug)]
 pub struct EadItems {
     items: [Option<EADItem>; MAX_EAD_ITEMS],
-    len: usize,
 }
 
 impl<'a> IntoIterator for &'a EadItems {
@@ -635,17 +638,17 @@ impl EadItems {
     pub fn new() -> Self {
         Self {
             items: core::array::from_fn(|_| None),
-            len: 0,
         }
     }
 
     pub fn try_push(&mut self, item: EADItem) -> Result<(), EADItem> {
-        if self.len == MAX_EAD_ITEMS {
-            return Err(item);
+        for slot in self.items.iter_mut() {
+            if slot.is_none() {
+                *slot = Some(item);
+                return Ok(());
+            }
         }
-        self.items[self.len] = Some(item);
-        self.len += 1;
-        return Ok(());
+        Err(item)
     }
 
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
@@ -655,12 +658,7 @@ impl EadItems {
     // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
     // of tests that's not a meanginful question.
     pub fn len(&self) -> usize {
-        debug_assert_eq!(
-            self.len,
-            self.items.iter().filter(|x| x.is_some()).count(),
-            "Length kept inconsistently"
-        );
-        self.len
+        self.items.iter().filter(|x| x.is_some()).count()
     }
 
     // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
