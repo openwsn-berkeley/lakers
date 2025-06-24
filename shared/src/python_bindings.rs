@@ -61,7 +61,7 @@ impl EADItem {
 }
 
 #[pymethods]
-impl Ead {
+impl EadItems {
     #[new]
     pub fn new_py() -> Self {
         Self {

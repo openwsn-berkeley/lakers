@@ -61,7 +61,7 @@ fn main() {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
 
-                    let mut ead_2 = Ead::new();
+                    let mut ead_2 = EadItems::new();
                     if let Some(ead_item) = &ead_1.items[0] {
                         if ead_item.value.is_some() {
                             let authenticator = ZeroTouchAuthenticator::default();
@@ -118,7 +118,8 @@ fn main() {
                     println!("EDHOC error at verify_message_3: {:?}", valid_cred_i);
                     continue;
                 };
-                let (mut responder, message_4) = responder.prepare_message_4(&Ead::new()).unwrap();
+                let (mut responder, message_4) =
+                    responder.prepare_message_4(&EadItems::new()).unwrap();
                 // send empty ack back
                 response.message.payload = Vec::from(message_4.as_slice());
 

@@ -60,7 +60,7 @@ def test_handshake_with_authz():
     )
 
     # initiator
-    ead_1 = lakers.Ead()
+    ead_1 = lakers.EadItems()
     ead_1.try_push_py(device.prepare_ead_1(
         initiator.compute_ephemeral_secret(device.get_g_w()),
         initiator.selected_cipher_suite(),
@@ -73,7 +73,7 @@ def test_handshake_with_authz():
     _c_i, ead_1 = responder.process_message_1(message_1)
     loc_w, voucher_request = authenticator.process_ead_1(ead_1.items[0], message_1)
     voucher_response = enrollment_server.handle_voucher_request(voucher_request)
-    ead_2 = lakers.Ead()
+    ead_2 = lakers.EadItems()
     ead_2.try_push_py(authenticator.prepare_ead_2(voucher_response))
     message_2 = responder.prepare_message_2(lakers.CredentialTransfer.ByReference, None, ead_2)
     assert type(message_2) == bytes
@@ -83,7 +83,7 @@ def test_handshake_with_authz():
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_V)
     assert device.process_ead_2(ead_2.items[0], CRED_V) # voucher is valid!
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
-    message_3, i_prk_out = initiator.prepare_message_3(lakers.CredentialTransfer.ByReference, lakers.Ead())
+    message_3, i_prk_out = initiator.prepare_message_3(lakers.CredentialTransfer.ByReference, lakers.EadItems())
     assert type(message_3) == bytes
 
     # responder

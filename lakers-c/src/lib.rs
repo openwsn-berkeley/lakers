@@ -57,19 +57,19 @@ pub struct EadC {
 }
 
 impl EadC {
-    pub fn to_rust(&self) -> Ead {
+    pub fn to_rust(&self) -> EadItems {
         let items = self.items.clone().map(|i| match i.value.len() {
             0 => None,
             _ => Some(i.to_rust()),
         });
 
-        Ead {
+        EadItems {
             items,
             len: self.len,
         }
     }
 
-    pub unsafe fn copy_into_c(ead: Ead, ead_c: *mut EadC) {
+    pub unsafe fn copy_into_c(ead: EadItems, ead_c: *mut EadC) {
         (*ead_c).len = ead.len;
 
         for i in 0..MAX_EAD_ITEMS {

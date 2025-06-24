@@ -509,7 +509,7 @@ pub struct ProcessingM2 {
     pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
-    pub ead_2: Ead,
+    pub ead_2: EadItems,
 }
 
 #[derive(Debug)]
@@ -528,7 +528,7 @@ pub struct ProcessingM3 {
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
     pub plaintext_3: BufferPlaintext3,
-    pub ead_3: Ead,
+    pub ead_3: EadItems,
 }
 
 #[derive(Debug)]
@@ -614,12 +614,12 @@ impl EADItem {
 /// external authorization data.
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
-pub struct Ead {
+pub struct EadItems {
     pub items: [Option<EADItem>; MAX_EAD_ITEMS],
     pub len: usize,
 }
 
-impl Ead {
+impl EadItems {
     pub fn new() -> Self {
         Self {
             items: core::array::from_fn(|_| None),
@@ -678,10 +678,10 @@ mod helpers {
 mod edhoc_parser {
     use super::*;
 
-    pub fn parse_eads(buffer: &[u8]) -> Result<Ead, EDHOCError> {
+    pub fn parse_eads(buffer: &[u8]) -> Result<EadItems, EDHOCError> {
         let mut count = 0;
         let mut cursor = 0;
-        let mut eads = Ead::new();
+        let mut eads = EadItems::new();
 
         for _ in 0..MAX_EAD_ITEMS {
             if !buffer[cursor..].is_empty() {
@@ -805,7 +805,7 @@ mod edhoc_parser {
             EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
-            Ead,
+            EadItems,
         ),
         EDHOCError,
     > {
@@ -829,7 +829,7 @@ mod edhoc_parser {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, g_x, c_i, Ead::new()))
+                Ok((method, suites_i, g_x, c_i, EadItems::new()))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -872,7 +872,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
-    ) -> Result<(ConnId, IdCred, BytesMac2, Ead), EDHOCError> {
+    ) -> Result<(ConnId, IdCred, BytesMac2, EadItems), EDHOCError> {
         trace!("Enter decode_plaintext_2");
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
@@ -894,7 +894,7 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((c_r, id_cred_r, mac_2, Ead::new()))
+            Ok((c_r, id_cred_r, mac_2, EadItems::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -902,7 +902,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_3(
         plaintext_3: &BufferPlaintext3,
-    ) -> Result<(IdCred, BytesMac3, Ead), EDHOCError> {
+    ) -> Result<(IdCred, BytesMac3, EadItems), EDHOCError> {
         trace!("Enter decode_plaintext_3");
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
 
@@ -922,13 +922,13 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((id_cred_i, mac_3, Ead::new()))
+            Ok((id_cred_i, mac_3, EadItems::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
     }
 
-    pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<Ead, EDHOCError> {
+    pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<EadItems, EDHOCError> {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
 
@@ -940,7 +940,7 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok(Ead::new())
+            Ok(EadItems::new())
         } else {
             Err(EDHOCError::ParsingError)
         }

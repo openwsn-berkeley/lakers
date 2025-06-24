@@ -82,7 +82,7 @@ enum EdhocResponse {
         //
         // Also, we'll want to carry around the set of actually authenticated claims (right now
         // it's just "if something is here, our single W completed authz")
-        ead_2: Ead,
+        ead_2: EadItems,
     },
     Message3Processed,
 }
@@ -123,7 +123,7 @@ impl coap_handler::Handler for EdhocHandler {
             .process_message_1(message_1)
             .map_err(render_error)?;
 
-            let mut ead_2 = Ead::new();
+            let mut ead_2 = EadItems::new();
             if let Some(ead1_item) = &ead_1.items[0] {
                 if ead1_item.value.is_some() {
                     let authenticator = ZeroTouchAuthenticator::default();
@@ -193,7 +193,8 @@ impl coap_handler::Handler for EdhocHandler {
                 render_error(e)
             })?;
 
-            let (mut responder, _message_4) = responder.prepare_message_4(&Ead::new()).unwrap();
+            let (mut responder, _message_4) =
+                responder.prepare_message_4(&EadItems::new()).unwrap();
             println!("EDHOC exchange successfully completed");
             println!("PRK_out: {:02x?}", prk_out);
 

@@ -28,7 +28,7 @@ pub fn r_process_message_1(
     state: &ResponderStart,
     crypto: &mut impl CryptoTrait,
     message_1: &BufferMessage1,
-) -> Result<(ProcessingM1, ConnId, Ead), EDHOCError> {
+) -> Result<(ProcessingM1, ConnId, EadItems), EDHOCError> {
     // Step 1: decode message_1
     // g_x will be saved to the state
     if let Ok((method, suites_i, g_x, c_i, ead_1)) = parse_message_1(message_1) {
@@ -68,7 +68,7 @@ pub fn r_prepare_message_2(
     r: &BytesP256ElemLen, // R's static private DH key
     c_r: ConnId,
     cred_transfer: CredentialTransfer,
-    ead_2: &Ead,
+    ead_2: &EadItems,
 ) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
     // compute TH_2
     let th_2 = compute_th_2(crypto, &state.g_y, &state.h_message_1);
@@ -124,7 +124,7 @@ pub fn r_parse_message_3(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
     message_3: &BufferMessage3,
-) -> Result<(ProcessingM3, IdCred, Ead), EDHOCError> {
+) -> Result<(ProcessingM3, IdCred, EadItems), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
@@ -214,7 +214,7 @@ pub fn r_verify_message_3(
 pub fn r_prepare_message_4(
     state: &ProcessedM3,
     crypto: &mut impl CryptoTrait,
-    ead_4: &Ead,
+    ead_4: &EadItems,
 ) -> Result<(Completed, BufferMessage4), EDHOCError> {
     // compute ciphertext_4
     let plaintext_4 = encode_plaintext_4(&ead_4)?;
@@ -240,7 +240,7 @@ pub fn i_prepare_message_1(
     state: &InitiatorStart,
     crypto: &mut impl CryptoTrait,
     c_i: ConnId,
-    ead_1: &Ead,
+    ead_1: &EadItems,
 ) -> Result<(WaitM2, BufferMessage1), EDHOCError> {
     // Encode message_1 as a sequence of CBOR encoded data items as specified in Section 5.2.1
     let message_1 = encode_message_1(state.method, &state.suites_i, &state.g_x, c_i, &ead_1)?;
@@ -262,7 +262,7 @@ pub fn i_parse_message_2<'a>(
     state: &WaitM2,
     crypto: &mut impl CryptoTrait,
     message_2: &BufferMessage2,
-) -> Result<(ProcessingM2, ConnId, IdCred, Ead), EDHOCError> {
+) -> Result<(ProcessingM2, ConnId, IdCred, EadItems), EDHOCError> {
     let res = parse_message_2(message_2);
     if let Ok((g_y, ciphertext_2)) = res {
         let th_2 = compute_th_2(crypto, &g_y, &state.h_message_1);
@@ -355,7 +355,7 @@ pub fn i_prepare_message_3(
     crypto: &mut impl CryptoTrait,
     cred_i: Credential,
     cred_transfer: CredentialTransfer,
-    ead_3: &Ead,
+    ead_3: &EadItems,
 ) -> Result<(WaitM4, BufferMessage3, BytesHashLen), EDHOCError> {
     let id_cred_i = match cred_transfer {
         CredentialTransfer::ByValue => cred_i.by_value()?,
@@ -402,7 +402,7 @@ pub fn i_process_message_4(
     state: &mut WaitM4,
     crypto: &mut impl CryptoTrait,
     message_4: &BufferMessage4,
-) -> Result<(Completed, Ead), EDHOCError> {
+) -> Result<(Completed, EadItems), EDHOCError> {
     let plaintext_4 = decrypt_message_4(crypto, &state.prk_4e3m, &state.th_4, &message_4)?;
     let decoded_p4_res = decode_plaintext_4(&plaintext_4);
 
@@ -462,7 +462,7 @@ fn encode_message_1(
     suites: &EdhocBuffer<MAX_SUITES_LEN>,
     g_x: &BytesP256ElemLen,
     c_i: ConnId,
-    ead_1: &Ead,
+    ead_1: &EadItems,
 ) -> Result<BufferMessage1, EDHOCError> {
     let mut output = BufferMessage1::new();
 
@@ -610,7 +610,7 @@ fn edhoc_kdf_owned<const N: usize>(
 fn encode_plaintext_3(
     id_cred_i: &[u8],
     mac_3: &BytesMac3,
-    ead_3: &Ead,
+    ead_3: &EadItems,
 ) -> Result<BufferPlaintext3, EDHOCError> {
     // plaintext: P = ( ? PAD, ID_CRED_I / bstr / int, Signature_or_MAC_3, ? EAD_3 )
     let mut plaintext_3 =
@@ -635,7 +635,7 @@ fn encode_plaintext_3(
     Ok(plaintext_3)
 }
 
-fn encode_plaintext_4(ead_4: &Ead) -> Result<BufferPlaintext4, EDHOCError> {
+fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> {
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
     for maybe_ead_item in &ead_4.items {
@@ -859,7 +859,7 @@ fn encode_kdf_context(
     id_cred: &[u8],
     th: &BytesHashLen,
     cred: &[u8],
-    ead: &Ead,
+    ead: &EadItems,
 ) -> BufferContext {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded (and also EAD)
@@ -893,7 +893,7 @@ fn compute_mac_3(
     th_3: &BytesHashLen,
     id_cred_i: &[u8],
     cred_i: &[u8],
-    ead_3: &Ead,
+    ead_3: &EadItems,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
     let context = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
@@ -914,7 +914,7 @@ fn compute_mac_2(
     id_cred_r: &[u8],
     cred_r: &[u8],
     th_2: &BytesHashLen,
-    ead_2: &Ead,
+    ead_2: &EadItems,
 ) -> BytesMac2 {
     // compute MAC_2
     let context = encode_kdf_context(Some(c_r), id_cred_r, th_2, cred_r, ead_2);
@@ -927,7 +927,7 @@ fn encode_plaintext_2(
     c_r: ConnId,
     id_cred_r: &[u8],
     mac_2: &BytesMac2,
-    ead_2: &Ead,
+    ead_2: &EadItems,
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     let c_r = c_r.as_cbor();
@@ -1166,7 +1166,7 @@ mod tests {
     fn test_encode_message_1() {
         let suites_i_tv = EdhocBuffer::from_hex(SUITES_I_TV);
         let message_1 =
-            encode_message_1(METHOD_TV, &suites_i_tv, &G_X_TV, C_I_TV, &Ead::new()).unwrap();
+            encode_message_1(METHOD_TV, &suites_i_tv, &G_X_TV, C_I_TV, &EadItems::new()).unwrap();
 
         assert_eq!(message_1.len(), 39);
         assert_eq!(message_1, BufferMessage1::from_hex(MESSAGE_1_TV));
@@ -1382,7 +1382,7 @@ mod tests {
             &TH_3_TV,
             &ID_CRED_I_TV,
             &CRED_I_TV,
-            &Ead::new(),
+            &EadItems::new(),
         );
         assert_eq!(mac_3, MAC_3_TV);
     }
@@ -1396,7 +1396,7 @@ mod tests {
             &ID_CRED_R_TV,
             &CRED_R_TV,
             &TH_2_TV,
-            &Ead::new(),
+            &EadItems::new(),
         );
 
         assert_eq!(rcvd_mac_2, MAC_2_TV);
@@ -1411,7 +1411,7 @@ mod tests {
                 .unwrap()
                 .as_encoded_value(),
             &MAC_2_TV,
-            &Ead::new(),
+            &EadItems::new(),
         )
         .unwrap();
 
@@ -1533,7 +1533,7 @@ mod tests {
                 .unwrap()
                 .as_encoded_value(),
             &MAC_3_TV,
-            &Ead::new(),
+            &EadItems::new(),
         )
         .unwrap();
         assert_eq!(plaintext_3, plaintext_3_tv);
@@ -1579,7 +1579,7 @@ mod tests {
             value: Some(EdhocBuffer::from_hex(EAD_DUMMY_VALUE_TV)),
         };
 
-        let mut ead = Ead::new();
+        let mut ead = EadItems::new();
         ead.try_push(ead_item).unwrap();
 
         let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &ead);
@@ -1605,7 +1605,7 @@ mod tests {
             value: Some(ead_value),
         };
 
-        let mut ead = Ead::new();
+        let mut ead = EadItems::new();
         ead.try_push(ead_item).unwrap();
 
         let res = encode_message_1(method_tv, &suites_i_tv, &G_X_TV, c_i_tv, &ead);
