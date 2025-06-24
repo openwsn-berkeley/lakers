@@ -619,6 +619,19 @@ pub struct EadItems {
     pub len: usize,
 }
 
+impl<'a> IntoIterator for &'a EadItems {
+    type Item = &'a EADItem;
+
+    type IntoIter = core::iter::FilterMap<
+        core::slice::Iter<'a, Option<EADItem>>,
+        fn(&Option<EADItem>) -> Option<&EADItem>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter().filter_map(Option::as_ref)
+    }
+}
+
 impl EadItems {
     pub fn new() -> Self {
         Self {
@@ -634,6 +647,10 @@ impl EadItems {
         self.items[self.len] = Some(item);
         self.len += 1;
         return Ok(());
+    }
+
+    pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
+        self.into_iter()
     }
 }
 
