@@ -786,8 +786,7 @@ mod test_authz {
         device.set_h_message_1(initiator.state.h_message_1.clone());
 
         let (responder, _c_i, ead_1) = responder.process_message_1(&message_1).unwrap();
-        let ead_2 = if ead_1.items[0].is_some() {
-            let ead_item = &ead_1.items[0].clone().unwrap();
+        let ead_2 = if let Some(ead_item) = ead_1.iter().next() {
             let (authenticator, _loc_w, voucher_request) =
                 authenticator.process_ead_1(&ead_item, &message_1).unwrap();
 
@@ -814,11 +813,8 @@ mod test_authz {
         let (mut initiator, _c_r, id_cred_r, ead_2) =
             initiator.parse_message_2(&message_2).unwrap();
         let valid_cred_r = credential_check_or_fetch(None, id_cred_r).unwrap();
-        let result = device.process_ead_2(
-            &mut default_crypto(),
-            ead_2.items[0].as_ref().unwrap(),
-            CRED_R,
-        );
+        let result =
+            device.process_ead_2(&mut default_crypto(), ead_2.iter().next().unwrap(), CRED_R);
         assert!(result.is_ok());
         initiator
             .set_identity(

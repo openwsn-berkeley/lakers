@@ -124,7 +124,8 @@ impl coap_handler::Handler for EdhocHandler {
             .map_err(render_error)?;
 
             let mut ead_2 = EadItems::new();
-            if let Some(ead1_item) = &ead_1.items[0] {
+            // FIXME: Process all items
+            if let Some(ead1_item) = &ead_1.iter().next() {
                 if ead1_item.value.is_some() {
                     let authenticator = ZeroTouchAuthenticator::default();
                     let (authenticator, _loc_w, voucher_request) = authenticator

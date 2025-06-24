@@ -37,9 +37,8 @@ impl ZeroTouchServer {
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        let Some(ead_item) = &ead_1.items[0] else {
-            return Err(EDHOCError::EADUnprocessable);
-        };
+        // FIXME: Accept in any position, reject critical others.
+        let ead_item = ead_1.iter().next().ok_or(EDHOCError::EADUnprocessable)?;
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value.clone().unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
@@ -80,9 +79,7 @@ impl ZeroTouchServerUserAcl {
         let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        let Some(ead_item) = &ead_1.items[0] else {
-            return Err(EDHOCError::EADUnprocessable);
-        };
+        let ead_item = ead_1.iter().next().ok_or(EDHOCError::EADUnprocessable)?;
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value.clone().unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
 

@@ -615,8 +615,8 @@ impl EADItem {
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EadItems {
-    pub items: [Option<EADItem>; MAX_EAD_ITEMS],
-    pub len: usize,
+    items: [Option<EADItem>; MAX_EAD_ITEMS],
+    len: usize,
 }
 
 impl<'a> IntoIterator for &'a EadItems {
@@ -651,6 +651,23 @@ impl EadItems {
 
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
         self.into_iter()
+    }
+
+    // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
+    // of tests that's not a meanginful question.
+    pub fn len(&self) -> usize {
+        debug_assert_eq!(
+            self.len,
+            self.items.iter().filter(|x| x.is_some()).count(),
+            "Length kept inconsistently"
+        );
+        self.len
+    }
+
+    // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
+    // of tests that's not a meanginful question.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

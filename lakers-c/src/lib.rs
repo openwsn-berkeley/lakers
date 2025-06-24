@@ -58,24 +58,22 @@ pub struct EadItemsC {
 
 impl EadItemsC {
     pub fn to_rust(&self) -> EadItems {
-        let items = self.items.clone().map(|i| match i.value.len() {
-            0 => None,
-            _ => Some(i.to_rust()),
-        });
+        let mut items = EadItems::new();
 
-        EadItems {
-            items,
-            len: self.len,
+        for i in self.items.iter() {
+            items
+                .try_push(i.clone().to_rust())
+                .expect("EadItemsC can not contain more items than EadItems");
         }
+
+        items
     }
 
     pub unsafe fn copy_into_c(ead: EadItems, ead_c: *mut EadItemsC) {
-        (*ead_c).len = ead.len;
+        (*ead_c).len = ead.len();
 
-        for i in 0..MAX_EAD_ITEMS {
-            if let Some(item) = &ead.items[i] {
-                EADItemC::copy_into_c(item.clone(), &mut (*ead_c).items[i]);
-            };
+        for (i, item) in ead.iter().enumerate() {
+            EADItemC::copy_into_c(item.clone(), &mut (*ead_c).items[i]);
         }
     }
 

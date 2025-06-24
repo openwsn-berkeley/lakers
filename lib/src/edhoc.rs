@@ -496,14 +496,12 @@ fn encode_message_1(
     output.extend_from_slice(&g_x[..]).unwrap();
     output.extend_from_slice(c_i.as_cbor()).unwrap();
 
-    for maybe_ead_item in &ead_1.items {
-        if let Some(ead_item) = maybe_ead_item {
-            if ead_item.value.is_some() {
-                let encoded = encode_ead_item(&ead_item)?;
-                output
-                    .extend_from_slice(encoded.as_slice())
-                    .map_err(|_| EDHOCError::EadTooLongError)?;
-            }
+    for ead_item in ead_1 {
+        if ead_item.value.is_some() {
+            let encoded = encode_ead_item(&ead_item)?;
+            output
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
         }
     }
 
@@ -622,14 +620,12 @@ fn encode_plaintext_3(
         .extend_from_slice(mac_3)
         .or(Err(EDHOCError::EncodingError))?;
 
-    for maybe_ead_item in &ead_3.items {
-        if let Some(ead_item) = maybe_ead_item {
-            if ead_item.value.is_some() {
-                let encoded = encode_ead_item(&ead_item)?;
-                plaintext_3
-                    .extend_from_slice(encoded.as_slice())
-                    .map_err(|_| EDHOCError::EadTooLongError)?;
-            }
+    for ead_item in ead_3 {
+        if ead_item.value.is_some() {
+            let encoded = encode_ead_item(&ead_item)?;
+            plaintext_3
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
         }
     }
     Ok(plaintext_3)
@@ -638,14 +634,12 @@ fn encode_plaintext_3(
 fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> {
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
-    for maybe_ead_item in &ead_4.items {
-        if let Some(ead_item) = maybe_ead_item {
-            if ead_item.value.is_some() {
-                let encoded = encode_ead_item(&ead_item)?;
-                plaintext_4
-                    .extend_from_slice(encoded.as_slice())
-                    .map_err(|_| EDHOCError::EadTooLongError)?;
-            }
+    for ead_item in ead_4 {
+        if ead_item.value.is_some() {
+            let encoded = encode_ead_item(&ead_item)?;
+            plaintext_4
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
         }
     }
 
@@ -874,13 +868,11 @@ fn encode_kdf_context(
     output.extend_from_slice(th).unwrap();
     output.extend_from_slice(cred).unwrap();
 
-    for maybe_ead_item in &ead.items {
-        if let Some(ead_item) = maybe_ead_item {
-            if ead_item.value.is_some() {
-                output
-                    .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
-                    .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-            }
+    for ead_item in ead {
+        if ead_item.value.is_some() {
+            output
+                .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
+                .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
         }
     }
 
@@ -946,14 +938,12 @@ fn encode_plaintext_2(
     plaintext_2.extend_from_slice(&mac_2[..]).unwrap();
 
     // Encode optional EAD_2
-    for maybe_ead_item in &ead_2.items {
-        if let Some(ead_item) = maybe_ead_item {
-            if ead_item.value.is_some() {
-                let encoded = encode_ead_item(&ead_item)?;
-                plaintext_2
-                    .extend_from_slice(encoded.as_slice())
-                    .map_err(|_| EDHOCError::EadTooLongError)?;
-            }
+    for ead_item in ead_2 {
+        if ead_item.value.is_some() {
+            let encoded = encode_ead_item(&ead_item)?;
+            plaintext_2
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
         }
     }
 
@@ -1234,8 +1224,7 @@ mod tests {
         assert_eq!(suites_i, suites_i_tv_first_time);
         assert_eq!(g_x, G_X_TV_FIRST_TIME);
         assert_eq!(c_i, C_I_TV_FIRST_TIME);
-        assert!(ead_1.items[0].is_none());
-        assert_eq!(ead_1.len, 0);
+        assert!(ead_1.is_empty());
 
         // second time message_1
         let res = parse_message_1(&message_1_tv);
@@ -1246,8 +1235,7 @@ mod tests {
         assert_eq!(suites_i, suites_i_tv);
         assert_eq!(g_x, G_X_TV);
         assert_eq!(c_i, C_I_TV);
-        assert!(ead_1.items[0].is_none());
-        assert_eq!(ead_1.len, 0);
+        assert!(ead_1.is_empty());
     }
 
     #[test]
@@ -1439,8 +1427,7 @@ mod tests {
         assert_eq!(c_r, C_R_TV);
         assert_eq!(id_cred_r.as_full_value(), ID_CRED_R_TV);
         assert_eq!(mac_2, MAC_2_TV);
-        assert!(ead_2.items[0].is_none());
-        assert_eq!(ead_2.len, 0);
+        assert!(ead_2.is_empty());
     }
 
     #[test]
@@ -1471,8 +1458,7 @@ mod tests {
         let plaintext_4 = decode_plaintext_4(&plaintext_4_tv);
         assert!(plaintext_4.is_ok());
         let ead_4 = plaintext_4.unwrap();
-        assert!(ead_4.items[0].is_none());
-        assert_eq!(ead_4.len, 0);
+        assert!(ead_4.is_empty());
     }
 
     #[test]
@@ -1547,8 +1533,7 @@ mod tests {
 
         assert_eq!(mac_3, MAC_3_TV);
         assert_eq!(id_cred_i.as_full_value(), ID_CRED_I_TV);
-        assert!(ead_3.items[0].is_none());
-        assert_eq!(ead_3.len, 0);
+        assert!(ead_3.is_empty());
     }
 
     #[test]
@@ -1621,35 +1606,33 @@ mod tests {
         let ead = parse_eads(&message_ead_tv.as_slice()[message_tv_offset..message_ead_tv.len()])
             .unwrap();
 
-        let ead_item = &ead.items[0].clone().unwrap();
+        let mut ead = ead.iter();
+        let ead_item = ead.next().unwrap();
         assert!(!ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value.clone().unwrap(), ead_value_tv);
         // only 1 ead
-        for i in 1..MAX_EAD_ITEMS {
-            assert!(&ead.items[i].is_none());
-        }
+        assert!(ead.next().is_none());
 
         let message_ead_tv = BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_CRITICAL_EAD_TV);
 
         let ead = parse_eads(&message_ead_tv.as_slice()[message_tv_offset..message_ead_tv.len()])
             .unwrap();
 
-        let ead_item = &ead.items[0].clone().unwrap();
+        let mut ead = ead.iter();
+        let ead_item = ead.next().unwrap();
         assert!(ead_item.is_critical);
         assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value.clone().unwrap(), ead_value_tv);
         // only 1 ead
-        for i in 1..MAX_EAD_ITEMS {
-            assert!(&ead.items[i].is_none());
-        }
+        assert!(ead.next().is_none());
 
         let message_ead_tv: EdhocMessageBuffer =
             BufferMessage1::from_hex(MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV);
 
         let ead = parse_eads(&message_ead_tv.as_slice()[message_tv_offset..message_ead_tv.len()])
             .unwrap();
-        let ead = &ead.items[0].clone().unwrap();
+        let ead = &ead.iter().next().unwrap();
         assert!(!ead.is_critical);
         assert_eq!(ead.label, EAD_DUMMY_LABEL_TV);
         assert!(ead.value.is_none());
@@ -1659,17 +1642,16 @@ mod tests {
         let ead = parse_eads(&message_ead_tv.as_slice()[message_tv_offset..message_ead_tv.len()])
             .unwrap();
 
-        let fst_ead = &ead.items[0].clone().unwrap();
+        let mut ead = ead.iter();
+        let fst_ead = ead.next().unwrap();
         assert!(!fst_ead.is_critical);
         assert_eq!(fst_ead.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(fst_ead.value.clone().unwrap(), ead_value_tv);
-        let snd_ead = ead.items[1].clone().unwrap();
+        let snd_ead = ead.next().unwrap();
         assert!(snd_ead.is_critical);
         assert_eq!(snd_ead.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(snd_ead.value.clone().unwrap(), ead_value_tv);
-        for i in 2..MAX_EAD_ITEMS {
-            assert!(&ead.items[i].is_none());
-        }
+        assert!(ead.next().is_none());
     }
 
     #[test]
@@ -1681,7 +1663,7 @@ mod tests {
         assert!(res.is_ok());
         let (_method, _suites_i, _g_x, _c_i, ead_1) = res.unwrap();
 
-        let ead_1 = &ead_1.items[0].clone().unwrap();
+        let ead_1 = &ead_1.iter().next().unwrap();
         assert!(ead_1.is_critical);
         assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_1.value.clone().unwrap(), ead_value_tv);

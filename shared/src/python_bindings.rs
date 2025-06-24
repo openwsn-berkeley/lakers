@@ -75,11 +75,6 @@ impl EadItems {
         self.items.iter().cloned().collect()
     }
 
-    #[getter]
-    fn len(&self) -> usize {
-        self.len
-    }
-
     pub fn try_push_py(&mut self, item: EADItem) -> PyResult<()> {
         self.try_push(item).map_err(|err| {
             pyo3::exceptions::PyValueError::new_err(format!("ead already full: {:?}", err))

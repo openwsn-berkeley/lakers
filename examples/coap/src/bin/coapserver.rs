@@ -62,7 +62,8 @@ fn main() {
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
 
                     let mut ead_2 = EadItems::new();
-                    if let Some(ead_item) = &ead_1.items[0] {
+                    // FIXME: Process all items
+                    if let Some(ead_item) = &ead_1.iter().next() {
                         if ead_item.value.is_some() {
                             let authenticator = ZeroTouchAuthenticator::default();
                             let (authenticator, _loc_w, voucher_request) =
