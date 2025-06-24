@@ -642,9 +642,10 @@ impl EadItems {
     }
 
     pub fn try_push(&mut self, item: EADItem) -> Result<(), EADItem> {
-        for slot in self.items.iter_mut() {
-            if slot.is_none() {
-                *slot = Some(item);
+        // Not using iter_mut because hax wouldn't like that.
+        for i in 0..MAX_EAD_ITEMS {
+            if self.items[i].is_none() {
+                self.items[i] = Some(item);
                 return Ok(());
             }
         }
@@ -667,9 +668,10 @@ impl EadItems {
     }
 
     pub fn pop_by_label(&mut self, label: u16) -> Option<EADItem> {
-        for slot in self.items.iter_mut() {
-            if slot.as_ref().is_some_and(|i| i.label == label) {
-                return slot.take();
+        // Not using iter_mut because hax wouldn't like that.
+        for i in 0..MAX_EAD_ITEMS {
+            if self.items[i].as_ref().is_some_and(|i| i.label == label) {
+                return self.items[i].take();
             }
         }
         None
