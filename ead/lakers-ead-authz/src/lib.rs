@@ -71,7 +71,7 @@ mod test_authz {
 
         // ead_2 will be transported within message_2
 
-        let result = device.process_ead_2(&mut default_crypto(), ead_2, CRED_V_TV);
+        let result = device.process_ead_2(&mut default_crypto(), &ead_2, CRED_V_TV);
         assert!(result.is_ok());
     }
 

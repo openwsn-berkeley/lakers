@@ -64,7 +64,7 @@ pub unsafe extern "C" fn authz_device_process_ead_2(
     let ead_2_item = (*ead_2_c).items[0].to_rust();
     let cred_v = (*cred_v).to_rust();
     let cred_v = cred_v.bytes.as_slice();
-    match device.wait_ead2.process_ead_2(crypto, ead_2_item, cred_v) {
+    match device.wait_ead2.process_ead_2(crypto, &ead_2_item, cred_v) {
         Ok(device) => {
             (*device_c).done = device;
             0

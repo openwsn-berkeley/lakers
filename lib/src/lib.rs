@@ -816,7 +816,7 @@ mod test_authz {
         let valid_cred_r = credential_check_or_fetch(None, id_cred_r).unwrap();
         let result = device.process_ead_2(
             &mut default_crypto(),
-            ead_2.items[0].clone().unwrap(),
+            ead_2.items[0].as_ref().unwrap(),
             CRED_R,
         );
         assert!(result.is_ok());
