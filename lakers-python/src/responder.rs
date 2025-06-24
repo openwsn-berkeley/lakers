@@ -106,6 +106,7 @@ impl PyEdhocResponder {
                 .with_cause(py, "Connection identifier C_R out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
+        let ead_2 = ead_2.try_into()?;
         let mut r = BytesP256ElemLen::default();
         r.copy_from_slice(self.r.as_slice());
 
@@ -174,6 +175,7 @@ impl PyEdhocResponder {
         py: Python<'a>,
         ead_4: EadItems,
     ) -> PyResult<Bound<'a, PyBytes>> {
+        let ead_4 = ead_4.try_into()?;
         let (state, message_4) =
             r_prepare_message_4(&self.take_processed_m3()?, &mut default_crypto(), &ead_4)?;
         self.completed = Some(state);

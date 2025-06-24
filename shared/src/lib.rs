@@ -612,7 +612,6 @@ impl EADItem {
 }
 
 /// external authorization data.
-#[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
 pub struct EadItems {
     items: [Option<EADItem>; MAX_EAD_ITEMS],

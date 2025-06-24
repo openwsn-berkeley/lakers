@@ -88,6 +88,7 @@ impl PyEdhocInitiator {
                 .with_cause(py, "Connection identifier C_I out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
+        let ead_1 = ead_1.try_into()?;
 
         let (state, message_1) =
             i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1)?;
@@ -162,6 +163,7 @@ impl PyEdhocInitiator {
         cred_transfer: CredentialTransfer,
         ead_3: EadItems,
     ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
+        let ead_3 = ead_3.try_into()?;
         let (state, message_3, prk_out) = i_prepare_message_3(
             &mut self.take_processed_m2()?,
             &mut default_crypto(),
