@@ -1,3 +1,4 @@
+use crate::consts::EAD_AUTHZ_LABEL;
 use crate::shared::*;
 use defmt_or_log::trace;
 use lakers_shared::{Crypto as CryptoTrait, *};
@@ -34,11 +35,14 @@ impl ZeroTouchServer {
     ) -> Result<EdhocMessageBuffer, EDHOCError> {
         trace!("Enter handle_voucher_request");
         let (message_1, opaque_state) = parse_voucher_request(vreq)?;
-        let (_method, _suites_i, g_x, _c_i, ead_1) = parse_message_1(&message_1)?;
+        let (_method, _suites_i, g_x, _c_i, mut ead_1) = parse_message_1(&message_1)?;
         let prk = compute_prk(crypto, &self.w, &g_x);
 
-        // FIXME: Accept in any position, reject critical others.
-        let ead_item = ead_1.iter().next().ok_or(EDHOCError::EADUnprocessable)?;
+        // Not so much "EAD Unprocessable" but more "we really would have needed that EAD"
+        let ead_item = ead_1
+            .pop_by_label(EAD_AUTHZ_LABEL)
+            .ok_or(EDHOCError::EADUnprocessable)?;
+        ead_1.processed_critical_items()?;
         let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value.clone().unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;

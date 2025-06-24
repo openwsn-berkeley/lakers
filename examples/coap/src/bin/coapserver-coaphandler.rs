@@ -114,7 +114,7 @@ impl coap_handler::Handler for EdhocHandler {
             let message_1 =
                 &EdhocBuffer::new_from_slice(&request.payload()[1..]).map_err(too_small)?;
 
-            let (responder, _c_i, ead_1) = EdhocResponder::new(
+            let (responder, _c_i, mut ead_1) = EdhocResponder::new(
                 lakers_crypto::default_crypto(),
                 EDHOCMethod::StatStat,
                 R.try_into().expect("Wrong length of responder private key"),
@@ -124,8 +124,7 @@ impl coap_handler::Handler for EdhocHandler {
             .map_err(render_error)?;
 
             let mut ead_2 = EadItems::new();
-            // FIXME: Process all items
-            if let Some(ead1_item) = &ead_1.iter().next() {
+            if let Some(ead1_item) = ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL) {
                 if ead1_item.value.is_some() {
                     let authenticator = ZeroTouchAuthenticator::default();
                     let (authenticator, _loc_w, voucher_request) = authenticator
@@ -149,6 +148,7 @@ impl coap_handler::Handler for EdhocHandler {
                     ead_2.try_push(ead_item).expect("ead_2 is already full");
                 };
             }
+            ead_1.processed_critical_items().map_err(render_error)?;
 
             let c_r = self.new_c_r();
             Ok(EdhocResponse::OkSend2 {
@@ -180,8 +180,12 @@ impl coap_handler::Handler for EdhocHandler {
 
             let message_3 = EdhocBuffer::new_from_slice(&message_3).map_err(too_small)?;
             let result = responder.parse_message_3(&message_3);
-            let (responder, id_cred_i, _ead_3) = result.map_err(|e| {
+            let (responder, id_cred_i, ead_3) = result.map_err(|e| {
                 println!("EDHOC processing error: {:?}", e);
+                render_error(e)
+            })?;
+            ead_3.processed_critical_items().map_err(|e| {
+                println!("Critical EAD3 items were present that were not processed: {ead_3:?}");
                 render_error(e)
             })?;
             let cred_i =

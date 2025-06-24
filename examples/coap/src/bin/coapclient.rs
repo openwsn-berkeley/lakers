@@ -54,7 +54,8 @@ fn client_handshake() -> Result<(), EDHOCError> {
     println!("message_2 len = {}", response.message.payload.len());
 
     let message_2 = EdhocBuffer::new_from_slice(&response.message.payload[..]).unwrap();
-    let (mut initiator, c_r, id_cred_r, _ead_2) = initiator.parse_message_2(&message_2)?;
+    let (mut initiator, c_r, id_cred_r, ead_2) = initiator.parse_message_2(&message_2)?;
+    ead_2.processed_critical_items().unwrap();
     let valid_cred_r = credential_check_or_fetch(Some(cred_r), id_cred_r).unwrap();
     initiator.set_identity(I.try_into().unwrap(), cred_i)?;
     let initiator = initiator.verify_message_2(valid_cred_r)?;
@@ -72,7 +73,8 @@ fn client_handshake() -> Result<(), EDHOCError> {
     println!("response_vec = {:02x?}", response.message.payload);
     println!("message_3 len = {}", response.message.payload.len());
     let message_4 = EdhocBuffer::new_from_slice(&response.message.payload[..]).unwrap();
-    let (mut initiator, _ead_4) = initiator.process_message_4(&message_4).unwrap();
+    let (mut initiator, ead_4) = initiator.process_message_4(&message_4).unwrap();
+    ead_4.processed_critical_items().unwrap();
 
     println!("EDHOC exchange successfully completed");
     println!("PRK_out: {:02x?}", prk_out);

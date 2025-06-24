@@ -57,13 +57,14 @@ fn main() {
                     .expect("wrong length");
                 let result = responder.process_message_1(&message_1);
 
-                if let Ok((responder, _c_i, ead_1)) = result {
+                if let Ok((responder, _c_i, mut ead_1)) = result {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
 
                     let mut ead_2 = EadItems::new();
-                    // FIXME: Process all items
-                    if let Some(ead_item) = &ead_1.iter().next() {
+                    if let Some(ead_item) =
+                        ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL)
+                    {
                         if ead_item.value.is_some() {
                             let authenticator = ZeroTouchAuthenticator::default();
                             let (authenticator, _loc_w, voucher_request) =
@@ -83,6 +84,7 @@ fn main() {
                             ead_2.try_push(res.unwrap()).unwrap();
                         };
                     }
+                    ead_1.processed_critical_items().unwrap();
 
                     let (responder, message_2) = responder
                         .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
@@ -104,13 +106,14 @@ fn main() {
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
                 let message_3 = EdhocBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
-                let Ok((responder, id_cred_i, _ead_3)) = responder.parse_message_3(&message_3)
+                let Ok((responder, id_cred_i, ead_3)) = responder.parse_message_3(&message_3)
                 else {
                     println!("EDHOC error at parse_message_3: {:?}", message_3);
                     // We don't get another chance, it's popped and can't be used any further
                     // anyway legally
                     continue;
                 };
+                ead_3.processed_critical_items().unwrap();
                 let cred_i = Credential::parse_ccs(CRED_I.try_into().unwrap()).unwrap();
                 let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
                 // FIXME: instead of cloning, take by reference
