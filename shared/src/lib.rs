@@ -587,6 +587,23 @@ pub type MessageBufferError = buffer::EdhocBufferError;
 /// An [`EdhocBuffer`] used for messages.
 pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 
+#[derive(Copy, Clone)]
+pub struct EadSlice<'a> {
+    pub label: u16,
+    pub is_critical: bool,
+    pub value: Option<&'a [u8]>,
+}
+
+impl<'a> From<&'a EADItem> for EadSlice<'a> {
+    fn from(value: &'a EADItem) -> Self {
+        Self {
+            label: value.label,
+            is_critical: value.is_critical,
+            value: value.value.as_ref().map(EdhocBuffer::as_slice),
+        }
+    }
+}
+
 /// An owned EAD item.
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]

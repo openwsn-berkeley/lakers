@@ -77,12 +77,13 @@ enum EdhocResponse {
     OkSend2 {
         c_r: ConnId,
         responder: EdhocResponderProcessedM1<Crypto>,
-        // FIXME: Is the ead_2 the most practical data to store here? An easy alternative is the
-        // voucher_response; ideal would be the voucher, bu that is only internal to prepare_ead_2.
+        // FIXME: Is the at-most-one item of ead_2 the most practical data to store here? An easy
+        // alternative is the voucher_response; ideal would be the voucher, bu that is only
+        // internal to prepare_ead_2.
         //
         // Also, we'll want to carry around the set of actually authenticated claims (right now
         // it's just "if something is here, our single W completed authz")
-        ead_2: EadItems,
+        ead_2: Option<EADItem>,
     },
     Message3Processed,
 }
@@ -123,7 +124,7 @@ impl coap_handler::Handler for EdhocHandler {
             .process_message_1(message_1)
             .map_err(render_error)?;
 
-            let mut ead_2 = EadItems::new();
+            let mut ead_2 = None;
             if let Some(ead1_item) = ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL) {
                 if ead1_item.value.is_some() {
                     let authenticator = ZeroTouchAuthenticator::default();
@@ -145,7 +146,7 @@ impl coap_handler::Handler for EdhocHandler {
                         .map_err(render_error)?;
 
                     println!("Authenticator confirmed authz");
-                    ead_2.try_push(ead_item).expect("ead_2 is already full");
+                    ead_2 = Some(ead_item);
                 };
             }
             ead_1.processed_critical_items().map_err(render_error)?;
@@ -241,7 +242,11 @@ impl coap_handler::Handler for EdhocHandler {
                 ead_2,
             } => {
                 let (responder, message_2) = responder
-                    .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
+                    .prepare_message_2(
+                        CredentialTransfer::ByReference,
+                        Some(c_r),
+                        ead_2.iter().map(Into::into),
+                    )
                     .unwrap();
                 self.connections.push((c_r, responder));
                 response.set_payload(message_2.as_slice())?;

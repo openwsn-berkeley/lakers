@@ -117,7 +117,7 @@ fn main() -> ! {
 
         let (responder, _c_i, _ead_1) = responder.process_message_1(&message_1).unwrap();
         let (responder, message_2) = responder
-            .prepare_message_2(CredentialTransfer::ByReference, None, &EadItems::new())
+            .prepare_message_2(CredentialTransfer::ByReference, None, core::iter::empty())
             .unwrap();
 
         let (mut initiator, _c_r, id_cred_r, _ead_2) =

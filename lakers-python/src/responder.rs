@@ -106,7 +106,7 @@ impl PyEdhocResponder {
                 .with_cause(py, "Connection identifier C_R out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
-        let ead_2 = ead_2.try_into()?;
+        let ead_2: EadItems = ead_2.try_into()?;
         let mut r = BytesP256ElemLen::default();
         r.copy_from_slice(self.r.as_slice());
 
@@ -118,7 +118,8 @@ impl PyEdhocResponder {
             &r,
             c_r,
             cred_transfer,
-            &ead_2,
+            // FIXME: don't go through EadItems
+            ead_2.iter().map(Into::into),
         )?;
         self.wait_m3 = Some(state);
         Ok(PyBytes::new_bound(py, message_2.as_slice()))

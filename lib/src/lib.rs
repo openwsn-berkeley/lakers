@@ -149,11 +149,11 @@ impl<Crypto: CryptoTrait> EdhocResponder<Crypto> {
 }
 
 impl<Crypto: CryptoTrait> EdhocResponderProcessedM1<Crypto> {
-    pub fn prepare_message_2(
+    pub fn prepare_message_2<'a>(
         mut self,
         cred_transfer: CredentialTransfer,
         c_r: Option<ConnId>,
-        ead_2: &EadItems,
+        ead_2: impl Iterator<Item = EadSlice<'a>> + Clone,
     ) -> Result<(EdhocResponderWaitM3<Crypto>, BufferMessage2), EDHOCError> {
         trace!("Enter prepare_message_2");
         let c_r = match c_r {
@@ -648,7 +648,7 @@ mod test {
         // if ead_1: process ead_1
         // if needed: prepare ead_2
         let (responder, message_2) = responder
-            .prepare_message_2(CredentialTransfer::ByReference, None, &EadItems::new())
+            .prepare_message_2(CredentialTransfer::ByReference, None, core::iter::empty())
             .unwrap();
         // ---- end responder handling
 
@@ -808,7 +808,11 @@ mod test_authz {
             EadItems::new()
         };
         let (responder, message_2) = responder
-            .prepare_message_2(CredentialTransfer::ByValue, None, &ead_2)
+            .prepare_message_2(
+                CredentialTransfer::ByValue,
+                None,
+                ead_2.iter().map(Into::into),
+            )
             .unwrap();
 
         let (mut initiator, _c_r, id_cred_r, ead_2) =
