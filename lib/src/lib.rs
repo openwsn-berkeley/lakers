@@ -182,10 +182,10 @@ impl<Crypto: CryptoTrait> EdhocResponderProcessedM1<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
+impl<Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     pub fn parse_message_3(
         mut self,
-        message_3: &'a BufferMessage3,
+        message_3: &BufferMessage3,
     ) -> Result<(EdhocResponderProcessingM3<Crypto>, IdCred, EadItems), EDHOCError> {
         trace!("Enter parse_message_3");
         match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
@@ -202,7 +202,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
+impl<Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
     pub fn verify_message_3(
         mut self,
         cred_i: Credential,
@@ -261,7 +261,7 @@ impl<Crypto: CryptoTrait> EdhocResponderDone<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
+impl<Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     pub fn new(mut crypto: Crypto, method: EDHOCMethod, selected_suite: EDHOCSuite) -> Self {
         trace!("Initializing EdhocInitiator");
         let suites_i = prepare_suites_i(&crypto.supported_suites(), selected_suite.into()).unwrap();
@@ -319,10 +319,10 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
+impl<Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
     pub fn parse_message_2(
         mut self,
-        message_2: &'a BufferMessage2,
+        message_2: &BufferMessage2,
     ) -> Result<(EdhocInitiatorProcessingM2<Crypto>, ConnId, IdCred, EadItems), EDHOCError> {
         trace!("Enter parse_message_2");
         match i_parse_message_2(&self.state, &mut self.crypto, message_2) {
@@ -342,7 +342,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
+impl<Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     pub fn set_identity(
         &mut self,
         i: BytesP256ElemLen,
@@ -375,7 +375,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessingM2<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
+impl<Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
     pub fn prepare_message_3(
         mut self,
         cred_transfer: CredentialTransfer,
@@ -412,10 +412,10 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
     }
 }
 
-impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
+impl<Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
     pub fn process_message_4(
         mut self,
-        message_4: &'a BufferMessage4,
+        message_4: &BufferMessage4,
     ) -> Result<(EdhocInitiatorDone<Crypto>, EadItems), EDHOCError> {
         trace!("Enter parse_message_4");
         match i_process_message_4(&mut self.state, &mut self.crypto, message_4) {
