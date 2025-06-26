@@ -144,7 +144,10 @@ impl PyEdhocResponder {
             &mut message_3,
         )?;
         self.processing_m3 = Some(state);
-        Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
+        Ok((
+            PyBytes::new_bound(py, id_cred_i.bytes.as_slice()),
+            ead_3.into(),
+        ))
     }
 
     /// Verifies the previously inserted message 3.

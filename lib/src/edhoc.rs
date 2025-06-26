@@ -120,17 +120,22 @@ pub fn r_prepare_message_2<'a>(
     ))
 }
 
-pub fn r_parse_message_3(
+pub fn r_parse_message_3<'a>(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
-    message_3: &mut BufferMessage3,
-) -> Result<(ProcessingM3, IdCred, EadItems), EDHOCError> {
+    message_3: &'a mut BufferMessage3,
+) -> Result<(ProcessingM3, IdCred, EadSlices<'a>), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
-        let decoded_p3_res = decode_plaintext_3(&plaintext_3);
+        // FIXME: Ideally we'd just work in-place rather than allocate and copy back.
+        // Moving into a caller-allocated buffer so we can return slices of it.
+        *message_3 = EdhocMessageBuffer::new_from_slice(plaintext_3.as_slice())
+            .expect("Plaintext can not be longer than ciphertext");
+        let decoded_p3_res = decode_plaintext_3(message_3);
 
         if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
+            let ead_3_start = plaintext_3.len() - ead_3.bytes_len(); // FIXME: Can we get this prettier?
             Ok((
                 ProcessingM3 {
                     mac_3,
@@ -139,7 +144,7 @@ pub fn r_parse_message_3(
                     th_3: state.th_3,
                     id_cred_i: id_cred_i.clone(), // needed for compute_mac_3
                     plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at the 'verify' step
-                    ead_3: ead_3.clone(), // NOTE: this clone could be avoided by using a reference or an index to the ead_3 item in plaintext_3
+                    ead_3_start,
                 },
                 id_cred_i,
                 ead_3,
@@ -175,7 +180,7 @@ pub fn r_verify_message_3(
         &state.th_3,
         state.id_cred_i.as_full_value(),
         valid_cred_i.bytes.as_slice(),
-        &state.ead_3,
+        state.ead_3().iter(),
     );
 
     // verify mac_3
@@ -368,7 +373,7 @@ pub fn i_prepare_message_3(
         &state.th_3,
         id_cred_i.as_full_value(),
         cred_i.bytes.as_slice(),
-        ead_3,
+        ead_3.iter().map(Into::into),
     );
 
     let plaintext_3 = encode_plaintext_3(id_cred_i.as_encoded_value(), &mac_3, &ead_3)?;
@@ -880,16 +885,16 @@ fn encode_kdf_context<'a>(
     output
 }
 
-fn compute_mac_3(
+fn compute_mac_3<'a>(
     crypto: &mut impl CryptoTrait,
     prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &[u8],
     cred_i: &[u8],
-    ead_3: &EadItems,
+    ead_3: impl Iterator<Item = EadSlice<'a>>,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
-    let context = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3.iter().map(Into::into));
+    let context = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
 
     // compute mac_3
     edhoc_kdf_owned(
@@ -1361,7 +1366,7 @@ mod tests {
             &TH_3_TV,
             &ID_CRED_I_TV,
             &CRED_I_TV,
-            &EadItems::new(),
+            core::iter::empty(),
         );
         assert_eq!(mac_3, MAC_3_TV);
     }

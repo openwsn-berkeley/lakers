@@ -528,7 +528,13 @@ pub struct ProcessingM3 {
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
     pub plaintext_3: BufferPlaintext3,
-    pub ead_3: EadItems,
+    pub ead_3_start: usize,
+}
+
+impl ProcessingM3 {
+    pub fn ead_3(&self) -> EadSlices<'_> {
+        EadSlices(&self.plaintext_3.as_slice()[self.ead_3_start..])
+    }
 }
 
 #[derive(Debug)]
@@ -604,6 +610,64 @@ impl<'a> From<&'a EADItem> for EadSlice<'a> {
     }
 }
 
+/// A CBOR sequence of consecutive EAD slices.
+// It's a slice-ish type, so Copy is warranted.
+#[derive(Debug, Copy, Clone)] // FIXME: provide a proper Debug
+pub struct EadSlices<'a>(&'a [u8]);
+
+impl EadSlices<'_> {
+    pub fn bytes_len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = EadSlice> + Clone {
+        EadSlicesIterator {
+            slices: self.clone(),
+            cursor: 0,
+        }
+    }
+
+    // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
+    // of tests that's not a meanginful question.
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
+    // FIXME This doesn't really make a lot of sense b/c we can't pop from this.
+    /// Checks whether there are critical items remaining; if so, it returns the corresponding
+    /// error.
+    ///
+    /// Call this whenever processing EAD items after all processable items have been removed.
+    pub fn processed_critical_items(&self) -> Result<(), EDHOCError> {
+        if self.iter().any(|i| i.is_critical) {
+            return Err(EDHOCError::EADUnprocessable);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+struct EadSlicesIterator<'a> {
+    slices: EadSlices<'a>,
+    cursor: usize,
+}
+
+impl<'a> Iterator for EadSlicesIterator<'a> {
+    type Item = EadSlice<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cursor < self.slices.0.len() {
+            let (item, consumed) =
+                edhoc_parser::parse_single_ead_slice(&self.slices.0[self.cursor..])
+                    .expect("EadSlicesIterator has 'items are valid' as panic-worthy invariant");
+            self.cursor += consumed;
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
 /// An owned EAD item.
 #[cfg_attr(feature = "python-bindings", pyclass)]
 #[derive(Clone, Debug)]
@@ -673,6 +737,7 @@ impl EadItems {
         self.into_iter()
     }
 
+    // FIXME: Remove once all consumers moved to EadSlices
     /// Checks whether there are critical items remaining; if so, it returns the corresponding
     /// error.
     ///
@@ -704,6 +769,22 @@ impl EadItems {
     // of tests that's not a meanginful question.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+// FIXME: Remove; this is just to make the transition easier for Python.
+impl From<EadSlices<'_>> for EadItems {
+    fn from(value: EadSlices<'_>) -> Self {
+        let mut result = Self::new();
+        for item in value.iter() {
+            let converted = EADItem {
+                label: item.label,
+                is_critical: item.is_critical,
+                value: item.value.map(|v| EdhocBuffer::new_from_slice(v).unwrap()),
+            };
+            result.try_push(converted).unwrap();
+        }
+        result
     }
 }
 
@@ -827,6 +908,76 @@ mod edhoc_parser {
         };
 
         let item = EADItem {
+            label: label.into(),
+            is_critical,
+            value: ead_value,
+        };
+
+        Ok((item, offset))
+    }
+
+    // FIXME: Duplicate with parse_single_ead while we're not using EadSlice everywhere
+    pub(crate) fn parse_single_ead_slice(
+        input: &[u8],
+    ) -> Result<(EadSlice<'_>, usize), EDHOCError> {
+        let mut offset = 0;
+
+        let &label = input.get(offset).ok_or(EDHOCError::ParsingError)?;
+        offset += 1;
+
+        let (label, is_critical) = if CBORDecoder::is_u8(label) {
+            // CBOR unsigned integer (0..=23)
+            (label, false)
+        } else if CBORDecoder::is_i8(label) {
+            // CBOR negative integer (-1..=-24)
+            (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
+        } else {
+            return Err(EDHOCError::ParsingError);
+        };
+
+        let ead_value = if let Some(&bstr_head) = input.get(offset) {
+            if (bstr_head & 0xe0) == 0x40 {
+                let additional_info = bstr_head & 0x1f;
+                offset += 1;
+
+                // Decode the length based on additional_info
+                let len = match additional_info {
+                    l if l <= 23 => additional_info as usize,
+                    24 => {
+                        let len_byte = *input.get(offset).ok_or(EDHOCError::ParsingError)? as usize;
+                        offset += 1;
+                        len_byte
+                    }
+                    25 => {
+                        let len_bytes = input
+                            .get(offset..offset + 2)
+                            .ok_or(EDHOCError::ParsingError)?;
+                        offset += 2;
+                        u16::from_be_bytes(len_bytes.try_into().unwrap()) as usize
+                    }
+                    26 => {
+                        let len_bytes = input
+                            .get(offset..offset + 4)
+                            .ok_or(EDHOCError::ParsingError)?;
+                        offset += 4;
+                        u32::from_be_bytes(len_bytes.try_into().unwrap()) as usize
+                    }
+                    _ => return Err(EDHOCError::ParsingError),
+                };
+
+                let value = input.get(1..offset + len).ok_or(EDHOCError::ParsingError)?;
+
+                offset += len;
+
+                Some(value)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let item = EadSlice {
             label: label.into(),
             is_critical,
             value: ead_value,
@@ -972,7 +1123,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_3(
         plaintext_3: &BufferPlaintext3,
-    ) -> Result<(IdCred, BytesMac3, EadItems), EDHOCError> {
+    ) -> Result<(IdCred, BytesMac3, EadSlices<'_>), EDHOCError> {
         trace!("Enter decode_plaintext_3");
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
 
@@ -984,18 +1135,8 @@ mod edhoc_parser {
         mac_3[..].copy_from_slice(decoder.bytes_sized(MAC_LENGTH_3)?);
 
         // if there is still more to parse, the rest will be the EADs
-        if plaintext_3.len() > decoder.position() {
-            let ead_res = parse_eads(decoder.remaining_buffer()?);
-            if let Ok(ead3_buffer) = ead_res {
-                Ok((id_cred_i, mac_3, ead3_buffer))
-            } else {
-                Err(ead_res.unwrap_err())
-            }
-        } else if decoder.finished() {
-            Ok((id_cred_i, mac_3, EadItems::new()))
-        } else {
-            Err(EDHOCError::ParsingError)
-        }
+        // FIXME: Should we verify that they're CBOR? (Or do we rely on EadSlices to do that?)
+        Ok((id_cred_i, mac_3, EadSlices(decoder.remaining_buffer()?)))
     }
 
     pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<EadItems, EDHOCError> {
@@ -1084,7 +1225,7 @@ mod cbor_decoder {
             }
         }
 
-        pub fn remaining_buffer(&self) -> Result<&[u8], CBORError> {
+        pub fn remaining_buffer(&self) -> Result<&'a [u8], CBORError> {
             if let Some(buffer) = self.buf.get(self.pos..) {
                 Ok(buffer)
             } else {
