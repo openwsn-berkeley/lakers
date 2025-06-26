@@ -123,7 +123,7 @@ pub fn r_prepare_message_2<'a>(
 pub fn r_parse_message_3(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
-    message_3: &BufferMessage3,
+    message_3: &mut BufferMessage3,
 ) -> Result<(ProcessingM3, IdCred, EadItems), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 

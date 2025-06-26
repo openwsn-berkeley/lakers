@@ -185,7 +185,7 @@ impl<Crypto: CryptoTrait> EdhocResponderProcessedM1<Crypto> {
 impl<Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     pub fn parse_message_3(
         mut self,
-        message_3: &BufferMessage3,
+        message_3: &mut BufferMessage3,
     ) -> Result<(EdhocResponderProcessingM3<Crypto>, IdCred, EadItems), EDHOCError> {
         trace!("Enter parse_message_3");
         match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
@@ -665,13 +665,13 @@ mod test {
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
         // if needed: prepare ead_3
-        let (initiator, message_3, i_prk_out) = initiator
+        let (initiator, mut message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &EadItems::new())
             .unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
-        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&mut message_3).unwrap();
         let valid_cred_i = credential_check_or_fetch(Some(cred_i), id_cred_i).unwrap();
         let (responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
@@ -829,11 +829,11 @@ mod test_authz {
             .unwrap();
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
-        let (initiator, message_3, i_prk_out) = initiator
+        let (initiator, mut message_3, i_prk_out) = initiator
             .prepare_message_3(CredentialTransfer::ByReference, &EadItems::new())
             .unwrap();
         let _initiator = initiator.completed_without_message_4();
-        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
+        let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&mut message_3).unwrap();
         let valid_cred_i = if id_cred_i.reference_only() {
             mock_fetch_cred_i(id_cred_i).unwrap()
         } else {
