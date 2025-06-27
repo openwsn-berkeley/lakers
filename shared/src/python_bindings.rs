@@ -60,30 +60,30 @@ impl EADItem {
     }
 }
 
-#[pymethods]
-impl Ead {
-    #[new]
-    pub fn new_py() -> Self {
-        Self {
-            items: core::array::from_fn(|_| None),
-            len: 0,
+impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let mut items = EadItems::new();
+        let value: &Bound<'py, pyo3::types::PySequence> = ob.downcast()?;
+        for item in value.iter()? {
+            items
+                .try_push(item?.extract()?)
+                .map_err(|err| PyValueError::new_err(format!("ead already full: {:?}", err)))?;
         }
+        Ok(items)
     }
+}
 
-    #[getter]
-    pub fn items(&self) -> Vec<Option<EADItem>> {
-        self.items.iter().cloned().collect()
-    }
-
-    #[getter]
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn try_push_py(&mut self, item: EADItem) -> PyResult<()> {
-        self.try_push(item).map_err(|err| {
-            pyo3::exceptions::PyValueError::new_err(format!("ead already full: {:?}", err))
-        })
+impl pyo3::conversion::IntoPy<PyObject> for EadItems {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        let list = pyo3::types::PyList::new_bound(py, core::iter::empty::<PyObject>());
+        // Can't pass it into new_bound as it doesn't have an ExactSizeItertor -- FIXME: should we
+        // implement and use that?
+        for item in self.iter() {
+            list.append(item.clone().into_py(py))
+                // ... and we can't return an error here anyway.
+                .expect("Appending to a Python list does not realistically err");
+        }
+        list.into()
     }
 }
 

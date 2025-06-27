@@ -2,6 +2,8 @@
 
 set -e
 
+export CARGO_TARGET_DIR=../target/
+
 # This script builds the static library for a cortex-m4 target
 # It also generates the header files for the c wrapper
 # It takes one argument: the selected crypto backend

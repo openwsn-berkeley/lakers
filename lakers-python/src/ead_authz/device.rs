@@ -41,7 +41,7 @@ impl PyAuthzDevice {
         Ok(ead_1)
     }
 
-    pub fn process_ead_2(&mut self, ead_2: EADItem, cred_v: &[u8]) -> PyResult<bool> {
+    pub fn process_ead_2(&mut self, ead_2: &EADItem, cred_v: &[u8]) -> PyResult<bool> {
         match self
             .device_wait
             .process_ead_2(&mut default_crypto(), ead_2, cred_v)

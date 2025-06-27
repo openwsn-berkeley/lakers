@@ -51,31 +51,29 @@ impl EADItemC {
 
 #[derive(Default, Clone, Debug)]
 #[repr(C)]
-pub struct EadC {
+pub struct EadItemsC {
     pub items: [EADItemC; MAX_EAD_ITEMS],
     pub len: usize,
 }
 
-impl EadC {
-    pub fn to_rust(&self) -> Ead {
-        let items = self.items.clone().map(|i| match i.value.len() {
-            0 => None,
-            _ => Some(i.to_rust()),
-        });
+impl EadItemsC {
+    pub fn to_rust(&self) -> EadItems {
+        let mut items = EadItems::new();
 
-        Ead {
-            items,
-            len: self.len,
+        for i in self.items.iter() {
+            items
+                .try_push(i.clone().to_rust())
+                .expect("EadItemsC can not contain more items than EadItems");
         }
+
+        items
     }
 
-    pub unsafe fn copy_into_c(ead: Ead, ead_c: *mut EadC) {
-        (*ead_c).len = ead.len;
+    pub unsafe fn copy_into_c(ead: EadItems, ead_c: *mut EadItemsC) {
+        (*ead_c).len = ead.len();
 
-        for i in 0..MAX_EAD_ITEMS {
-            if let Some(item) = &ead.items[i] {
-                EADItemC::copy_into_c(item.clone(), &mut (*ead_c).items[i]);
-            };
+        for (i, item) in ead.iter().enumerate() {
+            EADItemC::copy_into_c(item.clone(), &mut (*ead_c).items[i]);
         }
     }
 
@@ -100,7 +98,7 @@ pub struct ProcessingM2C {
     pub plaintext_2: EdhocMessageBuffer,
     pub c_r: u8,
     pub id_cred_r: IdCred,
-    pub ead_2: *mut EadC,
+    pub ead_2: *mut EadItemsC,
 }
 
 impl Default for ProcessingM2C {

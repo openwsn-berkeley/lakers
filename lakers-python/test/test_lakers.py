@@ -3,7 +3,7 @@ import logging
 import lakers
 import cbor2
 import pytest
-from lakers import CredentialTransfer, EdhocInitiator, EdhocResponder, EADItem, Ead
+from lakers import CredentialTransfer, EdhocInitiator, EdhocResponder, EADItem
 
 # This needs to be early, thus top-level: Once Lakers objects are created, the
 # log level is fixed.
@@ -24,7 +24,7 @@ def test_gen_keys():
 
 def test_initiator():
     initiator = EdhocInitiator()
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=Ead())
+    message_1 = initiator.prepare_message_1(c_i=None)
     assert type(message_1) == bytes
 
 def test_responder():
@@ -52,28 +52,28 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     responder = EdhocResponder(R, CRED_R)
 
     # initiator
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=Ead())
+    message_1 = initiator.prepare_message_1(c_i=None)
 
     # responder
     _c_i, ead_1 = responder.process_message_1(message_1)
-    assert ead_1.items[0] == None
-    message_2 = responder.prepare_message_2(cred_r_transfer, None, ead_1)
+    assert not ead_1
+    message_2 = responder.prepare_message_2(cred_r_transfer, None)
     assert type(message_2) == bytes
 
     # initiator
     c_r, id_cred_r, ead_2 = initiator.parse_message_2(message_2)
-    assert ead_2.items[0] == None
+    assert not ead_2
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
-    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer, Ead())
+    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer)
     assert type(message_3) == bytes
 
     # responder
     id_cred_i, ead_3 = responder.parse_message_3(message_3)
-    assert ead_3.items[0] == None
+    assert not ead_3
     valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
     r_prk_out = responder.verify_message_3(valid_cred_i)
-    message_4 = responder.prepare_message_4(Ead())
+    message_4 = responder.prepare_message_4()
 
     assert i_prk_out == r_prk_out
 
@@ -108,12 +108,12 @@ def test_buffer_error():
 def test_state_missing_step():
     initiator = EdhocInitiator()
     with pytest.raises(RuntimeError) as err:
-        initiator.prepare_message_3(CredentialTransfer.ByReference, Ead())
+        initiator.prepare_message_3(CredentialTransfer.ByReference)
     assert str(err.value).startswith("State machine is just at Start, but this operation requires it to have progressed to ProcessedM2")
 
 def test_state_no_going_back():
     initiator = EdhocInitiator()
-    message_1 = initiator.prepare_message_1(c_i=None, ead_1=Ead())
+    message_1 = initiator.prepare_message_1(c_i=None)
 
     responder = EdhocResponder(R, CRED_R)
     assert "Start" in repr(responder), f"Expected state to be reported in repr, found {responder!r}"

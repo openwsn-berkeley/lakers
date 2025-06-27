@@ -71,14 +71,14 @@ impl ZeroTouchDeviceWaitEAD2 {
     pub fn process_ead_2<Crypto: CryptoTrait>(
         &self,
         crypto: &mut Crypto,
-        ead_2: EADItem,
+        ead_2: &EADItem,
         cred_v: &[u8],
     ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
         trace!("Enter process_ead_2");
         if ead_2.label != EAD_AUTHZ_LABEL {
             return Err(ZeroTouchError::InvalidEADLabel);
         }
-        let Some(ead_2_value_buffer) = ead_2.value else {
+        let Some(ead_2_value_buffer) = &ead_2.value else {
             return Err(ZeroTouchError::EmptyEADValue);
         };
         let mut ead_2_value: BytesEncodedVoucher = Default::default();
@@ -233,7 +233,7 @@ mod test_device {
 
         let res = ead_device.process_ead_2(
             &mut default_crypto(),
-            ead_2_tv,
+            &ead_2_tv,
             CRED_V_TV.try_into().unwrap(),
         );
         assert!(res.is_ok());

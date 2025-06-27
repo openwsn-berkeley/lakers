@@ -78,7 +78,7 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_1: Vec<u8>,
-    ) -> PyResult<(Bound<'a, PyBytes>, Ead)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, EadItems)> {
         let message_1 = EdhocMessageBuffer::new_from_slice(message_1.as_slice())
             .with_cause(py, "Message 1 too long")?;
         let (state, c_i, ead_1) =
@@ -93,19 +93,20 @@ impl PyEdhocResponder {
     ///
     /// Input influences whether the credential is sent by value or reference, which credential is
     /// sent, and whether any optional EAD data is to be sent.
-    #[pyo3(signature = (cred_transfer, c_r=None, ead_2=Ead::new()))]
+    #[pyo3(signature = (cred_transfer, c_r=None, ead_2=EadItems::new()))]
     fn prepare_message_2<'a>(
         &mut self,
         py: Python<'a>,
         cred_transfer: CredentialTransfer,
         c_r: Option<Vec<u8>>,
-        ead_2: Ead,
+        ead_2: EadItems,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let c_r = match c_r {
             Some(c_r) => ConnId::from_slice(c_r.as_slice())
                 .with_cause(py, "Connection identifier C_R out of range")?,
             None => generate_connection_identifier_cbor(&mut default_crypto()),
         };
+        let ead_2 = ead_2.try_into()?;
         let mut r = BytesP256ElemLen::default();
         r.copy_from_slice(self.r.as_slice());
 
@@ -133,7 +134,7 @@ impl PyEdhocResponder {
         &mut self,
         py: Python<'a>,
         message_3: Vec<u8>,
-    ) -> PyResult<(Bound<'a, PyBytes>, Ead)> {
+    ) -> PyResult<(Bound<'a, PyBytes>, EadItems)> {
         let message_3 = EdhocMessageBuffer::new_from_slice(message_3.as_slice())
             .with_cause(py, "Message 3 too long")?;
         let (state, id_cred_i, ead_3) =
@@ -168,12 +169,13 @@ impl PyEdhocResponder {
     /// This may contain additional EAD data.
     ///
     /// After generating this message, the protocol has completed.
-    #[pyo3(signature = (ead_4=Ead::new()))]
+    #[pyo3(signature = (ead_4=EadItems::new()))]
     fn prepare_message_4<'a>(
         &mut self,
         py: Python<'a>,
-        ead_4: Ead,
+        ead_4: EadItems,
     ) -> PyResult<Bound<'a, PyBytes>> {
+        let ead_4 = ead_4.try_into()?;
         let (state, message_4) =
             r_prepare_message_4(&self.take_processed_m3()?, &mut default_crypto(), &ead_4)?;
         self.completed = Some(state);

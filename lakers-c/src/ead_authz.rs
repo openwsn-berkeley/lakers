@@ -42,7 +42,7 @@ pub unsafe extern "C" fn authz_device_prepare_ead_1(
     secret: *const BytesP256ElemLen,
     ss: u8,
     // output parans
-    ead_1_c_out: *mut EadC,
+    ead_1_c_out: *mut EadItemsC,
 ) -> i8 {
     let crypto = &mut default_crypto();
     let (device, ead_1) = (*device_c).start.prepare_ead_1(crypto, *secret, ss);
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn authz_device_prepare_ead_1(
 pub unsafe extern "C" fn authz_device_process_ead_2(
     // input parans
     device_c: *mut EadAuthzDevice,
-    ead_2_c: *mut EadC,
+    ead_2_c: *mut EadItemsC,
     cred_v: *mut CredentialC,
 ) -> i8 {
     let crypto = &mut default_crypto();
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn authz_device_process_ead_2(
     let ead_2_item = (*ead_2_c).items[0].to_rust();
     let cred_v = (*cred_v).to_rust();
     let cred_v = cred_v.bytes.as_slice();
-    match device.wait_ead2.process_ead_2(crypto, ead_2_item, cred_v) {
+    match device.wait_ead2.process_ead_2(crypto, &ead_2_item, cred_v) {
         Ok(device) => {
             (*device_c).done = device;
             0

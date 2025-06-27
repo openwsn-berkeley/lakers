@@ -509,7 +509,7 @@ pub struct ProcessingM2 {
     pub plaintext_2: BufferPlaintext2,
     pub c_r: ConnId,
     pub id_cred_r: IdCred,
-    pub ead_2: Ead,
+    pub ead_2: EadItems,
 }
 
 #[derive(Debug)]
@@ -528,7 +528,7 @@ pub struct ProcessingM3 {
     pub th_3: BytesHashLen,
     pub id_cred_i: IdCred,
     pub plaintext_3: BufferPlaintext3,
-    pub ead_3: Ead,
+    pub ead_3: EadItems,
 }
 
 #[derive(Debug)]
@@ -611,29 +611,82 @@ impl EADItem {
     }
 }
 
-/// external authorization data.
-#[cfg_attr(feature = "python-bindings", pyclass)]
+/// An owned list of External Authorization Data.
+///
+/// Internally, this is stored as an array of options. This eases the typical operations of one
+/// application "taking" out an option until all critical options are gone. This makes pushing an
+/// O(n) operation, but that doesn't matter a lot when N is typically 4.
 #[derive(Clone, Debug)]
-pub struct Ead {
-    pub items: [Option<EADItem>; MAX_EAD_ITEMS],
-    pub len: usize,
+pub struct EadItems {
+    items: [Option<EADItem>; MAX_EAD_ITEMS],
 }
 
-impl Ead {
+impl<'a> IntoIterator for &'a EadItems {
+    type Item = &'a EADItem;
+
+    type IntoIter = core::iter::FilterMap<
+        core::slice::Iter<'a, Option<EADItem>>,
+        fn(&Option<EADItem>) -> Option<&EADItem>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter().filter_map(Option::as_ref)
+    }
+}
+
+impl EadItems {
     pub fn new() -> Self {
         Self {
             items: core::array::from_fn(|_| None),
-            len: 0,
         }
     }
 
     pub fn try_push(&mut self, item: EADItem) -> Result<(), EADItem> {
-        if self.len == MAX_EAD_ITEMS {
-            return Err(item);
+        // Not using iter_mut because hax wouldn't like that.
+        for i in 0..MAX_EAD_ITEMS {
+            if self.items[i].is_none() {
+                self.items[i] = Some(item);
+                return Ok(());
+            }
         }
-        self.items[self.len] = Some(item);
-        self.len += 1;
-        return Ok(());
+        Err(item)
+    }
+
+    pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
+        self.into_iter()
+    }
+
+    /// Checks whether there are critical items remaining; if so, it returns the corresponding
+    /// error.
+    ///
+    /// Call this whenever processing EAD items after all processable items have been removed.
+    pub fn processed_critical_items(&self) -> Result<(), EDHOCError> {
+        if self.iter().any(|i| i.is_critical) {
+            return Err(EDHOCError::EADUnprocessable);
+        }
+        Ok(())
+    }
+
+    pub fn pop_by_label(&mut self, label: u16) -> Option<EADItem> {
+        // Not using iter_mut because hax wouldn't like that.
+        for i in 0..MAX_EAD_ITEMS {
+            if self.items[i].as_ref().is_some_and(|i| i.label == label) {
+                return self.items[i].take();
+            }
+        }
+        None
+    }
+
+    // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
+    // of tests that's not a meanginful question.
+    pub fn len(&self) -> usize {
+        self.items.iter().filter(|x| x.is_some()).count()
+    }
+
+    // This is frequently tested for, but maybe shouldn't wind up in the final API, because outside
+    // of tests that's not a meanginful question.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -678,10 +731,10 @@ mod helpers {
 mod edhoc_parser {
     use super::*;
 
-    pub fn parse_eads(buffer: &[u8]) -> Result<Ead, EDHOCError> {
+    pub fn parse_eads(buffer: &[u8]) -> Result<EadItems, EDHOCError> {
         let mut count = 0;
         let mut cursor = 0;
-        let mut eads = Ead::new();
+        let mut eads = EadItems::new();
 
         for _ in 0..MAX_EAD_ITEMS {
             if !buffer[cursor..].is_empty() {
@@ -805,7 +858,7 @@ mod edhoc_parser {
             EdhocBuffer<MAX_SUITES_LEN>,
             BytesP256ElemLen,
             ConnId,
-            Ead,
+            EadItems,
         ),
         EDHOCError,
     > {
@@ -829,7 +882,7 @@ mod edhoc_parser {
                     Err(ead_res.unwrap_err())
                 }
             } else if decoder.finished() {
-                Ok((method, suites_i, g_x, c_i, Ead::new()))
+                Ok((method, suites_i, g_x, c_i, EadItems::new()))
             } else {
                 Err(EDHOCError::ParsingError)
             }
@@ -872,7 +925,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_2(
         plaintext_2: &BufferCiphertext2,
-    ) -> Result<(ConnId, IdCred, BytesMac2, Ead), EDHOCError> {
+    ) -> Result<(ConnId, IdCred, BytesMac2, EadItems), EDHOCError> {
         trace!("Enter decode_plaintext_2");
         let mut mac_2: BytesMac2 = [0x00; MAC_LENGTH_2];
 
@@ -894,7 +947,7 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((c_r, id_cred_r, mac_2, Ead::new()))
+            Ok((c_r, id_cred_r, mac_2, EadItems::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -902,7 +955,7 @@ mod edhoc_parser {
 
     pub fn decode_plaintext_3(
         plaintext_3: &BufferPlaintext3,
-    ) -> Result<(IdCred, BytesMac3, Ead), EDHOCError> {
+    ) -> Result<(IdCred, BytesMac3, EadItems), EDHOCError> {
         trace!("Enter decode_plaintext_3");
         let mut mac_3: BytesMac3 = [0x00; MAC_LENGTH_3];
 
@@ -922,13 +975,13 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok((id_cred_i, mac_3, Ead::new()))
+            Ok((id_cred_i, mac_3, EadItems::new()))
         } else {
             Err(EDHOCError::ParsingError)
         }
     }
 
-    pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<Ead, EDHOCError> {
+    pub fn decode_plaintext_4(plaintext_4: &BufferPlaintext4) -> Result<EadItems, EDHOCError> {
         trace!("Enter decode_plaintext_4");
         let decoder = CBORDecoder::new(plaintext_4.as_slice());
 
@@ -940,7 +993,7 @@ mod edhoc_parser {
                 Err(ead_res.unwrap_err())
             }
         } else if decoder.finished() {
-            Ok(Ead::new())
+            Ok(EadItems::new())
         } else {
             Err(EDHOCError::ParsingError)
         }
@@ -1254,5 +1307,44 @@ mod test_cbor_decoder {
 
         assert_eq!(input, decoder.any_as_encoded().unwrap());
         assert!(decoder.finished())
+    }
+}
+
+#[cfg(test)]
+mod test_ead_items {
+    use super::*;
+
+    #[test]
+    fn test_ead_items() {
+        let mut items = EadItems::new();
+        assert_eq!(items.len(), 0);
+
+        for label in 1..=MAX_EAD_ITEMS {
+            items
+                .try_push(EADItem {
+                    label: label as u16,
+                    is_critical: label == 1,
+                    value: None,
+                })
+                .unwrap();
+        }
+
+        items
+            .try_push(EADItem {
+                label: 1234,
+                is_critical: false,
+                value: None,
+            })
+            .unwrap_err();
+
+        assert_eq!(items.len(), MAX_EAD_ITEMS);
+
+        // This *should* be an error: the first item is critical.
+        items.processed_critical_items().unwrap_err();
+
+        let ead1 = items.pop_by_label(1).unwrap();
+        assert_eq!(ead1.label, 1);
+
+        items.processed_critical_items().unwrap();
     }
 }

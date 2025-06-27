@@ -131,7 +131,7 @@ impl<Crypto: CryptoTrait> EdhocResponder<Crypto> {
     pub fn process_message_1(
         mut self,
         message_1: &BufferMessage1,
-    ) -> Result<(EdhocResponderProcessedM1<Crypto>, ConnId, Ead), EDHOCError> {
+    ) -> Result<(EdhocResponderProcessedM1<Crypto>, ConnId, EadItems), EDHOCError> {
         trace!("Enter process_message_1");
         let (state, c_i, ead_1) = r_process_message_1(&self.state, &mut self.crypto, message_1)?;
 
@@ -153,7 +153,7 @@ impl<Crypto: CryptoTrait> EdhocResponderProcessedM1<Crypto> {
         mut self,
         cred_transfer: CredentialTransfer,
         c_r: Option<ConnId>,
-        ead_2: &Ead,
+        ead_2: &EadItems,
     ) -> Result<(EdhocResponderWaitM3<Crypto>, BufferMessage2), EDHOCError> {
         trace!("Enter prepare_message_2");
         let c_r = match c_r {
@@ -186,7 +186,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderWaitM3<Crypto> {
     pub fn parse_message_3(
         mut self,
         message_3: &'a BufferMessage3,
-    ) -> Result<(EdhocResponderProcessingM3<Crypto>, IdCred, Ead), EDHOCError> {
+    ) -> Result<(EdhocResponderProcessingM3<Crypto>, IdCred, EadItems), EDHOCError> {
         trace!("Enter parse_message_3");
         match r_parse_message_3(&mut self.state, &mut self.crypto, message_3) {
             Ok((state, id_cred_i, ead_3)) => Ok((
@@ -224,7 +224,7 @@ impl<'a, Crypto: CryptoTrait> EdhocResponderProcessingM3<Crypto> {
 impl<Crypto: CryptoTrait> EdhocResponderProcessedM3<Crypto> {
     pub fn prepare_message_4(
         mut self,
-        ead_4: &Ead,
+        ead_4: &EadItems,
     ) -> Result<(EdhocResponderDone<Crypto>, BufferMessage4), EDHOCError> {
         trace!("Enter prepare_message_4");
         match r_prepare_message_4(&self.state, &mut self.crypto, ead_4) {
@@ -288,7 +288,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiator<Crypto> {
     pub fn prepare_message_1(
         mut self,
         c_i: Option<ConnId>,
-        ead_1: &Ead,
+        ead_1: &EadItems,
     ) -> Result<(EdhocInitiatorWaitM2<Crypto>, BufferMessage1), EDHOCError> {
         trace!("Enter prepare_message_1");
         let c_i = match c_i {
@@ -323,7 +323,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM2<Crypto> {
     pub fn parse_message_2(
         mut self,
         message_2: &'a BufferMessage2,
-    ) -> Result<(EdhocInitiatorProcessingM2<Crypto>, ConnId, IdCred, Ead), EDHOCError> {
+    ) -> Result<(EdhocInitiatorProcessingM2<Crypto>, ConnId, IdCred, EadItems), EDHOCError> {
         trace!("Enter parse_message_2");
         match i_parse_message_2(&self.state, &mut self.crypto, message_2) {
             Ok((state, c_r, id_cred_r, ead_2)) => Ok((
@@ -379,7 +379,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorProcessedM2<Crypto> {
     pub fn prepare_message_3(
         mut self,
         cred_transfer: CredentialTransfer,
-        ead_3: &Ead,
+        ead_3: &EadItems,
     ) -> Result<
         (
             EdhocInitiatorWaitM4<Crypto>,
@@ -416,7 +416,7 @@ impl<'a, Crypto: CryptoTrait> EdhocInitiatorWaitM4<Crypto> {
     pub fn process_message_4(
         mut self,
         message_4: &'a BufferMessage4,
-    ) -> Result<(EdhocInitiatorDone<Crypto>, Ead), EDHOCError> {
+    ) -> Result<(EdhocInitiatorDone<Crypto>, EadItems), EDHOCError> {
         trace!("Enter parse_message_4");
         match i_process_message_4(&mut self.state, &mut self.crypto, message_4) {
             Ok((state, ead_4)) => Ok((
@@ -578,7 +578,7 @@ mod test {
         );
 
         let c_i = generate_connection_identifier_cbor(&mut default_crypto());
-        let result = initiator.prepare_message_1(Some(c_i), &Ead::new());
+        let result = initiator.prepare_message_1(Some(c_i), &EadItems::new());
         assert!(result.is_ok());
     }
 
@@ -639,7 +639,7 @@ mod test {
 
         // ---- begin initiator handling
         // if needed: prepare ead_1
-        let (initiator, message_1) = initiator.prepare_message_1(None, &Ead::new()).unwrap();
+        let (initiator, message_1) = initiator.prepare_message_1(None, &EadItems::new()).unwrap();
         // ---- end initiator handling
 
         // ---- begin responder handling
@@ -647,7 +647,7 @@ mod test {
         // if ead_1: process ead_1
         // if needed: prepare ead_2
         let (responder, message_2) = responder
-            .prepare_message_2(CredentialTransfer::ByReference, None, &Ead::new())
+            .prepare_message_2(CredentialTransfer::ByReference, None, &EadItems::new())
             .unwrap();
         // ---- end responder handling
 
@@ -665,7 +665,7 @@ mod test {
 
         // if needed: prepare ead_3
         let (initiator, message_3, i_prk_out) = initiator
-            .prepare_message_3(CredentialTransfer::ByReference, &Ead::new())
+            .prepare_message_3(CredentialTransfer::ByReference, &EadItems::new())
             .unwrap();
         // ---- end initiator handling
 
@@ -675,7 +675,7 @@ mod test {
         let (responder, r_prk_out) = responder.verify_message_3(valid_cred_i).unwrap();
 
         // Send message_4
-        let (mut responder, message_4) = responder.prepare_message_4(&Ead::new()).unwrap();
+        let (mut responder, message_4) = responder.prepare_message_4(&EadItems::new()).unwrap();
         // ---- end responder handling
 
         let (mut initiator, _ead_4) = initiator.process_message_4(&message_4).unwrap();
@@ -780,14 +780,13 @@ mod test_authz {
             initiator.compute_ephemeral_secret(&device.g_w),
             initiator.selected_cipher_suite(),
         );
-        let mut ead_1 = Ead::new();
+        let mut ead_1 = EadItems::new();
         ead_1.try_push(ead_item).unwrap();
         let (initiator, message_1) = initiator.prepare_message_1(None, &ead_1).unwrap();
         device.set_h_message_1(initiator.state.h_message_1.clone());
 
         let (responder, _c_i, ead_1) = responder.process_message_1(&message_1).unwrap();
-        let ead_2 = if ead_1.items[0].is_some() {
-            let ead_item = &ead_1.items[0].clone().unwrap();
+        let ead_2 = if let Some(ead_item) = ead_1.iter().next() {
             let (authenticator, _loc_w, voucher_request) =
                 authenticator.process_ead_1(&ead_item, &message_1).unwrap();
 
@@ -798,14 +797,14 @@ mod test_authz {
 
             let res = authenticator.prepare_ead_2(&voucher_response);
             assert!(res.is_ok());
-            let mut eads_2 = Ead::new();
+            let mut eads_2 = EadItems::new();
             eads_2
                 .try_push(authenticator.prepare_ead_2(&voucher_response).unwrap())
                 .unwrap();
 
             eads_2
         } else {
-            Ead::new()
+            EadItems::new()
         };
         let (responder, message_2) = responder
             .prepare_message_2(CredentialTransfer::ByValue, None, &ead_2)
@@ -814,11 +813,8 @@ mod test_authz {
         let (mut initiator, _c_r, id_cred_r, ead_2) =
             initiator.parse_message_2(&message_2).unwrap();
         let valid_cred_r = credential_check_or_fetch(None, id_cred_r).unwrap();
-        let result = device.process_ead_2(
-            &mut default_crypto(),
-            ead_2.items[0].clone().unwrap(),
-            CRED_R,
-        );
+        let result =
+            device.process_ead_2(&mut default_crypto(), ead_2.iter().next().unwrap(), CRED_R);
         assert!(result.is_ok());
         initiator
             .set_identity(
@@ -829,7 +825,7 @@ mod test_authz {
         let initiator = initiator.verify_message_2(valid_cred_r).unwrap();
 
         let (initiator, message_3, i_prk_out) = initiator
-            .prepare_message_3(CredentialTransfer::ByReference, &Ead::new())
+            .prepare_message_3(CredentialTransfer::ByReference, &EadItems::new())
             .unwrap();
         let _initiator = initiator.completed_without_message_4();
         let (responder, id_cred_i, _ead_3) = responder.parse_message_3(&message_3).unwrap();
