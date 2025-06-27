@@ -73,6 +73,7 @@ impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
     }
 }
 
+// FIXME shouldn't need this any more once everything returns EadSlices
 impl pyo3::conversion::IntoPy<PyObject> for EadItems {
     fn into_py(self, py: Python<'_>) -> PyObject {
         let list = pyo3::types::PyList::new_bound(py, core::iter::empty::<PyObject>());
@@ -80,6 +81,20 @@ impl pyo3::conversion::IntoPy<PyObject> for EadItems {
         // implement and use that?
         for item in self.iter() {
             list.append(item.clone().into_py(py))
+                // ... and we can't return an error here anyway.
+                .expect("Appending to a Python list does not realistically err");
+        }
+        list.into()
+    }
+}
+
+impl pyo3::conversion::IntoPy<PyObject> for EadSlices<'_> {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        let list = pyo3::types::PyList::new_bound(py, core::iter::empty::<PyObject>());
+        // Can't pass it into new_bound as it doesn't have an ExactSizeItertor -- FIXME: should we
+        // implement and use that?
+        for item in EadItems::from(self).iter() {
+            list.append(item.clone().into_py(py)) // FIXME don't go through EadItems
                 // ... and we can't return an error here anyway.
                 .expect("Appending to a Python list does not realistically err");
         }
