@@ -427,8 +427,6 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
 }
 
 fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
-    let mut output = EdhocBuffer::new();
-
     // encode label
     // FIXME: This only works for values up to 23
     let res = if ead_1.is_critical {
@@ -442,7 +440,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
     };
 
     if let Some(label) = res {
-        output.push(label).unwrap();
+        let mut output = EdhocBuffer::building().push(label).done();
 
         // encode value
         if let Some(ead_1_value) = &ead_1.value {
@@ -509,16 +507,12 @@ fn encode_message_1(
 }
 
 fn encode_message_2(g_y: &BytesP256ElemLen, ciphertext_2: &BufferCiphertext2) -> BufferMessage2 {
-    let mut output: BufferMessage2 = BufferMessage2::new();
-
-    output.push(CBOR_BYTE_STRING).unwrap();
-    output
+    BufferMessage2::building()
+        .push(CBOR_BYTE_STRING)
         .push(P256_ELEM_LEN as u8 + ciphertext_2.len() as u8)
-        .unwrap();
-    output.extend_from_slice(g_y).unwrap();
-    output.extend_from_slice(ciphertext_2.as_slice()).unwrap();
-
-    output
+        .extend_from_array(g_y)
+        .extend_from_buffer(ciphertext_2)
+        .done()
 }
 
 fn compute_th_2(

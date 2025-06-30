@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+typenum = { version = "1.18.0", features = ["const-generics", "no_std"] }
 pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
 hex = { version = "0.4.3", optional = true }
 defmt-or-log = { version = "0.2.1", default-features = false }

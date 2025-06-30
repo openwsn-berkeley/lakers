@@ -124,7 +124,9 @@ cpp_compat = true
 
 [export]
 include = [
-    "EdhocMessageBuffer", "BytesMac", "BytesMac2",
+    "EdhocMessageBuffer",
+    "BufferMessage1", "BufferPlaintext2", "BufferMessage2", "BufferMessage3", "BufferMessage4",
+    "BytesMac", "BytesMac2",
     "EADBuffer",
     "EADItemC", "EadItemsC",
     "EdhocBuffer", "BufferKid", "BufferCred", "BufferIdCred",
