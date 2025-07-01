@@ -61,14 +61,14 @@ pub fn r_process_message_1(
     }
 }
 
-pub fn r_prepare_message_2(
+pub fn r_prepare_message_2<'a>(
     state: &ProcessingM1,
     crypto: &mut impl CryptoTrait,
     cred_r: Credential,
     r: &BytesP256ElemLen, // R's static private DH key
     c_r: ConnId,
     cred_transfer: CredentialTransfer,
-    ead_2: &EadItems,
+    ead_2: impl Iterator<Item = EadSlice<'a>> + Clone,
 ) -> Result<(WaitM3, BufferMessage2), EDHOCError> {
     // compute TH_2
     let th_2 = compute_th_2(crypto, &state.g_y, &state.h_message_1);
@@ -91,11 +91,11 @@ pub fn r_prepare_message_2(
         id_cred_r.as_full_value(),
         cred_r.bytes.as_slice(),
         &th_2,
-        ead_2,
+        ead_2.clone(),
     );
 
     // compute ciphertext_2
-    let plaintext_2 = encode_plaintext_2(c_r, id_cred_r.as_encoded_value(), &mac_2, &ead_2)?;
+    let plaintext_2 = encode_plaintext_2(c_r, id_cred_r.as_encoded_value(), &mac_2, ead_2)?;
 
     // step is actually from processing of message_3
     // but we do it here to avoid storing plaintext_2 in State
@@ -120,17 +120,22 @@ pub fn r_prepare_message_2(
     ))
 }
 
-pub fn r_parse_message_3(
+pub fn r_parse_message_3<'a>(
     state: &mut WaitM3,
     crypto: &mut impl CryptoTrait,
-    message_3: &BufferMessage3,
-) -> Result<(ProcessingM3, IdCred, EadItems), EDHOCError> {
+    message_3: &'a mut BufferMessage3,
+) -> Result<(ProcessingM3, IdCred, EadSlices<'a>), EDHOCError> {
     let plaintext_3 = decrypt_message_3(crypto, &state.prk_3e2m, &state.th_3, message_3);
 
     if let Ok(plaintext_3) = plaintext_3 {
-        let decoded_p3_res = decode_plaintext_3(&plaintext_3);
+        // FIXME: Ideally we'd just work in-place rather than allocate and copy back.
+        // Moving into a caller-allocated buffer so we can return slices of it.
+        *message_3 = EdhocMessageBuffer::new_from_slice(plaintext_3.as_slice())
+            .expect("Plaintext can not be longer than ciphertext");
+        let decoded_p3_res = decode_plaintext_3(message_3);
 
         if let Ok((id_cred_i, mac_3, ead_3)) = decoded_p3_res {
+            let ead_3_start = plaintext_3.len() - ead_3.bytes_len(); // FIXME: Can we get this prettier?
             Ok((
                 ProcessingM3 {
                     mac_3,
@@ -139,7 +144,7 @@ pub fn r_parse_message_3(
                     th_3: state.th_3,
                     id_cred_i: id_cred_i.clone(), // needed for compute_mac_3
                     plaintext_3, // NOTE: this is needed for th_4, which needs valid_cred_i, which is only available at the 'verify' step
-                    ead_3: ead_3.clone(), // NOTE: this clone could be avoided by using a reference or an index to the ead_3 item in plaintext_3
+                    ead_3_start,
                 },
                 id_cred_i,
                 ead_3,
@@ -175,7 +180,7 @@ pub fn r_verify_message_3(
         &state.th_3,
         state.id_cred_i.as_full_value(),
         valid_cred_i.bytes.as_slice(),
-        &state.ead_3,
+        state.ead_3().iter(),
     );
 
     // verify mac_3
@@ -320,7 +325,7 @@ pub fn i_verify_message_2(
         state.id_cred_r.as_full_value(),
         valid_cred_r.bytes.as_slice(),
         &state.th_2,
-        &state.ead_2,
+        state.ead_2.iter().map(Into::into),
     );
 
     if state.mac_2 == expected_mac_2 {
@@ -368,7 +373,7 @@ pub fn i_prepare_message_3(
         &state.th_3,
         id_cred_i.as_full_value(),
         cred_i.bytes.as_slice(),
-        ead_3,
+        ead_3.iter().map(Into::into),
     );
 
     let plaintext_3 = encode_plaintext_3(id_cred_i.as_encoded_value(), &mac_3, &ead_3)?;
@@ -426,7 +431,8 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
     })
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
+// FIXME: Rather &EadSlice, but by-value is easier right now with the many .into()
+fn encode_ead_item<'a>(ead_1: EadSlice<'a>) -> Result<EADBuffer, EDHOCError> {
     let mut output = EdhocBuffer::new();
 
     // encode label
@@ -447,7 +453,7 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
         // encode value
         if let Some(ead_1_value) = &ead_1.value {
             output
-                .extend_from_slice(ead_1_value.as_slice())
+                .extend_from_slice(ead_1_value)
                 .map_err(|_| EDHOCError::EadTooLongError)?;
         }
 
@@ -498,7 +504,7 @@ fn encode_message_1(
 
     for ead_item in ead_1 {
         if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
+            let encoded = encode_ead_item(ead_item.into())?;
             output
                 .extend_from_slice(encoded.as_slice())
                 .map_err(|_| EDHOCError::EadTooLongError)?;
@@ -622,7 +628,7 @@ fn encode_plaintext_3(
 
     for ead_item in ead_3 {
         if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
+            let encoded = encode_ead_item(ead_item.into())?;
             plaintext_3
                 .extend_from_slice(encoded.as_slice())
                 .map_err(|_| EDHOCError::EadTooLongError)?;
@@ -636,7 +642,7 @@ fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> 
 
     for ead_item in ead_4 {
         if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
+            let encoded = encode_ead_item(ead_item.into())?;
             plaintext_4
                 .extend_from_slice(encoded.as_slice())
                 .map_err(|_| EDHOCError::EadTooLongError)?;
@@ -848,12 +854,12 @@ fn decrypt_message_4(
 }
 
 // output must hold id_cred.len() + cred.len()
-fn encode_kdf_context(
+fn encode_kdf_context<'a>(
     c_r: Option<ConnId>, // only present for MAC_2
     id_cred: &[u8],
     th: &BytesHashLen,
     cred: &[u8],
-    ead: &EadItems,
+    ead: impl Iterator<Item = EadSlice<'a>>,
 ) -> BufferContext {
     // encode context in line
     // assumes ID_CRED_R and CRED_R are already CBOR-encoded (and also EAD)
@@ -871,7 +877,7 @@ fn encode_kdf_context(
     for ead_item in ead {
         if ead_item.value.is_some() {
             output
-                .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
+                .extend_from_slice(encode_ead_item(ead_item).unwrap().as_slice())
                 .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
         }
     }
@@ -879,13 +885,13 @@ fn encode_kdf_context(
     output
 }
 
-fn compute_mac_3(
+fn compute_mac_3<'a>(
     crypto: &mut impl CryptoTrait,
     prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &[u8],
     cred_i: &[u8],
-    ead_3: &EadItems,
+    ead_3: impl Iterator<Item = EadSlice<'a>>,
 ) -> BytesMac3 {
     // MAC_3 = EDHOC-KDF( PRK_4e3m, 6, context_3, mac_length_3 )
     let context = encode_kdf_context(None, id_cred_i, th_3, cred_i, ead_3);
@@ -899,14 +905,14 @@ fn compute_mac_3(
     )
 }
 
-fn compute_mac_2(
+fn compute_mac_2<'a>(
     crypto: &mut impl CryptoTrait,
     prk_3e2m: &BytesHashLen,
     c_r: ConnId,
     id_cred_r: &[u8],
     cred_r: &[u8],
     th_2: &BytesHashLen,
-    ead_2: &EadItems,
+    ead_2: impl Iterator<Item = EadSlice<'a>>,
 ) -> BytesMac2 {
     // compute MAC_2
     let context = encode_kdf_context(Some(c_r), id_cred_r, th_2, cred_r, ead_2);
@@ -915,11 +921,11 @@ fn compute_mac_2(
     edhoc_kdf_owned(crypto, prk_3e2m, 2_u8, context.as_slice())
 }
 
-fn encode_plaintext_2(
+fn encode_plaintext_2<'a>(
     c_r: ConnId,
     id_cred_r: &[u8],
     mac_2: &BytesMac2,
-    ead_2: &EadItems,
+    ead_2: impl Iterator<Item = EadSlice<'a>>,
 ) -> Result<BufferPlaintext2, EDHOCError> {
     let mut plaintext_2: BufferPlaintext2 = BufferPlaintext2::new();
     let c_r = c_r.as_cbor();
@@ -938,9 +944,9 @@ fn encode_plaintext_2(
     plaintext_2.extend_from_slice(&mac_2[..]).unwrap();
 
     // Encode optional EAD_2
-    for ead_item in ead_2 {
+    for ead_item in ead_2.into_iter() {
         if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
+            let encoded = encode_ead_item(ead_item)?;
             plaintext_2
                 .extend_from_slice(encoded.as_slice())
                 .map_err(|_| EDHOCError::EadTooLongError)?;
@@ -1360,7 +1366,7 @@ mod tests {
             &TH_3_TV,
             &ID_CRED_I_TV,
             &CRED_I_TV,
-            &EadItems::new(),
+            core::iter::empty(),
         );
         assert_eq!(mac_3, MAC_3_TV);
     }
@@ -1374,7 +1380,7 @@ mod tests {
             &ID_CRED_R_TV,
             &CRED_R_TV,
             &TH_2_TV,
-            &EadItems::new(),
+            core::iter::empty(),
         );
 
         assert_eq!(rcvd_mac_2, MAC_2_TV);
@@ -1388,7 +1394,7 @@ mod tests {
                 .unwrap()
                 .as_encoded_value(),
             &MAC_2_TV,
-            &EadItems::new(),
+            core::iter::empty(),
         )
         .unwrap();
 
@@ -1516,7 +1522,7 @@ mod tests {
             value: Some(EAD_DUMMY_VALUE_TV),
         };
 
-        let res = encode_ead_item(&ead_item);
+        let res = encode_ead_item((&ead_item).into());
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
         assert_eq!(ead_buffer, EAD_DUMMY_CRITICAL_TV);

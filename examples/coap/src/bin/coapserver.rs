@@ -61,7 +61,7 @@ fn main() {
                     let c_r =
                         generate_connection_identifier_cbor(&mut lakers_crypto::default_crypto());
 
-                    let mut ead_2 = EadItems::new();
+                    let mut ead_2 = None;
                     if let Some(ead_item) =
                         ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL)
                     {
@@ -78,16 +78,19 @@ fn main() {
                                 )
                                 .unwrap();
 
-                            let res = authenticator.prepare_ead_2(&voucher_response);
-                            assert!(res.is_ok());
+                            let res = authenticator.prepare_ead_2(&voucher_response).unwrap();
 
-                            ead_2.try_push(res.unwrap()).unwrap();
+                            ead_2 = Some(res);
                         };
                     }
                     ead_1.processed_critical_items().unwrap();
 
                     let (responder, message_2) = responder
-                        .prepare_message_2(CredentialTransfer::ByReference, Some(c_r), &ead_2)
+                        .prepare_message_2(
+                            CredentialTransfer::ByReference,
+                            Some(c_r),
+                            ead_2.as_slice().iter().map(Into::into),
+                        )
                         .unwrap();
                     response.message.payload = Vec::from(message_2.as_slice());
                     // save edhoc connection
@@ -105,8 +108,9 @@ fn main() {
                 let responder = take_state(c_r_rcvd, &mut edhoc_connections).unwrap();
 
                 println!("Found state with connection identifier {:?}", c_r_rcvd);
-                let message_3 = EdhocBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
-                let Ok((responder, id_cred_i, ead_3)) = responder.parse_message_3(&message_3)
+                let mut message_3 =
+                    EdhocBuffer::new_from_slice(&request.message.payload[1..]).unwrap();
+                let Ok((responder, id_cred_i, ead_3)) = responder.parse_message_3(&mut message_3)
                 else {
                     println!("EDHOC error at parse_message_3: {:?}", message_3);
                     // We don't get another chance, it's popped and can't be used any further
