@@ -44,13 +44,9 @@ impl ZeroTouchDevice {
         // plaintext = (ID_U: bstr)
         let encoded_id_u = encode_id_u(&self.id_u);
         let enc_id = encrypt_enc_id(crypto, &prk, &encoded_id_u, ss);
-        let value = Some(encode_ead_1_value(&self.loc_w, &enc_id));
+        let value = encode_ead_1_value(&self.loc_w, &enc_id);
 
-        let ead_1 = EADItem {
-            label: EAD_AUTHZ_LABEL,
-            is_critical: true,
-            value,
-        };
+        let ead_1 = EADItem::new_full(EAD_AUTHZ_LABEL, true, Some(value.as_slice())).unwrap();
 
         (
             ZeroTouchDeviceWaitEAD2 {
@@ -116,11 +112,6 @@ fn encrypt_enc_id<Crypto: CryptoTrait>(
 
 fn encode_ead_1_value(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EADBuffer {
     let mut output = EdhocBuffer::new();
-
-    output.push(CBOR_BYTE_STRING).unwrap();
-    output
-        .push((2 + loc_w.len() + 1 + enc_id.len()) as u8)
-        .unwrap();
 
     output.push(CBOR_TEXT_STRING).unwrap();
     output.push(loc_w.len() as u8).unwrap();

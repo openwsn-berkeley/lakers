@@ -31,13 +31,15 @@ pub struct EADItemC {
 
 impl EADItemC {
     pub fn to_rust(&self) -> EADItem {
-        let value = Some(self.value.clone());
+        // The C version doesn't have a `.value_bytes()` accessor, emulating it:
+        let mut value_parser = CBORDecoder::new(self.value.as_slice());
+        let value_data = if value_parser.finished() {
+            None
+        } else {
+            Some(value_parser.bytes().unwrap())
+        };
 
-        EADItem {
-            label: self.label,
-            is_critical: self.is_critical,
-            value,
-        }
+        EADItem::new_full(self.label, self.is_critical, value_data).unwrap()
     }
 
     pub unsafe fn copy_into_c(ead: EADItem, ead_c: *mut EADItemC) {

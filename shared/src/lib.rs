@@ -603,7 +603,10 @@ pub struct EADItem {
     pub label: u16,
     pub is_critical: bool,
     /// Beware that the buffer contains a *CBOR encoded* byte string.
-    pub value: Option<EADBuffer>,
+    ///
+    /// It is a type invariant that any data in here is either empty or contains exactly one CBOR
+    /// item.
+    value: Option<EADBuffer>,
 }
 
 impl EADItem {
@@ -669,6 +672,18 @@ impl EADItem {
                 .bytes()
                 .expect("The value being CBOR bytes is an implicit invariant of the type"),
         )
+    }
+
+    /// The encoded CBOR byte string that represents the value (or empty)
+    ///
+    /// This API may easily go away after a transition period if `EADItem` stops storing the
+    /// encoded value.
+    #[track_caller]
+    pub fn value_encoded(&self) -> &[u8] {
+        self.value
+            .as_ref()
+            .map(|b| b.as_slice())
+            .unwrap_or_default()
     }
 }
 
