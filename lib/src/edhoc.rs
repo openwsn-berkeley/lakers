@@ -1506,8 +1506,8 @@ mod tests {
 
         let mut ead = ead.iter();
         let ead_item = ead.next().unwrap();
-        assert!(!ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert!(!ead_item.is_critical());
+        assert_eq!(ead_item.label(), EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         // only 1 ead
         assert!(ead.next().is_none());
@@ -1517,8 +1517,8 @@ mod tests {
 
         let mut ead = ead.iter();
         let ead_item = ead.next().unwrap();
-        assert!(ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
+        assert!(ead_item.is_critical());
+        assert_eq!(ead_item.label(), EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_item.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         // only 1 ead
         assert!(ead.next().is_none());
@@ -1526,20 +1526,20 @@ mod tests {
         let ead = parse_eads(&MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV.as_slice()[message_tv_offset..])
             .unwrap();
         let ead = &ead.iter().next().unwrap();
-        assert!(!ead.is_critical);
-        assert_eq!(ead.label, EAD_DUMMY_LABEL_TV);
+        assert!(!ead.is_critical());
+        assert_eq!(ead.label(), EAD_DUMMY_LABEL_TV);
         assert!(ead.value_encoded().is_empty());
 
         let ead = parse_eads(&MESSAGE_1_WITH_TWO_EADS.as_slice()[message_tv_offset..]).unwrap();
 
         let mut ead = ead.iter();
         let fst_ead = ead.next().unwrap();
-        assert!(!fst_ead.is_critical);
-        assert_eq!(fst_ead.label, EAD_DUMMY_LABEL_TV);
+        assert!(!fst_ead.is_critical());
+        assert_eq!(fst_ead.label(), EAD_DUMMY_LABEL_TV);
         assert_eq!(fst_ead.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         let snd_ead = ead.next().unwrap();
-        assert!(snd_ead.is_critical);
-        assert_eq!(snd_ead.label, EAD_DUMMY_LABEL_TV);
+        assert!(snd_ead.is_critical());
+        assert_eq!(snd_ead.label(), EAD_DUMMY_LABEL_TV);
         assert_eq!(snd_ead.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         assert!(ead.next().is_none());
     }
@@ -1551,8 +1551,8 @@ mod tests {
         let (_method, _suites_i, _g_x, _c_i, ead_1) = res.unwrap();
 
         let ead_1 = &ead_1.iter().next().unwrap();
-        assert!(ead_1.is_critical);
-        assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
+        assert!(ead_1.is_critical());
+        assert_eq!(ead_1.label(), EAD_DUMMY_LABEL_TV);
         assert_eq!(ead_1.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
     }
 

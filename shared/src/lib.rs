@@ -600,8 +600,8 @@ pub struct EADItem {
     /// # Caveats
     ///
     /// Currently, only values up to 23 are supported.
-    pub label: u16,
-    pub is_critical: bool,
+    label: u16,
+    is_critical: bool,
     /// Beware that the buffer contains a *CBOR encoded* byte string.
     ///
     /// It is a type invariant that any data in here is either empty or contains exactly one CBOR
@@ -717,6 +717,34 @@ impl EADItem {
         } else {
             Err(EDHOCError::EadLabelTooLongError)
         }
+    }
+}
+
+#[cfg_attr(feature = "python-bindings", pymethods)]
+impl EADItem {
+    pub fn label(&self) -> u16 {
+        self.label
+    }
+
+    pub fn is_critical(&self) -> bool {
+        self.is_critical
+    }
+
+    #[cfg(feature = "python-bindings")]
+    #[new]
+    fn new_py(label: u16, is_critical: bool, value: Vec<u8>) -> Self {
+        Self {
+            label,
+            is_critical,
+            value: Some(EdhocMessageBuffer::new_from_slice(value.as_slice()).unwrap()),
+        }
+    }
+
+    #[cfg(feature = "python-bindings")]
+    fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, pyo3::types::PyBytes>> {
+        self.value_bytes()
+            .as_ref()
+            .map(|v| pyo3::types::PyBytes::new_bound(py, v))
     }
 }
 

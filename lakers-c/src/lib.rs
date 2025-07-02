@@ -43,8 +43,8 @@ impl EADItemC {
     }
 
     pub unsafe fn copy_into_c(ead: EADItem, ead_c: *mut EADItemC) {
-        (*ead_c).label = ead.label;
-        (*ead_c).is_critical = ead.is_critical;
+        (*ead_c).label = ead.label();
+        (*ead_c).is_critical = ead.is_critical();
         (*ead_c).value = EdhocBuffer::new_from_slice(ead.value_encoded()).unwrap();
     }
 }

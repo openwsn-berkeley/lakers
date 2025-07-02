@@ -71,7 +71,7 @@ impl ZeroTouchDeviceWaitEAD2 {
         cred_v: &[u8],
     ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
         trace!("Enter process_ead_2");
-        if ead_2.label != EAD_AUTHZ_LABEL {
+        if ead_2.label() != EAD_AUTHZ_LABEL {
             return Err(ZeroTouchError::InvalidEADLabel);
         }
         let Some(ead_2_value) = ead_2.value_bytes() else {
@@ -169,8 +169,8 @@ mod test_device {
 
         let (_ead_device, ead_1) =
             ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
-        assert_eq!(ead_1.label, EAD_AUTHZ_LABEL);
-        assert_eq!(ead_1.is_critical, true);
+        assert_eq!(ead_1.label(), EAD_AUTHZ_LABEL);
+        assert_eq!(ead_1.is_critical(), true);
         assert_eq!(ead_1.value_bytes(), Some(EAD1_VALUE_TV));
     }
 

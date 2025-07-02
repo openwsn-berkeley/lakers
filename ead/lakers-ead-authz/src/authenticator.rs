@@ -24,7 +24,7 @@ impl ZeroTouchAuthenticator {
         trace!("Enter process_ead_1");
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
-        if ead_1.label != EAD_AUTHZ_LABEL || ead_1.value_bytes().is_none() {
+        if ead_1.label() != EAD_AUTHZ_LABEL || ead_1.value_bytes().is_none() {
             return Err(EDHOCError::EADUnprocessable);
         }
 
@@ -159,8 +159,8 @@ mod test_authenticator {
         let ead_2 = ead_authenticator
             .prepare_ead_2(&voucher_response_tv)
             .unwrap();
-        assert_eq!(ead_2.label, EAD_AUTHZ_LABEL);
-        assert_eq!(ead_2.is_critical, true);
+        assert_eq!(ead_2.label(), EAD_AUTHZ_LABEL);
+        assert_eq!(ead_2.is_critical(), true);
         assert_eq!(ead_2.value_bytes(), Some(EAD2_VALUE_TV));
     }
 }
