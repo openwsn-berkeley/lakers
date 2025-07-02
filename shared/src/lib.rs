@@ -667,11 +667,11 @@ impl EADItem {
             return None;
         }
         let mut decoder = CBORDecoder::new(slice);
-        Some(
-            decoder
-                .bytes()
-                .expect("The value being CBOR bytes is an implicit invariant of the type"),
-        )
+        let bytes = decoder
+            .bytes()
+            .expect("The value being CBOR bytes is an implicit invariant of the type");
+        debug_assert!(decoder.finished());
+        Some(bytes)
     }
 
     /// The encoded CBOR byte string that represents the value (or empty)
@@ -680,6 +680,9 @@ impl EADItem {
     /// encoded value.
     #[track_caller]
     pub fn value_encoded(&self) -> &[u8] {
+        // Compute the value just to check the type invariant
+        #[cfg(debug_assertions)]
+        self.value_bytes();
         self.value
             .as_ref()
             .map(|b| b.as_slice())
