@@ -596,10 +596,6 @@ pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 #[derive(Clone, Debug)]
 pub struct EADItem {
     /// EAD label of the item
-    ///
-    /// # Caveats
-    ///
-    /// Currently, only values up to 23 are supported.
     label: u16,
     is_critical: bool,
     /// Beware that the buffer contains a *CBOR encoded* byte string.
@@ -692,31 +688,44 @@ impl EADItem {
     pub fn encode(&self) -> Result<EADBuffer, EDHOCError> {
         let mut output = EdhocBuffer::new();
 
-        // encode label
-        // FIXME: This only works for values up to 23
-        let res = if self.is_critical {
-            // ensure it won't overflow
-            u8::try_from(self.label)
-                .ok()
-                .and_then(|x| x.checked_add(CBOR_NEG_INT_1BYTE_START))
-                .and_then(|x| x.checked_sub(1))
+        let argument_value = if self.is_critical {
+            // We can express "critical padding" in the type, but that'll be just normal padding.
+            self.label.saturating_sub(1)
         } else {
-            self.label.try_into().ok()
+            self.label
         };
-
-        if let Some(label) = res {
-            output.push(label).unwrap();
-
-            // encode value (may be empty slice)
-            let ead_1_value = &self.value_encoded();
-            output
-                .extend_from_slice(ead_1_value)
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-
-            Ok(output)
+        let head = if self.is_critical {
+            CBOR_MAJOR_NEGATIVE
         } else {
-            Err(EDHOCError::EadLabelTooLongError)
+            CBOR_MAJOR_UNSIGNED
+        };
+        if argument_value <= 23 {
+            output
+                .push(head | argument_value as u8)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        } else if argument_value <= u8::MAX as _ {
+            output
+                .push(head | 24)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+            output
+                .push(argument_value as u8)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        } else {
+            output
+                .push(head | 25)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+            output
+                .extend_from_slice(&argument_value.to_be_bytes())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
         }
+
+        // encode value (may be empty slice)
+        let ead_1_value = &self.value_encoded();
+        output
+            .extend_from_slice(ead_1_value)
+            .map_err(|_| EDHOCError::EadTooLongError)?;
+
+        Ok(output)
     }
 }
 
