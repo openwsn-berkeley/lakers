@@ -1467,17 +1467,18 @@ mod test_cbor_decoder {
 #[cfg(test)]
 mod test_ead_items {
     use super::*;
+    use hexlit::hex;
 
     #[test]
     fn test_ead_items() {
         let mut items = EadItems::new();
         assert_eq!(items.len(), 0);
 
-        for label in 1..=MAX_EAD_ITEMS {
+        for shift in 0..MAX_EAD_ITEMS {
             items
                 .try_push(EADItem {
-                    label: label as u16,
-                    is_critical: label == 1,
+                    label: 1 << (3 * shift),
+                    is_critical: shift == 0,
                     value: None,
                 })
                 .unwrap();
@@ -1490,6 +1491,10 @@ mod test_ead_items {
                 value: None,
             })
             .unwrap_err();
+
+        let mut output_buffer = EdhocMessageBuffer::new();
+        items.encode(&mut output_buffer).unwrap();
+        assert_eq!(output_buffer.as_slice(), hex!("20081840190200"));
 
         assert_eq!(items.len(), MAX_EAD_ITEMS);
 
