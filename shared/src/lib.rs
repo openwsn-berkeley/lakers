@@ -602,7 +602,7 @@ pub struct EADItem {
     ///
     /// It is a type invariant that any data in here is either empty or contains exactly one CBOR
     /// item.
-    value: Option<EADBuffer>,
+    value: EADBuffer,
 }
 
 impl EADItem {
@@ -610,7 +610,7 @@ impl EADItem {
         EADItem {
             label: 0,
             is_critical: false,
-            value: None,
+            value: EADBuffer::new(),
         }
     }
 
@@ -619,8 +619,8 @@ impl EADItem {
         is_critical: bool,
         value_bytes: Option<&[u8]>,
     ) -> Result<Self, EdhocBufferError> {
-        let value = if let Some(value_bytes) = value_bytes {
-            let mut value = EdhocBuffer::new();
+        let mut value = EdhocBuffer::new();
+        if let Some(value_bytes) = value_bytes {
             let mut head = CBOR_MAJOR_BYTE_STRING;
             if value_bytes.len() <= 23 {
                 head |= value_bytes.len() as u8;
@@ -640,10 +640,6 @@ impl EADItem {
                 return Err(EdhocBufferError::SliceTooLong);
             }
             value.extend_from_slice(value_bytes)?;
-
-            Some(value)
-        } else {
-            None
         };
 
         Ok(EADItem {
@@ -656,7 +652,7 @@ impl EADItem {
     /// The content of the CBOR byte string that is the EAD item's value, if any.
     #[track_caller]
     pub fn value_bytes(&self) -> Option<&[u8]> {
-        let slice = self.value.as_ref()?.as_slice();
+        let slice = self.value.as_slice();
         if slice.is_empty() {
             // This is a weird ambiguity case in the current storage format of EADItem, allowing
             // "no data" to be either None or Some([])
@@ -679,10 +675,7 @@ impl EADItem {
         // Compute the value just to check the type invariant
         #[cfg(debug_assertions)]
         self.value_bytes();
-        self.value
-            .as_ref()
-            .map(|b| b.as_slice())
-            .unwrap_or_default()
+        self.value.as_slice()
     }
 
     pub fn encode(&self) -> Result<EADBuffer, EDHOCError> {
@@ -745,7 +738,7 @@ impl EADItem {
         Self {
             label,
             is_critical,
-            value: Some(EdhocMessageBuffer::new_from_slice(value.as_slice()).unwrap()),
+            value: EdhocMessageBuffer::new_from_slice(value.as_slice()).unwrap(),
         }
     }
 
@@ -921,14 +914,13 @@ mod edhoc_parser {
         let ead_value = if let Ok(_slice) = decoder.bytes() {
             // It's not just from `slice`, because EADItem::value is an *encoded* value. (FIXME: It
             // shouldn't be).
-            Some(
-                EdhocBuffer::new_from_slice(&input[position_after_label..decoder.position()])
-                    .map_err(|_| EDHOCError::ParsingError)?,
-            )
+            EdhocBuffer::new_from_slice(&input[position_after_label..decoder.position()])
+                .map_err(|_| EDHOCError::ParsingError)?
         } else {
-            // If it's a different type, that's an error, but that error is not for us to raise:
-            // Instead, the next item being parsed will trip over its label not being an integer.
-            None
+            // If it's not just at the end but a different type, that's an error, but that error is
+            // not for us to raise: Instead, the next item being parsed will trip over its label
+            // not being an integer.
+            EdhocBuffer::new()
         };
 
         let item = EADItem {
