@@ -671,7 +671,7 @@ impl EADItem {
     /// This API may easily go away after a transition period if `EADItem` stops storing the
     /// encoded value.
     #[track_caller]
-    pub fn value_encoded(&self) -> &[u8] {
+    fn value_encoded(&self) -> &[u8] {
         // Compute the value just to check the type invariant
         #[cfg(debug_assertions)]
         self.value_bytes();

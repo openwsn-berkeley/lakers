@@ -1528,7 +1528,7 @@ mod tests {
         let ead = &ead.iter().next().unwrap();
         assert!(!ead.is_critical());
         assert_eq!(ead.label(), EAD_DUMMY_LABEL_TV);
-        assert!(ead.value_encoded().is_empty());
+        assert!(ead.value_bytes().is_none());
 
         let ead = parse_eads(&MESSAGE_1_WITH_TWO_EADS.as_slice()[message_tv_offset..]).unwrap();
 
