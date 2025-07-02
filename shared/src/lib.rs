@@ -102,6 +102,10 @@ pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
 pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
 pub const CBOR_UINT_1BYTE_START: u8 = 0x0u8;
 pub const CBOR_UINT_1BYTE_END: u8 = 0x17u8;
+const CBOR_MAJOR_UNSIGNED: u8 = 0 << 5;
+const CBOR_MAJOR_NEGATIVE: u8 = 1 << 5;
+const CBOR_MAJOR_TAG: u8 = 6 << 5;
+const CBOR_MAJOR_FLOATSIMPLE: u8 = 7 << 5;
 pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
 pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
 pub const CBOR_MAJOR_BYTE_STRING_MAX: u8 = 0x57u8;
@@ -1113,6 +1117,33 @@ mod cbor_decoder {
             }
         }
 
+        /// Decodes a major type and up to 16 bit of argument.
+        ///
+        /// When this function is needed here for larget arguments (and unconditionally emitted in
+        /// code), it may make sense to implement this function interms of `read_major_argument32`
+        /// and just map Ok((_, x if x > u16::MAX)) to Err.
+        fn read_major_argument16(&mut self) -> Result<(u8, u16), CBORError> {
+            let head = self.read()?;
+            let info = Self::info_of(head);
+            let value = match info {
+                // Workaround-For: https://github.com/cryspen/hax/issues/925
+                0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
+                | 18 | 19 | 20 | 21 | 22 | 23 => info.into(),
+                24 => self.read()?.into(),
+                25 => u16::from_be_bytes([self.read()?, self.read()?]),
+                // We do not support those in this function.
+                26 | 27 => return Err(CBORError::DecodingError),
+                // Reserved, not well-formed
+                28 | 29 | 30 => return Err(CBORError::DecodingError),
+                // Indefinite length markers are forbidden in deterministic CBOR (or it's one
+                // of the major types where this is just not well-formed)
+                31 => return Err(CBORError::DecodingError),
+                _ => unreachable!("Value was masked to 5 bits"),
+            };
+
+            Ok((Self::type_of(head), value))
+        }
+
         /// Get the raw `i8` or `u8` value.
         pub fn int_raw(&mut self) -> Result<u8, CBORError> {
             let n = self.read()?;
@@ -1232,42 +1263,25 @@ mod cbor_decoder {
             for _ in self.buf.iter() {
                 if remaining_items > 0 {
                     remaining_items -= 1;
-                    let head = self.read()?;
-                    let major = head >> 5;
-                    let minor = head & 0x1f;
-                    let argument = match minor {
-                        // Workaround-For: https://github.com/cryspen/hax/issues/925
-                        0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
-                        | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 => minor,
-                        24 => self.read()?,
-                        // We do not support values outside the range -256..256.
-                        // FIXME: Sooner or later we should. There is probably an upper bound on
-                        // lengths we need to support (we don't need to support 32bit integer decoding
-                        // for map keys when our maximum buffers are 256 long); will split things up
-                        // here into major-0/1/6/7 where we can just skip 1/2/4/8 bytes vs. the other
-                        // majors where this is an out-of-bounds error anyway, or just have up to 64bit
-                        // decoding available consistently for all?
-                        25 | 26 | 27 => return Err(CBORError::DecodingError),
-                        // Reserved, not well-formed
-                        28 | 29 | 30 => return Err(CBORError::DecodingError),
-                        // Indefinite length markers are forbidden in deterministic CBOR (or it's one
-                        // of the major types where this is just not well-formed)
-                        31 => return Err(CBORError::DecodingError),
-                        _ => unreachable!("Value was masked to 5 bits"),
-                    };
+                    // Reading 16 is already overkill but deduplicates well with other places in
+                    // the code. We' don't expect to have even more than 256 items of any kind in
+                    // any buffer, but reasonably could -- but no need to decode 32 of 64 bit
+                    // values; still, it's probably cheaper to go wiwht any read_major{bignumber}
+                    // than to have an extra implementation here that skips decoding those large
+                    // numbers.
+                    let (major, argument) = self.read_major_argument16()?;
                     match major {
-                        0 | 1 => (), // Argument consumed, remaining items were already decremented
-                        7 => (), // Same, but in separate line due to Hax FStar backend limitations
-                        6 => {
+                        CBOR_MAJOR_UNSIGNED | CBOR_MAJOR_NEGATIVE | CBOR_MAJOR_FLOATSIMPLE => (), // Argument consumed, remaining items were already decremented
+                        CBOR_MAJOR_TAG => {
                             remaining_items += 1;
                         }
-                        2 | 3 => {
+                        CBOR_MAJOR_BYTE_STRING | CBOR_MAJOR_TEXT_STRING => {
                             self.read_slice(argument.into())?;
                         }
-                        4 => {
+                        CBOR_MAJOR_ARRAY => {
                             remaining_items += argument;
                         }
-                        5 => {
+                        CBOR_MAJOR_MAP => {
                             remaining_items += argument * 2;
                         }
                         _ => unreachable!("Value is result of a right shift trimming it to 3 bits"),
