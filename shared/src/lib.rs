@@ -1476,20 +1476,20 @@ mod test_ead_items {
 
         for shift in 0..MAX_EAD_ITEMS {
             items
-                .try_push(EADItem {
-                    label: 1 << (3 * shift),
-                    is_critical: shift == 0,
-                    value: None,
-                })
+                .try_push(
+                    EADItem::new_full(
+                        // Covers all 3 possible CBOR lengths
+                        1 << (3 * shift),
+                        shift == 0,
+                        None,
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
         items
-            .try_push(EADItem {
-                label: 1234,
-                is_critical: false,
-                value: None,
-            })
+            .try_push(EADItem::new_full(1234, false, None).unwrap())
             .unwrap_err();
 
         let mut output_buffer = EdhocMessageBuffer::new();
