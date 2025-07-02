@@ -688,6 +688,36 @@ impl EADItem {
             .map(|b| b.as_slice())
             .unwrap_or_default()
     }
+
+    pub fn encode(&self) -> Result<EADBuffer, EDHOCError> {
+        let mut output = EdhocBuffer::new();
+
+        // encode label
+        // FIXME: This only works for values up to 23
+        let res = if self.is_critical {
+            // ensure it won't overflow
+            u8::try_from(self.label)
+                .ok()
+                .and_then(|x| x.checked_add(CBOR_NEG_INT_1BYTE_START))
+                .and_then(|x| x.checked_sub(1))
+        } else {
+            self.label.try_into().ok()
+        };
+
+        if let Some(label) = res {
+            output.push(label).unwrap();
+
+            // encode value (may be empty slice)
+            let ead_1_value = &self.value_encoded();
+            output
+                .extend_from_slice(ead_1_value)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+
+            Ok(output)
+        } else {
+            Err(EDHOCError::EadLabelTooLongError)
+        }
+    }
 }
 
 /// An owned list of External Authorization Data.
@@ -766,6 +796,19 @@ impl EadItems {
     // of tests that's not a meanginful question.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Encodes all items of self into a buffer.
+    ///
+    /// If this errs, some EADs may already have been encoded.
+    pub fn encode<const N: usize>(&self, output: &mut EdhocBuffer<N>) -> Result<(), EDHOCError> {
+        for ead_item in self {
+            let encoded = ead_item.encode()?;
+            output
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        }
+        Ok(())
     }
 }
 

@@ -426,36 +426,6 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
     })
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
-    let mut output = EdhocBuffer::new();
-
-    // encode label
-    // FIXME: This only works for values up to 23
-    let res = if ead_1.is_critical {
-        // ensure it won't overflow
-        u8::try_from(ead_1.label)
-            .ok()
-            .and_then(|x| x.checked_add(CBOR_NEG_INT_1BYTE_START))
-            .and_then(|x| x.checked_sub(1))
-    } else {
-        ead_1.label.try_into().ok()
-    };
-
-    if let Some(label) = res {
-        output.push(label).unwrap();
-
-        // encode value (may be empty slice)
-        let ead_1_value = &ead_1.value_encoded();
-        output
-            .extend_from_slice(ead_1_value)
-            .map_err(|_| EDHOCError::EadTooLongError)?;
-
-        Ok(output)
-    } else {
-        Err(EDHOCError::EadLabelTooLongError)
-    }
-}
-
 fn encode_message_1(
     method: u8,
     suites: &EdhocBuffer<MAX_SUITES_LEN>,
@@ -495,12 +465,7 @@ fn encode_message_1(
     output.extend_from_slice(&g_x[..]).unwrap();
     output.extend_from_slice(c_i.as_cbor()).unwrap();
 
-    for ead_item in ead_1 {
-        let encoded = encode_ead_item(&ead_item)?;
-        output
-            .extend_from_slice(encoded.as_slice())
-            .map_err(|_| EDHOCError::EadTooLongError)?;
-    }
+    ead_1.encode(&mut output)?;
 
     Ok(output)
 }
@@ -617,24 +582,15 @@ fn encode_plaintext_3(
         .extend_from_slice(mac_3)
         .or(Err(EDHOCError::EncodingError))?;
 
-    for ead_item in ead_3 {
-        let encoded = encode_ead_item(&ead_item)?;
-        plaintext_3
-            .extend_from_slice(encoded.as_slice())
-            .map_err(|_| EDHOCError::EadTooLongError)?;
-    }
+    ead_3.encode(&mut plaintext_3)?;
+
     Ok(plaintext_3)
 }
 
 fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> {
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
-    for ead_item in ead_4 {
-        let encoded = encode_ead_item(&ead_item)?;
-        plaintext_4
-            .extend_from_slice(encoded.as_slice())
-            .map_err(|_| EDHOCError::EadTooLongError)?;
-    }
+    ead_4.encode(&mut plaintext_4)?;
 
     Ok(plaintext_4)
 }
@@ -861,11 +817,8 @@ fn encode_kdf_context(
     output.extend_from_slice(th).unwrap();
     output.extend_from_slice(cred).unwrap();
 
-    for ead_item in ead {
-        output
-            .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
-            .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-    }
+    // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
+    ead.encode(&mut output).unwrap();
 
     output
 }
@@ -929,12 +882,7 @@ fn encode_plaintext_2(
     plaintext_2.extend_from_slice(&mac_2[..]).unwrap();
 
     // Encode optional EAD_2
-    for ead_item in ead_2 {
-        let encoded = encode_ead_item(&ead_item)?;
-        plaintext_2
-            .extend_from_slice(encoded.as_slice())
-            .map_err(|_| EDHOCError::EadTooLongError)?;
-    }
+    ead_2.encode(&mut plaintext_2)?;
 
     Ok(plaintext_2)
 }
@@ -1501,7 +1449,7 @@ mod tests {
         let ead_item =
             EADItem::new_full(EAD_DUMMY_LABEL_TV, true, Some(EAD_DUMMY_VALUE_TV)).unwrap();
 
-        let res = encode_ead_item(&ead_item);
+        let res = ead_item.encode();
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
         assert_eq!(ead_buffer, EAD_DUMMY_CRITICAL_TV);
