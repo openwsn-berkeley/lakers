@@ -24,11 +24,11 @@ impl ZeroTouchAuthenticator {
         trace!("Enter process_ead_1");
         let opaque_state: Option<EdhocMessageBuffer> = None; // TODO: receive as parameter
 
-        if ead_1.label != EAD_AUTHZ_LABEL || ead_1.value.is_none() {
+        if ead_1.label != EAD_AUTHZ_LABEL || ead_1.value_bytes().is_none() {
             return Err(EDHOCError::EADUnprocessable);
         }
 
-        let (loc_w, _enc_id) = parse_ead_1_value(ead_1.value.as_ref().unwrap())?;
+        let (loc_w, _enc_id) = parse_ead_1_value(ead_1.value_bytes().unwrap())?;
         let voucher_request = encode_voucher_request(message_1, &opaque_state);
 
         Ok((
@@ -47,11 +47,7 @@ impl ZeroTouchAuthenticatorWaitVoucherResp {
         trace!("Enter prepare_ead_2");
         let (_message_1, voucher, _opaque_state) = parse_voucher_response(&voucher_response)?;
 
-        Ok(EADItem {
-            label: EAD_AUTHZ_LABEL,
-            is_critical: true,
-            value: Some(voucher[..].try_into().unwrap()),
-        })
+        Ok(EADItem::new_full(EAD_AUTHZ_LABEL, true, Some(&voucher)).unwrap())
     }
 }
 
@@ -82,14 +78,7 @@ pub fn encode_voucher_request(
 
 fn parse_voucher_response(
     voucher_response: &EdhocMessageBuffer,
-) -> Result<
-    (
-        EdhocMessageBuffer,
-        BytesEncodedVoucher,
-        Option<EdhocMessageBuffer>,
-    ),
-    EDHOCError,
-> {
+) -> Result<(EdhocMessageBuffer, BytesVoucher, Option<EdhocMessageBuffer>), EDHOCError> {
     let mut decoder = CBORDecoder::new(voucher_response.as_slice());
 
     let array_size = decoder.array()?;
@@ -98,10 +87,11 @@ fn parse_voucher_response(
     }
 
     let message_1: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
-    let voucher: BytesEncodedVoucher = decoder
-        .bytes_sized(ENCODED_VOUCHER_LEN)?
-        .try_into()
-        .unwrap();
+    // The voucher is double-wrapped in bytes; see
+    // <https://github.com/openwsn-berkeley/lakers/issues/382>
+    let outer_voucher = decoder.bytes()?;
+    let mut inner_decoder = CBORDecoder::new(outer_voucher);
+    let voucher: BytesVoucher = inner_decoder.bytes_sized(VOUCHER_LEN)?.try_into().unwrap();
 
     if array_size == 3 {
         let opaque_state: EdhocMessageBuffer = decoder.bytes()?.try_into().unwrap();
@@ -121,7 +111,7 @@ mod test_authenticator {
         let loc_w_tv: EdhocMessageBuffer = LOC_W_TV.try_into().unwrap();
         let enc_id_tv: EdhocMessageBuffer = ENC_ID_TV.try_into().unwrap();
 
-        let res = parse_ead_1_value(&EAD1_VALUE_TV.try_into().unwrap());
+        let res = parse_ead_1_value(&EAD1_VALUE_TV);
         assert!(res.is_ok());
         let (loc_w, enc_id) = res.unwrap();
         assert_eq!(loc_w, loc_w_tv);
@@ -139,11 +129,7 @@ mod test_authenticator {
 
     #[test]
     fn test_process_ead_1() {
-        let ead_1 = EADItem {
-            label: EAD_AUTHZ_LABEL,
-            is_critical: true,
-            value: Some(EAD1_VALUE_TV.try_into().unwrap()),
-        };
+        let ead_1 = EADItem::new_full(EAD_AUTHZ_LABEL, true, Some(EAD1_VALUE_TV)).unwrap();
 
         let ead_authenticator = ZeroTouchAuthenticator::default();
         let res =
@@ -155,20 +141,18 @@ mod test_authenticator {
     fn test_parse_voucher_response() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1, message_1_tv);
-        assert_eq!(voucher, voucher_tv);
+        assert_eq!(voucher, VOUCHER_MAC_TV);
         assert!(opaque_state.is_none());
     }
 
     #[test]
     fn test_r_prepare_ead_2() {
         let voucher_response_tv: EdhocMessageBuffer = VOUCHER_RESPONSE_TV.try_into().unwrap();
-        let ead_2_value_tv: EADBuffer = EAD2_VALUE_TV.try_into().unwrap();
 
         let ead_authenticator = ZeroTouchAuthenticatorWaitVoucherResp::default();
 
@@ -177,7 +161,7 @@ mod test_authenticator {
             .unwrap();
         assert_eq!(ead_2.label, EAD_AUTHZ_LABEL);
         assert_eq!(ead_2.is_critical, true);
-        assert_eq!(ead_2.value.unwrap(), ead_2_value_tv);
+        assert_eq!(ead_2.value_bytes(), Some(EAD2_VALUE_TV));
     }
 }
 
@@ -200,14 +184,13 @@ mod test_responder_stateless_operation {
     fn test_slo_parse_voucher_response() {
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
         let message_1_tv: EdhocMessageBuffer = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
 
         let res = parse_voucher_response(&voucher_response_tv);
         assert!(res.is_ok());
         let (message_1, voucher, opaque_state) = res.unwrap();
         assert_eq!(message_1, message_1_tv);
-        assert_eq!(voucher, voucher_tv);
+        assert_eq!(voucher, VOUCHER_MAC_TV);
         assert_eq!(opaque_state.unwrap(), opaque_state_tv);
     }
 }

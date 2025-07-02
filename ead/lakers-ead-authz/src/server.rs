@@ -43,7 +43,7 @@ impl ZeroTouchServer {
             .pop_by_label(EAD_AUTHZ_LABEL)
             .ok_or(EDHOCError::EADUnprocessable)?;
         ead_1.processed_critical_items()?;
-        let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value.clone().unwrap())?;
+        let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value_bytes().unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
         let id_u = decode_id_u(id_u_encoded)?;
 
@@ -84,7 +84,7 @@ impl ZeroTouchServerUserAcl {
         let prk = compute_prk(crypto, &self.w, &g_x);
 
         let ead_item = ead_1.iter().next().ok_or(EDHOCError::EADUnprocessable)?;
-        let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value.clone().unwrap())?;
+        let (_loc_w, enc_id) = parse_ead_1_value(&ead_item.value_bytes().unwrap())?;
         let id_u_encoded = decrypt_enc_id(crypto, &prk, &enc_id, EDHOC_SUPPORTED_SUITES[0])?;
 
         decode_id_u(id_u_encoded)
@@ -151,7 +151,7 @@ fn decode_id_u(id_u_bstr: EdhocMessageBuffer) -> Result<EdhocMessageBuffer, EDHO
 
 fn encode_voucher_response(
     message_1: &BufferMessage1,
-    voucher: &BytesEncodedVoucher,
+    voucher: &BytesVoucher,
     opaque_state: &Option<EdhocMessageBuffer>,
 ) -> EdhocMessageBuffer {
     let mut output = EdhocMessageBuffer::new();
@@ -166,8 +166,11 @@ fn encode_voucher_response(
     output.extend_from_slice(message_1.as_slice()).unwrap();
 
     output
-        .push(CBOR_MAJOR_BYTE_STRING + ENCODED_VOUCHER_LEN as u8)
+        .push(CBOR_MAJOR_BYTE_STRING + 1 + VOUCHER_LEN as u8)
         .unwrap();
+    // The voucher is double-wrapped in bytes; see
+    // <https://github.com/openwsn-berkeley/lakers/issues/382>
+    output.push(0x48).unwrap();
     output.extend_from_slice(voucher).unwrap();
 
     if let Some(opaque_state) = opaque_state {
@@ -205,21 +208,19 @@ mod test_enrollment_server {
     fn test_prepare_voucher() {
         let h_message_1: BytesHashLen = H_MESSAGE_1_TV.try_into().unwrap();
         let prk: BytesHashLen = PRK_TV.try_into().unwrap();
-        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
 
         let voucher = prepare_voucher(&mut default_crypto(), &h_message_1, &CRED_V_TV, &prk);
-        assert_eq!(voucher, voucher_tv);
+        assert_eq!(voucher, VOUCHER_MAC_TV);
     }
 
     #[test]
     fn test_encode_voucher_response() {
         let message_1_tv = MESSAGE_1_WITH_EAD_TV.try_into().unwrap();
-        let voucher_tv: BytesEncodedVoucher = VOUCHER_TV.try_into().unwrap();
         let opaque_state_tv: EdhocMessageBuffer = SLO_OPAQUE_STATE_TV.try_into().unwrap();
         let voucher_response_tv: EdhocMessageBuffer = SLO_VOUCHER_RESPONSE_TV.try_into().unwrap();
 
         let voucher_response =
-            encode_voucher_response(&message_1_tv, &voucher_tv, &Some(opaque_state_tv));
+            encode_voucher_response(&message_1_tv, &VOUCHER_MAC_TV, &Some(opaque_state_tv));
         assert_eq!(voucher_response, voucher_response_tv);
     }
 

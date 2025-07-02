@@ -445,6 +445,8 @@ fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
         output.push(label).unwrap();
 
         // encode value
+        // FIXME: Should use value_bytes() and wrap it in bytes, so that in the end we can store
+        // the bytes only
         if let Some(ead_1_value) = &ead_1.value {
             output
                 .extend_from_slice(ead_1_value.as_slice())
@@ -497,6 +499,8 @@ fn encode_message_1(
     output.extend_from_slice(c_i.as_cbor()).unwrap();
 
     for ead_item in ead_1 {
+        // FIXME: Can be value_bytes().is_some, but some of our test vectors think they can get
+        // away with not being CBOR encoded
         if ead_item.value.is_some() {
             let encoded = encode_ead_item(&ead_item)?;
             output
@@ -621,7 +625,7 @@ fn encode_plaintext_3(
         .or(Err(EDHOCError::EncodingError))?;
 
     for ead_item in ead_3 {
-        if ead_item.value.is_some() {
+        if ead_item.value_bytes().is_some() {
             let encoded = encode_ead_item(&ead_item)?;
             plaintext_3
                 .extend_from_slice(encoded.as_slice())
@@ -635,7 +639,7 @@ fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> 
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
     for ead_item in ead_4 {
-        if ead_item.value.is_some() {
+        if ead_item.value_bytes().is_some() {
             let encoded = encode_ead_item(&ead_item)?;
             plaintext_4
                 .extend_from_slice(encoded.as_slice())
@@ -1071,6 +1075,7 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_ERR: EdhocMessageBuffer =
         EdhocBuffer::new_from_array(&hex!("038A02020202020202020202"));
     const EAD_DUMMY_LABEL_TV: u16 = 0x01;
+    // FIXME use bytes (but right now, this is used consistently in encoded form)
     const EAD_DUMMY_VALUE_TV: EdhocBuffer<MAX_EAD_LEN> =
         EdhocBuffer::new_from_array(&hex!("43cccccc"));
     const EAD_DUMMY_CRITICAL_TV: EdhocBuffer<MAX_EAD_LEN> =

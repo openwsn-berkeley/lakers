@@ -46,9 +46,9 @@ impl EADItem {
     }
 
     fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, PyBytes>> {
-        self.value
+        self.value_bytes()
             .as_ref()
-            .map(|v| PyBytes::new_bound(py, v.as_slice()))
+            .map(|v| PyBytes::new_bound(py, v))
     }
 
     fn label(&self) -> u16 {

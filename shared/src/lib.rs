@@ -62,7 +62,7 @@ pub const AES_CCM_TAG_LEN: usize = 8;
 pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
 pub const MAC_LENGTH_2: usize = MAC_LENGTH;
 pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
-pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
+pub const VOUCHER_LEN: usize = MAC_LENGTH;
 pub const MAX_EAD_ITEMS: usize = 4;
 
 // maximum supported length of connection identifier for R
@@ -198,7 +198,7 @@ pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
 pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
-pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
+pub type BytesVoucher = [u8; VOUCHER_LEN];
 pub type EADBuffer = EdhocBuffer<MAX_EAD_LEN>;
 
 /// Value of C_R or C_I, as chosen by ourself or the peer.
@@ -613,6 +613,62 @@ impl EADItem {
             is_critical: false,
             value: None,
         }
+    }
+
+    pub fn new_full(
+        label: u16,
+        is_critical: bool,
+        value_bytes: Option<&[u8]>,
+    ) -> Result<Self, EdhocBufferError> {
+        let value = if let Some(value_bytes) = value_bytes {
+            let mut value = EdhocBuffer::new();
+            let mut head = CBOR_MAJOR_BYTE_STRING;
+            if value_bytes.len() <= 23 {
+                head |= value_bytes.len() as u8;
+                value.push(head).unwrap();
+            } else if value_bytes.len() <= u8::MAX.into() {
+                head |= 24;
+                value.push(head).unwrap();
+                value.push(value_bytes.len() as u8).unwrap();
+            } else if value_bytes.len() <= u16::MAX.into() {
+                head |= 24;
+                value.push(head).unwrap();
+                value
+                    .extend_from_slice(&(value_bytes.len() as u16).to_be_bytes())
+                    .unwrap();
+            } else {
+                // EAD items do not grow beyond 64k
+                return Err(EdhocBufferError::SliceTooLong);
+            }
+            value.extend_from_slice(value_bytes)?;
+
+            Some(value)
+        } else {
+            None
+        };
+
+        Ok(EADItem {
+            label,
+            is_critical,
+            value,
+        })
+    }
+
+    /// The content of the CBOR byte string that is the EAD item's value, if any.
+    #[track_caller]
+    pub fn value_bytes(&self) -> Option<&[u8]> {
+        let slice = self.value.as_ref()?.as_slice();
+        if slice.is_empty() {
+            // This is a weird ambiguity case in the current storage format of EADItem, allowing
+            // "no data" to be either None or Some([])
+            return None;
+        }
+        let mut decoder = CBORDecoder::new(slice);
+        Some(
+            decoder
+                .bytes()
+                .expect("The value being CBOR bytes is an implicit invariant of the type"),
+        )
     }
 }
 
