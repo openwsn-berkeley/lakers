@@ -1481,7 +1481,7 @@ mod test_ead_items {
                         // Covers all 3 possible CBOR lengths
                         1 << (3 * shift),
                         shift == 0,
-                        None,
+                        if shift == 2 { Some(b"....") } else { None },
                     )
                     .unwrap(),
                 )
@@ -1494,7 +1494,7 @@ mod test_ead_items {
 
         let mut output_buffer = EdhocMessageBuffer::new();
         items.encode(&mut output_buffer).unwrap();
-        assert_eq!(output_buffer.as_slice(), hex!("20081840190200"));
+        assert_eq!(output_buffer.as_slice(), hex!("20081840442e2e2e2e190200")); // -1, 8, 64, '....', 512
 
         assert_eq!(items.len(), MAX_EAD_ITEMS);
 
