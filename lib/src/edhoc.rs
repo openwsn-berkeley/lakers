@@ -499,14 +499,10 @@ fn encode_message_1(
     output.extend_from_slice(c_i.as_cbor()).unwrap();
 
     for ead_item in ead_1 {
-        // FIXME: Can be value_bytes().is_some, but some of our test vectors think they can get
-        // away with not being CBOR encoded
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            output
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
+        let encoded = encode_ead_item(&ead_item)?;
+        output
+            .extend_from_slice(encoded.as_slice())
+            .map_err(|_| EDHOCError::EadTooLongError)?;
     }
 
     Ok(output)
@@ -625,12 +621,10 @@ fn encode_plaintext_3(
         .or(Err(EDHOCError::EncodingError))?;
 
     for ead_item in ead_3 {
-        if ead_item.value_bytes().is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_3
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
+        let encoded = encode_ead_item(&ead_item)?;
+        plaintext_3
+            .extend_from_slice(encoded.as_slice())
+            .map_err(|_| EDHOCError::EadTooLongError)?;
     }
     Ok(plaintext_3)
 }
@@ -639,12 +633,10 @@ fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> 
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
     for ead_item in ead_4 {
-        if ead_item.value_bytes().is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_4
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
+        let encoded = encode_ead_item(&ead_item)?;
+        plaintext_4
+            .extend_from_slice(encoded.as_slice())
+            .map_err(|_| EDHOCError::EadTooLongError)?;
     }
 
     Ok(plaintext_4)
@@ -873,11 +865,9 @@ fn encode_kdf_context(
     output.extend_from_slice(cred).unwrap();
 
     for ead_item in ead {
-        if ead_item.value.is_some() {
-            output
-                .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
-                .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-        }
+        output
+            .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
+            .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
     }
 
     output
@@ -943,12 +933,10 @@ fn encode_plaintext_2(
 
     // Encode optional EAD_2
     for ead_item in ead_2 {
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_2
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
+        let encoded = encode_ead_item(&ead_item)?;
+        plaintext_2
+            .extend_from_slice(encoded.as_slice())
+            .map_err(|_| EDHOCError::EadTooLongError)?;
     }
 
     Ok(plaintext_2)
