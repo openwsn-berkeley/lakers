@@ -125,28 +125,23 @@ impl coap_handler::Handler for EdhocHandler {
 
             let mut ead_2 = EadItems::new();
             if let Some(ead1_item) = ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL) {
-                if ead1_item.value.is_some() {
-                    let authenticator = ZeroTouchAuthenticator::default();
-                    let (authenticator, _loc_w, voucher_request) = authenticator
-                        .process_ead_1(&ead1_item, &message_1)
-                        .map_err(render_error)?;
+                let authenticator = ZeroTouchAuthenticator::default();
+                let (authenticator, _loc_w, voucher_request) = authenticator
+                    .process_ead_1(&ead1_item, &message_1)
+                    .map_err(render_error)?;
 
-                    // mock a request to the server
-                    let voucher_response = self
-                        .mock_server
-                        .handle_voucher_request(
-                            &mut lakers_crypto::default_crypto(),
-                            &voucher_request,
-                        )
-                        .map_err(render_error)?;
+                // mock a request to the server
+                let voucher_response = self
+                    .mock_server
+                    .handle_voucher_request(&mut lakers_crypto::default_crypto(), &voucher_request)
+                    .map_err(render_error)?;
 
-                    let ead_item = authenticator
-                        .prepare_ead_2(&voucher_response)
-                        .map_err(render_error)?;
+                let ead_item = authenticator
+                    .prepare_ead_2(&voucher_response)
+                    .map_err(render_error)?;
 
-                    println!("Authenticator confirmed authz");
-                    ead_2.try_push(ead_item).expect("ead_2 is already full");
-                };
+                println!("Authenticator confirmed authz");
+                ead_2.try_push(ead_item).expect("ead_2 is already full");
             }
             ead_1.processed_critical_items().map_err(render_error)?;
 
