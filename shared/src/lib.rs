@@ -1249,7 +1249,7 @@ mod cbor_decoder {
         /// To have bound memory requirements, this depends on the encoded data to be in
         /// deterministic encoding, thus not having any indeterminate length items.
         pub fn any_as_encoded(&mut self) -> Result<&'a [u8], CBORError> {
-            let mut remaining_items = 1;
+            let mut remaining_items: u16 = 1;
             let start = self.position();
 
             // Instead of `while remaining_items > 0`, this loop helps hax to see that the loop
@@ -1273,16 +1273,23 @@ mod cbor_decoder {
                     match major {
                         CBOR_MAJOR_UNSIGNED | CBOR_MAJOR_NEGATIVE | CBOR_MAJOR_FLOATSIMPLE => (), // Argument consumed, remaining items were already decremented
                         CBOR_MAJOR_TAG => {
-                            remaining_items += 1;
+                            remaining_items = remaining_items
+                                .checked_add(1)
+                                .ok_or(CBORError::DecodingError)?;
                         }
                         CBOR_MAJOR_BYTE_STRING | CBOR_MAJOR_TEXT_STRING => {
                             self.read_slice(argument.into())?;
                         }
                         CBOR_MAJOR_ARRAY => {
-                            remaining_items += argument;
+                            remaining_items = remaining_items
+                                .checked_add(argument)
+                                .ok_or(CBORError::DecodingError)?;
                         }
                         CBOR_MAJOR_MAP => {
-                            remaining_items += argument * 2;
+                            remaining_items = argument
+                                .checked_mul(2)
+                                .and_then(|argarg| remaining_items.checked_add(argarg))
+                                .ok_or(CBORError::DecodingError)?;
                         }
                         _ => unreachable!("Value is result of a right shift trimming it to 3 bits"),
                     }
