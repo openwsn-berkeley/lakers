@@ -602,6 +602,7 @@ pub struct EADItem {
     /// Currently, only values up to 23 are supported.
     pub label: u16,
     pub is_critical: bool,
+    /// Beware that the buffer contains a *CBOR encoded* byte string.
     pub value: Option<EADBuffer>,
 }
 
@@ -753,73 +754,40 @@ mod edhoc_parser {
     }
 
     fn parse_single_ead(input: &[u8]) -> Result<(EADItem, usize), EDHOCError> {
-        let mut offset = 0;
+        let mut decoder = CBORDecoder::new(input);
+        let label = decoder
+            .i32_limited()
+            .map_err(|_| EDHOCError::ParsingError)?;
 
-        let &label = input.get(offset).ok_or(EDHOCError::ParsingError)?;
-        offset += 1;
+        let is_critical = label < 0;
+        let label = label.abs();
 
-        let (label, is_critical) = if CBORDecoder::is_u8(label) {
-            // CBOR unsigned integer (0..=23)
-            (label, false)
-        } else if CBORDecoder::is_i8(label) {
-            // CBOR negative integer (-1..=-24)
-            (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
+        let position_after_label = decoder.position();
+
+        let ead_value = if let Ok(_slice) = decoder.bytes() {
+            // It's not just from `slice`, because EADItem::value is an *encoded* value. (FIXME: It
+            // shouldn't be).
+            Some(
+                EdhocBuffer::new_from_slice(&input[position_after_label..decoder.position()])
+                    .map_err(|_| EDHOCError::ParsingError)?,
+            )
         } else {
-            return Err(EDHOCError::ParsingError);
-        };
-
-        let ead_value = if let Some(&bstr_head) = input.get(offset) {
-            if (bstr_head & 0xe0) == 0x40 {
-                let additional_info = bstr_head & 0x1f;
-                offset += 1;
-
-                // Decode the length based on additional_info
-                let len = match additional_info {
-                    l if l <= 23 => additional_info as usize,
-                    24 => {
-                        let len_byte = *input.get(offset).ok_or(EDHOCError::ParsingError)? as usize;
-                        offset += 1;
-                        len_byte
-                    }
-                    25 => {
-                        let len_bytes = input
-                            .get(offset..offset + 2)
-                            .ok_or(EDHOCError::ParsingError)?;
-                        offset += 2;
-                        u16::from_be_bytes(len_bytes.try_into().unwrap()) as usize
-                    }
-                    26 => {
-                        let len_bytes = input
-                            .get(offset..offset + 4)
-                            .ok_or(EDHOCError::ParsingError)?;
-                        offset += 4;
-                        u32::from_be_bytes(len_bytes.try_into().unwrap()) as usize
-                    }
-                    _ => return Err(EDHOCError::ParsingError),
-                };
-
-                let bstr_bytes = input.get(1..offset + len).ok_or(EDHOCError::ParsingError)?;
-
-                let mut buf = EdhocBuffer::new();
-                buf.fill_with_slice(bstr_bytes)
-                    .map_err(|_| EDHOCError::ParsingError)?;
-                offset += len;
-
-                Some(buf)
-            } else {
-                None
-            }
-        } else {
+            // If it's a different type, that's an error, but that error is not for us to raise:
+            // Instead, the next item being parsed will trip over its label not being an integer.
             None
         };
 
         let item = EADItem {
-            label: label.into(),
+            label: label
+                .try_into()
+                // That's really only for 0xffff; we could accommodate that if we handled padding
+                // differently and stored the (positive label-1) value
+                .map_err(|_| EDHOCError::ParsingError)?,
             is_critical,
             value: ead_value,
         };
 
-        Ok((item, offset))
+        Ok((item, decoder.position()))
     }
 
     pub fn parse_suites_i(
@@ -1114,6 +1082,17 @@ mod cbor_decoder {
                 Ok(-1 - (self.read()? - 0x20) as i8)
             } else {
                 Err(CBORError::DecodingError)
+            }
+        }
+
+        /// Decode up to 16 bit (1+2 byte) of an unsigned or negative integer into an i32
+        pub fn i32_limited(&mut self) -> Result<i32, CBORError> {
+            let (major, argument) = self.read_major_argument16()?;
+            match major {
+                CBOR_MAJOR_UNSIGNED => Ok(i32::from(argument)),
+                // Can not underflow
+                CBOR_MAJOR_NEGATIVE => Ok(-1 - i32::from(argument)),
+                _ => Err(CBORError::DecodingError),
             }
         }
 
