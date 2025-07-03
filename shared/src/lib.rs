@@ -734,12 +734,13 @@ impl EADItem {
 
     #[cfg(feature = "python-bindings")]
     #[new]
-    fn new_py(label: u16, is_critical: bool, value: Vec<u8>) -> Self {
-        Self {
+    fn new_py(label: u16, is_critical: bool, value: Option<Vec<u8>>) -> Self {
+        Self::new_full(
             label,
             is_critical,
-            value: EdhocMessageBuffer::new_from_slice(value.as_slice()).unwrap(),
-        }
+            value.as_ref().map(|value| value.as_slice()),
+        )
+        .expect("EAD item too long to store")
     }
 
     #[cfg(feature = "python-bindings")]
