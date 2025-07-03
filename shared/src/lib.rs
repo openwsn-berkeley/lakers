@@ -734,6 +734,7 @@ impl EADItem {
 
     #[cfg(feature = "python-bindings")]
     #[new]
+    #[pyo3(signature = (label, is_critical, value=None))]
     fn new_py(label: u16, is_critical: bool, value: Option<Vec<u8>>) -> Self {
         Self::new_full(
             label,
