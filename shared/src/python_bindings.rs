@@ -37,6 +37,9 @@ impl From<EdhocBufferError> for PyErr {
 impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let mut items = EadItems::new();
+        if ob.is_none() {
+            return Ok(items);
+        };
         let value: &Bound<'py, pyo3::types::PySequence> = ob.downcast()?;
         for item in value.iter()? {
             items
