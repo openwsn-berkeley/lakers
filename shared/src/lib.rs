@@ -744,7 +744,8 @@ impl EADItem {
     }
 
     #[cfg(feature = "python-bindings")]
-    fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, pyo3::types::PyBytes>> {
+    #[pyo3(name = "value")]
+    fn value_py<'a>(&self, py: Python<'a>) -> Option<Bound<'a, pyo3::types::PyBytes>> {
         self.value_bytes()
             .as_ref()
             .map(|v| pyo3::types::PyBytes::new_bound(py, v))
