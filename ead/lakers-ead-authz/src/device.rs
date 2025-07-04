@@ -44,13 +44,9 @@ impl ZeroTouchDevice {
         // plaintext = (ID_U: bstr)
         let encoded_id_u = encode_id_u(&self.id_u);
         let enc_id = encrypt_enc_id(crypto, &prk, &encoded_id_u, ss);
-        let value = Some(encode_ead_1_value(&self.loc_w, &enc_id));
+        let value = encode_ead_1_value(&self.loc_w, &enc_id);
 
-        let ead_1 = EADItem {
-            label: EAD_AUTHZ_LABEL,
-            is_critical: true,
-            value,
-        };
+        let ead_1 = EADItem::new_full(EAD_AUTHZ_LABEL, true, Some(value.as_slice())).unwrap();
 
         (
             ZeroTouchDeviceWaitEAD2 {
@@ -75,16 +71,13 @@ impl ZeroTouchDeviceWaitEAD2 {
         cred_v: &[u8],
     ) -> Result<ZeroTouchDeviceDone, ZeroTouchError> {
         trace!("Enter process_ead_2");
-        if ead_2.label != EAD_AUTHZ_LABEL {
+        if ead_2.label() != EAD_AUTHZ_LABEL {
             return Err(ZeroTouchError::InvalidEADLabel);
         }
-        let Some(ead_2_value_buffer) = &ead_2.value else {
+        let Some(ead_2_value) = ead_2.value_bytes() else {
             return Err(ZeroTouchError::EmptyEADValue);
         };
-        let mut ead_2_value: BytesEncodedVoucher = Default::default();
-        ead_2_value[..].copy_from_slice(&ead_2_value_buffer.as_slice()[..ENCODED_VOUCHER_LEN]);
-
-        match verify_voucher(crypto, &ead_2_value, &self.h_message_1, cred_v, &self.prk) {
+        match verify_voucher(crypto, ead_2_value, &self.h_message_1, cred_v, &self.prk) {
             Ok(voucher) => Ok(ZeroTouchDeviceDone { voucher }),
             Err(error) => Err(error),
         }
@@ -120,11 +113,6 @@ fn encrypt_enc_id<Crypto: CryptoTrait>(
 fn encode_ead_1_value(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -> EADBuffer {
     let mut output = EdhocBuffer::new();
 
-    output.push(CBOR_BYTE_STRING).unwrap();
-    output
-        .push((2 + loc_w.len() + 1 + enc_id.len()) as u8)
-        .unwrap();
-
     output.push(CBOR_TEXT_STRING).unwrap();
     output.push(loc_w.len() as u8).unwrap();
     output.extend_from_slice(loc_w.as_slice()).unwrap();
@@ -139,16 +127,14 @@ fn encode_ead_1_value(loc_w: &EdhocMessageBuffer, enc_id: &EdhocMessageBuffer) -
 
 pub(crate) fn verify_voucher<Crypto: CryptoTrait>(
     crypto: &mut Crypto,
-    received_voucher: &BytesEncodedVoucher,
+    received_voucher: &[u8],
     h_message_1: &BytesHashLen,
     cred_v: &[u8],
     prk: &BytesHashLen,
 ) -> Result<BytesMac, ZeroTouchError> {
     let prepared_voucher = &prepare_voucher(crypto, h_message_1, cred_v, prk);
     if received_voucher == prepared_voucher {
-        let mut voucher_mac: BytesMac = Default::default();
-        voucher_mac[..MAC_LENGTH].copy_from_slice(&prepared_voucher[1..1 + MAC_LENGTH]);
-        return Ok(voucher_mac);
+        return Ok(*prepared_voucher);
     } else {
         return Err(ZeroTouchError::VoucherVerificationFailed);
     }
@@ -175,8 +161,6 @@ mod test_device {
 
     #[test]
     fn test_prepare_ead_1() {
-        let ead_1_value_tv: EADBuffer = EAD1_VALUE_TV.try_into().unwrap();
-
         let ead_device = ZeroTouchDevice::new(
             ID_U_TV.try_into().unwrap(),
             G_W_TV.try_into().unwrap(),
@@ -185,32 +169,31 @@ mod test_device {
 
         let (_ead_device, ead_1) =
             ead_device.prepare_ead_1(&mut default_crypto(), G_XW_TV.try_into().unwrap(), SS_TV);
-        assert_eq!(ead_1.label, EAD_AUTHZ_LABEL);
-        assert_eq!(ead_1.is_critical, true);
-        assert_eq!(ead_1.value.unwrap(), ead_1_value_tv);
+        assert_eq!(ead_1.label(), EAD_AUTHZ_LABEL);
+        assert_eq!(ead_1.is_critical(), true);
+        assert_eq!(ead_1.value_bytes(), Some(EAD1_VALUE_TV));
     }
 
     #[test]
     fn test_verify_voucher() {
-        let mut voucher_tv = VOUCHER_TV.try_into().unwrap();
         let h_message_1_tv = H_MESSAGE_1_TV.try_into().unwrap();
         let prk_tv = PRK_TV.try_into().unwrap();
-        let voucher_mac_tv: BytesMac = VOUCHER_MAC_TV.try_into().unwrap();
 
         let res = verify_voucher(
             &mut default_crypto(),
-            &voucher_tv,
+            &VOUCHER_MAC_TV,
             &h_message_1_tv,
             &CRED_V_TV,
             &prk_tv,
         );
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), voucher_mac_tv);
+        assert_eq!(res.unwrap(), VOUCHER_MAC_TV);
 
-        voucher_tv[0] ^= 0x01; // change a byte to make the voucher invalid
+        let mut voucher_invalidated: [u8; MAC_LENGTH] = VOUCHER_MAC_TV.try_into().unwrap();
+        voucher_invalidated[0] ^= 0x01; // change a byte to make the voucher invalid
         let res = verify_voucher(
             &mut default_crypto(),
-            &voucher_tv,
+            &voucher_invalidated,
             &h_message_1_tv,
             &CRED_V_TV,
             &prk_tv,
@@ -220,11 +203,7 @@ mod test_device {
 
     #[test]
     fn test_process_ead_2() {
-        let ead_2_tv = EADItem {
-            label: EAD_AUTHZ_LABEL,
-            is_critical: true,
-            value: Some(EAD2_VALUE_TV.try_into().unwrap()),
-        };
+        let ead_2_tv = EADItem::new_full(EAD_AUTHZ_LABEL, true, Some(&EAD2_VALUE_TV)).unwrap();
 
         let ead_device = ZeroTouchDeviceWaitEAD2 {
             prk: PRK_TV.try_into().unwrap(),
