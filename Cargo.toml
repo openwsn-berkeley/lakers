@@ -32,7 +32,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.8.0"
-repository = "https://github.com/openwsn-berkeley/lakers/"
+repository = "https://github.com/lake-rs/lakers/"
 license = "BSD-3-Clause"
 readme = "shared/README.md"
 keywords = ["iot", "security", "protocol", "crypto", "edhoc"]

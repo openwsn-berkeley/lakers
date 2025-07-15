@@ -1,7 +1,7 @@
 # lakers &emsp; [![CI status]][actions] [![Latest Version]][crates.io] [![API Documentation]][docs.rs]
 
-[CI status]: https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml/badge.svg
-[actions]: https://github.com/openwsn-berkeley/lakers/actions/workflows/build-and-test.yml
+[CI status]: https://github.com/lake-rs/lakers/actions/workflows/build-and-test.yml/badge.svg
+[actions]: https://github.com/lake-rs/lakers/actions/workflows/build-and-test.yml
 [Latest Version]: https://img.shields.io/crates/v/lakers.svg
 [crates.io]: https://crates.io/crates/lakers
 [API Documentation]: https://docs.rs/lakers/badge.svg
@@ -26,7 +26,7 @@ Ephemeral Diffie-Hellman Over COSE (EDHOC) is a new IETF standard that provides 
 - easy to use, typestated API for Initiator and Responder
 - microcontroller-optimized: `no_std`, no heap allocations, zero-dependencies (other than crypto backends)
 - configurable crypto backends
-- bindings for [C](https://github.com/openwsn-berkeley/lakers/releases/) and [Python](https://pypi.org/project/lakers-python/)
+- bindings for [C](https://github.com/lake-rs/lakers/releases/) and [Python](https://pypi.org/project/lakers-python/)
 - support for EDHOC extensions, including [zero-touch authorization](https://datatracker.ietf.org/doc/draft-ietf-lake-authz/)
 
 It currently supports authentication mode STAT-STAT and Cipher Suite 2 (AES-CCM-16-64-128, SHA-256, 8, P-256, ES256, AES-CCM-16-64-128, SHA-256).
@@ -57,7 +57,7 @@ let prk_out_new = initiator.edhoc_key_update(context);
 ```
 
 ### C API
-C-compatible static libraries and headers are available for download in [the releases page](https://github.com/openwsn-berkeley/lakers/releases).
+C-compatible static libraries and headers are available for download in [the releases page](https://github.com/lake-rs/lakers/releases).
 
 ### Python API
 `lakers-python` is [available on PyPI](https://pypi.org/project/lakers-python/), to install it run `pip install lakers-python`.
@@ -69,7 +69,7 @@ To work on `lakers` itself, follow the instructions below:
 
 2. Download, compile, and run the tests:
 ```
-git clone git@github.com:openwsn-berkeley/lakers.git && cd lakers
+git clone git@github.com:lake-rs/lakers.git && cd lakers
 cargo build
 cargo test
 ```
