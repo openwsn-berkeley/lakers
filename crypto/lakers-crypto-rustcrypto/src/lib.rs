@@ -132,7 +132,7 @@ impl<Rng: rand_core::RngCore + rand_core::CryptoRng> CryptoTrait for Crypto<Rng>
             1.into(), /* Y coordinate choice does not matter for ECDH operation */
         )
         // While this can actually panic so far, the proper fix is in
-        // https://github.com/openwsn-berkeley/lakers/issues/93 which will justify this to be a
+        // https://github.com/lake-rs/lakers/issues/93 which will justify this to be a
         // panic (because after that, public key validity will be an invariant of the public key
         // type)
         .expect("Public key is not a good point");
