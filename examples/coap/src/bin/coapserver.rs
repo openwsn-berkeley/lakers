@@ -65,24 +65,22 @@ fn main() {
                     if let Some(ead_item) =
                         ead_1.pop_by_label(lakers_ead_authz::consts::EAD_AUTHZ_LABEL)
                     {
-                        if ead_item.value.is_some() {
-                            let authenticator = ZeroTouchAuthenticator::default();
-                            let (authenticator, _loc_w, voucher_request) =
-                                authenticator.process_ead_1(&ead_item, &message_1).unwrap();
+                        let authenticator = ZeroTouchAuthenticator::default();
+                        let (authenticator, _loc_w, voucher_request) =
+                            authenticator.process_ead_1(&ead_item, &message_1).unwrap();
 
-                            // mock a request to the server
-                            let voucher_response = server
-                                .handle_voucher_request(
-                                    &mut lakers_crypto::default_crypto(),
-                                    &voucher_request,
-                                )
-                                .unwrap();
+                        // mock a request to the server
+                        let voucher_response = server
+                            .handle_voucher_request(
+                                &mut lakers_crypto::default_crypto(),
+                                &voucher_request,
+                            )
+                            .unwrap();
 
-                            let res = authenticator.prepare_ead_2(&voucher_response);
-                            assert!(res.is_ok());
+                        let res = authenticator.prepare_ead_2(&voucher_response);
+                        assert!(res.is_ok());
 
-                            ead_2.try_push(res.unwrap()).unwrap();
-                        };
+                        ead_2.try_push(res.unwrap()).unwrap();
                     }
                     ead_1.processed_critical_items().unwrap();
 

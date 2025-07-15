@@ -427,37 +427,6 @@ pub fn i_complete_without_message_4(state: &WaitM4) -> Result<Completed, EDHOCEr
     })
 }
 
-fn encode_ead_item(ead_1: &EADItem) -> Result<EADBuffer, EDHOCError> {
-    let mut output = EdhocBuffer::new();
-
-    // encode label
-    // FIXME: This only works for values up to 23
-    let res = if ead_1.is_critical {
-        // ensure it won't overflow
-        u8::try_from(ead_1.label)
-            .ok()
-            .and_then(|x| x.checked_add(CBOR_NEG_INT_1BYTE_START))
-            .and_then(|x| x.checked_sub(1))
-    } else {
-        ead_1.label.try_into().ok()
-    };
-
-    if let Some(label) = res {
-        output.push(label).unwrap();
-
-        // encode value
-        if let Some(ead_1_value) = &ead_1.value {
-            output
-                .extend_from_slice(ead_1_value.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
-
-        Ok(output)
-    } else {
-        Err(EDHOCError::EadLabelTooLongError)
-    }
-}
-
 fn encode_message_1(
     method: u8,
     suites: &EdhocBuffer<MAX_SUITES_LEN>,
@@ -497,14 +466,7 @@ fn encode_message_1(
     output.extend_from_slice(&g_x[..]).unwrap();
     output.extend_from_slice(c_i.as_cbor()).unwrap();
 
-    for ead_item in ead_1 {
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            output
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
-    }
+    ead_1.encode(&mut output)?;
 
     Ok(output)
 }
@@ -618,28 +580,15 @@ fn encode_plaintext_3(
         .extend_from_slice(mac_3)
         .or(Err(EDHOCError::EncodingError))?;
 
-    for ead_item in ead_3 {
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_3
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
-    }
+    ead_3.encode(&mut plaintext_3)?;
+
     Ok(plaintext_3)
 }
 
 fn encode_plaintext_4(ead_4: &EadItems) -> Result<BufferPlaintext4, EDHOCError> {
     let mut plaintext_4: BufferPlaintext4 = BufferPlaintext4::new();
 
-    for ead_item in ead_4 {
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_4
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
-    }
+    ead_4.encode(&mut plaintext_4)?;
 
     Ok(plaintext_4)
 }
@@ -866,13 +815,8 @@ fn encode_kdf_context(
     output.extend_from_slice(th).unwrap();
     output.extend_from_slice(cred).unwrap();
 
-    for ead_item in ead {
-        if ead_item.value.is_some() {
-            output
-                .extend_from_slice(encode_ead_item(&ead_item).unwrap().as_slice())
-                .unwrap(); // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
-        }
-    }
+    // NOTE: this re-encoding could be avoided by passing just a reference to ead in the decrypted plaintext
+    ead.encode(&mut output).unwrap();
 
     output
 }
@@ -936,14 +880,7 @@ fn encode_plaintext_2(
     plaintext_2.extend_from_slice(&mac_2[..]).unwrap();
 
     // Encode optional EAD_2
-    for ead_item in ead_2 {
-        if ead_item.value.is_some() {
-            let encoded = encode_ead_item(&ead_item)?;
-            plaintext_2
-                .extend_from_slice(encoded.as_slice())
-                .map_err(|_| EDHOCError::EadTooLongError)?;
-        }
-    }
+    ead_2.encode(&mut plaintext_2)?;
 
     Ok(plaintext_2)
 }
@@ -1069,8 +1006,7 @@ mod tests {
     const MESSAGE_1_TV_SUITE_ONLY_ERR: EdhocMessageBuffer =
         EdhocBuffer::new_from_array(&hex!("038A02020202020202020202"));
     const EAD_DUMMY_LABEL_TV: u16 = 0x01;
-    const EAD_DUMMY_VALUE_TV: EdhocBuffer<MAX_EAD_LEN> =
-        EdhocBuffer::new_from_array(&hex!("43cccccc"));
+    const EAD_DUMMY_VALUE_TV: &[u8] = &hex!("cccccc");
     const EAD_DUMMY_CRITICAL_TV: EdhocBuffer<MAX_EAD_LEN> =
         EdhocBuffer::new_from_array(&hex!("2043cccccc"));
     const MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV: EdhocMessageBuffer = EdhocBuffer::new_from_array(
@@ -1508,13 +1444,10 @@ mod tests {
 
     #[test]
     fn test_encode_ead_item() {
-        let ead_item = EADItem {
-            label: EAD_DUMMY_LABEL_TV,
-            is_critical: true,
-            value: Some(EAD_DUMMY_VALUE_TV),
-        };
+        let ead_item =
+            EADItem::new_full(EAD_DUMMY_LABEL_TV, true, Some(EAD_DUMMY_VALUE_TV)).unwrap();
 
-        let res = encode_ead_item(&ead_item);
+        let res = ead_item.encode();
         assert!(res.is_ok());
         let ead_buffer = res.unwrap();
         assert_eq!(ead_buffer, EAD_DUMMY_CRITICAL_TV);
@@ -1524,11 +1457,8 @@ mod tests {
     fn test_encode_message_with_ead_item() {
         let method_tv = METHOD_TV;
         let c_i_tv = C_I_TV;
-        let ead_item = EADItem {
-            label: EAD_DUMMY_LABEL_TV,
-            is_critical: true,
-            value: Some(EAD_DUMMY_VALUE_TV),
-        };
+        let ead_item =
+            EADItem::new_full(EAD_DUMMY_LABEL_TV, true, Some(EAD_DUMMY_VALUE_TV)).unwrap();
 
         let mut ead = EadItems::new();
         ead.try_push(ead_item).unwrap();
@@ -1542,20 +1472,24 @@ mod tests {
 
     #[test]
     fn test_encode_message_with_large_ead_item() {
+        // FIXME: This only works with the default parameters, where 4 EAD items can be had that
+        // together exceed the maximum size.
+
         let method_tv = METHOD_TV;
         let c_i_tv = C_I_TV;
 
-        // the actual value will be zeroed since it doesn't matter in this test
-        let mut ead_value = EdhocBuffer::new();
-        ead_value.extend_reserve(MAX_EAD_LEN).unwrap();
-
-        let ead_item = EADItem {
-            label: EAD_DUMMY_LABEL_TV,
-            is_critical: true,
-            value: Some(ead_value),
-        };
+        let ead_item = EADItem::new_full(
+            EAD_DUMMY_LABEL_TV,
+            true,
+            // Enough for the pre-buffer encoding, but still large
+            Some(&[0; MAX_EAD_LEN - 3]),
+        )
+        .unwrap();
 
         let mut ead = EadItems::new();
+        ead.try_push(ead_item.clone()).unwrap();
+        ead.try_push(ead_item.clone()).unwrap();
+        ead.try_push(ead_item.clone()).unwrap();
         ead.try_push(ead_item).unwrap();
 
         let res = encode_message_1(method_tv, &SUITES_I_TV, &G_X_TV, c_i_tv, &ead);
@@ -1570,9 +1504,9 @@ mod tests {
 
         let mut ead = ead.iter();
         let ead_item = ead.next().unwrap();
-        assert!(!ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.clone().unwrap(), EAD_DUMMY_VALUE_TV);
+        assert!(!ead_item.is_critical());
+        assert_eq!(ead_item.label(), EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_item.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         // only 1 ead
         assert!(ead.next().is_none());
 
@@ -1581,30 +1515,30 @@ mod tests {
 
         let mut ead = ead.iter();
         let ead_item = ead.next().unwrap();
-        assert!(ead_item.is_critical);
-        assert_eq!(ead_item.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(ead_item.value.clone().unwrap(), EAD_DUMMY_VALUE_TV);
+        assert!(ead_item.is_critical());
+        assert_eq!(ead_item.label(), EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_item.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         // only 1 ead
         assert!(ead.next().is_none());
 
         let ead = parse_eads(&MESSAGE_1_WITH_DUMMY_EAD_NO_VALUE_TV.as_slice()[message_tv_offset..])
             .unwrap();
         let ead = &ead.iter().next().unwrap();
-        assert!(!ead.is_critical);
-        assert_eq!(ead.label, EAD_DUMMY_LABEL_TV);
-        assert!(ead.value.is_none());
+        assert!(!ead.is_critical());
+        assert_eq!(ead.label(), EAD_DUMMY_LABEL_TV);
+        assert!(ead.value_bytes().is_none());
 
         let ead = parse_eads(&MESSAGE_1_WITH_TWO_EADS.as_slice()[message_tv_offset..]).unwrap();
 
         let mut ead = ead.iter();
         let fst_ead = ead.next().unwrap();
-        assert!(!fst_ead.is_critical);
-        assert_eq!(fst_ead.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(fst_ead.value.clone().unwrap(), EAD_DUMMY_VALUE_TV);
+        assert!(!fst_ead.is_critical());
+        assert_eq!(fst_ead.label(), EAD_DUMMY_LABEL_TV);
+        assert_eq!(fst_ead.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         let snd_ead = ead.next().unwrap();
-        assert!(snd_ead.is_critical);
-        assert_eq!(snd_ead.label, EAD_DUMMY_LABEL_TV);
-        assert_eq!(snd_ead.value.clone().unwrap(), EAD_DUMMY_VALUE_TV);
+        assert!(snd_ead.is_critical());
+        assert_eq!(snd_ead.label(), EAD_DUMMY_LABEL_TV);
+        assert_eq!(snd_ead.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
         assert!(ead.next().is_none());
     }
 
@@ -1615,10 +1549,9 @@ mod tests {
         let (_method, _suites_i, _g_x, _c_i, ead_1) = res.unwrap();
 
         let ead_1 = &ead_1.iter().next().unwrap();
-        assert!(ead_1.is_critical);
-        assert_eq!(ead_1.label, EAD_DUMMY_LABEL_TV);
-        // FIXME clone needed?
-        assert_eq!(ead_1.value.clone().unwrap(), EAD_DUMMY_VALUE_TV);
+        assert!(ead_1.is_critical());
+        assert_eq!(ead_1.label(), EAD_DUMMY_LABEL_TV);
+        assert_eq!(ead_1.value_bytes(), Some(EAD_DUMMY_VALUE_TV));
     }
 
     #[test]

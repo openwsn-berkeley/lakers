@@ -28,10 +28,10 @@ pub(crate) fn prepare_voucher<Crypto: CryptoTrait>(
     h_message_1: &BytesHashLen,
     cred_v: &[u8],
     prk: &BytesP256ElemLen,
-) -> BytesEncodedVoucher {
+) -> BytesVoucher {
     let voucher_input = encode_voucher_input(&h_message_1, &cred_v);
     let voucher_mac = compute_voucher_mac(crypto, &prk, &voucher_input);
-    encode_voucher(&voucher_mac)
+    voucher_mac
 }
 
 pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
@@ -50,11 +50,9 @@ pub(crate) fn compute_k_1_iv_1<Crypto: CryptoTrait>(
 }
 
 pub(crate) fn parse_ead_1_value(
-    value: &EADBuffer,
+    value: &[u8],
 ) -> Result<(EdhocMessageBuffer, EdhocMessageBuffer), EDHOCError> {
-    let mut outer_decoder = CBORDecoder::new(value.as_slice());
-    let voucher_info_seq = outer_decoder.bytes()?;
-    let mut seq_decoder = CBORDecoder::new(voucher_info_seq);
+    let mut seq_decoder = CBORDecoder::new(value);
     Ok((
         seq_decoder.str()?.try_into().unwrap(),
         seq_decoder.bytes()?.try_into().unwrap(),
@@ -114,14 +112,6 @@ fn compute_voucher_mac<Crypto: CryptoTrait>(
     edhoc_kdf_expand(crypto, prk, 2, voucher_input.as_slice(), &mut voucher_mac);
 
     voucher_mac
-}
-
-fn encode_voucher(voucher_mac: &BytesMac) -> BytesEncodedVoucher {
-    let mut voucher: BytesEncodedVoucher = Default::default();
-    voucher[0] = CBOR_MAJOR_BYTE_STRING + MAC_LENGTH as u8;
-    voucher[1..1 + MAC_LENGTH].copy_from_slice(&voucher_mac[..MAC_LENGTH]);
-
-    voucher
 }
 
 fn edhoc_kdf_expand<Crypto: CryptoTrait>(

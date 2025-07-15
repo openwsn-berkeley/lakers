@@ -57,20 +57,27 @@ def _test_handshake(cred_r_transfer, cred_i_transfer):
     # responder
     _c_i, ead_1 = responder.process_message_1(message_1)
     assert not ead_1
-    message_2 = responder.prepare_message_2(cred_r_transfer, None)
+    message_2 = responder.prepare_message_2(cred_r_transfer, None, [EADItem(10, False, None)])
     assert type(message_2) == bytes
 
     # initiator
     c_r, id_cred_r, ead_2 = initiator.parse_message_2(message_2)
-    assert not ead_2
+    assert len(ead_2) == 1
+    assert ead_2[0].value() == None
+    assert ead_2[0].label() == 10
+    assert ead_2[0].is_critical() == False
     valid_cred_r = lakers.credential_check_or_fetch(id_cred_r, CRED_R)
     initiator.verify_message_2(I, CRED_I, valid_cred_r)
-    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer)
+    message_3, i_prk_out = initiator.prepare_message_3(cred_i_transfer, [EADItem(1000, True, b"..."), EADItem(0, False, b"")])
     assert type(message_3) == bytes
 
     # responder
     id_cred_i, ead_3 = responder.parse_message_3(message_3)
-    assert not ead_3
+    assert len(ead_3) == 2
+    assert ead_3[0].label() == 1000
+    assert ead_3[0].is_critical() == True
+    assert ead_3[0].value() == b"..."
+    assert ead_3[1].label() == 0
     valid_cred_i = lakers.credential_check_or_fetch(id_cred_i, CRED_I)
     r_prk_out = responder.verify_message_3(valid_cred_i)
     message_4 = responder.prepare_message_4()
