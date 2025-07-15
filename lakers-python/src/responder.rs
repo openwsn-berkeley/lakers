@@ -84,7 +84,7 @@ impl PyEdhocResponder {
         let (state, c_i, ead_1) =
             r_process_message_1(&self.take_start()?, &mut default_crypto(), &message_1)?;
         self.processing_m1 = Some(state);
-        let c_i = PyBytes::new_bound(py, c_i.as_slice());
+        let c_i = PyBytes::new(py, c_i.as_slice());
 
         Ok((c_i, ead_1))
     }
@@ -121,7 +121,7 @@ impl PyEdhocResponder {
             &ead_2,
         )?;
         self.wait_m3 = Some(state);
-        Ok(PyBytes::new_bound(py, message_2.as_slice()))
+        Ok(PyBytes::new(py, message_2.as_slice()))
     }
 
     /// Processes message 3.
@@ -140,7 +140,7 @@ impl PyEdhocResponder {
         let (state, id_cred_i, ead_3) =
             r_parse_message_3(&mut self.take_wait_m3()?, &mut default_crypto(), &message_3)?;
         self.processing_m3 = Some(state);
-        Ok((PyBytes::new_bound(py, id_cred_i.bytes.as_slice()), ead_3))
+        Ok((PyBytes::new(py, id_cred_i.bytes.as_slice()), ead_3))
     }
 
     /// Verifies the previously inserted message 3.
@@ -161,7 +161,7 @@ impl PyEdhocResponder {
             valid_cred_i,
         )?;
         self.processed_m3 = Some(state);
-        Ok(PyBytes::new_bound(py, prk_out.as_slice()))
+        Ok(PyBytes::new(py, prk_out.as_slice()))
     }
 
     /// Generates a message 4.
@@ -179,7 +179,7 @@ impl PyEdhocResponder {
         let (state, message_4) =
             r_prepare_message_4(&self.take_processed_m3()?, &mut default_crypto(), &ead_4)?;
         self.completed = Some(state);
-        Ok(PyBytes::new_bound(py, message_4.as_slice()))
+        Ok(PyBytes::new(py, message_4.as_slice()))
     }
 
     /// Declares the protocol to have completed without any message 4.
@@ -201,7 +201,7 @@ impl PyEdhocResponder {
         length: usize,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let completed = self.as_mut_completed()?;
-        PyBytes::new_bound_with(py, length, |output| {
+        PyBytes::new_with(py, length, |output| {
             Ok(edhoc_exporter(
                 completed,
                 &mut default_crypto(),
@@ -223,7 +223,7 @@ impl PyEdhocResponder {
             &mut default_crypto(),
             context.as_slice(),
         );
-        Ok(PyBytes::new_bound(py, &res[..SHA256_DIGEST_LEN]))
+        Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
     }
 }
 

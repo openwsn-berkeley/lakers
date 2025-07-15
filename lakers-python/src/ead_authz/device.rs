@@ -61,6 +61,6 @@ impl PyAuthzDevice {
     }
 
     pub fn get_g_w<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
-        Ok(PyBytes::new_bound(py, &self.device.g_w[..]))
+        Ok(PyBytes::new(py, &self.device.g_w[..]))
     }
 }

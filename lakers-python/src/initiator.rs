@@ -93,7 +93,7 @@ impl PyEdhocInitiator {
         let (state, message_1) =
             i_prepare_message_1(&self.start, &mut default_crypto(), c_i, &ead_1)?;
         self.wait_m2 = Some(state);
-        Ok(PyBytes::new_bound(py, message_1.as_slice()))
+        Ok(PyBytes::new(py, message_1.as_slice()))
     }
 
     /// Process message 2.
@@ -114,8 +114,8 @@ impl PyEdhocInitiator {
             i_parse_message_2(&self.take_wait_m2()?, &mut default_crypto(), &message_2)?;
         self.processing_m2 = Some(state);
         Ok((
-            PyBytes::new_bound(py, c_r.as_slice()),
-            PyBytes::new_bound(py, id_cred_r.bytes.as_slice()),
+            PyBytes::new(py, c_r.as_slice()),
+            PyBytes::new(py, id_cred_r.bytes.as_slice()),
             ead_2,
         ))
     }
@@ -174,8 +174,8 @@ impl PyEdhocInitiator {
         )?;
         self.wait_m4 = Some(state);
         Ok((
-            PyBytes::new_bound(py, message_3.as_slice()),
-            PyBytes::new_bound(py, prk_out.as_slice()),
+            PyBytes::new(py, message_3.as_slice()),
+            PyBytes::new(py, prk_out.as_slice()),
         ))
     }
 
@@ -215,7 +215,7 @@ impl PyEdhocInitiator {
         length: usize,
     ) -> PyResult<Bound<'a, PyBytes>> {
         let completed = self.as_mut_completed()?;
-        PyBytes::new_bound_with(py, length, |output| {
+        PyBytes::new_with(py, length, |output| {
             Ok(edhoc_exporter(
                 completed,
                 &mut default_crypto(),
@@ -237,14 +237,11 @@ impl PyEdhocInitiator {
             &mut default_crypto(),
             context.as_slice(),
         );
-        Ok(PyBytes::new_bound(py, &res[..SHA256_DIGEST_LEN]))
+        Ok(PyBytes::new(py, &res[..SHA256_DIGEST_LEN]))
     }
 
     pub fn get_h_message_1<'a>(&self, py: Python<'a>) -> PyResult<Bound<'a, PyBytes>> {
-        Ok(PyBytes::new_bound(
-            py,
-            &self.as_ref_wait_m2()?.h_message_1[..],
-        ))
+        Ok(PyBytes::new(py, &self.as_ref_wait_m2()?.h_message_1[..]))
     }
 
     pub fn compute_ephemeral_secret<'a>(
@@ -255,7 +252,7 @@ impl PyEdhocInitiator {
         let mut g_a_arr = BytesP256ElemLen::default();
         g_a_arr.copy_from_slice(&g_a[..]);
         let secret = default_crypto().p256_ecdh(&self.start.x, &g_a_arr);
-        Ok(PyBytes::new_bound(py, &secret[..]))
+        Ok(PyBytes::new(py, &secret[..]))
     }
 
     /// The cipher suite that is agreed on by the exchange.

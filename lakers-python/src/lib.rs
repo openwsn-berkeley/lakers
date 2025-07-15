@@ -94,7 +94,7 @@ pub fn py_credential_check_or_fetch<'a>(
         IdCred::from_full_value(id_cred_received.as_slice())?,
     )?;
 
-    Ok(PyBytes::new_bound(py, valid_cred.bytes.as_slice()))
+    Ok(PyBytes::new(py, valid_cred.bytes.as_slice()))
 }
 
 /// this function is useful to test the python bindings
@@ -104,8 +104,8 @@ fn p256_generate_key_pair<'a>(
 ) -> PyResult<(Bound<'a, PyBytes>, Bound<'a, PyBytes>)> {
     let (x, g_x) = default_crypto().p256_generate_key_pair();
     Ok((
-        PyBytes::new_bound(py, x.as_slice()),
-        PyBytes::new_bound(py, g_x.as_slice()),
+        PyBytes::new(py, x.as_slice()),
+        PyBytes::new(py, g_x.as_slice()),
     ))
 }
 
@@ -167,7 +167,7 @@ fn lakers_python(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ead_authz::PyAuthzEnrollmentServer>()?;
     m.add_class::<ead_authz::PyAuthzServerUserAcl>()?;
 
-    let submodule = PyModule::new_bound(py, "consts")?;
+    let submodule = PyModule::new(py, "consts")?;
     submodule.add("EAD_AUTHZ_LABEL", lakers_ead_authz::consts::EAD_AUTHZ_LABEL)?;
     m.add_submodule(&submodule)?;
     Ok(())
