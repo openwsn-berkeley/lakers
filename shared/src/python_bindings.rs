@@ -46,9 +46,7 @@ impl EADItem {
     }
 
     fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, PyBytes>> {
-        self.value
-            .as_ref()
-            .map(|v| PyBytes::new_bound(py, v.as_slice()))
+        self.value.as_ref().map(|v| PyBytes::new(py, v.as_slice()))
     }
 
     fn label(&self) -> u16 {
@@ -75,8 +73,9 @@ impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
 
 impl pyo3::conversion::IntoPy<PyObject> for EadItems {
     fn into_py(self, py: Python<'_>) -> PyObject {
-        let list = pyo3::types::PyList::new_bound(py, core::iter::empty::<PyObject>());
-        // Can't pass it into new_bound as it doesn't have an ExactSizeItertor -- FIXME: should we
+        let list = pyo3::types::PyList::new(py, core::iter::empty::<PyObject>())
+            .expect("No items are appended that could err");
+        // Can't pass it into new as it doesn't have an ExactSizeItertor -- FIXME: should we
         // implement and use that?
         for item in self.iter() {
             list.append(item.clone().into_py(py))
@@ -133,15 +132,15 @@ impl Credential {
     }
 
     fn value<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.bytes.as_slice())
+        PyBytes::new(py, self.bytes.as_slice())
     }
 
     #[pyo3(name = "public_key")]
     fn py_public_key<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, &self.public_key().unwrap())
+        PyBytes::new(py, &self.public_key().unwrap())
     }
 
     fn kid<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.kid.as_ref().unwrap().as_slice())
+        PyBytes::new(py, self.kid.as_ref().unwrap().as_slice())
     }
 }
