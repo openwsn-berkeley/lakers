@@ -62,7 +62,7 @@ impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let mut items = EadItems::new();
         let value: &Bound<'py, pyo3::types::PySequence> = ob.downcast()?;
-        for item in value.iter()? {
+        for item in value.try_iter()? {
             items
                 .try_push(item?.extract()?)
                 .map_err(|err| PyValueError::new_err(format!("ead already full: {:?}", err)))?;
