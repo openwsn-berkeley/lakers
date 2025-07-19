@@ -61,7 +61,12 @@ pub unsafe extern "C" fn initiator_prepare_message_1(
     };
 
     let state = core::ptr::read(&(*initiator_c).start);
-    let ead_1 = (*ead_1_c).to_rust();
+
+    let ead_1 = if ead_1_c.is_null() {
+        EadItems::new()
+    } else {
+        (*ead_1_c).to_rust()
+    };
 
     let result = match i_prepare_message_1(&state, crypto, c_i, &ead_1) {
         Ok((state, msg_1)) => {
@@ -162,7 +167,11 @@ pub unsafe extern "C" fn initiator_prepare_message_3(
 
     let state = core::ptr::read(&(*initiator_c).processed_m2);
 
-    let ead_3 = (*ead_3_c).to_rust();
+    let ead_3 = if ead_3_c.is_null() {
+        EadItems::new()
+    } else {
+        (*ead_3_c).to_rust()
+    };
 
     match i_prepare_message_3(
         &state,
