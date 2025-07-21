@@ -26,7 +26,7 @@ static HEAP: Heap = Heap::empty();
 pub struct EADItemC {
     pub label: u16,
     pub is_critical: bool,
-    /// The value is only emitted if this is true (otherwise it is an EAD item is just a label)
+    /// The value is only emitted if this is true (otherwise it is an EAD item that has just a label)
     pub has_value: bool,
     /// The bytes of the option
     pub value: EADBuffer,

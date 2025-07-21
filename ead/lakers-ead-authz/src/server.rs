@@ -169,7 +169,7 @@ fn encode_voucher_response(
         .push(CBOR_MAJOR_BYTE_STRING + 1 + VOUCHER_LEN as u8)
         .unwrap();
     // The voucher is double-wrapped in bytes; see
-    // <https://github.com/openwsn-berkeley/lakers/issues/382>
+    // <https://github.com/lake-rs/lakers/issues/382>
     output.push(0x48).unwrap();
     output.extend_from_slice(voucher).unwrap();
 
