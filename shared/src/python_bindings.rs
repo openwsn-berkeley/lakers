@@ -41,7 +41,7 @@ impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
             return Ok(items);
         };
         let value: &Bound<'py, pyo3::types::PySequence> = ob.downcast()?;
-        for item in value.iter()? {
+        for item in value.try_iter()? {
             items
                 .try_push(item?.extract()?)
                 .map_err(|err| PyValueError::new_err(format!("ead already full: {:?}", err)))?;
@@ -50,17 +50,19 @@ impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
     }
 }
 
-impl pyo3::conversion::IntoPy<PyObject> for EadItems {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        let list = pyo3::types::PyList::new_bound(py, core::iter::empty::<PyObject>());
-        // Can't pass it into new_bound as it doesn't have an ExactSizeItertor -- FIXME: should we
+impl<'py> pyo3::conversion::IntoPyObject<'py> for EadItems {
+    type Target = pyo3::types::PyList;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let list = pyo3::types::PyList::new(py, core::iter::empty::<PyObject>())?;
+        // Can't pass it into new as it doesn't have an ExactSizeItertor -- FIXME: should we
         // implement and use that?
         for item in self.iter() {
-            list.append(item.clone().into_py(py))
-                // ... and we can't return an error here anyway.
-                .expect("Appending to a Python list does not realistically err");
+            list.append(item.clone())?;
         }
-        list.into()
+        Ok(list.into())
     }
 }
 
@@ -110,15 +112,15 @@ impl Credential {
     }
 
     fn value<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.bytes.as_slice())
+        PyBytes::new(py, self.bytes.as_slice())
     }
 
     #[pyo3(name = "public_key")]
     fn py_public_key<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, &self.public_key().unwrap())
+        PyBytes::new(py, &self.public_key().unwrap())
     }
 
     fn kid<'a>(&self, py: Python<'a>) -> Bound<'a, PyBytes> {
-        PyBytes::new_bound(py, self.kid.as_ref().unwrap().as_slice())
+        PyBytes::new(py, self.kid.as_ref().unwrap().as_slice())
     }
 }

@@ -35,8 +35,8 @@ impl PyAuthzAutenticator {
         self.authenticator_wait = state;
         let loc_w = std::str::from_utf8(loc_w.as_slice()).unwrap();
         Ok((
-            PyString::new_bound(py, loc_w),
-            PyBytes::new_bound(py, voucher_request.as_slice()),
+            PyString::new(py, loc_w),
+            PyBytes::new(py, voucher_request.as_slice()),
         ))
     }
 

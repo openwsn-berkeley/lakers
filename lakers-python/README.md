@@ -1,5 +1,5 @@
 # Lakers Python
-Python wrapper for the [`lakers` crate](https://github.com/openwsn-berkeley/lakers).
+Python wrapper for the [`lakers` crate](https://github.com/lake-rs/lakers).
 
 # Installation and usage
 

@@ -1,3 +1,4 @@
+use digest::Digest;
 use lakers_shared::{Crypto as CryptoTrait, *};
 
 pub fn edhoc_exporter(
@@ -488,6 +489,8 @@ fn compute_th_2(
     g_y: &BytesP256ElemLen,
     h_message_1: &BytesHashLen,
 ) -> BytesHashLen {
+    // Whether this makes sense to build as a whole on the stack and then hash or feed into a
+    // hasher is probably a stack-size-vs-flash-size trade-off, which has yet to be evaluated.
     let mut message = [0x00; 4 + P256_ELEM_LEN + SHA256_DIGEST_LEN];
     message[0] = CBOR_BYTE_STRING;
     message[1] = P256_ELEM_LEN as u8;
@@ -506,17 +509,15 @@ fn compute_th_3(
     plaintext_2: &BufferPlaintext2,
     cred_r: &[u8],
 ) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+    let mut hash = crypto.sha256_start();
 
-    message[0] = CBOR_BYTE_STRING;
-    message[1] = th_2.len() as u8;
-    message[2..2 + th_2.len()].copy_from_slice(&th_2[..]);
-    message[2 + th_2.len()..2 + th_2.len() + plaintext_2.len()]
-        .copy_from_slice(plaintext_2.as_slice());
-    message[2 + th_2.len() + plaintext_2.len()..2 + th_2.len() + plaintext_2.len() + cred_r.len()]
-        .copy_from_slice(cred_r);
+    hash.update([CBOR_BYTE_STRING, th_2.len() as u8]);
+    hash.update(th_2);
 
-    crypto.sha256_digest(&message[..th_2.len() + 2 + plaintext_2.len() + cred_r.len()])
+    hash.update(plaintext_2.as_slice());
+    hash.update(cred_r);
+
+    hash.finalize().into()
 }
 
 fn compute_th_4(
@@ -525,17 +526,14 @@ fn compute_th_4(
     plaintext_3: &BufferPlaintext3,
     cred_i: &[u8],
 ) -> BytesHashLen {
-    let mut message: BytesMaxBuffer = [0x00; MAX_BUFFER_LEN];
+    let mut hash = crypto.sha256_start();
 
-    message[0] = CBOR_BYTE_STRING;
-    message[1] = th_3.len() as u8;
-    message[2..2 + th_3.len()].copy_from_slice(&th_3[..]);
-    message[2 + th_3.len()..2 + th_3.len() + plaintext_3.len()]
-        .copy_from_slice(plaintext_3.as_slice());
-    message[2 + th_3.len() + plaintext_3.len()..2 + th_3.len() + plaintext_3.len() + cred_i.len()]
-        .copy_from_slice(cred_i);
+    hash.update([CBOR_BYTE_STRING, th_3.len() as u8]);
+    hash.update(th_3);
+    hash.update(plaintext_3.as_slice());
+    hash.update(cred_i);
 
-    crypto.sha256_digest(&message[..th_3.len() + 2 + plaintext_3.len() + cred_i.len()])
+    hash.finalize().into()
 }
 
 // TODO: consider moving this to a new 'edhoc crypto primitives' module

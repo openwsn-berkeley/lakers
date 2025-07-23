@@ -12,12 +12,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.25", features = ["extension-module"], optional = true }
 hex = { version = "0.4.3", optional = true }
 defmt-or-log = { version = "0.2.1", default-features = false }
 log = { version = "0.4", optional = true }
 defmt = { version = "0.3", optional = true }
 hax-lib.workspace = true
+digest = { version = "0.10.7", default-features = false }
 
 [dev-dependencies]
 hexlit = "0.5.3"
