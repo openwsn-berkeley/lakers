@@ -34,33 +34,12 @@ impl From<EdhocBufferError> for PyErr {
     }
 }
 
-#[pymethods]
-impl EADItem {
-    #[new]
-    fn new_py(label: u16, is_critical: bool, value: Vec<u8>) -> Self {
-        Self {
-            label,
-            is_critical,
-            value: Some(EdhocMessageBuffer::new_from_slice(value.as_slice()).unwrap()),
-        }
-    }
-
-    fn value<'a>(&self, py: Python<'a>) -> Option<Bound<'a, PyBytes>> {
-        self.value.as_ref().map(|v| PyBytes::new(py, v.as_slice()))
-    }
-
-    fn label(&self) -> u16 {
-        self.label
-    }
-
-    fn is_critical(&self) -> bool {
-        self.is_critical
-    }
-}
-
 impl<'a, 'py> pyo3::conversion::FromPyObject<'py> for EadItems {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let mut items = EadItems::new();
+        if ob.is_none() {
+            return Ok(items);
+        };
         let value: &Bound<'py, pyo3::types::PySequence> = ob.downcast()?;
         for item in value.try_iter()? {
             items

@@ -62,7 +62,7 @@ pub const AES_CCM_TAG_LEN: usize = 8;
 pub const MAC_LENGTH: usize = 8; // used for EAD Zeroconf
 pub const MAC_LENGTH_2: usize = MAC_LENGTH;
 pub const MAC_LENGTH_3: usize = MAC_LENGTH_2;
-pub const ENCODED_VOUCHER_LEN: usize = 1 + MAC_LENGTH; // 1 byte for the length of the bstr-encoded voucher
+pub const VOUCHER_LEN: usize = MAC_LENGTH;
 pub const MAX_EAD_ITEMS: usize = 4;
 
 // maximum supported length of connection identifier for R
@@ -102,6 +102,10 @@ pub const CBOR_NEG_INT_1BYTE_START: u8 = 0x20u8;
 pub const CBOR_NEG_INT_1BYTE_END: u8 = 0x37u8;
 pub const CBOR_UINT_1BYTE_START: u8 = 0x0u8;
 pub const CBOR_UINT_1BYTE_END: u8 = 0x17u8;
+const CBOR_MAJOR_UNSIGNED: u8 = 0 << 5;
+const CBOR_MAJOR_NEGATIVE: u8 = 1 << 5;
+const CBOR_MAJOR_TAG: u8 = 6 << 5;
+const CBOR_MAJOR_FLOATSIMPLE: u8 = 7 << 5;
 pub const CBOR_MAJOR_TEXT_STRING: u8 = 0x60u8;
 pub const CBOR_MAJOR_BYTE_STRING: u8 = 0x40u8;
 pub const CBOR_MAJOR_BYTE_STRING_MAX: u8 = 0x57u8;
@@ -194,7 +198,7 @@ pub type BufferInfo = EdhocBuffer<MAX_INFO_LEN>;
 pub type BytesEncStructureLen = [u8; ENC_STRUCTURE_LEN];
 
 pub type BytesMac = [u8; MAC_LENGTH];
-pub type BytesEncodedVoucher = [u8; ENCODED_VOUCHER_LEN];
+pub type BytesVoucher = [u8; VOUCHER_LEN];
 pub type EADBuffer = EdhocBuffer<MAX_EAD_LEN>;
 
 /// Value of C_R or C_I, as chosen by ourself or the peer.
@@ -592,13 +596,13 @@ pub type EdhocMessageBuffer = EdhocBuffer<MAX_MESSAGE_SIZE_LEN>;
 #[derive(Clone, Debug)]
 pub struct EADItem {
     /// EAD label of the item
+    label: u16,
+    is_critical: bool,
+    /// Beware that the buffer contains a *CBOR encoded* byte string.
     ///
-    /// # Caveats
-    ///
-    /// Currently, only values up to 23 are supported.
-    pub label: u16,
-    pub is_critical: bool,
-    pub value: Option<EADBuffer>,
+    /// It is a type invariant that any data in here is either empty or contains exactly one CBOR
+    /// item.
+    value: EADBuffer,
 }
 
 impl EADItem {
@@ -606,8 +610,146 @@ impl EADItem {
         EADItem {
             label: 0,
             is_critical: false,
-            value: None,
+            value: EADBuffer::new(),
         }
+    }
+
+    pub fn new_full(
+        label: u16,
+        is_critical: bool,
+        value_bytes: Option<&[u8]>,
+    ) -> Result<Self, EdhocBufferError> {
+        let mut value = EdhocBuffer::new();
+        if let Some(value_bytes) = value_bytes {
+            let mut head = CBOR_MAJOR_BYTE_STRING;
+            if value_bytes.len() <= 23 {
+                head |= value_bytes.len() as u8;
+                value.push(head).unwrap();
+            } else if value_bytes.len() <= u8::MAX.into() {
+                head |= 24;
+                value.push(head).unwrap();
+                value.push(value_bytes.len() as u8).unwrap();
+            } else if value_bytes.len() <= u16::MAX.into() {
+                head |= 24;
+                value.push(head).unwrap();
+                value
+                    .extend_from_slice(&(value_bytes.len() as u16).to_be_bytes())
+                    .unwrap();
+            } else {
+                // EAD items do not grow beyond 64k
+                return Err(EdhocBufferError::SliceTooLong);
+            }
+            value.extend_from_slice(value_bytes)?;
+        };
+
+        Ok(EADItem {
+            label,
+            is_critical,
+            value,
+        })
+    }
+
+    /// The content of the CBOR byte string that is the EAD item's value, if any.
+    #[track_caller]
+    pub fn value_bytes(&self) -> Option<&[u8]> {
+        let slice = self.value.as_slice();
+        if slice.is_empty() {
+            // This is a weird ambiguity case in the current storage format of EADItem, allowing
+            // "no data" to be either None or Some([])
+            return None;
+        }
+        let mut decoder = CBORDecoder::new(slice);
+        let bytes = decoder
+            .bytes()
+            .expect("The value being CBOR bytes is an implicit invariant of the type");
+        debug_assert!(decoder.finished());
+        Some(bytes)
+    }
+
+    /// The encoded CBOR byte string that represents the value (or empty)
+    ///
+    /// This API may easily go away after a transition period if `EADItem` stops storing the
+    /// encoded value.
+    #[track_caller]
+    fn value_encoded(&self) -> &[u8] {
+        // Compute the value just to check the type invariant
+        #[cfg(debug_assertions)]
+        self.value_bytes();
+        self.value.as_slice()
+    }
+
+    pub fn encode(&self) -> Result<EADBuffer, EDHOCError> {
+        let mut output = EdhocBuffer::new();
+
+        let argument_value = if self.is_critical {
+            // We can express "critical padding" in the type, but that'll be just normal padding.
+            self.label.saturating_sub(1)
+        } else {
+            self.label
+        };
+        let head = if self.is_critical {
+            CBOR_MAJOR_NEGATIVE
+        } else {
+            CBOR_MAJOR_UNSIGNED
+        };
+        if argument_value <= 23 {
+            output
+                .push(head | argument_value as u8)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        } else if argument_value <= u8::MAX as _ {
+            output
+                .push(head | 24)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+            output
+                .push(argument_value as u8)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        } else {
+            output
+                .push(head | 25)
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+            output
+                .extend_from_slice(&argument_value.to_be_bytes())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        }
+
+        // encode value (may be empty slice)
+        let ead_1_value = &self.value_encoded();
+        output
+            .extend_from_slice(ead_1_value)
+            .map_err(|_| EDHOCError::EadTooLongError)?;
+
+        Ok(output)
+    }
+}
+
+#[cfg_attr(feature = "python-bindings", pymethods)]
+impl EADItem {
+    pub fn label(&self) -> u16 {
+        self.label
+    }
+
+    pub fn is_critical(&self) -> bool {
+        self.is_critical
+    }
+
+    #[cfg(feature = "python-bindings")]
+    #[new]
+    #[pyo3(signature = (label, is_critical, value=None))]
+    fn new_py(label: u16, is_critical: bool, value: Option<Vec<u8>>) -> Self {
+        Self::new_full(
+            label,
+            is_critical,
+            value.as_ref().map(|value| value.as_slice()),
+        )
+        .expect("EAD item too long to store")
+    }
+
+    #[cfg(feature = "python-bindings")]
+    #[pyo3(name = "value")]
+    fn value_py<'a>(&self, py: Python<'a>) -> Option<Bound<'a, pyo3::types::PyBytes>> {
+        self.value_bytes()
+            .as_ref()
+            .map(|v| pyo3::types::PyBytes::new(py, v))
     }
 }
 
@@ -688,6 +830,19 @@ impl EadItems {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Encodes all items of self into a buffer.
+    ///
+    /// If this errs, some EADs may already have been encoded.
+    pub fn encode<const N: usize>(&self, output: &mut EdhocBuffer<N>) -> Result<(), EDHOCError> {
+        for ead_item in self {
+            let encoded = ead_item.encode()?;
+            output
+                .extend_from_slice(encoded.as_slice())
+                .map_err(|_| EDHOCError::EadTooLongError)?;
+        }
+        Ok(())
+    }
 }
 
 mod helpers {
@@ -749,73 +904,39 @@ mod edhoc_parser {
     }
 
     fn parse_single_ead(input: &[u8]) -> Result<(EADItem, usize), EDHOCError> {
-        let mut offset = 0;
+        let mut decoder = CBORDecoder::new(input);
+        let label = decoder
+            .i32_limited()
+            .map_err(|_| EDHOCError::ParsingError)?;
 
-        let &label = input.get(offset).ok_or(EDHOCError::ParsingError)?;
-        offset += 1;
+        let is_critical = label < 0;
+        let label = label.abs();
 
-        let (label, is_critical) = if CBORDecoder::is_u8(label) {
-            // CBOR unsigned integer (0..=23)
-            (label, false)
-        } else if CBORDecoder::is_i8(label) {
-            // CBOR negative integer (-1..=-24)
-            (label - (CBOR_NEG_INT_1BYTE_START - 1), true)
+        let position_after_label = decoder.position();
+
+        let ead_value = if let Ok(_slice) = decoder.bytes() {
+            // It's not just from `slice`, because EADItem::value is an *encoded* value. (FIXME: It
+            // shouldn't be).
+            EdhocBuffer::new_from_slice(&input[position_after_label..decoder.position()])
+                .map_err(|_| EDHOCError::ParsingError)?
         } else {
-            return Err(EDHOCError::ParsingError);
-        };
-
-        let ead_value = if let Some(&bstr_head) = input.get(offset) {
-            if (bstr_head & 0xe0) == 0x40 {
-                let additional_info = bstr_head & 0x1f;
-                offset += 1;
-
-                // Decode the length based on additional_info
-                let len = match additional_info {
-                    l if l <= 23 => additional_info as usize,
-                    24 => {
-                        let len_byte = *input.get(offset).ok_or(EDHOCError::ParsingError)? as usize;
-                        offset += 1;
-                        len_byte
-                    }
-                    25 => {
-                        let len_bytes = input
-                            .get(offset..offset + 2)
-                            .ok_or(EDHOCError::ParsingError)?;
-                        offset += 2;
-                        u16::from_be_bytes(len_bytes.try_into().unwrap()) as usize
-                    }
-                    26 => {
-                        let len_bytes = input
-                            .get(offset..offset + 4)
-                            .ok_or(EDHOCError::ParsingError)?;
-                        offset += 4;
-                        u32::from_be_bytes(len_bytes.try_into().unwrap()) as usize
-                    }
-                    _ => return Err(EDHOCError::ParsingError),
-                };
-
-                let bstr_bytes = input.get(1..offset + len).ok_or(EDHOCError::ParsingError)?;
-
-                let mut buf = EdhocBuffer::new();
-                buf.fill_with_slice(bstr_bytes)
-                    .map_err(|_| EDHOCError::ParsingError)?;
-                offset += len;
-
-                Some(buf)
-            } else {
-                None
-            }
-        } else {
-            None
+            // If it's not just at the end but a different type, that's an error, but that error is
+            // not for us to raise: Instead, the next item being parsed will trip over its label
+            // not being an integer.
+            EdhocBuffer::new()
         };
 
         let item = EADItem {
-            label: label.into(),
+            label: label
+                .try_into()
+                // That's really only for 0xffff; we could accommodate that if we handled padding
+                // differently and stored the (positive label-1) value
+                .map_err(|_| EDHOCError::ParsingError)?,
             is_critical,
             value: ead_value,
         };
 
-        Ok((item, offset))
+        Ok((item, decoder.position()))
     }
 
     pub fn parse_suites_i(
@@ -1113,6 +1234,44 @@ mod cbor_decoder {
             }
         }
 
+        /// Decode up to 16 bit (1+2 byte) of an unsigned or negative integer into an i32
+        pub fn i32_limited(&mut self) -> Result<i32, CBORError> {
+            let (major, argument) = self.read_major_argument16()?;
+            match major {
+                CBOR_MAJOR_UNSIGNED => Ok(i32::from(argument)),
+                // Can not underflow
+                CBOR_MAJOR_NEGATIVE => Ok(-1 - i32::from(argument)),
+                _ => Err(CBORError::DecodingError),
+            }
+        }
+
+        /// Decodes a major type and up to 16 bit of argument.
+        ///
+        /// When this function is needed here for larget arguments (and unconditionally emitted in
+        /// code), it may make sense to implement this function interms of `read_major_argument32`
+        /// and just map Ok((_, x if x > u16::MAX)) to Err.
+        fn read_major_argument16(&mut self) -> Result<(u8, u16), CBORError> {
+            let head = self.read()?;
+            let info = Self::info_of(head);
+            let value = match info {
+                // Workaround-For: https://github.com/cryspen/hax/issues/925
+                0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17
+                | 18 | 19 | 20 | 21 | 22 | 23 => info.into(),
+                24 => self.read()?.into(),
+                25 => u16::from_be_bytes([self.read()?, self.read()?]),
+                // We do not support those in this function.
+                26 | 27 => return Err(CBORError::DecodingError),
+                // Reserved, not well-formed
+                28 | 29 | 30 => return Err(CBORError::DecodingError),
+                // Indefinite length markers are forbidden in deterministic CBOR (or it's one
+                // of the major types where this is just not well-formed)
+                31 => return Err(CBORError::DecodingError),
+                _ => unreachable!("Value was masked to 5 bits"),
+            };
+
+            Ok((Self::type_of(head), value))
+        }
+
         /// Get the raw `i8` or `u8` value.
         pub fn int_raw(&mut self) -> Result<u8, CBORError> {
             let n = self.read()?;
@@ -1218,7 +1377,7 @@ mod cbor_decoder {
         /// To have bound memory requirements, this depends on the encoded data to be in
         /// deterministic encoding, thus not having any indeterminate length items.
         pub fn any_as_encoded(&mut self) -> Result<&'a [u8], CBORError> {
-            let mut remaining_items = 1;
+            let mut remaining_items: u16 = 1;
             let start = self.position();
 
             // Instead of `while remaining_items > 0`, this loop helps hax to see that the loop
@@ -1232,43 +1391,33 @@ mod cbor_decoder {
             for _ in self.buf.iter() {
                 if remaining_items > 0 {
                     remaining_items -= 1;
-                    let head = self.read()?;
-                    let major = head >> 5;
-                    let minor = head & 0x1f;
-                    let argument = match minor {
-                        // Workaround-For: https://github.com/cryspen/hax/issues/925
-                        0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15
-                        | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 => minor,
-                        24 => self.read()?,
-                        // We do not support values outside the range -256..256.
-                        // FIXME: Sooner or later we should. There is probably an upper bound on
-                        // lengths we need to support (we don't need to support 32bit integer decoding
-                        // for map keys when our maximum buffers are 256 long); will split things up
-                        // here into major-0/1/6/7 where we can just skip 1/2/4/8 bytes vs. the other
-                        // majors where this is an out-of-bounds error anyway, or just have up to 64bit
-                        // decoding available consistently for all?
-                        25 | 26 | 27 => return Err(CBORError::DecodingError),
-                        // Reserved, not well-formed
-                        28 | 29 | 30 => return Err(CBORError::DecodingError),
-                        // Indefinite length markers are forbidden in deterministic CBOR (or it's one
-                        // of the major types where this is just not well-formed)
-                        31 => return Err(CBORError::DecodingError),
-                        _ => unreachable!("Value was masked to 5 bits"),
-                    };
+                    // Reading 16 is already overkill but deduplicates well with other places in
+                    // the code. We' don't expect to have even more than 256 items of any kind in
+                    // any buffer, but reasonably could -- but no need to decode 32 of 64 bit
+                    // values; still, it's probably cheaper to go wiwht any read_major{bignumber}
+                    // than to have an extra implementation here that skips decoding those large
+                    // numbers.
+                    let (major, argument) = self.read_major_argument16()?;
                     match major {
-                        0 | 1 => (), // Argument consumed, remaining items were already decremented
-                        7 => (), // Same, but in separate line due to Hax FStar backend limitations
-                        6 => {
-                            remaining_items += 1;
+                        CBOR_MAJOR_UNSIGNED | CBOR_MAJOR_NEGATIVE | CBOR_MAJOR_FLOATSIMPLE => (), // Argument consumed, remaining items were already decremented
+                        CBOR_MAJOR_TAG => {
+                            remaining_items = remaining_items
+                                .checked_add(1)
+                                .ok_or(CBORError::DecodingError)?;
                         }
-                        2 | 3 => {
+                        CBOR_MAJOR_BYTE_STRING | CBOR_MAJOR_TEXT_STRING => {
                             self.read_slice(argument.into())?;
                         }
-                        4 => {
-                            remaining_items += argument;
+                        CBOR_MAJOR_ARRAY => {
+                            remaining_items = remaining_items
+                                .checked_add(argument)
+                                .ok_or(CBORError::DecodingError)?;
                         }
-                        5 => {
-                            remaining_items += argument * 2;
+                        CBOR_MAJOR_MAP => {
+                            remaining_items = argument
+                                .checked_mul(2)
+                                .and_then(|argarg| remaining_items.checked_add(argarg))
+                                .ok_or(CBORError::DecodingError)?;
                         }
                         _ => unreachable!("Value is result of a right shift trimming it to 3 bits"),
                     }
@@ -1313,29 +1462,34 @@ mod test_cbor_decoder {
 #[cfg(test)]
 mod test_ead_items {
     use super::*;
+    use hexlit::hex;
 
     #[test]
     fn test_ead_items() {
         let mut items = EadItems::new();
         assert_eq!(items.len(), 0);
 
-        for label in 1..=MAX_EAD_ITEMS {
+        for shift in 0..MAX_EAD_ITEMS {
             items
-                .try_push(EADItem {
-                    label: label as u16,
-                    is_critical: label == 1,
-                    value: None,
-                })
+                .try_push(
+                    EADItem::new_full(
+                        // Covers all 3 possible CBOR lengths
+                        1 << (3 * shift),
+                        shift == 0,
+                        if shift == 2 { Some(b"....") } else { None },
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
         items
-            .try_push(EADItem {
-                label: 1234,
-                is_critical: false,
-                value: None,
-            })
+            .try_push(EADItem::new_full(1234, false, None).unwrap())
             .unwrap_err();
+
+        let mut output_buffer = EdhocMessageBuffer::new();
+        items.encode(&mut output_buffer).unwrap();
+        assert_eq!(output_buffer.as_slice(), hex!("20081840442e2e2e2e190200")); // -1, 8, 64, '....', 512
 
         assert_eq!(items.len(), MAX_EAD_ITEMS);
 

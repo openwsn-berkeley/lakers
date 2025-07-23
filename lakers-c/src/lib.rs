@@ -26,26 +26,32 @@ static HEAP: Heap = Heap::empty();
 pub struct EADItemC {
     pub label: u16,
     pub is_critical: bool,
+    /// The value is only emitted if this is true (otherwise it is an EAD item that has just a label)
+    pub has_value: bool,
+    /// The bytes of the option
     pub value: EADBuffer,
 }
 
 impl EADItemC {
     pub fn to_rust(&self) -> EADItem {
-        let value = Some(self.value.clone());
-
-        EADItem {
-            label: self.label,
-            is_critical: self.is_critical,
-            value,
-        }
+        EADItem::new_full(
+            self.label,
+            self.is_critical,
+            if self.has_value {
+                Some(self.value.as_slice())
+            } else {
+                None
+            },
+        )
+        .unwrap()
     }
 
     pub unsafe fn copy_into_c(ead: EADItem, ead_c: *mut EADItemC) {
-        (*ead_c).label = ead.label;
-        (*ead_c).is_critical = ead.is_critical;
-        if let Some(value) = ead.value {
-            (*ead_c).value = value;
-        }
+        (*ead_c).label = ead.label();
+        (*ead_c).is_critical = ead.is_critical();
+        (*ead_c).has_value = ead.value_bytes().is_some();
+        (*ead_c).value =
+            EdhocBuffer::new_from_slice(ead.value_bytes().unwrap_or_default()).unwrap();
     }
 }
 
